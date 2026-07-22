@@ -1,0 +1,638 @@
+/* ── Soporti landing page (Reveni brand) ─────────────────────
+   Public, unauthenticated marketing page mounted at /about. Reuses the
+   brand design tokens from index.css (colors, fonts, radii, spacing). */
+
+.lp {
+  --lp-max: 1120px;
+  --lp-gutter: clamp(1.25rem, 5vw, 3rem);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.lp a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.lp__inner {
+  width: 100%;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding-left: var(--lp-gutter);
+  padding-right: var(--lp-gutter);
+}
+
+/* Section rhythm + alternating backgrounds */
+.lp-section {
+  padding-top: clamp(3.5rem, 8vw, 6.5rem);
+  padding-bottom: clamp(3.5rem, 8vw, 6.5rem);
+}
+.lp-section--warm { background: var(--bg-warm); }
+.lp-section--cool { background: var(--bg-cool); }
+.lp-section--white { background: var(--white); }
+.lp-section--dark {
+  background: var(--green-deep);
+  color: var(--green-inverse);
+}
+
+.lp-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--orange-700);
+}
+.lp-section--dark .lp-eyebrow { color: var(--green-bright); }
+
+.lp-h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin-top: var(--sp3);
+  max-width: 22ch;
+}
+.lp-lead {
+  font-size: clamp(1rem, 1.6vw, 1.18rem);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-top: var(--sp4);
+  max-width: 60ch;
+}
+.lp-section--dark .lp-lead { color: rgba(var(--green-inverse-rgb), 0.72); }
+
+.lp-section__head { margin-bottom: clamp(2rem, 4vw, 3.25rem); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.8rem 1.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+.lp-btn--primary {
+  background: var(--green-bright);
+  color: var(--green-deep);
+}
+.lp-btn--primary:hover {
+  background: var(--green-bright-hover);
+  transform: translateY(-1px);
+}
+.lp-btn--ghost {
+  background: transparent;
+  color: var(--green-inverse);
+  border-color: rgba(var(--green-inverse-rgb), 0.28);
+}
+.lp-btn--ghost:hover { border-color: var(--green-bright); }
+.lp-btn--ink {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.lp-btn--ink:hover { border-color: var(--green-deep); }
+.lp-btn__arrow { transition: transform 0.3s ease; }
+.lp-btn:hover .lp-btn__arrow { transform: translateX(3px); }
+.lp-btn--sm {
+  padding: 0.5rem 0.95rem;
+  font-size: 0.85rem;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────── */
+.lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(var(--bg-warm-rgb), 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+.lp-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+}
+.lp-nav__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp2);
+}
+.lp-nav__logo {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-2xl);
+  color: var(--text-primary);
+}
+.lp-nav__by {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+.lp-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--sp6);
+}
+.lp-nav__link {
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+.lp-nav__link:hover { color: var(--text-primary); }
+@media (max-width: 760px) {
+  .lp-nav__link { display: none; }
+}
+
+/* ── Hero ────────────────────────────────────────────────────── */
+.lp-hero {
+  position: relative;
+  background: var(--green-deep);
+  color: var(--green-inverse);
+  overflow: hidden;
+  isolation: isolate;
+}
+.lp-hero__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.9;
+  mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+}
+.lp-hero__inner {
+  position: relative;
+  z-index: 1;
+  padding-top: clamp(3.5rem, 8vw, 6rem);
+  padding-bottom: clamp(3.5rem, 8vw, 6rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+}
+.lp-hero__text {
+  text-align: left;
+}
+.lp-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green-bright);
+  border: 1px solid rgba(var(--green-bright-rgb), 0.35);
+  background: rgba(var(--green-bright-rgb), 0.08);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-pill);
+}
+.lp-hero__badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-bright);
+  box-shadow: 0 0 0 4px rgba(var(--green-bright-rgb), 0.2);
+}
+.lp-hero__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2.4rem, 6.5vw, 4.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  margin: var(--sp6) 0 0;
+  max-width: 15ch;
+}
+.lp-hero__title em {
+  font-style: italic;
+  color: var(--green-bright);
+}
+.lp-hero__subtitle {
+  font-size: clamp(1.02rem, 1.7vw, 1.2rem);
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.75);
+  margin: var(--sp6) 0 0;
+  max-width: 46ch;
+}
+.lp-hero__cta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp4);
+  flex-wrap: wrap;
+  margin-top: var(--sp8);
+}
+.lp-hero__note {
+  margin-top: var(--sp6);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: rgba(var(--green-inverse-rgb), 0.5);
+  letter-spacing: 0.03em;
+}
+.lp-hero__visual {
+  min-width: 0;
+}
+
+/* Stack the hero on narrower screens: text on top, chat below, both centered */
+@media (max-width: 940px) {
+  .lp-hero__inner {
+    grid-template-columns: 1fr;
+    gap: clamp(2.5rem, 6vw, 3.5rem);
+    justify-items: center;
+  }
+  .lp-hero__text {
+    text-align: center;
+  }
+  .lp-hero__title,
+  .lp-hero__subtitle {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .lp-hero__cta {
+    justify-content: center;
+  }
+  .hero-chat {
+    margin: 0 auto;
+  }
+}
+
+/* ── Stat strip ──────────────────────────────────────────────── */
+.lp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  overflow: hidden;
+}
+.lp-stat {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-right: 1px solid var(--border-default);
+}
+.lp-stat:last-child { border-right: none; }
+.lp-stat__num {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+  color: var(--text-primary);
+  line-height: 1;
+}
+.lp-stat__label {
+  margin-top: var(--sp2);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 760px) {
+  .lp-stats { grid-template-columns: repeat(2, 1fr); }
+  .lp-stat:nth-child(2) { border-right: none; }
+  .lp-stat:nth-child(1), .lp-stat:nth-child(2) { border-bottom: 1px solid var(--border-default); }
+}
+
+/* ── Ask (example questions) ─────────────────────────────────── */
+.lp-ask__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp4);
+}
+.lp-qcard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding: var(--sp6);
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.lp-qcard:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-strong);
+}
+.lp-qcard__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--green-deep);
+  background: var(--success-low);
+  border: 1px solid var(--green-bright);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.7rem;
+}
+.lp-qcard__tag svg { color: var(--green-chart); }
+.lp-qcard__text {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+/* ── Renders showcase ────────────────────────────────────────── */
+.lp-renders__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp6);
+}
+@media (max-width: 860px) {
+  .lp-renders__grid { grid-template-columns: 1fr; }
+}
+.lp-demo {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.lp-demo__head {
+  padding: var(--sp4) var(--sp6);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-cool);
+}
+.lp-demo__kicker {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--orange-700);
+}
+.lp-demo__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin-top: var(--sp1);
+}
+.lp-demo__desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-top: var(--sp2);
+  line-height: 1.5;
+}
+.lp-demo__body {
+  padding: var(--sp6);
+  flex: 1;
+  min-height: 0;
+}
+/* Reuse the real block components but keep them from bleeding out */
+.lp-demo__body .chart-block,
+.lp-demo__body .csv-block { margin: 0; }
+.lp-demo__body pre { margin: 0; }
+
+/* The Mermaid diagram brings its own frame in the chat; the demo card already
+   provides one, so drop the inner frame and let the SVG sit cleanly. */
+.lp-demo__body .mermaid-diagram {
+  margin: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+.lp-demo__body .mermaid-diagram svg {
+  max-height: 340px;
+}
+
+/* ── Integrations ────────────────────────────────────────────── */
+.lp-int__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp4);
+}
+.lp-int {
+  display: flex;
+  gap: var(--sp4);
+  padding: var(--sp6);
+  background: var(--white);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+.lp-int:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.lp-int__icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--green-deep);
+  color: var(--green-inverse);
+}
+.lp-int__name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+.lp-int__desc {
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: var(--sp1);
+}
+
+/* ── Feature columns (profiles / sources / automations) ──────── */
+.lp-feat__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp6);
+}
+/* 4-card grids look lopsided with auto-fit (3 + 1 orphan), so pin them to 2×2. */
+.lp-feat__grid--2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 620px) {
+  .lp-feat__grid--2col {
+    grid-template-columns: 1fr;
+  }
+}
+.lp-feat {
+  padding: var(--sp8);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--sidebar-border);
+  background: var(--green-deep-soft);
+}
+.lp-feat__icon {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-md);
+  background: rgba(var(--green-bright-rgb), 0.14);
+  color: var(--green-bright);
+  margin-bottom: var(--sp4);
+}
+.lp-feat__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-2xl);
+  color: var(--green-inverse);
+}
+.lp-feat__desc {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.72);
+  margin-top: var(--sp3);
+}
+.lp-feat__list {
+  list-style: none;
+  margin-top: var(--sp4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+.lp-feat__list li {
+  position: relative;
+  padding-left: 1.4rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: rgba(var(--green-inverse-rgb), 0.82);
+}
+.lp-feat__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-bright);
+}
+
+/* Light variant of feature cards (for automations on warm bg) */
+.lp-feat--light {
+  background: var(--white);
+  border-color: var(--border-default);
+}
+.lp-feat--light .lp-feat__icon {
+  background: var(--success-low);
+  color: var(--green-chart);
+}
+.lp-feat--light .lp-feat__title { color: var(--text-primary); }
+.lp-feat--light .lp-feat__desc { color: var(--text-secondary); }
+.lp-feat--light .lp-feat__list li { color: var(--text-primary); }
+.lp-feat--light .lp-feat__list li::before { background: var(--green-chart); }
+
+/* ── Safety row ──────────────────────────────────────────────── */
+.lp-safe__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp6);
+}
+.lp-safe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+.lp-safe__icon { color: var(--green-chart); }
+.lp-safe__title { font-weight: 600; font-size: 1rem; }
+.lp-safe__desc { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* ── Final CTA ───────────────────────────────────────────────── */
+.lp-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  text-align: center;
+}
+.lp-cta__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.5;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+}
+.lp-cta__inner { position: relative; z-index: 1; }
+.lp-cta__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.1;
+  color: var(--green-inverse);
+  max-width: 20ch;
+  margin: 0 auto;
+}
+.lp-cta__sub {
+  color: rgba(var(--green-inverse-rgb), 0.7);
+  margin: var(--sp4) auto 0;
+  max-width: 46ch;
+  font-size: 1.05rem;
+}
+.lp-cta__actions {
+  margin-top: var(--sp8);
+  display: flex;
+  gap: var(--sp4);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.lp-footer {
+  background: var(--green-deep);
+  color: rgba(var(--green-inverse-rgb), 0.6);
+  border-top: 1px solid var(--sidebar-border);
+  padding: var(--sp8) 0;
+}
+.lp-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp4);
+}
+.lp-footer__logo {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--green-inverse);
+}
+.lp-footer__small { font-size: 0.8rem; font-family: var(--font-mono); }
+
+/* ── Scroll reveal ───────────────────────────────────────────── */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.lp-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal { opacity: 1; transform: none; transition: none; }
+  .lp { scroll-behavior: auto; }
+}
+
+/* ── Split layout (copy + visual) ────────────────────────────── */
+.lp-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+.lp-split__visual {
+  min-width: 0;
+}
+.lp-ci-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  margin-top: var(--sp6);
+}
+@media (max-width: 860px) {
+  .lp-split {
+    grid-template-columns: 1fr;
+  }
+}

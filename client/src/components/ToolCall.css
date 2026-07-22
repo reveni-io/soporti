@@ -1,0 +1,101 @@
+.tool-call {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp2);
+  margin: var(--sp1) 0;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  line-height: 1rem;
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  transition: all 0.2s ease;
+}
+
+.tool-call--running {
+  border-color: rgba(var(--green-bright-rgb), 0.6);
+  background-color: var(--green-inverse);
+  color: var(--text-primary);
+}
+
+.tool-call--done {
+  opacity: 0.6;
+}
+
+.tool-call__status-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--green-chart);
+}
+
+.tool-call--running .tool-call__status-icon {
+  color: transparent;
+}
+
+.tool-call--running .tool-call__status-icon::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(var(--green-chart-rgb), 0.25);
+  border-top-color: var(--green-chart);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tool-call__emoji {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+}
+
+.tool-call__label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-xs);
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.tool-call__detail {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 350px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1rem;
+}
+
+.tool-call--running .tool-call__detail {
+  color: var(--text-secondary);
+}
+
+.tool-call__duration {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .tool-call__detail {
+    max-width: 140px;
+  }
+}

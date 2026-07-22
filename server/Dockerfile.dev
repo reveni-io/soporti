@@ -1,0 +1,10 @@
+# Development image: installs deps and runs the server with hot-reload.
+# Source is bind-mounted by docker-compose; node_modules stays in the image.
+FROM node:20-alpine
+RUN apk add --no-cache git
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY . .
+EXPOSE 3001
+CMD ["npm", "run", "dev"]

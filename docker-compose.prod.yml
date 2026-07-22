@@ -1,0 +1,65 @@
+# Production stack: PostgreSQL + server + built client served by nginx, all on
+# one box. The required settings are JWT_SECRET and POSTGRES_PASSWORD (e.g.
+# `openssl rand -hex 32` each into .env). Everything else — OpenAI, GitHub,
+# Slack, Notion, ... — is configured from the /admin panel after the first
+# boot (see docs/deployment.md).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# The client and the API share one origin (nginx proxies /api to the server),
+# so no CORS or VITE_API_URL configuration is needed.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: soporti
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - set it in .env (openssl rand -hex 32)}
+      POSTGRES_DB: soporti
+    # No host port: only the server reaches it on the compose network.
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U soporti']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://soporti:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - set it in .env (openssl rand -hex 32)}@db:5432/soporti
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - set it in .env (openssl rand -hex 32)}
+      # The image listens on 8080; override any PORT leaking in from .env.
+      PORT: '8080'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO /dev/null http://127.0.0.1:8080/api/auth/methods || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Empty = same-origin: nginx proxies /api to the server container.
+        VITE_API_URL: ''
+        # Only needed for Google sign-in (off by default on fresh installs).
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    restart: unless-stopped
+    ports:
+      - '${APP_PORT:-8080}:80'
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  pgdata_prod:

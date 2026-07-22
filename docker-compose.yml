@@ -1,0 +1,58 @@
+# Development stack: `npm run docker:up` brings up Postgres + server + client
+# with hot-reload. Not intended for production deployment.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: soporti
+      POSTGRES_PASSWORD: soporti
+      POSTGRES_DB: soporti
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U soporti']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      # Override so the server reaches the db container, not localhost.
+      DATABASE_URL: postgresql://soporti:soporti@db:5432/soporti
+      PORT: '3001'
+    ports:
+      - '3001:3001'
+    volumes:
+      # Bind-mount source for hot-reload; node_modules stays in the image.
+      - ./server/src:/app/src
+      # Migrations are applied on boot; mount so new ones are picked up without rebuild.
+      - ./server/drizzle:/app/drizzle
+    depends_on:
+      db:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+      # Vite proxies /api to the server container instead of localhost.
+      VITE_PROXY_TARGET: http://server:3001
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+
+volumes:
+  pgdata:

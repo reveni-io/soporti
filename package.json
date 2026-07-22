@@ -1,0 +1,36 @@
+{
+  "name": "soporti",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered code assistant that helps support and engineering teams understand and navigate code repositories.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reveni-io/soporti.git"
+  },
+  "homepage": "https://github.com/reveni-io/soporti#readme",
+  "bugs": {
+    "url": "https://github.com/reveni-io/soporti/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Reveni",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npx concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up -d --build",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "build:client": "npm run build --prefix client",
+    "lint": "npm run lint --prefix server && npm run lint --prefix client && prettier --check \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\"",
+    "format": "prettier --write \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\"",
+    "test": "npm test --prefix server && npm test --prefix client",
+    "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.8.1"
+  }
+}

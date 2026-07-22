@@ -1,0 +1,41 @@
+/* Custom-instructions modal. Structure comes from the .modal/.btn/.textarea
+   primitives (styles/ui.css); only what is specific to this modal lives here. */
+
+.settings-modal {
+  max-width: 640px;
+}
+
+.settings-modal__description {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.settings-modal__textarea {
+  min-height: 240px;
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: 1.375rem;
+}
+
+.settings-modal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp3);
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+}
+
+.settings-modal__count {
+  color: var(--text-muted);
+}
+
+.settings-modal__error {
+  color: var(--orange-900);
+}
+
+.settings-modal__saved {
+  color: var(--green-chart);
+}

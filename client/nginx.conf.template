@@ -1,0 +1,39 @@
+# Rendered by the nginx image entrypoint: ${API_PROXY_TARGET} is substituted
+# from the environment (nginx's own $variables are left untouched).
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    location /api/ {
+        proxy_pass ${API_PROXY_TARGET};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # /api/chat streams SSE: responses must pass through unbuffered, and
+        # agent turns can run long.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        # GitHub webhook deliveries can carry large PR payloads.
+        client_max_body_size 25m;
+    }
+
+    # Vite emits content-hashed filenames under /assets: cache them forever.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA fallback: client-side routes resolve to index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

@@ -1,0 +1,95 @@
+.shared-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-app);
+}
+
+.shared-view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp3) var(--sp6);
+  border-bottom: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+}
+
+.shared-view__brand {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-xl);
+  color: var(--text-primary);
+}
+
+.shared-view__badge {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  padding: var(--sp1) var(--sp2);
+  border-radius: var(--radius-sm);
+}
+
+.shared-view__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp6) var(--sp6) var(--sp2);
+}
+
+.shared-view__footer {
+  padding: var(--sp3) var(--sp6);
+  border-top: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  text-align: center;
+}
+
+.shared-view__footer p {
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  line-height: 0.75rem;
+  color: var(--text-muted);
+}
+
+.shared-view__loading,
+.shared-view__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+}
+
+.shared-view__error h2 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-3xl);
+  color: var(--text-primary);
+  margin-bottom: var(--sp2);
+}
+
+.shared-view__error p {
+  font-size: var(--fs-base);
+  max-width: 400px;
+}
+
+@media (max-width: 768px) {
+  .shared-view__header {
+    padding: var(--sp2) var(--sp3);
+  }
+
+  .shared-view__messages {
+    padding: var(--sp4) var(--sp3) var(--sp2);
+  }
+
+  .shared-view__footer {
+    padding: var(--sp2) var(--sp3);
+  }
+}

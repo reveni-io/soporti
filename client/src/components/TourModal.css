@@ -1,0 +1,137 @@
+/* Onboarding tour modal. Structure comes from the .modal/.btn/.chip primitives
+   (styles/ui.css); only what is specific to this modal lives here. */
+
+.tour-modal {
+  position: relative;
+  gap: 0; /* body/footer manage their own spacing */
+  min-height: 380px;
+  max-height: 85vh;
+}
+
+/* The close button floats over the body instead of sitting in a header row. */
+.tour-modal__close {
+  position: absolute;
+  top: var(--sp3);
+  right: var(--sp3);
+  font-size: var(--fs-2xl);
+  padding: var(--sp1);
+}
+
+.tour-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: var(--sp2);
+}
+
+.tour-modal__title {
+  margin-bottom: var(--sp3);
+  padding-right: var(--sp6);
+}
+
+.tour-modal__description {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: 1.375rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp4);
+}
+
+.tour-modal__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  margin-bottom: var(--sp4);
+}
+
+.tour-modal__bullets {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: 1.375rem;
+  color: var(--text-secondary);
+  padding-left: var(--sp4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.tour-modal__examples {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp2);
+  margin-bottom: var(--sp4);
+}
+
+.tour-modal__examples-hint {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.tour-modal__example {
+  padding: var(--sp2) var(--sp4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1rem;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.tour-modal__example:hover {
+  border-color: var(--green-bright);
+  background-color: var(--green-inverse);
+  color: var(--text-primary);
+}
+
+.tour-modal__image {
+  max-width: 100%;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.tour-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp4);
+  margin-top: var(--sp4);
+  padding-top: var(--sp4);
+  border-top: 1px solid var(--border-default);
+}
+
+.tour-modal__dots {
+  display: flex;
+  gap: var(--sp2);
+}
+
+.tour-modal__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background-color: var(--border-high);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tour-modal__dot--active {
+  background-color: var(--green-bright);
+}
+
+.tour-modal__nav {
+  display: flex;
+  gap: var(--sp2);
+}
+
+@media (max-width: 768px) {
+  .tour-modal {
+    max-height: 90vh;
+    padding: var(--sp4);
+  }
+}

@@ -1,0 +1,66 @@
+# One-click deploy template for DigitalOcean App Platform, used by the
+# "Deploy to DO" button in the README:
+#   https://cloud.digitalocean.com/apps/new?repo=https://github.com/reveni-io/soporti/tree/main
+#
+# Provisions the whole stack on a single app: the server container (routed
+# under /api), the client as a static site (routed at /) and a development
+# PostgreSQL database. Client and API share one origin, so no CORS or
+# VITE_API_URL configuration is needed.
+#
+# The only value the wizard asks for is JWT_SECRET (openssl rand -hex 32).
+# Everything else (OpenAI key/model, integrations, users) is configured from
+# the /admin panel after the first boot — see docs/deployment.md.
+spec:
+  name: soporti
+
+  services:
+    - name: server
+      github:
+        repo: reveni-io/soporti
+        branch: main
+      source_dir: server
+      dockerfile_path: server/Dockerfile
+      http_port: 8080
+      instance_count: 1
+      instance_size_slug: basic-xxs
+      # Express serves everything under /api, so the prefix must reach the
+      # container unstripped.
+      routes:
+        - path: /api
+          preserve_path_prefix: true
+      health_check:
+        http_path: /api/auth/methods
+      envs:
+        - key: JWT_SECRET
+          scope: RUN_TIME
+          type: SECRET
+        - key: DATABASE_URL
+          scope: RUN_TIME
+          value: ${db.DATABASE_URL}
+        # Same-origin deployment: pin CORS to the app's own URL.
+        - key: CORS_ORIGIN
+          scope: RUN_TIME
+          value: ${APP_URL}
+
+  static_sites:
+    - name: client
+      github:
+        repo: reveni-io/soporti
+        branch: main
+      source_dir: client
+      build_command: npm run build
+      output_dir: dist
+      catchall_document: index.html
+      routes:
+        - path: /
+      envs:
+        # Only needed for Google sign-in (off by default). Must match the
+        # client id saved in /admin -> Authentication.
+        - key: VITE_GOOGLE_CLIENT_ID
+          scope: BUILD_TIME
+          value: ''
+
+  databases:
+    - name: db
+      engine: PG
+      production: false

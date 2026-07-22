@@ -1,0 +1,133 @@
+/* Fake chat window for the hero. The messages inside reuse the real chat's
+   classes (.message, .tool-call, .message__typing from Message/ToolCall css),
+   so styling stays in sync with the product automatically. */
+
+.hero-chat {
+  width: 100%;
+  max-width: 460px;
+  margin-left: auto;
+}
+
+.hero-chat__window {
+  display: flex;
+  flex-direction: column;
+  height: 430px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(var(--green-inverse-rgb), 0.06);
+  overflow: hidden;
+  animation:
+    heroChatIn 0.6s ease both,
+    heroChatFloat 7s ease-in-out 0.6s infinite;
+}
+
+@keyframes heroChatIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heroChatFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Window chrome */
+.hero-chat__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-cool);
+}
+.hero-chat__dots {
+  display: flex;
+  gap: 6px;
+}
+.hero-chat__dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.hero-chat__bar-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-left: var(--sp2);
+}
+.hero-chat__badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green-chart);
+  background: var(--success-low);
+  border: 1px solid var(--green-bright);
+  border-radius: var(--radius-pill);
+  padding: 0.15rem 0.5rem;
+}
+
+/* Messages area */
+.hero-chat__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp4);
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 16px);
+  mask-image: linear-gradient(to bottom, transparent 0, black 16px);
+}
+.hero-chat__scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Tool pills animate in like the messages do, and stay inside the narrow panel */
+.hero-chat .tool-call {
+  animation: fadeIn 0.2s ease;
+  min-width: 0;
+}
+.hero-chat .tool-call__detail {
+  min-width: 0;
+}
+.hero-chat .message__bubble--assistant {
+  max-width: 92%;
+}
+
+.hero-chat__text {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: 1.3rem;
+}
+
+@media (max-width: 480px) {
+  .hero-chat__window {
+    height: 380px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-chat__window {
+    animation: heroChatIn 0.4s ease both;
+  }
+}

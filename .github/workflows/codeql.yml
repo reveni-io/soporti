@@ -1,0 +1,30 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 6 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze (javascript)
+    runs-on: ubuntu-latest
+    # Code scanning is free only on public repositories (private repos need the
+    # paid GitHub Code Security add-on), so skip while this repo is private.
+    # Once the repo is public this runs on every push/PR; if the weekly
+    # scheduled run still skips (its event payload may lack the repository
+    # object), remove this condition.
+    if: github.event.repository.private == false
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3

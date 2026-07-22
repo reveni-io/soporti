@@ -1,0 +1,25 @@
+/* Share-conversation modal. Structure comes from the .modal/.btn/.input
+   primitives (styles/ui.css); only what is specific to this modal lives here. */
+
+.share-modal {
+  max-width: 440px;
+}
+
+.share-modal__url-row {
+  display: flex;
+  gap: var(--sp2);
+}
+
+.share-modal__url-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-cool);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.share-modal__notice {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

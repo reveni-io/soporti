@@ -1,0 +1,268 @@
+/* ── Shared UI primitives ─────────────────────────────────────
+   Reusable building blocks for every surface (chat, admin, login, modals).
+   They only consume tokens from index.css — no hardcoded values.
+
+   How to build new UI:
+   1. Reach for a primitive here first (.btn, .input, .card, .modal, .alert…).
+   2. Compose it with a component class for layout tweaks:
+        <button className="btn btn--primary my-feature__save">
+   3. Only add component-specific CSS for layout/structure. If you need a new
+      *style* (a new button look, a new alert flavor), add it HERE as a variant
+      so the next feature can reuse it.
+   4. Never hardcode colors/shadows/sizes — add a token to index.css instead. */
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp4);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  line-height: 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background-color: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-color);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background-color: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
+}
+
+.btn--primary:disabled {
+  background-color: var(--btn-primary-disabled-bg);
+  border-color: var(--btn-primary-disabled-bg);
+  color: var(--btn-primary-disabled-color);
+}
+
+.btn--secondary {
+  background-color: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  border-color: var(--green-mid);
+  color: var(--text-primary);
+}
+
+.btn--secondary:disabled {
+  opacity: 0.5;
+}
+
+.btn--danger {
+  background-color: var(--btn-danger-bg);
+  border-color: var(--btn-danger-bg);
+  color: var(--btn-danger-color);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: var(--btn-danger-bg-hover);
+  border-color: var(--btn-danger-bg-hover);
+}
+
+.btn--sm {
+  padding: var(--sp1) var(--sp3);
+  font-size: var(--fs-md);
+  line-height: 1rem;
+}
+
+.btn--block {
+  display: flex;
+  width: 100%;
+}
+
+/* ── Form controls ───────────────────────────────────────────── */
+.input,
+.textarea {
+  padding: var(--sp2) var(--sp3);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--green-bright);
+  box-shadow: var(--focus-ring);
+}
+
+.input:disabled,
+.textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.textarea {
+  width: 100%;
+  padding: var(--sp3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.textarea--code {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-md);
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+/* Card floating on a dark page (login, admin bootstrap) */
+.card--floating {
+  box-shadow: var(--shadow-float);
+}
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  width: 100%;
+  max-width: 560px;
+  margin: 0 var(--sp4);
+  padding: var(--sp6);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-2xl);
+  color: var(--text-primary);
+}
+
+.modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--fs-3xl);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.modal__close:hover {
+  color: var(--text-primary);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp2);
+}
+
+/* ── Alerts & notes ──────────────────────────────────────────── */
+.alert {
+  padding: var(--sp2) var(--sp4);
+  font-size: var(--fs-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.alert--error,
+.alert--warning {
+  color: var(--orange-900);
+  background-color: var(--orange-50);
+  border-color: var(--orange-300);
+}
+
+/* Informational note (setup hints, side remarks) */
+.note {
+  padding: var(--sp2) var(--sp4);
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Badges & chips ──────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0 var(--sp2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.badge--success {
+  color: var(--green-deep);
+  background-color: var(--success-low);
+  border-color: var(--green-chart);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+  padding: var(--sp1) var(--sp2);
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.chip--pill {
+  gap: var(--sp2);
+  padding: var(--sp1) var(--sp3);
+  font-size: var(--fs-sm);
+  line-height: 1.25rem;
+  border-radius: var(--radius-pill);
+}
+
+.chip svg {
+  flex-shrink: 0;
+  color: var(--text-primary);
+}

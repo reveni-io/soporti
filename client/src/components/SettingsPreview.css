@@ -1,0 +1,39 @@
+/* Preview of the Custom instructions panel on the landing. Reuses the real
+   .settings-modal* classes (bundled globally) and only tweaks what differs when
+   the modal is shown inline, on a page, instead of over an overlay. */
+
+.lp-ci-preview .settings-modal {
+  margin: 0;
+  max-width: 100%;
+  box-shadow: 0 24px 60px rgba(var(--green-deep-rgb), 0.16);
+}
+
+/* The textarea is faked with a div so it can hold the typing caret. */
+.lp-ci-textarea {
+  min-height: 190px;
+  white-space: pre-wrap;
+  overflow: hidden;
+  cursor: default;
+}
+
+.lp-ci-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: -2px;
+  background: var(--green-chart);
+  animation: lpCaretBlink 1s step-end infinite;
+}
+
+@keyframes lpCaretBlink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-ci-caret {
+    animation: none;
+  }
+}

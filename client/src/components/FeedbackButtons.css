@@ -1,0 +1,27 @@
+.feedback {
+  display: flex;
+  align-items: center;
+  gap: var(--sp1);
+  margin-top: var(--sp2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.feedback--done {
+  font-style: italic;
+}
+
+.feedback__btn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--sp2);
+  cursor: pointer;
+  font-size: var(--fs-base);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.feedback__btn:hover {
+  background: var(--bg-cool);
+  border-color: var(--border-strong);
+}

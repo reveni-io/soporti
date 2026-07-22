@@ -1,0 +1,162 @@
+/* ── Design tokens (Reveni brand) ───────────
+   This file is the single source of truth for the client theme.
+   Rules:
+   - Component CSS must consume these tokens — never hardcode hex/rgba values.
+   - Alpha variants derive from the *-rgb triplets: rgba(var(--green-deep-rgb), 0.15).
+   - Shared UI primitives (.btn, .input, .modal, …) live in styles/ui.css — use
+     them before writing new component-specific button/input/modal styles. */
+:root {
+  /* Brand primitives */
+  --white: #ffffff;
+  --green-bright: #6ce869; /* CTAs and highlights */
+  --green-bright-hover: #57d754;
+  --green-deep: #042503; /* main ink, near-black green */
+  --green-deep-soft: #0d3a0b; /* raised surfaces on dark panels */
+  --green-inverse: #f0fbee; /* text on dark green */
+  --green-mid: #556654;
+  --green-low: #8a9d89;
+  --green-chart: #2f9e2c; /* chart-safe brand green */
+  --bg-warm: #faf4f0; /* warm cream */
+  --bg-cool: #f2f5f2; /* cool light green-grey */
+  --border-low: #e4eae3;
+  --border-high: #bfc9bf;
+  --success-low: #e3fbe3;
+
+  /* RGB triplets — use for alpha variants: rgba(var(--green-deep-rgb), 0.15) */
+  --green-bright-rgb: 108, 232, 105;
+  --green-deep-rgb: 4, 37, 3;
+  --green-inverse-rgb: 240, 251, 238;
+  --green-chart-rgb: 47, 158, 44;
+  --bg-warm-rgb: 250, 244, 240;
+
+  --orange-50: #fdeadd;
+  --orange-300: #f2b280;
+  --orange-500: #f28536; /* brand accent */
+  --orange-700: #c05e10;
+  --orange-900: #a34c08;
+
+  --overlay-primary: rgba(var(--green-deep-rgb), 0.45);
+
+  --link-color: #c05e10;
+  --link-hover: #f28536;
+
+  /* Semantic tokens (light theme) */
+  --bg-app: var(--bg-warm);
+  --bg-surface: var(--white);
+  --bg-surface-raised: var(--white);
+  --bg-input: var(--white);
+  --bg-sidebar: var(--green-deep);
+
+  --text-primary: var(--green-deep);
+  --text-secondary: var(--green-mid);
+  --text-muted: var(--green-low);
+  --text-on-accent: var(--green-deep);
+
+  --border-default: var(--border-low);
+  --border-strong: var(--border-high);
+
+  /* Sidebar (dark green panel) tokens */
+  --sidebar-text: var(--green-inverse);
+  --sidebar-text-soft: rgba(var(--green-inverse-rgb), 0.65);
+  --sidebar-text-muted: rgba(var(--green-inverse-rgb), 0.45);
+  --sidebar-border: rgba(var(--green-inverse-rgb), 0.14);
+  --sidebar-hover: rgba(var(--green-inverse-rgb), 0.07);
+  --sidebar-selected: rgba(var(--green-bright-rgb), 0.14);
+  --sidebar-selected-border: rgba(var(--green-bright-rgb), 0.35);
+
+  /* Button tokens */
+  --btn-primary-bg: var(--green-bright);
+  --btn-primary-bg-hover: var(--green-bright-hover);
+  --btn-primary-color: var(--green-deep);
+  --btn-primary-disabled-bg: var(--border-low);
+  --btn-primary-disabled-color: var(--green-low);
+  --btn-danger-bg: var(--orange-500);
+  --btn-danger-bg-hover: var(--orange-700);
+  --btn-danger-color: var(--white);
+
+  /* Focus ring (canonical focus treatment for inputs/controls) */
+  --focus-ring: 0 0 0 3px rgba(var(--green-bright-rgb), 0.25);
+
+  /* Shadows */
+  --shadow-card-hover: 0 12px 32px rgba(var(--green-deep-rgb), 0.08); /* light cards on hover */
+  --shadow-modal: 0 12px 40px rgba(var(--green-deep-rgb), 0.15); /* modals over the app */
+  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.35); /* cards floating on dark pages */
+  --shadow-drawer: 4px 0 24px rgba(var(--green-deep-rgb), 0.3); /* mobile sidebar drawer */
+
+  /* Radius (Reveni scale) */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --sp1: 0.25rem;
+  --sp2: 0.5rem;
+  --sp3: 0.75rem;
+  --sp4: 1rem;
+  --sp5: 1.25rem;
+  --sp6: 1.5rem;
+  --sp8: 2rem;
+  --sp10: 2.5rem;
+  --sp16: 4rem;
+
+  /* Typography (Reveni brand: serif headings, DM Sans body, DM Mono labels) */
+  --font-heading: 'Shippori Mincho', Georgia, serif;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-body-bold: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-mono: 'DM Mono', 'Roboto Mono', monospace;
+
+  /* Font-size scale (app surfaces; the landing may use fluid clamp() display sizes) */
+  --fs-2xs: 0.625rem; /* 10px — mono micro-labels */
+  --fs-xs: 0.688rem; /* 11px — metadata, tool calls, hints */
+  --fs-sm: 0.75rem; /* 12px — small UI text, table headers */
+  --fs-md: 0.813rem; /* 13px — secondary body, buttons in modals */
+  --fs-base: 0.875rem; /* 14px — body default */
+  --fs-lg: 1rem; /* 16px */
+  --fs-xl: 1.125rem; /* 18px — section titles */
+  --fs-2xl: 1.25rem; /* 20px — modal titles */
+  --fs-3xl: 1.5rem; /* 24px — page titles */
+}
+
+/* ── Reset ────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  letter-spacing: 0;
+  color: var(--text-primary);
+  background-color: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--green-bright);
+  color: var(--green-deep);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-high);
+  border-radius: 3px;
+}
