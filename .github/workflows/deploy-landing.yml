@@ -1,0 +1,65 @@
+name: Deploy landing to GitHub Pages
+
+# Publishes ONLY the standalone marketing landing (client/src/landing.jsx) as a
+# static site. The chat/login/admin app is NOT deployed here — it needs the
+# backend. See client/vite.landing.config.js.
+#
+# Custom domain: set a repository variable LANDING_DOMAIN (e.g. soporti.reveni.com)
+# and a CNAME file is written into the artifact so Pages serves it there. Without
+# it, the site is served at the default project-page URL (…github.io/soporti/).
+# Either way the build is identical (relative asset base).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - '.github/workflows/deploy-landing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress run.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build landing
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run build:landing
+      - name: Write CNAME for custom domain (optional)
+        if: vars.LANDING_DOMAIN != ''
+        run: echo "${{ vars.LANDING_DOMAIN }}" > dist-landing/CNAME
+      # Pages artifact deploys are served as-is (no Jekyll), but this is a cheap
+      # guard against any future underscore-prefixed asset paths.
+      - run: touch dist-landing/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: client/dist-landing
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

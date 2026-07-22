@@ -234,10 +234,13 @@ function Section({ className = '', children, id }) {
 
 /* ── Page ──────────────────────────────────────────────────────── */
 
-export default function Landing() {
+export default function Landing({ hideCta = false }) {
   // When there's already a session, the CTA reads "Enter" and goes straight to
   // the chat; otherwise it's a "Log in" button pointing at /login. We never
   // auto-redirect an authenticated visitor away from this page.
+  // `hideCta` is set by the standalone GitHub Pages build (src/landing.jsx),
+  // which ships this marketing page without a reachable chat/login backend, so
+  // the login/app buttons are dropped (section anchors stay).
   const loggedIn = !!readAuthToken()
   const cta = loggedIn ? { href: '/chat', label: 'Open Soporti' } : { href: '/login', label: 'Log in' }
 
@@ -263,10 +266,12 @@ export default function Landing() {
             <a className="lp-nav__link" href="#automations">
               Automations
             </a>
-            <a className="lp-btn lp-btn--primary lp-btn--sm" href={cta.href}>
-              {cta.label}
-              <Arrow />
-            </a>
+            {!hideCta && (
+              <a className="lp-btn lp-btn--primary lp-btn--sm" href={cta.href}>
+                {cta.label}
+                <Arrow />
+              </a>
+            )}
           </div>
         </div>
       </nav>
@@ -290,10 +295,12 @@ export default function Landing() {
               what it finds in plain language. No spelunking required.
             </p>
             <div className="lp-hero__cta">
-              <a className="lp-btn lp-btn--primary" href={cta.href}>
-                {cta.label}
-                <Arrow />
-              </a>
+              {!hideCta && (
+                <a className="lp-btn lp-btn--primary" href={cta.href}>
+                  {cta.label}
+                  <Arrow />
+                </a>
+              )}
               <a className="lp-btn lp-btn--ghost" href="#renders">
                 See what it can do
               </a>
@@ -631,12 +638,14 @@ export default function Landing() {
         <div className="lp__inner lp-cta__inner">
           <h2 className="lp-cta__title">Stop guessing. Just ask Soporti.</h2>
           <p className="lp-cta__sub">Your AI teammate for code, data &amp; docs — one question away.</p>
-          <div className="lp-cta__actions">
-            <a className="lp-btn lp-btn--primary" href={cta.href}>
-              {cta.label}
-              <Arrow />
-            </a>
-          </div>
+          {!hideCta && (
+            <div className="lp-cta__actions">
+              <a className="lp-btn lp-btn--primary" href={cta.href}>
+                {cta.label}
+                <Arrow />
+              </a>
+            </div>
+          )}
         </div>
       </section>
 
