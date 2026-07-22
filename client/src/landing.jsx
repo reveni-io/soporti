@@ -13,5 +13,5 @@ import './styles/ui.css'
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Landing hideCta />
-  </StrictMode>,
+  </StrictMode>
 )
