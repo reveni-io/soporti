@@ -14,7 +14,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:landing": "vite build --config vite.landing.config.js",
     "preview": "vite preview",
+    "preview:landing": "vite preview --outDir dist-landing",
     "lint": "eslint src/",
     "test": "vitest run",
     "test:watch": "vitest",
