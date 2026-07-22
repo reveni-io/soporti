@@ -1,6 +1,6 @@
 # Development image: runs the Vite dev server with hot-reload.
 # Source is bind-mounted by docker-compose; node_modules stays in the image.
-FROM node:20-alpine
+FROM node:26-alpine
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install

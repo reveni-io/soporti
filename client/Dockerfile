@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 # Empty default = same-origin API calls: every client fetch is
 # `${VITE_API_URL}/api/...`, so an empty value makes them relative and nginx
