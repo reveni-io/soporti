@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:26-alpine
 RUN apk add --no-cache git
 WORKDIR /app
 COPY package.json package-lock.json* ./
