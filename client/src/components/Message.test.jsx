@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import Message from './Message.jsx'
 
 vi.mock('react-syntax-highlighter', () => ({
@@ -179,6 +180,51 @@ describe('Message', () => {
     }
     render(<Message message={message} isStreaming={false} token="tok" />)
     expect(screen.getByTestId('code-block')).toBeInTheDocument()
+  })
+
+  it('renders a copy button on code blocks when not streaming', () => {
+    const message = {
+      role: 'assistant',
+      parts: [{ type: 'text', content: '```javascript\nconst x = 1;\n```' }],
+    }
+    render(<Message message={message} isStreaming={false} token="tok" />)
+    expect(screen.getByRole('button', { name: /copy code/i })).toBeInTheDocument()
+  })
+
+  it('does not render a copy button on code blocks while streaming', () => {
+    const message = {
+      role: 'assistant',
+      parts: [{ type: 'text', content: '```javascript\nconst x = 1;\n```' }],
+    }
+    render(<Message message={message} isStreaming={true} token="tok" />)
+    expect(screen.queryByRole('button', { name: /copy code/i })).not.toBeInTheDocument()
+  })
+
+  it('copies the code to the clipboard and shows feedback', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    const message = {
+      role: 'assistant',
+      parts: [{ type: 'text', content: '```javascript\nconst x = 1;\n```' }],
+    }
+    render(<Message message={message} isStreaming={false} token="tok" />)
+
+    await userEvent.click(screen.getByRole('button', { name: /copy code/i }))
+
+    expect(writeText).toHaveBeenCalledWith('const x = 1;')
+    await waitFor(() => expect(screen.getByText('Copied!')).toBeInTheDocument())
+  })
+
+  it('does not render a copy button on inline code', () => {
+    const message = {
+      role: 'assistant',
+      parts: [{ type: 'text', content: '```\nsome code\n```' }],
+    }
+    render(<Message message={message} isStreaming={false} token="tok" />)
+    expect(screen.queryByRole('button', { name: /copy code/i })).not.toBeInTheDocument()
   })
 
   it('returns null for unknown part types', () => {

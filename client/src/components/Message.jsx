@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -60,6 +61,68 @@ function wrapMermaidBlocks(text) {
   return result.join('\n')
 }
 
+function CodeCopyButton({ code }) {
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef(null)
+
+  useEffect(() => () => clearTimeout(timerRef.current), [])
+
+  function handleCopy() {
+    if (!navigator.clipboard) return
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <button
+      type="button"
+      className="code-block__copy"
+      onClick={handleCopy}
+      aria-label={copied ? 'Copied' : 'Copy code'}
+    >
+      {copied ? (
+        <>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Copied!
+        </>
+      ) : (
+        <>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          Copy
+        </>
+      )}
+    </button>
+  )
+}
+
 function CodeBlock({ children, className, isStreaming, token }) {
   const match = /language-(\w+)/.exec(className || '')
   const language = match ? match[1] : ''
@@ -114,15 +177,21 @@ function CodeBlock({ children, className, isStreaming, token }) {
   }
 
   return (
-    <SyntaxHighlighter
-      style={oneDark}
-      language={language}
-      PreTag="div"
-      customStyle={{ margin: '8px 0', borderRadius: '8px', fontSize: '13px', background: '#042503' }}
-      codeTagProps={{ style: { background: 'transparent' } }}
-    >
-      {code}
-    </SyntaxHighlighter>
+    <div className="code-block">
+      <div className="code-block__header">
+        <span className="code-block__lang">{language}</span>
+        {!isStreaming && <CodeCopyButton code={code} />}
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language}
+        PreTag="div"
+        customStyle={{ margin: 0, borderRadius: 0, fontSize: '13px', background: '#042503' }}
+        codeTagProps={{ style: { background: 'transparent' } }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
   )
 }
 
