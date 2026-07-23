@@ -130,6 +130,18 @@ Ask yourself:
 
 If your diff is over **300 lines of code** (excluding test files and lock files), it's probably too big. Split it up.
 
+### 7. Bump the version
+
+**Every PR to `main` must bump the product version** in the root `package.json`. This is a required CI check (`Version bump check`) — your PR cannot be merged without a semver-increasing version. Pick the bump that matches your change:
+
+```bash
+npm version patch --no-git-tag-version   # bug fix / small change
+npm version minor --no-git-tag-version    # new feature, backward-compatible
+npm version major --no-git-tag-version    # breaking change
+```
+
+Run it at the repo root (not in `server/` or `client/` — those stay unversioned) and commit the change. On merge, CI tags the commit `vX.Y.Z` and publishes a GitHub Release automatically, so **never create tags by hand**.
+
 ## Code Standards
 
 ### General
