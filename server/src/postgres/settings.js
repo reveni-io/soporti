@@ -14,10 +14,10 @@ import { getConfigValue, setConfigValue } from '../db/app-config.js'
 export const POSTGRES_CONNECTION_KEY = 'postgres_connection'
 export const POSTGRES_MAX_ROWS_KEY = 'postgres_max_rows'
 
-// Default row cap and a hard ceiling. The ceiling keeps an admin from setting a
-// value large enough to blow up the agent's context window.
+// Default row cap. There is no hard ceiling — an admin can set any value >= 1.
+// A very large value can overflow the agent's context window, so raise it
+// deliberately.
 export const DEFAULT_MAX_ROWS = 100
-export const MAX_ROWS_CEILING = 1000
 
 const CACHE_TTL_MS = 60_000
 const cache = new Map() // key -> { value, expiresAt }
@@ -50,13 +50,13 @@ export async function isPostgresConfigured() {
   return Boolean(await getPostgresConnection())
 }
 
-// Returns the effective row cap for query results, clamped to
-// [1, MAX_ROWS_CEILING]. Falls back to DEFAULT_MAX_ROWS when unset or invalid.
+// Returns the effective row cap for query results (>= 1). Falls back to
+// DEFAULT_MAX_ROWS when unset or invalid. No upper bound is enforced.
 export async function getPostgresMaxRows() {
   const stored = await getCached(POSTGRES_MAX_ROWS_KEY)
   const n = Number(stored)
   if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_ROWS
-  return Math.min(Math.floor(n), MAX_ROWS_CEILING)
+  return Math.floor(n)
 }
 
 // Persists the row cap. Pass null (or an empty value) to clear it and revert to

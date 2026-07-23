@@ -7,8 +7,8 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet({ connectionConfigured = false, maxRows = 100, maxRowsCeiling = 1000 } = {}) {
-  return { ok: true, status: 200, json: async () => ({ connectionConfigured, maxRows, maxRowsCeiling }) }
+function mockGet({ connectionConfigured = false, maxRows = 100 } = {}) {
+  return { ok: true, status: 200, json: async () => ({ connectionConfigured, maxRows }) }
 }
 
 describe('AdminDatabase', () => {

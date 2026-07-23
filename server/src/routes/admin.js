@@ -20,7 +20,6 @@ import {
   setPostgresConnection,
   getPostgresMaxRows,
   setPostgresMaxRows,
-  MAX_ROWS_CEILING,
 } from '../postgres/settings.js'
 import { getShopifyTokenQuery, setShopifyTokenQuery, STORE_PLACEHOLDER } from '../shopify/settings.js'
 import { draftShopifyTokenQuery } from '../shopify/query-drafter.js'
@@ -693,7 +692,7 @@ router.put('/config/sentry/org', async (req, res) => {
 router.get('/config/postgres', async (_req, res) => {
   try {
     const [connection, maxRows] = await Promise.all([getPostgresConnection(), getPostgresMaxRows()])
-    res.json({ connectionConfigured: Boolean(connection), maxRows, maxRowsCeiling: MAX_ROWS_CEILING })
+    res.json({ connectionConfigured: Boolean(connection), maxRows })
   } catch (err) {
     console.error('Admin get postgres config error:', err)
     res.status(500).json({ error: 'Failed to read the database settings.' })
@@ -725,8 +724,8 @@ router.put('/config/postgres/connection', async (req, res) => {
 })
 
 // PUT /api/admin/config/postgres/max-rows — sets the cap on rows returned by
-// the agent's query tool. An empty value resets it to the default. The value is
-// clamped to [1, MAX_ROWS_CEILING]; out-of-range values are rejected.
+// the agent's query tool. An empty value resets it to the default. The value
+// must be an integer >= 1; there is no upper bound.
 router.put('/config/postgres/max-rows', async (req, res) => {
   const { maxRows } = req.body ?? {}
 
@@ -742,8 +741,8 @@ router.put('/config/postgres/max-rows', async (req, res) => {
   }
 
   const n = Number(maxRows)
-  if (!Number.isInteger(n) || n < 1 || n > MAX_ROWS_CEILING) {
-    return res.status(400).json({ error: `"maxRows" must be an integer between 1 and ${MAX_ROWS_CEILING}.` })
+  if (!Number.isInteger(n) || n < 1) {
+    return res.status(400).json({ error: '"maxRows" must be an integer greater than or equal to 1.' })
   }
 
   try {

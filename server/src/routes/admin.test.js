@@ -102,7 +102,6 @@ vi.mock('../postgres/settings.js', () => ({
   setPostgresConnection,
   getPostgresMaxRows,
   setPostgresMaxRows,
-  MAX_ROWS_CEILING: 1000,
 }))
 vi.mock('../shopify/settings.js', () => ({
   getShopifyTokenQuery,
@@ -774,7 +773,7 @@ describe('GET /api/admin/config/postgres', () => {
     const res = await request(app).get('/api/admin/config/postgres')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ connectionConfigured: true, maxRows: 250, maxRowsCeiling: 1000 })
+    expect(res.body).toEqual({ connectionConfigured: true, maxRows: 250 })
     expect(JSON.stringify(res.body)).not.toContain('secret')
   })
 
@@ -784,7 +783,7 @@ describe('GET /api/admin/config/postgres', () => {
 
     const res = await request(app).get('/api/admin/config/postgres')
 
-    expect(res.body).toEqual({ connectionConfigured: false, maxRows: 100, maxRowsCeiling: 1000 })
+    expect(res.body).toEqual({ connectionConfigured: false, maxRows: 100 })
   })
 })
 
@@ -855,9 +854,19 @@ describe('PUT /api/admin/config/postgres/max-rows', () => {
     expect(setPostgresMaxRows).toHaveBeenCalledWith(null)
   })
 
-  it('rejects non-integers and out-of-range values', async () => {
+  it('accepts a large value (no upper bound)', async () => {
+    getPostgresMaxRows.mockResolvedValue(5000)
+
+    const res = await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 5000 })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ maxRows: 5000 })
+    expect(setPostgresMaxRows).toHaveBeenCalledWith(5000)
+  })
+
+  it('rejects non-integers and values below 1', async () => {
     expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 0 })).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 5000 })).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: -5 })).status).toBe(400)
     expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 2.5 })).status).toBe(400)
     expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 'abc' })).status).toBe(400)
     expect(setPostgresMaxRows).not.toHaveBeenCalled()
