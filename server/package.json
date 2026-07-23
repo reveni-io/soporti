@@ -33,7 +33,7 @@
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
-    "express-rate-limit": "^8.5.2",
+    "express-rate-limit": "^8.6.0",
     "fast-xml-parser": "^5.9.3",
     "google-auth-library": "^10.9.0",
     "helmet": "^8.0.0",
