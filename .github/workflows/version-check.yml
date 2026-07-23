@@ -1,0 +1,37 @@
+name: Version
+
+# Every PR to main must bump the product version in the root package.json.
+# This job is meant to be a REQUIRED status check (Settings -> Branches -> main),
+# so a PR cannot be merged without a semver-increasing version. Merges then get a
+# unique version, which release.yml turns into a git tag + GitHub Release.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  version-check:
+    name: Version bump check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure the root version was bumped
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1
+          git show "origin/$BASE_REF:package.json" > base-package.json
+          node -e '
+            const fs = require("fs");
+            const base = JSON.parse(fs.readFileSync("base-package.json", "utf8")).version;
+            const head = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            const parts = v => v.split("-")[0].split(".").map(Number);
+            const a = parts(base), b = parts(head);
+            let cmp = 0;
+            for (let i = 0; i < 3; i++) { const d = (b[i] || 0) - (a[i] || 0); if (d) { cmp = d; break; } }
+            if (cmp <= 0) {
+              console.error(`::error::Root package.json version must be bumped (semver-increasing) on every PR to main. base=${base}, this PR=${head}. Run e.g. \`npm version patch --no-git-tag-version\` at the repo root and commit.`);
+              process.exit(1);
+            }
+            console.log(`Version bump OK: ${base} -> ${head}`);
+          '

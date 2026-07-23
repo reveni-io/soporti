@@ -126,3 +126,9 @@ Optional integrations: PR-review tunables (`REVIEW_LABEL`, `REVIEW_REVIEWER_LOGI
 
 - All code (variables, functions, comments) is written in English
 - Docker support exists in both `server/Dockerfile` and `client/Dockerfile` (multi-stage build + nginx serving `dist/` with an `/api` proxy — SSE-safe, SPA fallback; proxy target via `API_PROXY_TARGET`)
+
+## Versioning & releases
+
+- The product version lives in the **root `package.json`** (`version`) — the single source of truth. `server` and `client` are private and stay at `0.0.0`; do not version them separately.
+- **Every PR to `main` MUST bump the root version** (semver-increasing). This is enforced by `.github/workflows/version-check.yml` ("Version bump check"), which is a required status check — a PR cannot merge without it. Bump with `npm version <patch|minor|major> --no-git-tag-version` at the repo root and commit. When reviewing a PR, flag a missing version bump as a standards violation.
+- On merge to `main`, `.github/workflows/release.yml` tags the commit `vX.Y.Z` and publishes a GitHub Release with auto-generated notes. No manual tagging.
