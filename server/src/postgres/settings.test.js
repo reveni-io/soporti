@@ -13,7 +13,6 @@ const {
   POSTGRES_CONNECTION_KEY,
   POSTGRES_MAX_ROWS_KEY,
   DEFAULT_MAX_ROWS,
-  MAX_ROWS_CEILING,
   _resetPostgresSettingsCacheForTests,
 } = await import('./settings.js')
 
@@ -103,9 +102,9 @@ describe('getPostgresMaxRows', () => {
     expect(getConfigValue).toHaveBeenCalledWith(POSTGRES_MAX_ROWS_KEY)
   })
 
-  it('clamps to the ceiling and floors fractional values', async () => {
+  it('does not cap large values and floors fractional values', async () => {
     getConfigValue.mockResolvedValue(999999)
-    expect(await getPostgresMaxRows()).toBe(MAX_ROWS_CEILING)
+    expect(await getPostgresMaxRows()).toBe(999999)
 
     _resetPostgresSettingsCacheForTests()
     getConfigValue.mockResolvedValue(10.9)

@@ -13,7 +13,6 @@ export default function AdminDatabase({ token, onLogout }) {
   const [savedAt, setSavedAt] = useState(null)
 
   const [maxRows, setMaxRows] = useState('')
-  const [maxRowsCeiling, setMaxRowsCeiling] = useState(1000)
   const [savingMaxRows, setSavingMaxRows] = useState(false)
   const [maxRowsError, setMaxRowsError] = useState(null)
   const [maxRowsSavedAt, setMaxRowsSavedAt] = useState(null)
@@ -37,7 +36,6 @@ export default function AdminDatabase({ token, onLogout }) {
         if (!active) return
         setConnectionConfigured(data.connectionConfigured)
         setMaxRows(String(data.maxRows ?? ''))
-        if (data.maxRowsCeiling) setMaxRowsCeiling(data.maxRowsCeiling)
       } catch (err) {
         if (active) setError(err.message)
       } finally {
@@ -194,7 +192,7 @@ export default function AdminDatabase({ token, onLogout }) {
         <h2 className="admin__section-title">Row limit</h2>
         <p className="admin__muted">
           Maximum number of rows a single query returns. Keeps large result sets from overflowing the assistant&apos;s
-          context. Leave empty to reset to the default (100). Capped at {maxRowsCeiling}.
+          context. Leave empty to reset to the default (100). A very high value can overflow that context.
         </p>
 
         {maxRowsError && <p className="alert alert--error">{maxRowsError}</p>}
@@ -204,7 +202,6 @@ export default function AdminDatabase({ token, onLogout }) {
             className="input"
             type="number"
             min="1"
-            max={maxRowsCeiling}
             step="1"
             placeholder="100"
             value={maxRows}
