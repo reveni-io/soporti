@@ -271,13 +271,7 @@ export default function Landing({ hideCta = false }) {
             <a className="lp-nav__link" href="#automations">
               Automations
             </a>
-            <a
-              className="lp-nav__gh"
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Soporti on GitHub"
-            >
+            <a className="lp-nav__gh" href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="Soporti on GitHub">
               <IntegrationIcon id="github" size={18} />
               <span className="lp-nav__gh-label">GitHub</span>
             </a>
