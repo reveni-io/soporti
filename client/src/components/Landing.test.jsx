@@ -46,10 +46,22 @@ describe('Landing', () => {
   })
 
   it('lists the connected integrations', () => {
-    render(<Landing />)
-    expect(screen.getByText('GitHub')).toBeInTheDocument()
-    expect(screen.getByText('Help Center')).toBeInTheDocument()
-    expect(screen.getByText('Shopify')).toBeInTheDocument()
+    const { container } = render(<Landing />)
+    // Scope to the integration cards — "GitHub" also appears as a nav/footer
+    // source link, so query the card names specifically.
+    const intNames = [...container.querySelectorAll('.lp-int__name')].map(el => el.textContent)
+    expect(intNames).toContain('GitHub')
+    expect(intNames).toContain('Help Center')
+    expect(intNames).toContain('Shopify')
+  })
+
+  it('links to the public GitHub repository (nav + footer, always visible)', () => {
+    render(<Landing hideCta />)
+    const ghLinks = screen.getAllByRole('link', { name: /github/i })
+    expect(ghLinks.length).toBeGreaterThanOrEqual(2)
+    ghLinks.forEach(link => {
+      expect(link).toHaveAttribute('href', 'https://github.com/reveni-io/soporti')
+    })
   })
 
   it('shows real example questions', () => {

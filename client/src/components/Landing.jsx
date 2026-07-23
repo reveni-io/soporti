@@ -12,6 +12,11 @@ import './Landing.css'
 
 /* ── Content data ──────────────────────────────────────────────── */
 
+// Public source repository — the landing is shown both inside the app and as a
+// standalone GitHub Pages build, so this link is always visible (never gated by
+// `hideCta`, which only drops the login/app buttons).
+const GITHUB_URL = 'https://github.com/reveni-io/soporti'
+
 // Example questions, mirroring the curated pool in example-questions.js.
 const QUESTIONS = [
   {
@@ -265,6 +270,10 @@ export default function Landing({ hideCta = false }) {
             </a>
             <a className="lp-nav__link" href="#automations">
               Automations
+            </a>
+            <a className="lp-nav__gh" href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="Soporti on GitHub">
+              <IntegrationIcon id="github" size={18} />
+              <span className="lp-nav__gh-label">GitHub</span>
             </a>
             {!hideCta && (
               <a className="lp-btn lp-btn--primary lp-btn--sm" href={cta.href}>
@@ -654,6 +663,10 @@ export default function Landing({ hideCta = false }) {
         <div className="lp__inner lp-footer__inner">
           <span className="lp-footer__logo">Soporti</span>
           <span className="lp-footer__small">An open-source tool by Reveni · Read-only by design</span>
+          <a className="lp-footer__gh" href={GITHUB_URL} target="_blank" rel="noreferrer">
+            <IntegrationIcon id="github" size={16} />
+            View on GitHub
+          </a>
         </div>
       </footer>
     </div>

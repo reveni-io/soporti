@@ -154,8 +154,18 @@
   transition: color 0.2s ease;
 }
 .lp-nav__link:hover { color: var(--text-primary); }
+.lp-nav__gh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+.lp-nav__gh:hover { color: var(--text-primary); }
 @media (max-width: 760px) {
   .lp-nav__link { display: none; }
+  .lp-nav__gh-label { display: none; }
 }
 
 /* ── Hero ────────────────────────────────────────────────────── */
@@ -599,6 +609,15 @@
   color: var(--green-inverse);
 }
 .lp-footer__small { font-size: 0.8rem; font-family: var(--font-mono); }
+.lp-footer__gh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: 0.85rem;
+  color: rgba(var(--green-inverse-rgb), 0.6);
+  transition: color 0.2s ease;
+}
+.lp-footer__gh:hover { color: var(--green-inverse); }
 
 /* ── Scroll reveal ───────────────────────────────────────────── */
 .lp-reveal {
