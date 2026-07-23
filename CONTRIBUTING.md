@@ -178,6 +178,16 @@ If you're using AI tools to write code:
 - AI tools often generate code that looks correct but doesn't match the project's conventions. Adapt it.
 - If you can't explain what a piece of code does, don't commit it.
 
+## Database Migrations (Drizzle)
+
+The app's own schema (`server/src/db/schema.js`) is managed with [Drizzle ORM](https://orm.drizzle.team/). Migration SQL is committed under `server/drizzle/` and applied automatically on server boot. After changing the schema, regenerate the migration and commit it with your change:
+
+```bash
+npm run db:generate --prefix server   # create a new migration from the schema
+npm run db:migrate --prefix server    # apply migrations to DATABASE_URL (optional; the server also does this on boot)
+npm run db:studio --prefix server     # browse the database in Drizzle Studio
+```
+
 ## PR Description
 
 Every PR must include:

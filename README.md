@@ -26,19 +26,6 @@ One-click deploys for DigitalOcean App Platform and Render — see the [deployme
 | --- | --- |
 | ![Sidebar sources selector with YOLO mode, integrations and repos](client/public/tour/sources.png) | ![Sidebar profile toggle between Support and Tech](client/public/tour/profiles.png) |
 
-## Architecture
-
-```
-soporti/
-├── client/          # React 19 + Vite
-├── server/          # Express + OpenAI Agents SDK
-└── package.json     # Root coordinator
-```
-
-**Server** — Express app with OpenAI Agent SDK integration, SSE streaming, shallow git clone pool with LRU eviction, and conditional tool registration based on configured integrations.
-
-**Client** — React 19 SPA with chat interface, sidebar for repo/profile selection, and specialized renderers for code blocks, diagrams, and charts.
-
 ## Prerequisites
 
 - Node.js 20+ (or Docker + Docker Compose for the containerized setups)
@@ -103,15 +90,7 @@ This starts both the server (port 3001) and client (port 5173) concurrently. Ope
 3. In `/admin` → OpenAI, set the API key and model (there is no default model — the chat won't run until both are set).
 4. Configure any integrations you want from the panel, and create regular users in `/admin` → Users (there is no self-registration).
 
-### Set up Google Sign-In (optional)
-
-Google sign-in is **off by default** on fresh installs; password sign-in is on.
-
-1. In the [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** of type **Web application**.
-2. Under **Authorized JavaScript origins**, add `http://localhost:5173` (and your production origin).
-3. Copy the generated Client ID into `VITE_GOOGLE_CLIENT_ID` in `.env` (it is baked into the client build), save the same value in `/admin` → Authentication, and enable the Google method there.
-
-The allowed Google domains are configured in `/admin` → Authentication (an empty list allows any verified Google account).
+Google sign-in is optional and **off by default** (password sign-in is on) — see [Set up Google Sign-In](docs/deployment.md#set-up-google-sign-in) in the deployment guide to enable it.
 
 ## Scripts
 
@@ -128,40 +107,6 @@ The allowed Google domains are configured in `/admin` → Authentication (an emp
 | `npm run test:coverage` | Run all tests with coverage reports |
 | `npm run dev --prefix server` | Server only |
 | `npm run dev --prefix client` | Client only |
-
-## Testing
-
-The project uses [Vitest](https://vitest.dev/) for both server and client. All external services are mocked — tests run fast with no external dependencies.
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run only server or client tests
-npm test --prefix server
-npm test --prefix client
-
-# Watch mode
-npm run test:watch --prefix server
-npm run test:watch --prefix client
-```
-
-### Server test tiers
-
-- **Pure functions** — `sanitize`, `formatter`, `system-prompt`
-- **Core business logic** — `auth`, `sessions`, `shares`, `repo-pool`
-- **External API clients** — GitHub, Notion, PostgreSQL, Sentry, Shortcut (all mocked)
-- **Route integration** — supertest-based tests for all Express endpoints including SSE streaming
-- **Agent & Slack** — agent factory, tool registration, Slack session mapping and message handling
-
-### Client tests
-
-- **Hooks** — `useAuth` (login/logout/token persistence), `useChat` (SSE streaming, message state, abort)
-- **Components** — Login, Chat, Message, Sidebar, ToolCall, ShareModal, SharedView, ChartBlock, MermaidDiagram
-- **Integration** — App-level tests covering auth flow, repo selection, and share modal
 
 ## Optional Integrations
 
@@ -185,61 +130,20 @@ A handful of operational tunables (not integration credentials) are still read f
 
 #### Slack ticket auto-diagnose (optional)
 
-```env
-SLACK_AUTODIAGNOSE_LIST_ID=F0XXXXXXX
-# SLACK_AUTODIAGNOSE_COLUMN_NAME=Diagnosis
-```
+Soporti can auto-triage support tickets filed as items in a [Slack List](https://slack.com/help/articles/27452748828179-Use-lists-in-Slack): it polls the List and writes an autonomous diagnosis into each new ticket's diagnosis column. Enable it by setting `SLACK_AUTODIAGNOSE_LIST_ID` — see [Slack ticket auto-diagnose](docs/deployment.md#slack-ticket-auto-diagnose) for the required bot scopes and one-time setup.
 
-Soporti can auto-triage support tickets filed in a channel via a request-form workflow that stores each ticket as an item in a [Slack List](https://slack.com/help/articles/27452748828179-Use-lists-in-Slack). It polls the List, and for every item whose diagnosis column is still empty it reads the ticket (and any screenshots), runs an autonomous diagnosis with the full support toolset, and writes the result — preliminary diagnosis, proposed fixes if it looks like a bug, and a recommendation for support — back into that column. Enabled only when `SLACK_AUTODIAGNOSE_LIST_ID` is set. One-time setup: add the bot scopes `lists:read`, `lists:write`, `files:read` and reinstall the app; give the bot access to the List; add a Text column named like `SLACK_AUTODIAGNOSE_COLUMN_NAME` (the empty column doubles as the "not yet diagnosed" marker, so a diagnosis is never duplicated and tickets survive restarts). To avoid diagnosing the whole historical backlog on first activation, archived tickets are always skipped and you can set `SLACK_AUTODIAGNOSE_SKIP_BEFORE` to the go-live timestamp so only tickets created after it are diagnosed. Posting the diagnosis as a list-item *comment* is not possible — the Slack Lists API has no comment-write method — so the diagnosis lands in a field.
+## Deployment
 
-## App database (Drizzle ORM)
+The fastest path is the **Deploy to DigitalOcean** / **Deploy to Render** buttons at the top of this README, which provision the whole stack (server, client, PostgreSQL) from [`.do/deploy.template.yaml`](.do/deploy.template.yaml) and [`render.yaml`](render.yaml).
 
-The app's own data (the `users` table) lives in the database pointed to by `DATABASE_URL`, managed with [Drizzle ORM](https://orm.drizzle.team/). The schema is defined in `server/src/db/schema.js` and migration SQL is committed under `server/drizzle/`. The server applies pending migrations on boot.
-
-After changing the schema, regenerate the migration:
-
-```bash
-npm run db:generate --prefix server   # create a new migration from the schema
-npm run db:migrate --prefix server     # apply migrations to DATABASE_URL (optional; the server also does this on boot)
-npm run db:studio --prefix server      # browse the database in Drizzle Studio
-```
-
-## Docker
-
-### Development (recommended)
-
-`docker-compose.yml` runs the full stack — PostgreSQL, server, and client — with hot-reload, using `server/Dockerfile.dev` and `client/Dockerfile.dev`:
-
-```bash
-npm run docker:up     # build + start everything
-npm run docker:down   # stop
-```
-
-Postgres data persists in the `pgdata` volume. To inspect the users table:
-
-```bash
-docker compose exec db psql -U soporti -d soporti -c 'select email, last_login_at from users;'
-```
-
-### Production
-
-`docker-compose.prod.yml` runs the full production stack — PostgreSQL, the server, and the built client served by nginx (which proxies `/api` to the server, so everything shares one origin). The only required setting is `JWT_SECRET`:
+To self-host, `docker-compose.prod.yml` runs the full production stack — PostgreSQL, the server, and the built client served by nginx on one origin. The only required setting is `JWT_SECRET`:
 
 ```bash
 cp .env.example .env    # set JWT_SECRET (openssl rand -hex 32)
 npm run docker:prod     # open http://localhost:8080, then follow the first-run flow
-npm run docker:prod:down
 ```
 
-The standalone production images (`server/Dockerfile`, `client/Dockerfile`) can also be deployed separately — e.g. the client as a static site and the server as a container on a PaaS. See [docs/deployment.md](docs/deployment.md) for the full guide: first-run flow, environment reference, split deployments, and operational notes.
-
-Prefer a hosted setup? The **Deploy to DigitalOcean** and **Deploy to Render** buttons at the top of this README provision the whole stack (server, client, PostgreSQL) from [`.do/deploy.template.yaml`](.do/deploy.template.yaml) and [`render.yaml`](render.yaml) respectively — see [One-click deploys](docs/deployment.md#one-click-deploys).
-
-## Tech Stack
-
-**Server:** Express, OpenAI Agents SDK, Octokit, Slack Bolt, pg, Zod, Helmet
-
-**Client:** React 19, Vite, React Markdown, React Syntax Highlighter, Recharts, remark-gfm
+The standalone images (`server/Dockerfile`, `client/Dockerfile`) can also be deployed separately — e.g. the client as a static site and the server as a container on a PaaS. See [docs/deployment.md](docs/deployment.md) for the full guide: first-run flow, environment reference, split deployments, and operational notes.
 
 ## Security
 

@@ -190,6 +190,35 @@ First run: open the server service → **Logs**, copy the one-time setup code,
 then visit `https://<client>.onrender.com/admin` and follow the
 [first-run flow](#first-run-flow-both-shapes).
 
+## Set up Google Sign-In
+
+Google sign-in is **off by default** on fresh installs; password sign-in is on.
+
+1. In the [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials), create an **OAuth 2.0 Client ID** of type **Web application**.
+2. Under **Authorized JavaScript origins**, add your production origin (and `http://localhost:5173` for local development).
+3. Set the generated Client ID as `VITE_GOOGLE_CLIENT_ID` at client **build time** (it is baked into the bundle), save the same value in `/admin` → Authentication, and enable the Google method there. The two must match — the server verifies Google tokens against the value stored in `/admin`.
+
+The allowed Google domains are configured in `/admin` → Authentication (an empty list allows any verified Google account).
+
+## Slack ticket auto-diagnose
+
+Soporti can auto-triage support tickets filed in a channel via a request-form workflow that stores each ticket as an item in a [Slack List](https://slack.com/help/articles/27452748828179-Use-lists-in-Slack). It polls the List, and for every item whose diagnosis column is still empty it reads the ticket (and any screenshots), runs an autonomous diagnosis with the full support toolset, and writes the result — preliminary diagnosis, proposed fixes if it looks like a bug, and a recommendation for support — back into that column.
+
+Enabled only when `SLACK_AUTODIAGNOSE_LIST_ID` is set:
+
+```env
+SLACK_AUTODIAGNOSE_LIST_ID=F0XXXXXXX
+# SLACK_AUTODIAGNOSE_COLUMN_NAME=Diagnosis
+```
+
+One-time setup:
+
+1. Add the bot scopes `lists:read`, `lists:write`, `files:read` and reinstall the Slack app.
+2. Give the bot access to the List.
+3. Add a Text column named like `SLACK_AUTODIAGNOSE_COLUMN_NAME` (default `Diagnosis`). The empty column doubles as the "not yet diagnosed" marker, so a diagnosis is never duplicated and tickets survive restarts.
+
+To avoid diagnosing the whole historical backlog on first activation, archived tickets are always skipped and you can set `SLACK_AUTODIAGNOSE_SKIP_BEFORE` to the go-live timestamp so only tickets created after it are diagnosed. Posting the diagnosis as a list-item *comment* is not possible — the Slack Lists API has no comment-write method — so the diagnosis lands in a field.
+
 ## Operational notes
 
 - **Migrations** run automatically on server boot; no separate deploy step.
