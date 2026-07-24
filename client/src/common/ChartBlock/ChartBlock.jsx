@@ -17,8 +17,6 @@ import {
   Legend,
 } from 'recharts'
 
-// Fixed-order categorical palette derived from the Reveni brand, validated
-// for CVD separation and contrast on a light surface.
 const DEFAULT_COLORS = ['#2f9e2c', '#3f7fbf', '#e07020', '#6f4fc0', '#b8952e', '#c85a94']
 
 const TOOLTIP_STYLE = {

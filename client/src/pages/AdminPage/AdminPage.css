@@ -1,5 +1,5 @@
 .admin {
-  position: relative; /* anchors the GridPattern canvas behind the content */
+  position: relative;
   min-height: 100vh;
   background-color: var(--bg-app);
   color: var(--text-primary);
@@ -20,7 +20,6 @@
   overflow: hidden;
 }
 
-/* Layout on top of .card .card--floating */
 .admin__card {
   position: relative;
   z-index: 1;
@@ -76,7 +75,6 @@
   padding: var(--sp8);
 }
 
-/* Layout on top of .card */
 .admin__nav {
   display: flex;
   flex-direction: column;
@@ -147,7 +145,6 @@
   min-width: 0;
 }
 
-/* Layout on top of .card */
 .admin__section {
   display: flex;
   flex-direction: column;

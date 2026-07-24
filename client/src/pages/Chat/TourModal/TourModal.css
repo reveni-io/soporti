@@ -1,14 +1,10 @@
-/* Onboarding tour modal. Structure comes from the .modal/.btn/.chip primitives
-   (styles/ui.css); only what is specific to this modal lives here. */
-
 .tour-modal {
   position: relative;
-  gap: 0; /* body/footer manage their own spacing */
+  gap: 0;
   min-height: 380px;
   max-height: 85vh;
 }
 
-/* The close button floats over the body instead of sitting in a header row. */
 .tour-modal__close {
   position: absolute;
   top: var(--sp3);

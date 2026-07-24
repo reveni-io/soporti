@@ -1,21 +1,15 @@
 import { useEffect, useRef } from 'react'
 import './GridPattern.css'
 
-// The Reveni brand grid pattern turned into a live background: orange dots
-// wander randomly along the grid lines, leaving a fading trail behind, and
-// the grid lights up in a circle around the cursor.
 const CELL = 120
 const OFFSET_X = -24
 const OFFSET_Y = -45
-// Canvas drawing can't read CSS custom properties, so these literals mirror the
-// brand tokens in index.css (orange-500, green-deep, green-mid, bg-warm,
-// border-high). Keep them in sync if the tokens ever change.
-const DOT = '#F28536' // orange-500
-const TRAIL_LIFE = 2.4 // seconds a trail point stays visible
-const DWELL_CHANCE = 0.18 // chance to pause when reaching an intersection
-const MAX_DT = 0.05 // clamp big frame gaps (tab switches)
-const MIN_SEP = 2.5 * CELL // minimum distance kept between walkers
-const HOVER_RADIUS = 220 // radius of the grid glow that follows the cursor
+const DOT = '#F28536'
+const TRAIL_LIFE = 2.4
+const DWELL_CHANCE = 0.18
+const MAX_DT = 0.05
+const MIN_SEP = 2.5 * CELL
+const HOVER_RADIUS = 220
 
 const VARIANTS = {
   dark: {
@@ -23,7 +17,7 @@ const VARIANTS = {
     line: '#556654',
     lineAlpha: 0.8,
     dotAlpha: 0.4,
-    trail: '167, 181, 166', // #A7B5A6, the pale trace color from the brand pattern
+    trail: '167, 181, 166',
     trailMax: 0.8,
     hoverMax: 0.9,
   },
@@ -32,7 +26,7 @@ const VARIANTS = {
     line: '#bfc9bf',
     lineAlpha: 0.7,
     dotAlpha: 0.55,
-    trail: '85, 102, 84', // green-mid, reads like the traces on light
+    trail: '85, 102, 84',
     trailMax: 0.4,
     hoverMax: 0.6,
   },
@@ -55,7 +49,6 @@ function createWalker(width, height, walkers) {
   const cols = Math.floor((width - OFFSET_X) / CELL)
   const rows = Math.floor((height - OFFSET_Y) / CELL)
 
-  // Spawn away from the other walkers: keep the best of a few random tries
   let best = null
   let bestDist = -1
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -88,18 +81,17 @@ function createWalker(width, height, walkers) {
 function pickDirection(walker, width, height, walkers) {
   const { dx, dy } = walker.dir
   const candidates = [
-    { dx, dy, weight: 5 }, // keep going straight
-    { dx: -dy, dy: dx, weight: 3 }, // turn one way
-    { dx: dy, dy: -dx, weight: 3 }, // turn the other way
+    { dx, dy, weight: 5 },
+    { dx: -dy, dy: dx, weight: 3 },
+    { dx: dy, dy: -dx, weight: 3 },
   ].filter(d => {
     const nx = walker.x + d.dx * CELL
     const ny = walker.y + d.dy * CELL
     return nx >= OFFSET_X && nx <= width + CELL && ny >= OFFSET_Y && ny <= height + CELL
   })
 
-  if (candidates.length === 0) return { dx: -dx, dy: -dy } // dead end: go back
+  if (candidates.length === 0) return { dx: -dx, dy: -dy }
 
-  // Prefer directions that keep distance from the other walkers
   const separated = candidates.filter(
     d => distanceToNearestWalker(walker.x + d.dx * CELL, walker.y + d.dy * CELL, walkers, walker) >= MIN_SEP
   )
@@ -157,7 +149,6 @@ function drawGrid(ctx, width, height, cfg) {
   ctx.globalAlpha = 1
 }
 
-// Brightened grid lines and intersection dots around the cursor
 function drawGridHighlight(ctx, mouse, cfg) {
   const gradient = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, HOVER_RADIUS)
   gradient.addColorStop(0, `rgba(${cfg.trail}, ${cfg.hoverMax * mouse.intensity})`)
@@ -191,7 +182,6 @@ function drawGridHighlight(ctx, mouse, cfg) {
 }
 
 function drawWalker(ctx, walker, now, cfg) {
-  // Fading trail
   ctx.lineWidth = 1.5
   ctx.lineCap = 'round'
   for (let i = 1; i < walker.trail.length; i++) {
@@ -207,7 +197,6 @@ function drawWalker(ctx, walker, now, cfg) {
     ctx.stroke()
   }
 
-  // Pulse ring while paused at an intersection
   if (walker.dwellUntil > now) {
     const progress = Math.min(1, (now - walker.dwellStart) / 900)
     ctx.strokeStyle = `rgba(242, 133, 54, ${0.7 * (1 - progress)})`
@@ -217,7 +206,6 @@ function drawWalker(ctx, walker, now, cfg) {
     ctx.stroke()
   }
 
-  // Head: soft halo + solid dot
   ctx.fillStyle = 'rgba(242, 133, 54, 0.2)'
   ctx.beginPath()
   ctx.arc(walker.x, walker.y, 10, 0, Math.PI * 2)
@@ -239,7 +227,6 @@ function updateWalker(walker, dt, now, width, height, walkers) {
   let step = walker.speed * dt
   while (step > 0) {
     const { dx, dy } = walker.dir
-    // Distance to the next intersection along the current direction
     const dist =
       dx !== 0
         ? Math.abs(nextGridStop(walker.x, dx, OFFSET_X) - walker.x)
@@ -263,7 +250,6 @@ function updateWalker(walker, dt, now, width, height, walkers) {
   }
 }
 
-// Next grid coordinate strictly ahead of `value` moving in `sign` direction
 function nextGridStop(value, sign, offset) {
   const rel = (value - offset) / CELL
   const target = sign > 0 ? Math.floor(rel + 1e-6) + 1 : Math.ceil(rel - 1e-6) - 1
@@ -286,9 +272,6 @@ export default function GridPattern({ variant = 'dark' }) {
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-    // Match the pixel buffer to the canvas's rendered size and lay the grid out
-    // with fixed CELL-sized cells: when the box grows, the grid tiles more cells
-    // instead of stretching the existing ones (which would deform the squares).
     function resize() {
       const dpr = window.devicePixelRatio || 1
       const nextWidth = canvas.clientWidth
@@ -301,8 +284,6 @@ export default function GridPattern({ variant = 'dark' }) {
       canvas.width = Math.round(width * dpr)
       canvas.height = Math.round(height * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      // Keep walkers across resizes so they don't teleport on layout shifts; only
-      // add or trim to track the area-based count.
       const count = Math.min(8, Math.max(4, Math.round((width * height) / 220000)))
       while (walkers.length < count) walkers.push(createWalker(width, height, walkers))
       if (walkers.length > count) walkers.length = count
@@ -313,11 +294,9 @@ export default function GridPattern({ variant = 'dark' }) {
     }
 
     resize()
-    // Track the box itself, not just window resizes: the /admin background grows
-    // with its content, and only a ResizeObserver catches that.
     const resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(canvas)
-    window.addEventListener('resize', resize) // devicePixelRatio changes (zoom/monitor)
+    window.addEventListener('resize', resize)
 
     if (reducedMotion) {
       return () => {
@@ -326,7 +305,6 @@ export default function GridPattern({ variant = 'dark' }) {
       }
     }
 
-    // Cursor-following grid glow; intensity eases in and out
     const mouse = { x: 0, y: 0, intensity: 0, target: 0 }
     function onMouseMove(e) {
       const rect = canvas.getBoundingClientRect()

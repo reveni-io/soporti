@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Google Drive section of the admin panel. The read-only Drive integration lets
-// the agent search, browse and read documents shared with a Google service
-// account. The credential is write-only (the private key is never returned);
-// only the non-sensitive service-account email is shown so the admin can verify
-// which account — and therefore which shared folders — is live.
 export default function AdminGoogleDrive({ token, onLogout }) {
   const [configured, setConfigured] = useState(false)
   const [serviceAccountEmail, setServiceAccountEmail] = useState('')

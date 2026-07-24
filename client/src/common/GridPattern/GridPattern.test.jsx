@@ -2,12 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import GridPattern from './GridPattern.jsx'
 
-// jsdom implements neither canvas 2D contexts, ResizeObserver nor matchMedia,
-// so without stubs the component bails out right after `getContext('2d')`
-// returns null. The helpers below install a fake 2D context and deterministic
-// requestAnimationFrame / performance.now replacements so the real draw loop
-// runs frame by frame under test.
-
 function createFakeContext() {
   const ctx = {
     fillStyle: '',
@@ -15,8 +9,6 @@ function createFakeContext() {
     lineWidth: 0,
     globalAlpha: 1,
     lineCap: 'butt',
-    // Snapshot of the fillStyle active at each fillRect call, so tests can
-    // assert which background color a variant painted.
     fillRectStyles: [],
     setTransform: vi.fn(),
     beginPath: vi.fn(),
@@ -41,8 +33,6 @@ describe('GridPattern', () => {
   let nowMs
   let observers
 
-  // Runs `count` animation frames synchronously, advancing the mocked clock.
-  // Throws if the loop stopped rescheduling itself — that IS a regression.
   function runFrames(count, stepMs = 100) {
     for (let i = 0; i < count; i++) {
       const frame = rafQueue.shift()
@@ -52,8 +42,6 @@ describe('GridPattern', () => {
     }
   }
 
-  // Deterministic Math.random cycling through fixed values, so walker spawns,
-  // direction picks and dwell rolls are reproducible across runs.
   function stubRandomSequence(values) {
     let i = 0
     vi.spyOn(Math, 'random').mockImplementation(() => values[i++ % values.length])
@@ -125,49 +113,34 @@ describe('GridPattern', () => {
   })
 
   it('draws the grid and moves the walkers across many frames without throwing', () => {
-    // No value below DWELL_CHANCE (0.18): walkers never pause, so every
-    // intersection exercises the direction-picking logic.
     stubRandomSequence([0.42, 0.87, 0.6, 0.31, 0.74, 0.55, 0.9, 0.22, 0.68, 0.35])
     render(<GridPattern />)
 
     expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
     runFrames(120)
-    // The loop rescheduled itself on every frame.
     expect(requestAnimationFrame).toHaveBeenCalledTimes(121)
 
-    // Background painted with the dark brand color (mirrors index.css tokens).
     expect(fakeCtx.fillRectStyles).toContain('#042503')
-    // Grid lines stroked.
     expect(fakeCtx.moveTo).toHaveBeenCalled()
     expect(fakeCtx.lineTo).toHaveBeenCalled()
     expect(fakeCtx.stroke).toHaveBeenCalled()
-    // Walker heads (radius 5) were drawn at many distinct positions: the
-    // walkers actually travel instead of being frozen in place.
     const headPositions = new Set(
       fakeCtx.arc.mock.calls.filter(call => call[2] === 5).map(call => `${call[0]},${call[1]}`)
     )
     expect(headPositions.size).toBeGreaterThan(10)
-    // No pointer activity: the hover glow must never render.
     expect(fakeCtx.createRadialGradient).not.toHaveBeenCalled()
   })
 
   it('pauses walkers at intersections and draws the dwell pulse ring', () => {
-    // Constant 0.1 < DWELL_CHANCE: every walker dwells at its first
-    // intersection, and the pulse ring branch renders while paused.
     vi.spyOn(Math, 'random').mockReturnValue(0.1)
     render(<GridPattern />)
     runFrames(40)
 
-    // Pulse ring radius starts at 7 and grows; grid dots (4), heads (5) and
-    // halos (10) never produce an arc radius in [7, 10).
     const pulseArc = fakeCtx.arc.mock.calls.find(call => call[2] >= 7 && call[2] < 10)
     expect(pulseArc).toBeDefined()
   })
 
   it('keeps crowded walkers moving via the farthest-option fallback', () => {
-    // Constant 0.2: never dwells, and all walkers spawn on the same grid node,
-    // so every candidate direction violates MIN_SEP and the farthest-option
-    // path decides the turn. A regression there would freeze or crash here.
     vi.spyOn(Math, 'random').mockReturnValue(0.2)
     render(<GridPattern />)
     runFrames(60)
@@ -183,21 +156,18 @@ describe('GridPattern', () => {
     runFrames(2)
     expect(fakeCtx.createRadialGradient).not.toHaveBeenCalled()
 
-    // Pointer inside the canvas box: the radial glow renders at the cursor.
     fireEvent.mouseMove(window, { clientX: 300, clientY: 200 })
     runFrames(1)
     expect(fakeCtx.createRadialGradient).toHaveBeenCalledWith(300, 200, 0, 300, 200, 220)
     const gradient = fakeCtx.createRadialGradient.mock.results[0].value
     expect(gradient.addColorStop).toHaveBeenCalledTimes(3)
 
-    // Pointer outside the box drops the glow target; intensity eases to zero.
     fireEvent.mouseMove(window, { clientX: 5000, clientY: 200 })
     runFrames(20)
     fakeCtx.createRadialGradient.mockClear()
     runFrames(5)
     expect(fakeCtx.createRadialGradient).not.toHaveBeenCalled()
 
-    // Re-enter, then leave the document entirely: same ease-out.
     fireEvent.mouseMove(window, { clientX: 100, clientY: 100 })
     runFrames(1)
     expect(fakeCtx.createRadialGradient).toHaveBeenCalled()
@@ -213,26 +183,21 @@ describe('GridPattern', () => {
     const { container } = render(<GridPattern />)
     const canvas = container.querySelector('canvas')
 
-    // Buffer matches rendered size * dpr and the context is scaled to match.
     expect(canvas.width).toBe(1600)
     expect(canvas.height).toBe(1200)
     expect(fakeCtx.setTransform).toHaveBeenCalledWith(2, 0, 0, 2, 0, 0)
     expect(observers).toHaveLength(1)
     expect(observers[0].observe).toHaveBeenCalledWith(canvas)
 
-    // Resize event with unchanged dimensions: early return, buffer untouched.
     fakeCtx.setTransform.mockClear()
     fireEvent(window, new Event('resize'))
     expect(fakeCtx.setTransform).not.toHaveBeenCalled()
 
-    // Growing the box retiles (more cells, more walkers) instead of stretching.
     canvasSize = { width: 1700, height: 900 }
     fireEvent(window, new Event('resize'))
     expect(canvas.width).toBe(3400)
     expect(canvas.height).toBe(1800)
 
-    // Shrinking through the ResizeObserver path trims walkers; the loop must
-    // keep drawing without throwing afterwards.
     canvasSize = { width: 400, height: 300 }
     observers[0].callback([])
     expect(canvas.width).toBe(800)
@@ -249,12 +214,9 @@ describe('GridPattern', () => {
     const { unmount } = render(<GridPattern />)
 
     expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
-    // No animation loop at all.
     expect(requestAnimationFrame).not.toHaveBeenCalled()
-    // But the grid and the walkers were painted once, statically.
     expect(fakeCtx.fillRectStyles).toContain('#042503')
     expect(fakeCtx.arc).toHaveBeenCalled()
-    // No pointer tracking is installed in this mode.
     const listenerTypes = addListener.mock.calls.map(call => call[0])
     expect(listenerTypes).toContain('resize')
     expect(listenerTypes).not.toContain('mousemove')

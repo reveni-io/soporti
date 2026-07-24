@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './HeroChat.css'
 
-// A looping, fake-but-faithful chat that plays in the hero. It reuses the real
-// chat's DOM/classes (.message, .tool-call, .message__typing) so it looks
-// exactly like the product: a question comes in, Soporti "searches" a source
-// (spinner → ✓ with a duration), then streams an answer token by token.
-
 const SCENARIOS = [
   {
     question: 'How many returns did Acme get in the last 7 days?',
@@ -102,14 +97,12 @@ export default function HeroChat() {
   const [messages, setMessages] = useState([])
   const scrollRef = useRef(null)
 
-  // Keep the newest message in view as the conversation grows.
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages])
 
   useEffect(() => {
-    // Respect reduced motion: show one finished exchange, statically.
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
       const sc = SCENARIOS[0]
       setMessages([

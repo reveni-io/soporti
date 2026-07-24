@@ -14,17 +14,12 @@ function loadUser() {
   }
 }
 
-// Auth state shared across routes. With client-side routing there is no
-// full-page reload after login, so the per-hook state the old useAuth had
-// would desync between components — the provider is the single owner now.
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
   const [user, setUser] = useState(loadUser)
   const [error, setError] = useState(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  // Shared by every login flavor: POST credentials, store the session.
-  // Returns true on success so callers can react without watching state.
   const performLogin = useCallback(async (path, body) => {
     setError(null)
     setIsLoggingIn(true)
@@ -71,8 +66,6 @@ export function AuthProvider({ children }) {
     [performLogin]
   )
 
-  // First-run only: creates the admin account and logs straight into it. The
-  // setup code is printed in the server logs at startup.
   const bootstrapAdmin = useCallback(
     (email, password, name, setupCode) => performLogin('/api/admin/bootstrap', { email, password, name, setupCode }),
     [performLogin]

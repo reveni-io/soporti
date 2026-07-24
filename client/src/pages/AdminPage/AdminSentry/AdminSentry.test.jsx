@@ -17,7 +17,6 @@ describe('AdminSentry', () => {
 
     render(<AdminSentry token="tok" onLogout={vi.fn()} />)
 
-    // Overall status + the auth token field status.
     expect(await screen.findAllByText('configured')).toHaveLength(2)
     expect(screen.getByDisplayValue('my-org')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove/i })).toBeInTheDocument()
@@ -63,7 +62,6 @@ describe('AdminSentry', () => {
     const user = userEvent.setup()
 
     render(<AdminSentry token="tok" onLogout={vi.fn()} />)
-    // Overall status + the auth token field status, both unconfigured.
     expect(await screen.findAllByText('not configured')).toHaveLength(2)
 
     const input = screen.getByPlaceholderText('Auth token')

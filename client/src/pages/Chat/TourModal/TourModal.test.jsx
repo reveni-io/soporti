@@ -42,7 +42,6 @@ describe('TourModal', () => {
 
   it('only includes capability steps for configured integrations', () => {
     render(<TourModal {...defaultProps} integrations={[github]} />)
-    // 3 general steps + code + tips
     expect(screen.getAllByLabelText(/go to step/i)).toHaveLength(5)
   })
 

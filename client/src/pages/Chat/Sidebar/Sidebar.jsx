@@ -98,7 +98,6 @@ export default function Sidebar({
       (repo.language && repo.language.toLowerCase().includes(q))
     )
   })
-  // Always-on integrations (selectable: false) are not offered as sources.
   const filteredIntegrations = integrations.filter(integration => {
     if (integration.selectable === false) return false
     if (!search) return true

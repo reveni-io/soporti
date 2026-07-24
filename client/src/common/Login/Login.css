@@ -9,7 +9,6 @@
   overflow: hidden;
 }
 
-/* Layout on top of .card .card--floating */
 .login__form {
   position: relative;
   z-index: 1;
@@ -72,7 +71,6 @@
   gap: var(--sp3);
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .login__form {
     margin: 0 var(--sp4);

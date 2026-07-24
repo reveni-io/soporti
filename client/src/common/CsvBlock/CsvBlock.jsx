@@ -1,11 +1,7 @@
 import { memo, useMemo } from 'react'
 
-// Number of data rows rendered in the inline preview. The full dataset is
-// always available through the download button.
 const MAX_PREVIEW_ROWS = 50
 
-// Minimal RFC 4180-ish CSV parser: handles quoted fields, embedded commas,
-// escaped quotes ("") and both \n and \r\n line endings.
 function parseCsv(text) {
   const rows = []
   let row = []

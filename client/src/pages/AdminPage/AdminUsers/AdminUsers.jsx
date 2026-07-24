@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 
-// User management section of the admin panel: list existing users and create
-// password accounts (there is no self-registration).
 export default function AdminUsers({ token, onLogout }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)

@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import SettingsPreview from './SettingsPreview.jsx'
 
-// jsdom has no IntersectionObserver, so the component takes its static branch:
-// the full example is shown immediately with the "Saved" state.
 describe('SettingsPreview', () => {
   it('renders the Custom instructions panel', () => {
     render(<SettingsPreview />)
@@ -17,8 +15,6 @@ describe('SettingsPreview', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
   })
 
-  // With an IntersectionObserver available, the component types the example out
-  // only once the panel scrolls into view.
   describe('animated typing (with IntersectionObserver)', () => {
     let observers
 
@@ -57,7 +53,6 @@ describe('SettingsPreview', () => {
       render(<SettingsPreview />)
       expect(screen.getByText('0 / 50,000 characters')).toBeInTheDocument()
 
-      // Off-screen entries don't start the animation.
       intersect(false)
       act(() => {
         vi.advanceTimersByTime(1000)
@@ -69,7 +64,6 @@ describe('SettingsPreview', () => {
     it('types the example with a caret and live count once visible', () => {
       const { container } = render(<SettingsPreview />)
       intersect(true)
-      // One character on start, then one every 20ms → 21 after 400ms.
       act(() => {
         vi.advanceTimersByTime(400)
       })

@@ -1,17 +1,8 @@
-// Pre-rendered with beautiful-mermaid — the same engine and theme the chat uses
-// (bg #ffffff / fg #042503) — so the "Diagrams" demo shows a REAL Mermaid SVG to
-// everyone (logged in or not) with no server call, identical for all visitors.
-// To regenerate, feed this source to beautiful-mermaid's renderMermaid():
-//   flowchart TD
-//     A[Return request] --> B{Policy rules}
-//     B -->|pass| C[Auto-approve]
-//     B -->|fail| D[Manual review]
 export default `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 358.625 454.445" width="358.625" height="454.445" style="--bg:#ffffff;--fg:#042503;background:var(--bg)">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
   text { font-family: 'Inter', system-ui, sans-serif; }
   svg {
-    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
     --_text:          var(--fg);
     --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
     --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));

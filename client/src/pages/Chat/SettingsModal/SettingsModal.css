@@ -1,6 +1,3 @@
-/* Custom-instructions modal. Structure comes from the .modal/.btn/.textarea
-   primitives (styles/ui.css); only what is specific to this modal lives here. */
-
 .settings-modal {
   max-width: 640px;
 }

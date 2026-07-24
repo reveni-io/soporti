@@ -107,7 +107,6 @@ describe('AdminShopify', () => {
     const [url, options] = global.fetch.mock.calls[1]
     expect(url).toContain('/api/admin/config/shopify/draft-token-query')
     expect(options.method).toBe('POST')
-    // Only drafted, not saved: the save button is enabled for review.
     expect(screen.getByRole('button', { name: /save query/i })).toBeEnabled()
     expect(screen.getByText('not configured')).toBeInTheDocument()
   })

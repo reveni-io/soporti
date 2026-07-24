@@ -126,7 +126,8 @@ Optional integrations: PR-review tunables (`REVIEW_LABEL`, `REVIEW_REVIEWER_LOGI
 
 ## Conventions
 
-- All code (variables, functions, comments) is written in English
+- All code (variables, functions) is written in English
+- **Do NOT write code comments.** Code must be self-explanatory — use clear naming and small functions instead. The only allowed exceptions are functional directives the tooling needs (e.g. `/* eslint-disable */`). When reviewing a PR, flag any added comment as a standards violation
 - Docker support exists in both `server/Dockerfile` and `client/Dockerfile` (multi-stage build + nginx serving `dist/` with an `/api` proxy — SSE-safe, SPA fallback; proxy target via `API_PROXY_TARGET`)
 
 ## Versioning & releases

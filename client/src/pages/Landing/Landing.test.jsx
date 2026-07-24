@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import Landing from './Landing.jsx'
 
-// Heavy, canvas/recharts-based children are mocked — the landing itself is just
-// static content and the login/enter CTA logic we care about here.
 vi.mock('../../common/GridPattern/GridPattern.jsx', () => ({ default: () => <div data-testid="grid" /> }))
 vi.mock('../../common/ChartBlock/ChartBlock.jsx', () => ({ default: () => <div data-testid="chart" /> }))
 vi.mock('../../common/CsvBlock/CsvBlock.jsx', () => ({ default: () => <div data-testid="csv" /> }))
@@ -47,8 +45,6 @@ describe('Landing', () => {
 
   it('lists the connected integrations', () => {
     const { container } = render(<Landing />)
-    // Scope to the integration cards — "GitHub" also appears as a nav/footer
-    // source link, so query the card names specifically.
     const intNames = [...container.querySelectorAll('.lp-int__name')].map(el => el.textContent)
     expect(intNames).toContain('GitHub')
     expect(intNames).toContain('Help Center')
@@ -88,8 +84,6 @@ describe('Landing', () => {
     expect(logins[0]).toHaveAttribute('href', '/login')
   })
 
-  // With an IntersectionObserver available, sections fade in as they scroll
-  // into view instead of being visible from the start.
   describe('scroll reveal', () => {
     let observers
 
@@ -119,11 +113,9 @@ describe('Landing', () => {
       const { container } = render(<Landing />)
       expect(container.querySelector('.lp-reveal.is-visible')).toBeNull()
 
-      // Off-screen entries change nothing.
       intersect(false)
       expect(container.querySelector('.lp-reveal.is-visible')).toBeNull()
 
-      // Entering the viewport fades every observed section in.
       intersect(true)
       const revealed = container.querySelectorAll('.lp-reveal.is-visible')
       expect(revealed.length).toBeGreaterThan(0)

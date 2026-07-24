@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Helpjuice section of the admin panel. The integration lets the assistant
-// search and read help center articles. The API key is write-only (the server
-// never returns it); the account subdomain is not a secret, so its current
-// value is shown and editable.
 export default function AdminHelpjuice({ token, onLogout }) {
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
   const [account, setAccount] = useState('')
@@ -105,8 +101,6 @@ export default function AdminHelpjuice({ token, onLogout }) {
   )
 }
 
-// The account subdomain is not a secret: the current value is shown in the
-// input and can be edited in place. Maps to PUT /api/admin/config/helpjuice/account.
 function AccountField({ account, setAccount, token, onLogout }) {
   const [value, setValue] = useState(account)
   const [saving, setSaving] = useState(false)
@@ -174,8 +168,6 @@ function AccountField({ account, setAccount, token, onLogout }) {
   )
 }
 
-// The API key is write-only: a password input plus Save and (when set) Remove.
-// Maps to PUT /api/admin/config/helpjuice/api-key.
 function ApiKeyField({ configured, setConfigured, token, onLogout }) {
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)

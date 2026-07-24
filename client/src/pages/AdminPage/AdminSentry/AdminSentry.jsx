@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Sentry section of the admin panel. The integration lets the assistant search
-// and inspect Sentry issues. The auth token is write-only (the server never
-// returns it); the organization slug is not a secret, so its current value is
-// shown and editable.
 export default function AdminSentry({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [org, setOrg] = useState('')
@@ -103,8 +99,6 @@ export default function AdminSentry({ token, onLogout }) {
   )
 }
 
-// The organization slug is not a secret: the current value is shown in the
-// input and can be edited in place. Maps to PUT /api/admin/config/sentry/org.
 function OrgField({ org, setOrg, token, onLogout }) {
   const [value, setValue] = useState(org)
   const [saving, setSaving] = useState(false)
@@ -172,8 +166,6 @@ function OrgField({ org, setOrg, token, onLogout }) {
   )
 }
 
-// The auth token is write-only: a password input plus Save and (when set)
-// Remove. Maps to PUT /api/admin/config/sentry/auth-token.
 function TokenField({ configured, setConfigured, token, onLogout }) {
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)

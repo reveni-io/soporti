@@ -7,7 +7,6 @@
   background-color: var(--bg-app);
 }
 
-/* Top bar */
 .chat__topbar {
   display: flex;
   align-items: center;
@@ -78,7 +77,6 @@
   padding: var(--sp6) var(--sp6) var(--sp2);
 }
 
-/* Empty state */
 .chat__empty {
   position: relative;
   display: flex;
@@ -121,7 +119,6 @@
   margin-bottom: var(--sp6);
 }
 
-/* Composes .chip .chip--pill; white surface variant for the empty state */
 .chat__capability {
   background: var(--bg-surface);
   cursor: default;
@@ -186,7 +183,6 @@
   color: var(--text-secondary);
 }
 
-/* Input area */
 .chat__input-area {
   padding: var(--sp2) var(--sp6) var(--sp4);
   border-top: 1px solid var(--border-default);
@@ -276,7 +272,6 @@
   margin-top: var(--sp2);
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .chat__topbar {
     padding: var(--sp2) var(--sp4);

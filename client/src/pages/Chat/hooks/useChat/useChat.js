@@ -185,8 +185,6 @@ export function useChat(token, onAuthError) {
     sessionIdRef.current = null
   }, [])
 
-  // Rehydrates a past conversation from the server. The agent's context still
-  // lives in the DB (keyed by this id), so continuing the chat resumes context.
   const loadConversation = useCallback(
     async id => {
       try {
@@ -214,9 +212,7 @@ export function useChat(token, onAuthError) {
 
         sessionIdRef.current = id
         setMessages(restored)
-      } catch {
-        // Leave the current chat untouched on failure.
-      }
+      } catch {}
     },
     [token, onAuthError]
   )

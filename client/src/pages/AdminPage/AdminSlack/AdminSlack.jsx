@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Slack section of the admin panel. Lets the assistant answer questions in
-// Slack (mentions and DMs) over a Socket Mode connection. The three credentials
-// (bot token, app token, signing secret) are write-only — the server never
-// returns them, only whether each is configured. Saving any of them reconnects
-// the bot in place, no server restart needed.
 export default function AdminSlack({ token, onLogout }) {
   const [botTokenConfigured, setBotTokenConfigured] = useState(false)
   const [appTokenConfigured, setAppTokenConfigured] = useState(false)
@@ -146,8 +141,6 @@ export default function AdminSlack({ token, onLogout }) {
   )
 }
 
-// One write-only credential row: a password input plus Save and (when set)
-// Remove. Each maps to PUT /api/admin/config/slack/<endpoint>.
 function SecretField({
   title,
   description,

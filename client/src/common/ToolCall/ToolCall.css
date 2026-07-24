@@ -93,7 +93,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .tool-call__detail {
     max-width: 140px;

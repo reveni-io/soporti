@@ -19,8 +19,6 @@ import AdminOpenAI from './AdminOpenAI/AdminOpenAI.jsx'
 import IntegrationIcon from '../../common/IntegrationIcon/IntegrationIcon.jsx'
 import './AdminPage.css'
 
-// Nav icons: inline stroke SVGs (Feather-style) using currentColor, same
-// approach as the rest of the client.
 function UsersIcon() {
   return (
     <svg
@@ -61,8 +59,6 @@ function ShieldIcon() {
   )
 }
 
-// Helpjuice has no brand mark in IntegrationIcon, so the nav uses a generic
-// help-circle glyph instead of the "?" fallback.
 function HelpCircleIcon() {
   return (
     <svg
@@ -101,8 +97,6 @@ function SparkIcon() {
   )
 }
 
-// PostgreSQL has no brand mark in IntegrationIcon, so the nav uses a generic
-// database (cylinder) glyph.
 function DatabaseIcon() {
   return (
     <svg
@@ -123,8 +117,6 @@ function DatabaseIcon() {
   )
 }
 
-// Admin sections. Each feature gets its own sub-route so the panel scales
-// without becoming one mega page — add an entry here to add a section.
 const SECTIONS = [
   { path: 'users', label: 'Users', icon: <UsersIcon />, render: props => <AdminUsers {...props} /> },
   {
@@ -195,12 +187,6 @@ const SECTIONS = [
   },
 ]
 
-// The /admin route state machine:
-//   1. loading  → checking GET /api/admin/status
-//   2. no admin → first-run bootstrap form (create the admin account)
-//   3. admin exists, not authenticated → login (stays on /admin afterwards)
-//   4. authenticated but not admin → access denied
-//   5. admin → the panel, one section per sub-route (/admin/users, ...)
 export default function AdminPage() {
   const {
     token,
@@ -258,9 +244,6 @@ export default function AdminPage() {
   }
 
   if (!adminExists) {
-    // On success the admin now exists and the bootstrap response logged us
-    // in — flip the flag so the render advances to the panel instead of
-    // staying on this form.
     const handleBootstrap = async (email, password, name, setupCode) => {
       const ok = await bootstrapAdmin(email, password, name, setupCode)
       if (ok) setAdminExists(true)
@@ -270,8 +253,6 @@ export default function AdminPage() {
   }
 
   if (!isAuthenticated) {
-    // Password-only: the bootstrap guarantees the admin has a password, and
-    // Google sign-in may legitimately be disabled (empty domains list).
     return <Login onPasswordLogin={loginWithPassword} error={authError} isLoading={isLoggingIn} />
   }
 
@@ -322,13 +303,10 @@ export default function AdminPage() {
         </nav>
 
         <main className="admin__content">
-          {/* Absolute paths: relative resolution inside a splat route
-              (/admin/*) is ambiguous and can loop the catch-all redirect. */}
           <Routes>
             {SECTIONS.map(section => (
               <Route key={section.path} path={section.path} element={section.render({ token, onLogout: logout })} />
             ))}
-            {/* /admin and unknown sections land on the first section. */}
             <Route path="*" element={<Navigate to={`/admin/${SECTIONS[0].path}`} replace />} />
           </Routes>
         </main>

@@ -106,7 +106,6 @@ describe('AdminAuthentication', () => {
     render(<AdminAuthentication token="tok" onLogout={vi.fn()} />)
     await screen.findByText('example.com')
 
-    // Scope to the domains form: the Google Client ID section has its own "Save".
     const domainForm = screen.getByPlaceholderText('example.com').closest('form')
     const save = within(domainForm).getByRole('button', { name: /^save$/i })
     expect(save).toBeDisabled()
