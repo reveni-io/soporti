@@ -68,16 +68,6 @@ vi.mock('./sessions/conversation-store.js', () => {
   return { ConversationStore }
 })
 
-vi.mock('./shares/store.js', () => {
-  const ShareStore = vi.fn(function () {
-    this.shares = new Map()
-    this.create = vi.fn()
-    this.get = vi.fn()
-    this.destroy = vi.fn()
-  })
-  return { ShareStore }
-})
-
 vi.mock('./slack/bot.js', () => ({
   startSlackBot: vi.fn().mockResolvedValue(null),
   stopSlackBot: vi.fn(),
@@ -131,13 +121,11 @@ vi.mock('./routes/integrations.js', () => {
   return { default: router }
 })
 
-vi.mock('./routes/share.js', () => ({
-  default: vi.fn(() => {
-    const router = Router()
-    router.get('/:id', (_req, res) => res.json({ messages: [] }))
-    return router
-  }),
-}))
+vi.mock('./routes/share.js', () => {
+  const router = Router()
+  router.get('/:id', (_req, res) => res.json({ messages: [] }))
+  return { default: router }
+})
 
 const listenSpy = vi.spyOn(http.Server.prototype, 'listen').mockImplementation(function (_port, cb) {
   if (cb) cb()
@@ -225,11 +213,5 @@ describe('module-level setup', () => {
     const conversationsRoute = (await import('./routes/conversations.js')).default
     expect(conversationsRoute).toHaveBeenCalledTimes(1)
     expect(conversationsRoute.mock.calls[0][0]).toBeDefined()
-  })
-
-  it('share route factory was called with a share store', async () => {
-    const shareRoute = (await import('./routes/share.js')).default
-    expect(shareRoute).toHaveBeenCalledTimes(1)
-    expect(shareRoute.mock.calls[0][0]).toBeDefined()
   })
 })

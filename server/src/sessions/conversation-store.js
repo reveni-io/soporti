@@ -3,6 +3,7 @@ import { eq, and, desc, gte, lt, sql } from 'drizzle-orm'
 import { OpenAIResponsesCompactionSession } from '@openai/agents'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
+import { ownedWebConversation } from '../db/conversations.js'
 import { PostgresSession } from './postgres-session.js'
 import { getOpenAIClient } from '../openai/client.js'
 
@@ -146,9 +147,7 @@ export class ConversationStore {
     const [conversation] = await this.db
       .select({ id: conversations.id })
       .from(conversations)
-      .where(
-        and(eq(conversations.id, conversationId), eq(conversations.userId, userId), eq(conversations.source, 'web'))
-      )
+      .where(ownedWebConversation(conversationId, userId))
       .limit(1)
 
     if (!conversation) return null
@@ -165,9 +164,7 @@ export class ConversationStore {
   async deleteWeb(conversationId, userId) {
     const deleted = await this.db
       .delete(conversations)
-      .where(
-        and(eq(conversations.id, conversationId), eq(conversations.userId, userId), eq(conversations.source, 'web'))
-      )
+      .where(ownedWebConversation(conversationId, userId))
       .returning({ id: conversations.id })
     return deleted.length > 0
   }

@@ -1,46 +1,35 @@
 import { Router } from 'express'
+import { createOrRefreshShare, getShare } from '../db/shares.js'
 
-export default function shareRoute(shareStore) {
-  const router = Router()
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-  router.post('/', (req, res) => {
-    const { messages, shareId } = req.body || {}
+const router = Router()
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Messages array is required.' })
-    }
+router.post('/', async (req, res) => {
+  const { conversationId } = req.body || {}
+  if (typeof conversationId !== 'string' || !UUID_RE.test(conversationId)) {
+    return res.status(400).json({ error: 'A valid "conversationId" is required.' })
+  }
+  try {
+    const result = await createOrRefreshShare(conversationId, req.user.id)
+    if (result.status === 'not_found') return res.status(404).json({ error: 'Conversation not found.' })
+    if (result.status === 'empty') return res.status(400).json({ error: 'Conversation has no messages to share yet.' })
+    res.json({ shareId: result.shareId, url: `/share/${result.shareId}` })
+  } catch (err) {
+    console.error('Failed to create share:', err)
+    res.status(500).json({ error: 'Failed to create share.' })
+  }
+})
 
-    if (shareId) {
-      const existing = shareStore.refresh(shareId, messages)
-      if (existing) {
-        return res.json({
-          shareId: existing.id,
-          url: `/share/${existing.id}`,
-        })
-      }
-    }
+router.get('/:id', async (req, res) => {
+  try {
+    const share = await getShare(req.params.id)
+    if (!share) return res.status(404).json({ error: 'Shared conversation not found or expired.' })
+    res.json(share)
+  } catch (err) {
+    console.error('Failed to load share:', err)
+    res.status(500).json({ error: 'Failed to load share.' })
+  }
+})
 
-    const share = shareStore.create(messages)
-    res.json({
-      shareId: share.id,
-      url: `/share/${share.id}`,
-    })
-  })
-
-  router.get('/:id', (req, res) => {
-    const share = shareStore.get(req.params.id)
-    if (!share) {
-      return res.status(404).json({ error: 'Shared conversation not found or expired.' })
-    }
-
-    res.json({
-      id: share.id,
-      title: share.title,
-      messages: share.messages,
-      createdAt: share.createdAt,
-      expiresAt: share.expiresAt,
-    })
-  })
-
-  return router
-}
+export default router

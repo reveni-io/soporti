@@ -139,9 +139,6 @@ dist-landing
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Server persisted data
-server/data/*
-
 # Local export of the repo catalog (paste it into /admin → GitHub in prod)
 repo-catalog.md
 .omc/

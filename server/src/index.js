@@ -14,10 +14,9 @@ import conversationsRoute from './routes/conversations.js'
 import mermaidRouter from './routes/mermaid.js'
 import integrationsRouter from './routes/integrations.js'
 import statsRouter from './routes/stats.js'
-import shareRoute from './routes/share.js'
+import shareRouter from './routes/share.js'
 import feedbackRouter from './routes/feedback.js'
 import userRouter from './routes/user.js'
-import { ShareStore } from './shares/store.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { setupReviewWebhook } from './review/index.js'
 import { pool } from './repo-pool/index.js'
@@ -39,7 +38,6 @@ app.use(express.json({ limit: '2mb' }))
 app.use(requireAuth)
 
 const conversationStore = new ConversationStore()
-const shareStore = new ShareStore()
 
 app.use('/api/auth', authRouter)
 app.use('/api/admin', adminRouter)
@@ -49,7 +47,7 @@ app.use('/api/conversations', conversationsRoute(conversationStore))
 app.use('/api/mermaid', mermaidRouter)
 app.use('/api/integrations', integrationsRouter)
 app.use('/api/stats', statsRouter)
-app.use('/api/share', shareRoute(shareStore))
+app.use('/api/share', shareRouter)
 app.use('/api/feedback', feedbackRouter)
 app.use('/api/user', userRouter)
 
@@ -112,7 +110,6 @@ async function shutdown() {
   await pool.shutdown()
   await shutdownPostgres()
   await shutdownDb()
-  shareStore.destroy()
   conversationStore.destroy()
   process.exit(0)
 }
