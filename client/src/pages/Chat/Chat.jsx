@@ -17,7 +17,6 @@ export default function Chat() {
   const [shareUrl, setShareUrl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [convReloadKey, setConvReloadKey] = useState(0)
-  const currentShareId = useRef(null)
   const wasLoading = useRef(false)
   const {
     token,
@@ -29,14 +28,10 @@ export default function Chat() {
     isLoggingIn,
   } = useAuth()
   const authMethods = useAuthMethods()
-  const {
-    messages,
-    isLoading,
-    sendMessage,
-    stopGeneration,
-    clearChat: originalClearChat,
-    loadConversation,
-  } = useChat(token, logout)
+  const { messages, isLoading, sendMessage, stopGeneration, clearChat, loadConversation, currentSessionId } = useChat(
+    token,
+    logout
+  )
 
   useEffect(() => {
     if (wasLoading.current && !isLoading) {
@@ -75,37 +70,27 @@ export default function Chat() {
     sendMessage(text, selectedSources, selectedProfile)
   }
 
-  function handleClearChat() {
-    originalClearChat()
-    currentShareId.current = null
-  }
-
   async function handleLoadConversation(id) {
-    currentShareId.current = null
     await loadConversation(id)
     setSidebarOpen(false)
   }
 
   async function handleShare() {
+    const conversationId = currentSessionId.current
+    if (!conversationId) return
     try {
-      const body = { messages }
-      if (currentShareId.current) {
-        body.shareId = currentShareId.current
-      }
-
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/share`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ conversationId }),
       })
 
       if (!res.ok) throw new Error('Failed to create share')
 
       const data = await res.json()
-      currentShareId.current = data.shareId
       setShareUrl(`${window.location.origin}${data.url}`)
     } catch (err) {
       console.error('Share failed:', err) // eslint-disable-line no-console
@@ -120,7 +105,7 @@ export default function Chat() {
         onToggleSource={toggleSource}
         selectedProfile={selectedProfile}
         onSelectProfile={handleProfileChange}
-        onClearChat={handleClearChat}
+        onClearChat={clearChat}
         onLogout={logout}
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}

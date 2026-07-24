@@ -63,3 +63,14 @@ export const conversationMessages = pgTable(
   },
   table => [index('conversation_messages_conversation_idx').on(table.conversationId, table.createdAt)]
 )
+
+export const shares = pgTable('shares', {
+  id: text('id').primaryKey(),
+  conversationId: uuid('conversation_id')
+    .notNull()
+    .unique()
+    .references(() => conversations.id, { onDelete: 'cascade' }),
+  messageCutoffId: integer('message_cutoff_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})

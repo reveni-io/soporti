@@ -199,6 +199,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
+      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
     })
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -263,7 +264,7 @@ describe('Chat', () => {
     expect(sendMessage).toHaveBeenCalledWith('hello', ['yolo'], 'tech')
   })
 
-  it('reuses shareId on second share', async () => {
+  it('posts the conversationId on every share', async () => {
     useAuth.mockReturnValue({
       token: 'tok',
       isAuthenticated: true,
@@ -278,6 +279,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
+      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
     })
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -297,10 +299,40 @@ describe('Chat', () => {
 
     await user.click(screen.getByText('Share'))
     await waitFor(() => {
-      const secondCall = global.fetch.mock.calls[1]
-      const body = JSON.parse(secondCall[1].body)
-      expect(body.shareId).toBe('abc')
+      expect(global.fetch).toHaveBeenCalledTimes(2)
     })
+    for (const call of global.fetch.mock.calls) {
+      const body = JSON.parse(call[1].body)
+      expect(body).toEqual({ conversationId: 'a3bb189e-8bf9-4888-9912-ace4e6543002' })
+    }
+  })
+
+  it('does not call the share endpoint when no conversation exists yet', async () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [{ role: 'user', content: 'hi' }],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+      currentSessionId: { current: null },
+    })
+
+    global.fetch = vi.fn()
+
+    const user = userEvent.setup()
+    render(<Chat />)
+    await user.click(screen.getByText('Share'))
+
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('share-modal')).not.toBeInTheDocument()
   })
 
   it('handles share error gracefully', async () => {
@@ -319,6 +351,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
+      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
     })
 
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
