@@ -15,8 +15,7 @@ export default function FeedbackButtons({ feedbackId, authToken }) {
         },
         body: JSON.stringify({ feedbackId, useful }),
       })
-    } catch {
-    }
+    } catch {}
   }
 
   if (status === 'positive') return <div className="feedback feedback--done">Thanks!</div>

@@ -212,8 +212,7 @@ export function useChat(token, onAuthError) {
 
         sessionIdRef.current = id
         setMessages(restored)
-      } catch {
-      }
+      } catch {}
     },
     [token, onAuthError]
   )
