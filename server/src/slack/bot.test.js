@@ -30,7 +30,6 @@ vi.mock('@slack/bolt', () => ({
 
 vi.mock('../config.js', () => ({
   default: {
-    // The Slack tokens live in the DB now (see ./settings.js mock below).
     notion: {},
     postgres: {},
     sentry: {},
@@ -38,8 +37,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// Slack credentials resolved from the database. Mutable so a test can simulate
-// "not configured" without touching module internals.
 const slackSettingsState = vi.hoisted(() => ({
   current: { botToken: 'xoxb-test', appToken: 'xapp-test', signingSecret: 'secret' },
 }))
@@ -398,7 +395,6 @@ describe('Slack bot', () => {
         client: mockClient,
       })
 
-      // Select a source + confirm selection to trigger runAndReply/processMessage.
       await registeredActionHandlers['select_sources']({
         action: { selected_options: [{ value: 'org/repo1' }] },
         body: { message: { ts: 'msg-ts' } },
@@ -456,7 +452,6 @@ describe('Slack bot', () => {
         client: mockClient,
       })
 
-      // force the status to "no sources" if there is a previous state in the module map.
       await registeredActionHandlers['select_sources']({
         action: { selected_options: [] },
         body: { message: { ts: msgTs } },
@@ -513,7 +508,6 @@ describe('Slack bot', () => {
           profile: 'support',
         })
       )
-      // Knowledge base configured → the 👍/👎 feedback prompt is posted.
       expect(mockClient.chat.postMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'Was this helpful?' }))
     })
 

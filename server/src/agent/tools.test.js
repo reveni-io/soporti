@@ -164,12 +164,6 @@ describe('tool definitions', () => {
   })
 
   it('allTools excludes every runtime-gated integration tool', () => {
-    // The Shortcut, Sentry, Google Drive, Notion, Helpjuice, Postgres and
-    // Shopify tools are NOT in allTools: they are runtime-gated via the
-    // shortcutConfigured / sentryConfigured / driveConfigured / notionConfigured
-    // / helpjuiceConfigured / postgresConfigured / shopifyConfigured flags in
-    // buildAgentTools, so allTools excludes those 20 (2 + 2 + 3 + 2 + 2 + 4 + 5)
-    // and keeps only the 7 repo tools.
     expect(allTools.length).toBe(7)
     expect(allTools.map(t => t.name)).not.toContain('get_shortcut_story')
     expect(allTools.map(t => t.name)).not.toContain('get_sentry_issue')
@@ -309,7 +303,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { shortcutConfigured: false }))).not.toContain('get_shortcut_story')
     expect(names(buildAgentTools(selection, { shortcutConfigured: true }))).toContain('get_shortcut_story')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { shortcutConfigured: false }))).not.toContain('get_shortcut_story')
     expect(names(buildAgentTools(yolo, { shortcutConfigured: true }))).toContain('get_shortcut_story')
@@ -320,7 +313,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { driveConfigured: false }))).not.toContain('search_drive_files')
     expect(names(buildAgentTools(selection, { driveConfigured: true }))).toContain('search_drive_files')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { driveConfigured: false }))).not.toContain('search_drive_files')
     expect(names(buildAgentTools(yolo, { driveConfigured: true }))).toContain('search_drive_files')
@@ -331,7 +323,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { notionConfigured: false }))).not.toContain('search_notion_pages')
     expect(names(buildAgentTools(selection, { notionConfigured: true }))).toContain('search_notion_pages')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { notionConfigured: false }))).not.toContain('search_notion_pages')
     expect(names(buildAgentTools(yolo, { notionConfigured: true }))).toContain('search_notion_pages')
@@ -342,7 +333,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { helpjuiceConfigured: false }))).not.toContain('search_helpjuice_articles')
     expect(names(buildAgentTools(selection, { helpjuiceConfigured: true }))).toContain('search_helpjuice_articles')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { helpjuiceConfigured: false }))).not.toContain('search_helpjuice_articles')
     expect(names(buildAgentTools(yolo, { helpjuiceConfigured: true }))).toContain('search_helpjuice_articles')
@@ -353,7 +343,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { postgresConfigured: false }))).not.toContain('query_database')
     expect(names(buildAgentTools(selection, { postgresConfigured: true }))).toContain('query_database')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { postgresConfigured: false }))).not.toContain('query_database')
     expect(names(buildAgentTools(yolo, { postgresConfigured: true }))).toContain('query_database')
@@ -364,7 +353,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { shopifyConfigured: false }))).not.toContain('get_shopify_order')
     expect(names(buildAgentTools(selection, { shopifyConfigured: true }))).toContain('get_shopify_order')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { shopifyConfigured: false }))).not.toContain('get_shopify_order')
     expect(names(buildAgentTools(yolo, { shopifyConfigured: true }))).toContain('get_shopify_order')
@@ -388,7 +376,6 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(selection, { sentryConfigured: false }))).not.toContain('get_sentry_issue')
     expect(names(buildAgentTools(selection, { sentryConfigured: true }))).toContain('get_sentry_issue')
 
-    // Unrestricted (YOLO) mode too.
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { sentryConfigured: false }))).not.toContain('get_sentry_issue')
     expect(names(buildAgentTools(yolo, { sentryConfigured: true }))).toContain('get_sentry_issue')

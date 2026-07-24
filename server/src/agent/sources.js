@@ -6,11 +6,6 @@ export function isYoloMode(selectedSources) {
 
 const INTEGRATION_PREFIX = 'integration:'
 
-// Splits a source selection into the access policy the agent must respect.
-// YOLO is an explicit "you decide" and stays unrestricted; an empty selection
-// only reaches the API from legacy callers that always got the full toolset,
-// so it stays unrestricted too. Anything else restricts the agent to the
-// listed repos and integrations.
 export function buildSourcePolicy(selectedSources) {
   const list = Array.isArray(selectedSources) ? selectedSources.filter(s => typeof s === 'string') : []
   const unrestricted = list.length === 0 || list.includes(YOLO_SOURCE)

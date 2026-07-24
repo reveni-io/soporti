@@ -3,12 +3,6 @@ import config from '../config.js'
 import { redactSecrets } from '../review/output-guard.js'
 import { getDriveCredentials } from './settings.js'
 
-// Read-only Google Drive client. Talks to the Drive v3 REST API with raw fetch
-// (no googleapis SDK); google-auth-library supplies the service-account JWT. The
-// access boundary is Drive sharing. Heavy parsers (unpdf,
-// mammoth, exceljs, jszip, fast-xml-parser) are loaded lazily, per file type, so
-// they never weigh on boot when the integration is off or the type isn't read.
-
 const BASE_URL = 'https://www.googleapis.com/drive/v3'
 const REQUEST_TIMEOUT_MS = 15_000
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
@@ -27,16 +21,9 @@ const OFFICE_MIME = {
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 }
 
-// --- Auth ---------------------------------------------------------------------
-
 let jwtClient = null
 let jwtClientEmail = null
 
-// The credential lives in the database (admin panel) now, so resolve it per
-// call and rebuild the JWT client whenever the service account changes (or was
-// cleared). google-auth-library caches and refreshes the access token
-// internally, so we construct the JWT once per credential and never manage
-// token lifetime ourselves.
 async function getClient() {
   const creds = await getDriveCredentials()
   if (!creds) throw new Error('Google Drive is not configured.')
@@ -48,8 +35,6 @@ async function getClient() {
 }
 
 async function authToken() {
-  // Deliberately swallow the underlying error: it could echo credential material
-  // (key fragments, grant details) and must never reach logs or the agent.
   try {
     const client = await getClient()
     const { token } = await client.getAccessToken()
@@ -60,8 +45,6 @@ async function authToken() {
   }
 }
 
-// --- HTTP ---------------------------------------------------------------------
-
 class DriveApiError extends Error {
   constructor(status, reason, path) {
     super(`Google Drive API GET ${path} failed (${status})${reason ? `: ${reason}` : ''}`)
@@ -71,16 +54,12 @@ class DriveApiError extends Error {
   }
 }
 
-// Extract only the machine-readable reason/status from an error body — never the
-// raw body, which is logged/echoed nowhere.
 async function classifyError(res, path) {
   let reason = ''
   try {
     const json = JSON.parse(await res.text())
     reason = json?.error?.errors?.[0]?.reason || json?.error?.status || ''
-  } catch {
-    // Body absent or not JSON — no machine-readable reason to extract.
-  }
+  } catch {}
   return new DriveApiError(res.status, reason, path)
 }
 
@@ -95,8 +74,6 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// JSON GET (metadata, search, listing). The abort timer covers the body read too.
-// Retries a couple of times on rate limits with short backoff.
 async function getJson(path, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   let attempt = 0
   while (true) {
@@ -123,8 +100,6 @@ async function getJson(path, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   }
 }
 
-// Text GET for Google-native exports (Docs/Sheets/Slides). Server caps exports at
-// 10 MB and refuses larger ones with 403 exportSizeLimitExceeded (handled upstream).
 async function exportText(fileId, exportMime) {
   const path = `/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMime)}`
   const token = await authToken()
@@ -143,9 +118,6 @@ async function exportText(fileId, exportMime) {
   }
 }
 
-// Raw byte download (alt=media) with a hard byte cap enforced WHILE streaming —
-// the authoritative OOM guard, since Drive doesn't always send Content-Length.
-// Uses the longer download timeout, not the 15s JSON one.
 async function downloadCapped(fileId, maxBytes) {
   const path = `/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`
   const token = await authToken()
@@ -185,10 +157,6 @@ async function downloadCapped(fileId, maxBytes) {
   }
 }
 
-// --- Concurrency --------------------------------------------------------------
-
-// Bound concurrent download+parse operations: web/Slack/PR-review turns run in
-// parallel and a few large files in flight could otherwise exhaust the heap.
 function createSemaphore(max) {
   let active = 0
   const queue = []
@@ -213,13 +181,9 @@ function createSemaphore(max) {
 
 const blobSemaphore = createSemaphore(Math.max(1, config.google?.drive?.parseConcurrency || 1))
 
-// --- Parsers (lazy) -----------------------------------------------------------
-
 async function parsePdf(buffer) {
   const { getDocumentProxy, extractText } = await import('unpdf')
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
-  // mergePages:true is required — otherwise extractText returns string[] (one per
-  // page) and the "empty => scanned" check below would silently break.
   const { text } = await extractText(pdf, { mergePages: true })
   return text
 }
@@ -252,7 +216,6 @@ async function parseXlsx(buffer) {
   wb.eachSheet(ws => {
     parts.push(`# ${ws.name}`)
     ws.eachRow(row => {
-      // row.values is 1-indexed (index 0 is empty), so drop the leading hole.
       const cells = (row.values || []).slice(1).map(formatCell)
       parts.push(cells.join('\t'))
     })
@@ -278,8 +241,6 @@ async function parsePptx(buffer) {
   const JSZip = (await import('jszip')).default
   const { XMLParser } = await import('fast-xml-parser')
   const zip = await JSZip.loadAsync(buffer)
-  // parseTagValue:false / trimValues:false keep run text verbatim — otherwise
-  // fast-xml-parser coerces "007" -> 7, "true" -> boolean and strips spacing.
   const parser = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: false })
   const slideNum = p => Number((p.match(/(\d+)\.xml$/) || [])[1] || 0)
   const slidePaths = Object.keys(zip.files)
@@ -315,11 +276,8 @@ function isTextMime(mime) {
   return Boolean(mime) && (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml')
 }
 
-// --- Result shaping -----------------------------------------------------------
-
 function finalizeText(base, full, extraNotice) {
   const max = config.google.drive.maxChars
-  // Redact before slicing so a secret straddling the cut can't leak its tail.
   const redacted = redactSecrets(full)
   const truncated = redacted.length > max
   const content = truncated ? redacted.slice(0, max) : redacted
@@ -371,10 +329,7 @@ function errorToNotice(err, url) {
   return null
 }
 
-// --- Public API ---------------------------------------------------------------
-
 function mapFile(f) {
-  // Redact credential-shaped strings in file names too (content already is).
   return {
     id: f.id,
     name: redactSecrets(f.name),
@@ -385,9 +340,6 @@ function mapFile(f) {
 }
 
 function escapeQuery(value) {
-  // Escape backslashes FIRST, then single quotes, before interpolating into the
-  // single-quoted Drive `q` term — apostrophes in NL queries would otherwise
-  // break the query, and unescaped quotes could inject query operators.
   return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
@@ -398,9 +350,6 @@ const SHARED_DRIVE_PARAMS = {
   corpora: 'allDrives',
 }
 
-// Run a files.list query, degrading recoverable failures (403/timeout/429/5xx)
-// to an empty result + notice for consistency with getFile, rather than throwing
-// a raw exception out of the tool.
 async function listQuery(path, label) {
   let data
   try {
@@ -425,14 +374,10 @@ export async function searchFiles(query) {
     fields: SEARCH_FIELDS,
     pageSize: '20',
     ...SHARED_DRIVE_PARAMS,
-    // No orderBy: keep Drive's relevance ranking so the 20-result cap surfaces the
-    // most relevant docs first.
   })
   return listQuery(`/files?${params.toString()}`, `searchFiles("${query}")`)
 }
 
-// Shared Drives the service account is a member of. A Shared Drive's id doubles
-// as its root folder id, so the agent can then list into it with list_drive_files.
 async function listDrives() {
   let data
   try {
@@ -449,9 +394,6 @@ async function listDrives() {
 }
 
 export async function listFiles(folderId) {
-  // No folder given: enumerate the entry points the SA can actually see — items
-  // shared directly with it (sharedWithMe) plus the Shared Drives it belongs to.
-  // This is how the agent discovers what exists without knowing a folder id.
   if (!folderId) {
     const params = new URLSearchParams({
       q: 'sharedWithMe = true and trashed = false',
@@ -473,7 +415,6 @@ export async function listFiles(folderId) {
     orderBy: 'folder,name',
     ...SHARED_DRIVE_PARAMS,
   })
-  // `in parents` is non-recursive: these are the folder's direct children only.
   return listQuery(`/files?${params.toString()}`, `listFiles(${folderId})`)
 }
 
@@ -495,8 +436,6 @@ async function readBlobParsed(meta, base, parse, { scanned = false } = {}) {
     try {
       text = await parse(buffer)
     } catch {
-      // Malformed / encrypted / password-protected file — degrade to a notice
-      // instead of throwing a raw parser exception out of the tool.
       console.log(`[google-drive] getFile(${meta.id}) "${meta.name}" mime=${meta.mimeType} → parse_failed`)
       return {
         ...base,
@@ -581,9 +520,6 @@ export async function getFile(fileId) {
   }
 }
 
-// Async because the credential lives in the database now. Which service account
-// is live (and therefore which shared folders are exposed) is logged on save —
-// see setDriveCredentials in ./settings.js.
 export async function isConfigured() {
   return Boolean(await getDriveCredentials())
 }

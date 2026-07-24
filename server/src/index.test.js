@@ -139,9 +139,6 @@ vi.mock('./routes/share.js', () => ({
   }),
 }))
 
-// Express 4.22+ defines `listen` as an own property of each app, so patching
-// the app prototype no longer intercepts it. Stub the http layer instead —
-// no port is bound and the boot callback runs synchronously.
 const listenSpy = vi.spyOn(http.Server.prototype, 'listen').mockImplementation(function (_port, cb) {
   if (cb) cb()
   return this
@@ -209,8 +206,6 @@ describe('module-level setup', () => {
 
   it('startSlackBot was given the conversation store during initialization', async () => {
     const { startSlackBot } = await import('./slack/bot.js')
-    // Always called (even when Slack is unconfigured) so a later admin save can
-    // reconnect the bot; it is a no-op until tokens are set.
     expect(startSlackBot).toHaveBeenCalledWith(expect.anything())
   })
 

@@ -8,8 +8,6 @@ const MAX_PR_BODY_CHARS = 4000
 const MAX_COMMENT_CHARS = 2000
 const MAX_THREAD_COMMENTS = 30
 
-// Conversational sibling of the reviewer agent: same pinned repo tools and
-// data tools, but free-text output — a Mention gets a reply, not a verdict.
 export async function createMentionAgent(repoFullName, { rootPath = null } = {}) {
   const model = await resolveModelForAgent()
   return new Agent({

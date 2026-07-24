@@ -1,8 +1,5 @@
 import { pool } from '../repo-pool/index.js'
 
-// Best-effort checkout pinned for one job (a review or a mention reply):
-// the PR head in an ephemeral worktree, else the pool's default-branch clone,
-// else nothing. Each step degrades with a warning and never blocks the job.
 export async function acquireWorkspace(repoFullName, prNumber, logger = console) {
   try {
     return await pool.acquireWorktree(repoFullName, prNumber)

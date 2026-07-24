@@ -1,15 +1,3 @@
-// Auto-diagnose poller (issue #56). Soporti polls a Slack List of support
-// tickets every N seconds; for each item whose "Diagnosis" column
-// is still empty, it reads the ticket (and any screenshots), runs an autonomous
-// diagnosis, and writes the result back into that column.
-//
-// Why polling: Slack list item creation is not delivered to a bot over Socket
-// Mode, and there is no public API to write a list-item comment — but a bot
-// token can both read items (`slackLists.items.list`) and write a cell
-// (`slackLists.items.update`). The diagnosis column itself is the dedup marker:
-// "empty = not yet diagnosed", which is durable across restarts (Slack does not
-// re-deliver anything, so an in-memory marker would lose tickets on deploy).
-
 import config from '../config.js'
 import {
   fetchList,
@@ -33,14 +21,10 @@ function log(icon, ...args) {
 }
 
 let intervalHandle = null
-// Guards a ticket already being diagnosed from being picked up again by an
-// overlapping poll tick (a diagnosis can outlast one poll interval).
 const inFlight = new Set()
 
 async function diagnoseAndWrite(client, { item, rowId, columns, diagnosisColumnId }) {
   const ticket = toTicket(item, { columns })
-  // The bot token lives in the database (admin panel → Slack section); needed
-  // to download url_private attachments.
   const botToken = await getSlackBotToken()
   const images = await collectTicketImages(item, {
     client,
@@ -59,12 +43,8 @@ async function diagnoseAndWrite(client, { item, rowId, columns, diagnosisColumnI
   log('✅', `Wrote diagnosis to row ${rowId}`)
 }
 
-// One poll pass. Exported for tests (drives the loop without timers). Never
-// throws: a per-item failure is logged and the loop moves on.
 export async function runPollOnce(client) {
   const { listId, columnId, columnName, maxItemsPerPoll, skipArchived, skipBefore } = config.autoDiagnose
-  // Items and the column schema come from two different endpoints (items.list
-  // has no schema; the schema lives in files.info — see fetchSchema).
   const [{ items }, columns] = await Promise.all([fetchList(client, { listId }), fetchSchema(client, { listId })])
 
   const diagnosisColumnId = resolveColumnId(columns, { columnId, columnName })
@@ -77,10 +57,6 @@ export async function runPollOnce(client) {
     return { processed: 0 }
   }
 
-  // Cutoff that keeps the historical backlog from being diagnosed on first
-  // activation (see config.autoDiagnose.skipBefore). Fail safe: a set-but-
-  // unparseable cutoff skips the whole poll rather than silently disabling
-  // itself and diagnosing the backlog the operator was trying to exclude.
   let skipBeforeMs = null
   if (skipBefore) {
     skipBeforeMs = parseListTimestamp(skipBefore)
@@ -100,18 +76,16 @@ export async function runPollOnce(client) {
     if (processed >= maxItemsPerPoll) break
     const rowId = getRowId(item)
     if (!rowId) continue
-    if (skipArchived && isArchived(item)) continue // closed/archived old ticket
+    if (skipArchived && isArchived(item)) continue
     if (skipBeforeMs != null) {
       const createdMs = getCreatedMs(item)
-      // Fail safe: when a cutoff is set but we cannot read the creation date,
-      // skip rather than risk diagnosing an undatable backlog item.
       if (createdMs == null) {
         unparsedDates++
         continue
       }
-      if (createdMs < skipBeforeMs) continue // created before the cutoff
+      if (createdMs < skipBeforeMs) continue
     }
-    if ((fieldMap(item)[diagnosisColumnId] || '').trim()) continue // already diagnosed
+    if ((fieldMap(item)[diagnosisColumnId] || '').trim()) continue
     if (inFlight.has(rowId)) continue
 
     inFlight.add(rowId)
@@ -143,7 +117,7 @@ export function startAutoDiagnose({ client }) {
   }
   intervalHandle = setInterval(tick, pollIntervalMs)
   intervalHandle.unref?.()
-  tick() // run one pass immediately rather than waiting a full interval
+  tick()
   return intervalHandle
 }
 

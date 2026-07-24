@@ -84,7 +84,6 @@ describe('setHelpjuiceApiKey / setHelpjuiceAccount', () => {
 
     await setHelpjuiceApiKey('hj_secret')
 
-    // The account read stays cached: no extra getConfigValue call.
     getConfigValue.mockClear()
     expect(await getHelpjuiceAccount()).toBe('acme')
     expect(getConfigValue).not.toHaveBeenCalled()

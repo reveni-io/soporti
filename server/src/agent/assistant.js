@@ -17,7 +17,6 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import * as shopify from '../shopify/client.js'
 
-// Async: the repo catalog is read from the database (admin panel → GitHub).
 export async function createAgent(selectedSources, profile, similarCases, { customInstructions = '' } = {}) {
   const policy = buildSourcePolicy(selectedSources)
   const sourceInstructions = buildSourceInstructions(selectedSources)
@@ -39,11 +38,6 @@ export async function createAgent(selectedSources, profile, similarCases, { cust
     `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
   )
 
-  // The policy decides which tools the agent gets: everything in YOLO mode,
-  // only the selected sources otherwise. The Shortcut, Sentry, Google Drive,
-  // Notion, Helpjuice, Postgres and Shopify availability lives in the database
-  // (Shopify reads its tokens from the Postgres database), so resolve them per
-  // turn.
   const [
     shortcutConfigured,
     sentryConfigured,

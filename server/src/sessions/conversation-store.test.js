@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Structured query helpers the fake db can interpret.
 vi.mock('drizzle-orm', () => ({
   eq: (col, val) => ({ op: 'eq', col, val }),
   and: (...preds) => ({ op: 'and', preds }),
@@ -72,7 +71,6 @@ function project(row, projection) {
   return out
 }
 
-// In-memory drizzle-shaped fake covering the query shapes ConversationStore uses.
 function makeFakeDb() {
   const tables = new Map([
     [conversations, []],
@@ -169,7 +167,6 @@ function makeFakeDb() {
             if (!match(row, pred)) continue
             for (const [k, val] of Object.entries(changes)) {
               if (val && val.__sql) {
-                // coalesce(existing, literal)
                 row[k] = row[k] != null ? row[k] : val.values[1]
               } else {
                 row[k] = val
@@ -259,7 +256,6 @@ describe('ConversationStore', () => {
   })
 
   it('resolveSlack does not duplicate the conversation when a concurrent insert wins the race', async () => {
-    // A row for this thread appears between the initial select and our insert.
     db._tables.get(conversations).push({
       id: 'winner',
       source: 'slack',
@@ -267,8 +263,6 @@ describe('ConversationStore', () => {
       slackThreadTs: 't1',
       openaiLastResponseId: 'resp_w',
     })
-    // Force the insert path: the first lookup misses, the conflicting insert is
-    // a no-op, and the re-select returns the winning row.
     vi.spyOn(store, '_findSlack').mockResolvedValueOnce(null)
 
     const result = await store.resolveSlack('C1', 't1', 7)

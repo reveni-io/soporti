@@ -3,8 +3,6 @@ import { getShortcutToken, isShortcutConfigured } from './settings.js'
 const BASE_URL = 'https://api.app.shortcut.com/api/v3'
 
 async function request(method, path, body) {
-  // The token lives in the database (admin panel → Shortcut section), so it is
-  // resolved per request instead of read once from an env var.
   const token = await getShortcutToken()
   if (!token) {
     throw new Error('Shortcut token not configured. Set it in the admin panel (Shortcut section).')
@@ -63,8 +61,6 @@ export async function searchStories(query) {
   }
 }
 
-// Async because the token lives in the database now. Whether the Shortcut
-// tools are registered is resolved per turn (see buildAgentTools / createAgent).
 export async function isConfigured() {
   return isShortcutConfigured()
 }

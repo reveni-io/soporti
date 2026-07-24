@@ -2,8 +2,6 @@ import { Router } from 'express'
 import { getUsageStats, USAGE_WINDOW_DAYS } from '../db/stats.js'
 import { countSolvedCases } from '../knowledge/client.js'
 
-// Usage stats shown in the chat empty state. Counting hits the app database
-// and the OpenAI vector store, so responses are cached for a few minutes.
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 let cache = null
@@ -30,7 +28,6 @@ router.get('/', async (_req, res) => {
     solvedCases: solvedCases.status === 'fulfilled' ? solvedCases.value : null,
   }
 
-  // Don't cache a fully failed lookup, so the next request retries right away.
   const anyAvailable = [stats.conversations, stats.activeUsers, stats.solvedCases].some(v => v !== null)
   if (anyAvailable) {
     cache = { stats, expiresAt: Date.now() + CACHE_TTL_MS }

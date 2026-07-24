@@ -117,9 +117,6 @@ id,name,total
 - Use a \`csv\` block only for genuinely tabular data. For a small table shown just for reading, a normal Markdown table is fine — reach for \`csv\` when the value is in downloading it.
 - Do not add prose inside the block. A short sentence before it introducing the data is fine.`
 
-// Prompt sections for each integration toolset, in the order they appear in
-// the historical base prompt. Only injected when the corresponding tools are
-// registered for the conversation (see buildBasePrompt).
 const INTEGRATION_PROMPT_SECTIONS = {
   shortcut: `## Shortcut integration
 
@@ -236,15 +233,8 @@ You have tools to query the Shopify Admin API (read-only). Use them when the use
 4. Compare and highlight any discrepancies clearly.`,
 }
 
-// Shortcut and Sentry are cross-cutting helpers, not selectable sources —
-// their tools are registered in every conversation.
 const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])
 
-// Assembles the base system prompt for a conversation from its source policy
-// (see buildSourcePolicy in sources.js). Unrestricted policies get every
-// section — the historical BASE_PROMPT. Restricted policies only get the
-// sections whose tools the agent actually has, so the prompt never pushes the
-// agent toward sources the user did not select.
 export function buildBasePrompt(policy = null) {
   const unrestricted = !policy || policy.unrestricted
   const parts = [CORE_INTRO]
@@ -327,14 +317,11 @@ The user has not picked specific sources — you decide which repos and integrat
 - All registered integration tools (Notion, Database, Helpjuice, Shopify, Sentry, Shortcut, etc.) are fair game when the question warrants them.
 - Be efficient: prefer one or two well-targeted sources over a broad sweep.`
 
-// A "source" is anything the user can select for a conversation: a GitHub repo
-// ("owner/repo"), an integration ("integration:<id>"), or the YOLO sentinel.
 export function buildSourceInstructions(selectedSources) {
   if (isYoloMode(selectedSources)) return YOLO_INSTRUCTIONS
 
   const policy = buildSourcePolicy(selectedSources)
 
-  // Legacy empty selection: the agent keeps the full toolset and may explore.
   if (policy.unrestricted) {
     return 'The user has not selected specific repos. Use list_repos first to see what is available.'
   }

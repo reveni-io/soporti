@@ -9,8 +9,6 @@ import * as sentry from '../sentry/client.js'
 
 const router = Router()
 
-// selectable: false marks always-on capabilities (GitHub, Shortcut, Sentry): the client
-// shows them as things the agent can do, but they cannot be picked as sources.
 router.get('/', async (_req, res) => {
   const integrations = [
     {

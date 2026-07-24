@@ -30,8 +30,6 @@ import {
   findFilesAt,
 } from './operations.js'
 
-// Path-based variants: same operations, but against an explicit checkout
-// (a PR-head worktree) instead of a pool-managed clone.
 describe('path-based variants (worktrees)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -302,7 +300,6 @@ describe('findFiles', () => {
     const inameIdx = capturedArgs.indexOf('-iname')
     expect(inameIdx).toBeGreaterThan(-1)
     expect(capturedArgs[inameIdx + 1]).toBe('auth.js')
-    // Pattern should not be passed via -path (excludes use -path internally, but not the pattern itself)
     expect(capturedArgs.some(a => a === '*auth.js*')).toBe(false)
   })
 

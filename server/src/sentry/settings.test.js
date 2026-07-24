@@ -84,7 +84,6 @@ describe('setSentryToken / setSentryOrg', () => {
 
     await setSentryToken('sntrys_secret')
 
-    // The org read stays cached: no extra getConfigValue call.
     getConfigValue.mockClear()
     expect(await getSentryOrg()).toBe('my-org')
     expect(getConfigValue).not.toHaveBeenCalled()

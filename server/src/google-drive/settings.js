@@ -1,25 +1,10 @@
 import { getConfigValue, setConfigValue } from '../db/app-config.js'
 
-// Google Drive service-account credential, stored in the database (app_config)
-// and edited from the admin panel (Google Drive section) — no env var. The
-// database is the single source of truth. The decoded, validated credential
-// object is stored as jsonb; it is read on every Drive call, so it is cached
-// briefly. Saves invalidate the cache immediately in this process, the TTL
-// covers other instances.
-//
-// The credential contains a private key, so it is write-only from the admin's
-// point of view (only the non-sensitive client_email is ever returned).
-
 export const GOOGLE_DRIVE_CREDENTIALS_KEY = 'google_drive_credentials'
 
 const CACHE_TTL_MS = 60_000
-let cached = null // { value, expiresAt }
+let cached = null
 
-// Parse a service-account credential from either the raw JSON key or its base64
-// blob (as previously held in GOOGLE_DRIVE_SA_CREDENTIALS_B64), auto-detecting
-// which. Returns the validated object. Throws an error tagged with
-// `code = 'INVALID_DRIVE_CREDENTIALS'` on any failure — and, deliberately, the
-// message never echoes the input, which could contain the private key.
 export function parseDriveCredentials(input) {
   const trimmed = typeof input === 'string' ? input.trim() : ''
   if (!trimmed) {
@@ -29,8 +14,6 @@ export function parseDriveCredentials(input) {
   }
 
   let json
-  // Prefer raw JSON; fall back to base64-decoding then parsing. Neither branch
-  // logs or rethrows the underlying parse error (it can contain key material).
   if (trimmed.startsWith('{')) {
     try {
       json = JSON.parse(trimmed)
@@ -58,7 +41,6 @@ export function parseDriveCredentials(input) {
   return json
 }
 
-// Returns the credential object, or null when not configured.
 export async function getDriveCredentials() {
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value
@@ -69,11 +51,6 @@ export async function getDriveCredentials() {
   return value
 }
 
-// An empty string clears the credential (Google Drive disabled). Any other
-// input is parsed+validated (base64 or JSON) before being stored. Returns the
-// stored credential object, or null when cleared. Logs the service-account
-// email on save (parity with the previous boot-time startup signal) so admins
-// can audit which account — and therefore which shared folders — is live.
 export async function setDriveCredentials(input) {
   if (typeof input === 'string' && input.trim() === '') {
     await setConfigValue(GOOGLE_DRIVE_CREDENTIALS_KEY, null)
@@ -89,13 +66,10 @@ export async function setDriveCredentials(input) {
   return creds
 }
 
-// True when a credential is configured. Async because the credential lives in
-// the database now (it used to be a synchronous env-derived value).
 export async function isDriveConfigured() {
   return Boolean(await getDriveCredentials())
 }
 
-// Test-only: clear the cache between tests.
 export function _resetDriveSettingsCacheForTests() {
   cached = null
 }

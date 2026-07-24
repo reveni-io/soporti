@@ -27,9 +27,6 @@ export const listReposTool = tool({
   },
 })
 
-// Builds the repository tools. When allowedRepos is provided (a restricted
-// source selection), every tool rejects calls targeting a repo outside it —
-// the selection is enforced here, not just suggested in the prompt.
 export function buildRepoTools(allowedRepos = null) {
   const guard = run => async input => {
     if (allowedRepos && !allowedRepos.includes(input.repo)) {
@@ -434,14 +431,6 @@ export const shopifyGraphqlQueryTool = tool({
   },
 })
 
-// Shortcut, Sentry, Google Drive, Notion, Helpjuice, Postgres and Shopify
-// tools. Their availability lives in the database and can change at runtime, so
-// whether these are registered is decided per turn via the `shortcutConfigured`
-// / `sentryConfigured` / `driveConfigured` / `notionConfigured` /
-// `helpjuiceConfigured` / `postgresConfigured` / `shopifyConfigured` flags
-// threaded into buildAgentTools — not baked into `allTools` here. (Shopify
-// reads its tokens from the customer's Postgres database, so it is gated the
-// same way, resolved from shopify.isConfigured().)
 const SHORTCUT_TOOLS = [getShortcutStoryTool, searchShortcutStoriesTool]
 const SENTRY_TOOLS = [getSentryIssueTool, searchSentryIssuesTool]
 const DRIVE_TOOLS = [searchDriveFilesTool, getDriveFileTool, listDriveFilesTool]
@@ -456,9 +445,6 @@ const SHOPIFY_TOOLS = [
   shopifyGraphqlQueryTool,
 ]
 
-// Base toolset in YOLO mode, excluding the runtime-gated Shortcut, Sentry,
-// Drive, Notion, Helpjuice, Postgres and Shopify tools (added in
-// buildAgentTools when configured).
 export const allTools = [
   listReposTool,
   getDirectoryContentsTool,
@@ -469,20 +455,6 @@ export const allTools = [
   gitBlameTool,
 ]
 
-// Builds the toolset for a conversation from its source policy
-// (see buildSourcePolicy in sources.js).
-//
-// - Unrestricted (YOLO or legacy empty selection): every configured tool.
-// - Restricted: only the repo tools (guarded to the selected repos, without
-//   list_repos) and the tools of the selected integrations. Shortcut and
-//   Sentry are not selectable sources, so they stay available in every
-//   conversation (whenever they are configured).
-//
-// shortcutConfigured / sentryConfigured / driveConfigured / notionConfigured /
-// helpjuiceConfigured / postgresConfigured / shopifyConfigured gate the
-// Shortcut, Sentry, Google Drive, Notion, Helpjuice, Postgres and Shopify tools
-// (their availability lives in the database and can change at runtime); the
-// caller resolves them — see createAgent in assistant.js.
 export function buildAgentTools(
   policy,
   {
@@ -531,7 +503,6 @@ export function buildAgentTools(
       } else if (id === 'shopify') {
         tools.push(...shopifyTools)
       }
-      // Unknown / non-selectable ids contribute nothing.
     }
     tools.push(...shortcutTools, ...sentryTools)
   }

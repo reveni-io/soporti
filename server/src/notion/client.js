@@ -6,8 +6,6 @@ const MAX_BLOCK_DEPTH = 3
 const MAX_BLOCKS = 200
 
 async function request(method, path, body) {
-  // The token lives in the database (admin panel → Notion section), so it is
-  // resolved per request instead of read once from an env var.
   const token = await getNotionToken()
   if (!token) {
     throw new Error('Notion token not configured. Set it in the admin panel (Notion section).')
@@ -247,8 +245,6 @@ export async function getPage(pageId) {
   }
 }
 
-// Async because the token lives in the database now. Whether the Notion tools
-// are registered is resolved per turn (see buildAgentTools / createAgent).
 export async function isConfigured() {
   return isNotionConfigured()
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { commentableLines, partitionFindings, selectFilesWithinBudget } from './diff.js'
 
-// Patch fixture: one hunk starting at new line 10 with context, additions and a deletion.
 const PATCH = [
   '@@ -8,4 +10,5 @@ function checkout() {',
   ' const cart = getCart()',
@@ -19,7 +18,6 @@ const FILES = [
 describe('commentableLines', () => {
   it('maps context and added lines to RIGHT-side line numbers', () => {
     const lines = commentableLines(FILES)
-    // new lines: 10 (context), 11 (+), 12 (+), 13 (context)
     expect([...lines.get('src/checkout.js')].sort((a, b) => a - b)).toEqual([10, 11, 12, 13])
   })
 
@@ -101,7 +99,6 @@ describe('selectFilesWithinBudget', () => {
     const files = [
       { filename: 'src/checkout.js', patch: PATCH, additions: 2, deletions: 1 },
       { filename: 'apps/coverage/__init__.py', additions: 0, deletions: 0, status: 'added' },
-      // Binary: same 0/0 no-patch shape, but NOT verified empty — stays omitted.
       { filename: 'assets/logo.png', additions: 0, deletions: 0, status: 'added' },
     ]
     const { included, omitted, empty } = selectFilesWithinBudget(files, 1000, {
@@ -128,8 +125,6 @@ describe('selectFilesWithinBudget', () => {
       { filename: 'small.js', patch: 'x', additions: 10, deletions: 0 },
     ]
     const { included, omitted } = selectFilesWithinBudget(files, 100)
-    // huge.js is the first patchable file: always reviewed (deliberate exception);
-    // everything after it stays under strict budget rules.
     expect(included.map(f => f.filename)).toEqual(['huge.js'])
     expect(omitted).toEqual([
       { filename: 'binary.png', reason: 'no-patch' },

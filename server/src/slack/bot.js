@@ -71,8 +71,6 @@ setInterval(
   10 * 60 * 1000
 ).unref()
 
-// Re-exported from settings.js: the credentials live in the database now, so
-// this is async. Kept exported here because callers import it from the bot.
 export { isSlackConfigured } from './settings.js'
 
 async function buildSourceSelectorBlocks(question, repos) {
@@ -275,8 +273,6 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       }
     }
 
-    // Only offer the \ud83d\udc4d/\ud83d\udc4e feedback when the knowledge base is configured \u2014 a
-    // saved case needs a vector store to land in.
     if (await isKnowledgeBaseConfigured()) {
       const feedbackId = storePendingFeedback(question, result.text)
 
@@ -316,15 +312,10 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
 }
 
 export async function startSlackBot(store) {
-  // Keep the store reference even when Slack is not configured yet, so a later
-  // save in the admin panel can reconnect (restartSlackBot reuses it).
   if (store) conversationStore = store
 
-  // Already connected: do not open a second Socket Mode connection.
   if (slackApp) return slackApp
 
-  // Credentials live in the database (admin panel → Slack section), resolved
-  // here instead of read once from env vars.
   const { botToken, appToken, signingSecret } = await getSlackSettings()
   if (!botToken || !appToken) return null
 
@@ -617,8 +608,6 @@ export async function startSlackBot(store) {
   await slackApp.start()
   console.log('Slack bot connected via Socket Mode')
 
-  // Ticket auto-diagnose poller (issue #56). No-op unless configured; uses the
-  // bot-token WebClient to read/write the tickets List.
   startAutoDiagnose({ client: slackApp.client })
 
   return slackApp
@@ -632,11 +621,6 @@ export async function stopSlackBot() {
   }
 }
 
-// Reconnect the bot with the current database credentials (called after the
-// admin panel saves a token). Reuses the conversationStore captured at boot, so
-// the bot picks up new tokens — or disconnects when they are cleared — without
-// restarting the server. A no-op-to-connect transition happens once both the
-// bot and app tokens are present.
 export async function restartSlackBot() {
   await stopSlackBot()
   return startSlackBot()

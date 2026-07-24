@@ -61,7 +61,6 @@ describe('updateItemField', () => {
       list_id: 'F1',
       cells: [{ row_id: 'Rec1', column_id: 'Col1AB2', rich_text: toRichText('hola') }],
     })
-    // and the rich_text round-trips back to the plain string
     const cell = client.apiCall.mock.calls[0][1].cells[0]
     expect(richTextToPlain(cell.rich_text)).toBe('hola')
   })
@@ -169,7 +168,6 @@ describe('resolveColumnId', () => {
   })
 
   it('falls back to the name match when the configured id is stale (not in the schema)', () => {
-    // e.g. a leftover SLACK_AUTODIAGNOSE_COLUMN_ID="Diagnosis" (the name, not a Col id)
     expect(resolveColumnId(columns, { columnId: 'Diagnosis', columnName: 'Diagnosis' })).toBe('c1')
   })
 

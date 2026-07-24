@@ -9,7 +9,6 @@ function mockResponse({ ok = true, contentType = 'image/png', bytes = [1, 2, 3] 
   }
 }
 
-// A WebClient stub whose files.info returns the given file objects by id.
 function fileInfoClient(filesById) {
   return {
     apiCall: vi.fn(async (method, { file }) => {

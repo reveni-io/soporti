@@ -25,10 +25,6 @@ function excludeEnvArgs() {
   return BLOCKED_PATHS.filter(p => p.startsWith('.env')).map(p => `--exclude=${p}`)
 }
 
-// Every operation has two entry points: the repo-keyed wrapper (acquires a
-// pool clone of the default branch per call) and the `*At` variant against an
-// explicit checkout path — a PR-head worktree pinned by the caller. Both share
-// the same core, including path sanitization.
 async function withClone(repoFullName, fn) {
   parseRepo(repoFullName)
   const { localPath, release } = await pool.acquire(repoFullName)

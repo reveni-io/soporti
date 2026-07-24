@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mutable mock config so individual tests can tighten maxChars/maxBytes. The
-// credential now lives in the database (settings.js), mocked separately below.
 const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {
     google: {
@@ -17,7 +15,6 @@ const { mockConfig } = vi.hoisted(() => ({
 
 vi.mock('../config.js', () => ({ default: mockConfig }))
 
-// The service-account credential comes from the database via settings.js.
 const { creds } = vi.hoisted(() => ({
   creds: { value: { client_email: 'sa@proj.iam.gserviceaccount.com', private_key: 'PRIVATE' } },
 }))
@@ -33,8 +30,6 @@ vi.mock('google-auth-library', () => ({
   },
 }))
 
-// Parser libraries are mocked: we test getFile's wiring (dispatch, ceiling,
-// redaction, empty -> notice), not the third-party extraction internals.
 vi.mock('unpdf', () => ({
   getDocumentProxy: vi.fn().mockResolvedValue({}),
   extractText: vi.fn().mockResolvedValue({ text: 'PDF text' }),
@@ -50,7 +45,6 @@ vi.mock('exceljs', () => {
         name: 'Sheet1',
         eachRow: rcb => {
           rcb({ values: [undefined, 'a', 'b'] })
-          // error cell + formula-error cell exercise formatCell's object branches
           rcb({ values: [undefined, { error: '#DIV/0!' }, { formula: 'SUM(A:A)', result: { error: '#REF!' } }] })
         },
       })
@@ -290,7 +284,6 @@ describe('getFile - blob types', () => {
       .mockResolvedValueOnce(jsonResp({ id: 'x', name: 'book.xlsx', mimeType: XLSX, webViewLink: 'u' }))
       .mockResolvedValueOnce(blobResp(new Uint8Array([1])))
     const res = await drive.getFile('x')
-    // includes a plain row and a row with an error cell + formula-error cell
     expect(res.content).toBe('# Sheet1\na\tb\n#DIV/0!\t#REF!')
   })
 
@@ -300,7 +293,6 @@ describe('getFile - blob types', () => {
       .mockResolvedValueOnce(blobResp(new Uint8Array([1])))
     const res = await drive.getFile('pp')
     expect(res.content).toBe('# Slide 1\nSlide text')
-    // run text must be preserved verbatim (no "007" -> 7 / "true" -> boolean)
     expect(recorder.xmlOpts).toMatchObject({ parseTagValue: false, trimValues: false })
   })
 

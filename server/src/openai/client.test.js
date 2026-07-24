@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const setDefaultOpenAIClient = vi.fn()
 vi.mock('@openai/agents', () => ({ setDefaultOpenAIClient }))
 
-// Each OpenAI(...) instance is tagged with the key it was built with so the
-// test can assert caching/rebuild behaviour.
 const openaiConstructor = vi.fn()
 vi.mock('openai', () => ({
   default: class MockOpenAI {

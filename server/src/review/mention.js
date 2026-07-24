@@ -9,9 +9,6 @@ import { acquireWorkspace } from './workspace.js'
 import { runMentionAgent } from './mention-agent.js'
 import { redactSecrets } from './output-guard.js'
 
-// Runs one Mention reply end to end: exactly one reply in
-// the thread where Soporti was mentioned, never a review. Never throws —
-// someone asked Soporti something, silence would be worse.
 export async function runMention(mention, { logger = console } = {}) {
   const { repoFullName, prNumber, dedupeKey } = mention
   logger.log(`[review] Replying to ${dedupeKey} (${mention.channel})`)
@@ -29,10 +26,6 @@ export async function runMention(mention, { logger = console } = {}) {
       rootPath: workspace?.localPath ?? null,
     })
 
-    // Replies land at the bottom of the conversation, away from what they
-    // answer: quoting the triggering comment pins the reply to it. The whole
-    // body goes through the output guard — a mention is attacker-writable
-    // input, and this is the exfiltration channel.
     const body = redactSecrets(`${quoteTrigger(mention)}\n\n${reply}`)
     if (mention.channel === 'review_thread') {
       await createReviewCommentReply(repoFullName, prNumber, mention.commentId, body)
@@ -49,9 +42,6 @@ export async function runMention(mention, { logger = console } = {}) {
   }
 }
 
-// A Mention gets exactly one reply in its own thread — the
-// failure notice honors that too: a review-thread mention is answered in the
-// thread, not dropped into the PR conversation.
 async function postFailureNotice(mention, logger) {
   const { repoFullName, prNumber, channel, commentId, dedupeKey } = mention
   const notice = '⚠️ Soporti could not reply to the mention. Mention it again to retry.'
@@ -66,19 +56,15 @@ async function postFailureNotice(mention, logger) {
   }
 }
 
-// The quote identifies the comment, it doesn't reproduce it.
 const MAX_QUOTE_CHARS = 300
 
 function quoteTrigger(mention) {
   let text = mention.commentBody.replace(/\r\n/g, '\n').trim()
   if (text.length > MAX_QUOTE_CHARS) text = `${text.slice(0, MAX_QUOTE_CHARS)}…`
-  // The author is named without an @ so the quote never re-notifies them.
   const [first, ...rest] = text.split('\n')
   return [`> **${mention.commentAuthor}**: ${first}`, ...rest.map(line => `> ${line}`)].join('\n')
 }
 
-// The GitHub thread is the conversation memory: replies stay coherent without
-// any session state. Failures degrade to answering from the mention alone.
 async function loadThread(mention, logger) {
   try {
     if (mention.channel === 'review_thread') {

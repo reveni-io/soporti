@@ -1,22 +1,11 @@
 import { getConfigValue, setConfigValue } from '../db/app-config.js'
 
-// Which sign-in methods are enabled, stored in the database (app_config) and
-// toggled from the admin panel (Authentication section).
-//
-// Defaults (no row yet, i.e. fresh install): Google OFF — fail closed until
-// the admin explicitly enables it — and password ON, since the bootstrap
-// creates a password admin and admin-created users need it.
-//
-// Note: the password toggle only gates REGULAR users (and the /login form).
-// Admins can always sign in with their password — otherwise disabling it
-// would lock the admin out of /admin permanently.
-
 export const AUTH_METHODS_KEY = 'auth_methods'
 
 const DEFAULTS = { google: false, password: true }
 const CACHE_TTL_MS = 60_000
 
-let cached = null // { value, expiresAt }
+let cached = null
 
 export async function getAuthMethods() {
   if (cached && cached.expiresAt > Date.now()) {
@@ -38,7 +27,6 @@ export async function setAuthMethods({ google, password }) {
   return value
 }
 
-// Test-only: clear the cache between tests.
 export function _resetAuthMethodsCacheForTests() {
   cached = null
 }

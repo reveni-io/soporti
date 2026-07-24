@@ -3,8 +3,6 @@ import { getSentryToken, getSentryOrg, isSentryConfigured } from './settings.js'
 const BASE_URL = 'https://sentry.io/api/0'
 
 async function request(method, path) {
-  // The auth token and org live in the database (admin panel → Sentry section),
-  // so they are resolved per request instead of read once from env vars.
   const token = await getSentryToken()
   if (!token) {
     throw new Error(
@@ -97,8 +95,6 @@ export async function searchIssues(query) {
   }))
 }
 
-// Async because the credentials live in the database now. Whether the Sentry
-// tools are registered is resolved per turn (see buildAgentTools / createAgent).
 export async function isConfigured() {
   return isSentryConfigured()
 }

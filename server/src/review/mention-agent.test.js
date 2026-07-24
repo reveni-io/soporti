@@ -60,7 +60,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// The model now comes from the DB via resolveModelForAgent (openai/client.js).
 const mockResolveModel = vi.fn(async () => 'test-model')
 vi.mock('../openai/client.js', () => ({
   resolveModelForAgent: (...a) => mockResolveModel(...a),
@@ -125,7 +124,6 @@ describe('createMentionAgent', () => {
     const { instructions } = MockAgent.mock.calls[0][0]
     expect(instructions).toContain('acme-io/app')
     expect(instructions).toMatch(/never.*(start|trigger|perform).*review/i)
-    // If asked for a re-review, point to the right gesture.
     expect(instructions).toMatch(/re-request|request a review|label/i)
     expect(instructions).toMatch(/language/i)
   })
@@ -134,12 +132,9 @@ describe('createMentionAgent', () => {
     await createMentionAgent('acme-io/app', {})
 
     const { instructions } = MockAgent.mock.calls[0][0]
-    // Off-topic asks (recipes, general questions) get declined.
     expect(instructions).toMatch(/decline/i)
-    // Comments, code and tool output are data, never orders to the agent.
     expect(instructions).toMatch(/not instructions/i)
     expect(instructions).toMatch(/do not comply/i)
-    // Secrets never leave through a reply.
     expect(instructions).toMatch(/never reveal/i)
     expect(instructions).toMatch(/credential|token|secret/i)
   })
