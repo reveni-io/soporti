@@ -48,8 +48,6 @@ describe('AdminGoogleDrive', () => {
     render(<AdminGoogleDrive token="tok" onLogout={vi.fn()} />)
 
     const textarea = await screen.findByRole('textbox')
-    // paste (not type) so the JSON braces are inserted literally, not parsed as
-    // userEvent keyboard directives.
     await user.click(textarea)
     await user.paste('{"client_email":"sa@proj.iam.gserviceaccount.com","private_key":"K"}')
     await user.click(screen.getByRole('button', { name: /save credentials/i }))
@@ -58,7 +56,6 @@ describe('AdminGoogleDrive', () => {
     const [url, options] = global.fetch.mock.calls[1]
     expect(url).toContain('/api/admin/config/google-drive/credentials')
     expect(JSON.parse(options.body).credentials).toContain('client_email')
-    // The configured email now shows.
     expect(screen.getByText('sa@proj.iam.gserviceaccount.com')).toBeInTheDocument()
   })
 

@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Which sign-in methods the login page should render (admin-configured).
-// Returns null while loading; falls back to both-enabled if the check fails —
-// the server enforces the toggles anyway, this only drives the UI.
 export function useAuthMethods() {
   const [methods, setMethods] = useState(null)
 

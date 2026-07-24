@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// OpenAI settings section of the admin panel. The API key is write-only (the
-// server never returns it); the model and vector store id are plain text shown
-// and editable. The database is the single source of truth — there is no env
-// var fallback.
 export default function AdminOpenAI({ token, onLogout }) {
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
   const [apiKey, setApiKey] = useState('')

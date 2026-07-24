@@ -45,10 +45,8 @@ describe('AdminUsers', () => {
     expect(screen.getByText('google')).toBeInTheDocument()
     expect(screen.getByText('password')).toBeInTheDocument()
     expect(screen.getByText('slack')).toBeInTheDocument()
-    // 'admin' also appears in the role <select>; assert on the table badge.
     const adminBadges = screen.getAllByText('admin')
     expect(adminBadges.some(el => el.className.includes('badge--success'))).toBe(true)
-    // Slack-only user has no email/name, so the slackId stands in for the name.
     expect(screen.getByText('U0SLACK1')).toBeInTheDocument()
   })
 

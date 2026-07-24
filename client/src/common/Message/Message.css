@@ -22,7 +22,6 @@
   padding: var(--sp2) var(--sp4);
   border-radius: var(--radius-lg);
   word-break: break-word;
-  /* Allow click+drag selection + copy/paste inside chat outputs */
   user-select: text;
   -webkit-user-select: text;
 }
@@ -62,7 +61,6 @@
   width: 100%;
 }
 
-/* Markdown content styling */
 .message__bubble--assistant p {
   margin: var(--sp1) 0;
 }
@@ -193,7 +191,6 @@
   color: var(--green-inverse);
 }
 
-/* Error */
 .message__error {
   color: var(--orange-900);
   background-color: var(--orange-50);
@@ -206,7 +203,6 @@
   line-height: 1rem;
 }
 
-/* Typing indicator */
 .message__typing {
   display: flex;
   gap: var(--sp1);
@@ -230,7 +226,6 @@
   40% { transform: scale(1); opacity: 1; }
 }
 
-/* Mermaid diagrams */
 .mermaid-diagram {
   background-color: var(--white);
   border: 1px solid var(--border-default);
@@ -256,7 +251,6 @@
   display: block;
 }
 
-/* Mermaid skeleton loader */
 .mermaid-skeleton {
   display: flex;
   flex-direction: column;
@@ -291,7 +285,6 @@
   gap: var(--sp4);
 }
 
-/* Chart blocks */
 .chart-block {
   background-color: var(--white);
   border: 1px solid var(--border-default);
@@ -319,7 +312,6 @@
   display: block;
 }
 
-/* Chart skeleton loader */
 .chart-skeleton {
   display: flex;
   flex-direction: column;
@@ -358,7 +350,6 @@
   100% { background-position: -200% 0; }
 }
 
-/* CSV blocks */
 .csv-block {
   background-color: var(--white);
   border: 1px solid var(--border-default);
@@ -445,7 +436,6 @@
   line-height: 1rem;
 }
 
-/* Mobile responsive */
 @media (max-width: 768px) {
   .message__bubble {
     max-width: 92%;

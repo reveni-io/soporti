@@ -1,9 +1,4 @@
-// Example questions shown in the chat empty state. Deliberately generic so
-// they make sense for any product — tune them to your own domain if you like.
-// Questions tagged with an integrationId are only shown when that integration
-// is configured.
 export const EXAMPLE_QUESTIONS = [
-  // How the product behaves (answered from code, always available via GitHub)
   {
     category: 'product',
     integrationId: 'github',
@@ -45,7 +40,6 @@ export const EXAMPLE_QUESTIONS = [
     text: 'What credentials does a customer need to provide to activate an integration?',
   },
 
-  // Live data lookups (agent's read-only database)
   {
     category: 'data',
     integrationId: 'postgres',
@@ -72,7 +66,6 @@ export const EXAMPLE_QUESTIONS = [
     text: 'Show a chart of new signups per day over the last month',
   },
 
-  // Orders in Shopify
   {
     category: 'orders',
     integrationId: 'shopify',
@@ -84,7 +77,6 @@ export const EXAMPLE_QUESTIONS = [
     text: 'What sales channels does the Acme store have?',
   },
 
-  // Production errors
   {
     category: 'errors',
     integrationId: 'sentry',
@@ -96,7 +88,6 @@ export const EXAMPLE_QUESTIONS = [
     text: 'Explain this Sentry error and its likely cause: <paste a Sentry link>',
   },
 
-  // Internal docs and help center
   {
     category: 'docs',
     integrationId: 'helpjuice',
@@ -113,14 +104,12 @@ export const EXAMPLE_QUESTIONS = [
     text: 'Find the latest pricing doc in Google Drive and summarize it',
   },
 
-  // Ongoing work
   {
     category: 'tickets',
     integrationId: 'shortcut',
     text: 'What is the status of story sc-1234?',
   },
 
-  // Always available, even if the integrations fetch fails
   {
     category: 'general',
     text: 'What tools and data do you have access to?',
@@ -136,8 +125,6 @@ function shuffle(items, random) {
   return arr
 }
 
-// Picks up to `count` questions by alternating between the given lists, so no
-// single category dominates the result.
 function interleave(lists, count) {
   const picked = []
   for (let round = 0; picked.length < count; round++) {
@@ -154,8 +141,6 @@ function isAvailable(question, configuredIds) {
   return !question.integrationId || configuredIds.has(question.integrationId)
 }
 
-// Returns a random sample of questions available for the configured
-// integrations, spread across categories.
 export function sampleExampleQuestions(integrations, count = 4, random = Math.random) {
   const configured = new Set(integrations.map(i => i.id))
   const available = EXAMPLE_QUESTIONS.filter(q => isAvailable(q, configured))
@@ -170,9 +155,6 @@ export function sampleExampleQuestions(integrations, count = 4, random = Math.ra
   return interleave(lists, count)
 }
 
-// Returns up to `count` questions from the given categories that are available
-// for the configured integrations, in curated pool order. Deterministic, for
-// places like the tour where the examples should be stable.
 export function questionsForCategories(categories, integrations, count = 3) {
   const configured = new Set(integrations.map(i => i.id))
   const lists = categories.map(category =>

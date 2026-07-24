@@ -88,8 +88,6 @@ export default function ChatPanel({
 
   const exampleQuestions = useMemo(() => sampleExampleQuestions(integrations), [integrations])
 
-  // Zero and unavailable (null) stats are hidden: a tile is only social proof
-  // when it has something to show.
   const statTiles = useMemo(() => {
     if (!stats) return []
     const format = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })

@@ -24,7 +24,6 @@ describe('AdminSlack', () => {
     render(<AdminSlack token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByText('connected')).toBeInTheDocument()
-    // Three "configured" badges (one per credential) plus their Remove buttons.
     expect(screen.getAllByText('configured')).toHaveLength(3)
     expect(screen.getAllByRole('button', { name: /remove/i })).toHaveLength(3)
   })
@@ -34,9 +33,7 @@ describe('AdminSlack', () => {
 
     render(<AdminSlack token="tok" onLogout={vi.fn()} />)
 
-    // Load complete once the credential inputs render.
     await screen.findByPlaceholderText('xoxb-...')
-    // Top status + each of the three fields all read "not configured".
     expect(screen.getAllByText('not configured')).toHaveLength(4)
     expect(screen.queryByText('connected')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
@@ -54,7 +51,6 @@ describe('AdminSlack', () => {
 
     const input = screen.getByPlaceholderText('xoxb-...')
     await user.type(input, 'xoxb-new')
-    // The bot-token section's own Save button (first in the DOM order).
     await user.click(screen.getAllByRole('button', { name: /^save$/i })[0])
 
     await waitFor(() => expect(input).toHaveValue(''))
@@ -75,7 +71,6 @@ describe('AdminSlack', () => {
     await screen.findByPlaceholderText('xoxb-...')
 
     await user.type(screen.getByPlaceholderText('Signing secret'), 'sign-new')
-    // The signing-secret section is the last Save button.
     const saves = screen.getAllByRole('button', { name: /^save$/i })
     await user.click(saves[saves.length - 1])
 

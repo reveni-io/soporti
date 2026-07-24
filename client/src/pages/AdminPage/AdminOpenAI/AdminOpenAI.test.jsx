@@ -132,7 +132,6 @@ describe('AdminOpenAI', () => {
     render(<AdminOpenAI token="tok" onLogout={vi.fn()} />)
     await screen.findByDisplayValue('gpt-4o')
 
-    // The button stays disabled until the value actually changes.
     expect(screen.getByRole('button', { name: /save model/i })).toBeDisabled()
 
     const input = screen.getByDisplayValue('gpt-4o')
@@ -203,7 +202,6 @@ describe('AdminOpenAI', () => {
     render(<AdminOpenAI token="tok" onLogout={vi.fn()} />)
     await screen.findByText('not configured')
 
-    // The button stays disabled until the value actually changes.
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled()
 
     const input = screen.getByPlaceholderText('vs_...')

@@ -1,17 +1,3 @@
-/* ── Shared UI primitives ─────────────────────────────────────
-   Reusable building blocks for every surface (chat, admin, login, modals).
-   They only consume tokens from index.css — no hardcoded values.
-
-   How to build new UI:
-   1. Reach for a primitive here first (.btn, .input, .card, .modal, .alert…).
-   2. Compose it with a component class for layout tweaks:
-        <button className="btn btn--primary my-feature__save">
-   3. Only add component-specific CSS for layout/structure. If you need a new
-      *style* (a new button look, a new alert flavor), add it HERE as a variant
-      so the next feature can reuse it.
-   4. Never hardcode colors/shadows/sizes — add a token to index.css instead. */
-
-/* ── Buttons ─────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -87,7 +73,6 @@
   width: 100%;
 }
 
-/* ── Form controls ───────────────────────────────────────────── */
 .input,
 .textarea {
   padding: var(--sp2) var(--sp3);
@@ -130,19 +115,16 @@
   font-size: var(--fs-md);
 }
 
-/* ── Cards ───────────────────────────────────────────────────── */
 .card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
 }
 
-/* Card floating on a dark page (login, admin bootstrap) */
 .card--floating {
   box-shadow: var(--shadow-float);
 }
 
-/* ── Modals ──────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -200,7 +182,6 @@
   gap: var(--sp2);
 }
 
-/* ── Alerts & notes ──────────────────────────────────────────── */
 .alert {
   padding: var(--sp2) var(--sp4);
   font-size: var(--fs-md);
@@ -215,7 +196,6 @@
   border-color: var(--orange-300);
 }
 
-/* Informational note (setup hints, side remarks) */
 .note {
   padding: var(--sp2) var(--sp4);
   font-size: var(--fs-md);
@@ -225,7 +205,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* ── Badges & chips ──────────────────────────────────────────── */
 .badge {
   display: inline-block;
   padding: 0 var(--sp2);

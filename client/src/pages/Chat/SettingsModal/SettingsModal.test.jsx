@@ -196,7 +196,6 @@ describe('SettingsModal', () => {
 
     render(<SettingsModal token="tok" onClose={onClose} onLogout={vi.fn()} />)
 
-    // Both the footer button and the header X are named "Close".
     const closeButtons = screen.getAllByRole('button', { name: 'Close' })
     expect(closeButtons).toHaveLength(2)
     await user.click(closeButtons[0])

@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Shortcut section of the admin panel. The integration lets the assistant look
-// up stories (user stories, bugs, chores) and powers the spec axis of PR
-// reviews. The token is write-only (the server never returns it); only whether
-// it is configured is shown.
 export default function AdminShortcut({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [shortcutToken, setShortcutToken] = useState('')

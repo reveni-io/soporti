@@ -370,7 +370,6 @@
   color: var(--sidebar-text);
 }
 
-/* Mobile: sidebar as drawer */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;

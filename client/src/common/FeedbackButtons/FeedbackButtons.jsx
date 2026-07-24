@@ -16,7 +16,6 @@ export default function FeedbackButtons({ feedbackId, authToken }) {
         body: JSON.stringify({ feedbackId, useful }),
       })
     } catch {
-      // Feedback is best-effort
     }
   }
 

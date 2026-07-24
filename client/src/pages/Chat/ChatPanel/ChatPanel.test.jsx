@@ -108,7 +108,6 @@ describe('ChatPanel', () => {
       expect(screen.getByText('128')).toBeInTheDocument()
       expect(screen.getByText('Teammates this week')).toBeInTheDocument()
       expect(screen.getByText('9')).toBeInTheDocument()
-      // Large values are compacted.
       expect(screen.getByText('12.9K')).toBeInTheDocument()
     })
 
@@ -207,13 +206,11 @@ describe('ChatPanel', () => {
       render(<ChatPanel {...defaultProps} />)
 
       await user.click(screen.getByText('What can I ask?'))
-      // Navigate to the code capability step (GitHub is in the fetch mock).
       for (let i = 0; i < 10 && !screen.queryByText('Ask how the product works'); i++) {
         await user.click(screen.getByText('Next'))
       }
 
       const example = 'How are webhook deliveries retried when the receiving server is down?'
-      // The empty state behind the modal may sample the same question, so scope to the modal.
       await user.click(within(screen.getByRole('dialog')).getByText(example))
       expect(screen.queryByText('Ask how the product works')).not.toBeInTheDocument()
       expect(screen.getByPlaceholderText(/ask/i)).toHaveValue(example)

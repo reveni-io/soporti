@@ -10,7 +10,6 @@ describe('CsvBlock', () => {
     render(<CsvBlock csv={CSV} />)
     expect(screen.getByText('id')).toBeInTheDocument()
     expect(screen.getByText('name')).toBeInTheDocument()
-    // Quoted field with an embedded comma stays intact
     expect(screen.getByText('Acme, Inc.')).toBeInTheDocument()
     expect(screen.getByText('Globex')).toBeInTheDocument()
   })

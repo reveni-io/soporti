@@ -3,8 +3,6 @@ import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx
 import { questionsForCategories } from '../example-questions.js'
 import './TourModal.css'
 
-// Screenshots are optional: they live in client/public/tour/ and the step image
-// is hidden automatically when the file is missing.
 const GENERAL_STEPS = [
   {
     id: 'intro',
@@ -32,8 +30,6 @@ const GENERAL_STEPS = [
   },
 ]
 
-// Example questions come from the shared pool in example-questions.js, picked
-// by category so the tour and the chat empty state stay in sync.
 const CAPABILITY_STEPS = [
   {
     id: 'code',

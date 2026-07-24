@@ -89,8 +89,6 @@ function mockStatus(adminExists) {
   })
 }
 
-// Mirrors production: AdminPage is mounted under /admin/* and routes its own
-// sections internally.
 function renderPage(initialPath = '/admin') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -136,7 +134,6 @@ describe('AdminPage', () => {
 
   it('leaves the bootstrap form after a successful bootstrap (renders the panel for the new admin)', async () => {
     const bootstrapAdmin = vi.fn().mockResolvedValue(true)
-    // The real bootstrapAdmin logs the user in; simulate the post-login state.
     mockAuth({ bootstrapAdmin, isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
     mockStatus(false)
     const user = userEvent.setup()
@@ -216,8 +213,6 @@ describe('AdminPage', () => {
 
     expect(await screen.findByTestId('login-comp')).toBeInTheDocument()
     expect(screen.getByTestId('login-password')).toBeInTheDocument()
-    // No Google sign-in on the admin login: the admin always has a password
-    // and Google may be disabled (empty domains) on a fresh install.
     expect(screen.queryByTestId('login-google')).not.toBeInTheDocument()
   })
 
@@ -238,7 +233,6 @@ describe('AdminPage', () => {
     renderPage()
 
     expect(await screen.findByTestId('admin-users')).toBeInTheDocument()
-    // One section at a time: Authentication is not rendered until selected.
     expect(screen.queryByTestId('admin-authentication')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Users' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Authentication' })).toBeInTheDocument()

@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// GitHub settings section of the admin panel. The token is write-only (the
-// server never returns it) and the repository catalog is free text injected
-// into the agent prompt so it can pick the right repo for each question.
 export default function AdminGithub({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [ghToken, setGhToken] = useState('')

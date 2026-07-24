@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Database section of the admin panel. This is the read-only PostgreSQL
-// connection the assistant uses to explore a customer database with its query
-// tool — NOT the app's own database. The connection string carries a password,
-// so it is write-only (the server never returns it); only whether it is
-// configured is shown.
 export default function AdminDatabase({ token, onLogout }) {
   const [connectionConfigured, setConnectionConfigured] = useState(false)
   const [connection, setConnection] = useState('')
@@ -101,7 +96,6 @@ export default function AdminDatabase({ token, onLogout }) {
       }
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save the row limit')
-      // The server echoes the effective (clamped/defaulted) value.
       setMaxRows(String(data.maxRows))
       setMaxRowsSavedAt(Date.now())
     } catch (err) {

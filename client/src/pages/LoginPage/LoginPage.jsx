@@ -5,10 +5,6 @@ import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
 import Login from '../../common/Login/Login.jsx'
 import { ROUTES } from '../../router/constants.js'
 
-// The /login route. Renders the sign-in methods enabled by the admin and,
-// once authenticated, sends the user on to the chat. It never forces already
-// signed-in visitors away from the landing page — that redirect only happens
-// from here, after login.
 export default function LoginPage() {
   const { isAuthenticated, loginWithGoogle, loginWithPassword, error, isLoggingIn } = useAuth()
   const methods = useAuthMethods()

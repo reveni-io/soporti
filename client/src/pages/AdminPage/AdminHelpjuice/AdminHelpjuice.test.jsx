@@ -17,7 +17,6 @@ describe('AdminHelpjuice', () => {
 
     render(<AdminHelpjuice token="tok" onLogout={vi.fn()} />)
 
-    // Overall status + the API key field status.
     expect(await screen.findAllByText('configured')).toHaveLength(2)
     expect(screen.getByDisplayValue('example')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove/i })).toBeInTheDocument()
@@ -63,7 +62,6 @@ describe('AdminHelpjuice', () => {
     const user = userEvent.setup()
 
     render(<AdminHelpjuice token="tok" onLogout={vi.fn()} />)
-    // Overall status + the API key field status, both unconfigured.
     expect(await screen.findAllByText('not configured')).toHaveLength(2)
 
     const input = screen.getByPlaceholderText('API key')

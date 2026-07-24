@@ -12,7 +12,7 @@ describe('SharedView', () => {
   })
 
   it('shows loading state initially', () => {
-    global.fetch = vi.fn(() => new Promise(() => {})) // never resolves
+    global.fetch = vi.fn(() => new Promise(() => {}))
     render(<SharedView shareId="abc123" />)
     expect(screen.getByText(/loading/i)).toBeInTheDocument()
   })

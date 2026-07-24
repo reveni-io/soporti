@@ -11,14 +11,8 @@ import returnFlowDiagram from './returnFlowDiagram.js'
 import { ROUTES } from '../../router/constants.js'
 import './Landing.css'
 
-/* ── Content data ──────────────────────────────────────────────── */
-
-// Public source repository — the landing is shown both inside the app and as a
-// standalone GitHub Pages build, so this link is always visible (never gated by
-// `hideCta`, which only drops the login/app buttons).
 const GITHUB_URL = 'https://github.com/reveni-io/soporti'
 
-// Example questions, mirroring the curated pool in example-questions.js.
 const QUESTIONS = [
   {
     tag: 'Product',
@@ -83,7 +77,6 @@ const INTEGRATIONS = [
   },
 ]
 
-// The rich, brand-styled outputs Soporti can render inline in an answer.
 const CHART_DEMO = JSON.stringify({
   type: 'area',
   title: 'Returns created per day · last 7 days',
@@ -117,9 +110,6 @@ GROUP BY m.name
 ORDER BY returns DESC
 LIMIT 5;`
 
-/* ── Small building blocks ─────────────────────────────────────── */
-
-// Read the session token without throwing where localStorage is unavailable.
 function readAuthToken() {
   try {
     return localStorage.getItem('auth_token')
@@ -190,16 +180,10 @@ function ShieldIcon() {
   )
 }
 
-// The exact same Mermaid diagram the chat produces, pre-rendered to SVG with the
-// very same engine (beautiful-mermaid). Everyone sees the real Mermaid render —
-// logged in or not — with no server call, so it's identical for all visitors.
-// The SVG and how to regenerate it live in returnFlowDiagram.js.
 function DiagramDemo() {
   return <div className="mermaid-diagram" dangerouslySetInnerHTML={{ __html: returnFlowDiagram }} />
 }
 
-// Fades a section in as it scrolls into view (respects reduced motion, and
-// degrades gracefully where matchMedia / IntersectionObserver are unavailable).
 function useReveal() {
   const ref = useRef(null)
   useEffect(() => {
@@ -238,21 +222,12 @@ function Section({ className = '', children, id }) {
   )
 }
 
-/* ── Page ──────────────────────────────────────────────────────── */
-
 export default function Landing({ hideCta = false }) {
-  // When there's already a session, the CTA reads "Enter" and goes straight to
-  // the chat; otherwise it's a "Log in" button pointing at /login. We never
-  // auto-redirect an authenticated visitor away from this page.
-  // `hideCta` is set by the standalone GitHub Pages build (src/landing.jsx),
-  // which ships this marketing page without a reachable chat/login backend, so
-  // the login/app buttons are dropped (section anchors stay).
   const loggedIn = !!readAuthToken()
   const cta = loggedIn ? { href: ROUTES.CHAT, label: 'Open Soporti' } : { href: ROUTES.LOGIN, label: 'Log in' }
 
   return (
     <div className="lp">
-      {/* Nav */}
       <nav className="lp-nav">
         <div className="lp__inner lp-nav__inner">
           <div className="lp-nav__brand">
@@ -286,7 +261,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </nav>
 
-      {/* Hero */}
       <header className="lp-hero">
         <div className="lp-hero__grid">
           <GridPattern variant="dark" />
@@ -323,7 +297,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </header>
 
-      {/* Stat strip */}
       <Section className="lp-section--warm">
         <div className="lp-stats">
           <div className="lp-stat">
@@ -345,7 +318,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Ask */}
       <Section id="ask" className="lp-section--white">
         <div className="lp-section__head">
           <span className="lp-eyebrow">What you can ask</span>
@@ -368,7 +340,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Renders */}
       <Section id="renders" className="lp-section--cool">
         <div className="lp-section__head">
           <span className="lp-eyebrow">Answers you can use</span>
@@ -441,7 +412,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Integrations */}
       <Section id="integrations" className="lp-section--white">
         <div className="lp-section__head">
           <span className="lp-eyebrow">Connected everywhere</span>
@@ -466,7 +436,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Profiles / sources (dark) */}
       <Section className="lp-section--dark">
         <div className="lp-section__head">
           <span className="lp-eyebrow">Made for the whole team</span>
@@ -515,7 +484,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Custom instructions */}
       <Section id="instructions" className="lp-section--white">
         <div className="lp-split">
           <div>
@@ -538,7 +506,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Automations */}
       <Section id="automations" className="lp-section--warm">
         <div className="lp-section__head">
           <span className="lp-eyebrow">Beyond the chat</span>
@@ -594,7 +561,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Safety */}
       <Section className="lp-section--white">
         <div className="lp-section__head">
           <span className="lp-eyebrow">Safe by design</span>
@@ -640,7 +606,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </Section>
 
-      {/* Final CTA */}
       <section className="lp-section lp-section--dark lp-cta">
         <div className="lp-cta__grid">
           <GridPattern variant="dark" />
@@ -659,7 +624,6 @@ export default function Landing({ hideCta = false }) {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="lp-footer">
         <div className="lp__inner lp-footer__inner">
           <span className="lp-footer__logo">Soporti</span>

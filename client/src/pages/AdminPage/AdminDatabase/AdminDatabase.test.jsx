@@ -113,8 +113,6 @@ describe('AdminDatabase', () => {
   })
 
   it('surfaces a row-limit error from the server', async () => {
-    // In-range value (the client-side max attribute blocks out-of-range submits
-    // before they reach the server); this exercises the server-error rendering.
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(mockGet({ connectionConfigured: true, maxRows: 100 }))

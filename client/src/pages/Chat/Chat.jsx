@@ -38,8 +38,6 @@ export default function Chat() {
     loadConversation,
   } = useChat(token, logout)
 
-  // Refresh the sidebar history whenever a turn finishes (new conversations and
-  // updated titles become visible without a manual reload).
   useEffect(() => {
     if (wasLoading.current && !isLoading) {
       setConvReloadKey(k => k + 1)

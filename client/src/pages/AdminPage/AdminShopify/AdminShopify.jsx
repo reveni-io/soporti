@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Shopify section of the admin panel. Shopify store credentials live in the
-// customer's read-only database (Database section), and every deployment has
-// its own schema — so the lookup is configured here as a SQL template. The
-// template is plain SQL (no credentials), so the server returns it for editing.
 export default function AdminShopify({ token, onLogout }) {
   const [tokenQuery, setTokenQuery] = useState('')
   const [initialTokenQuery, setInitialTokenQuery] = useState('')
@@ -77,8 +73,6 @@ export default function AdminShopify({ token, onLogout }) {
     }
   }
 
-  // Asks the assistant to explore the database schema and draft the query.
-  // The draft only fills the editor — the admin reviews it and saves.
   async function draftQuery() {
     setDrafting(true)
     setSaveError(null)

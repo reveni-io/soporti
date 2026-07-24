@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Authentication section of the admin panel: per-method sign-in toggles and
-// the Google domain restriction. The server enforces everything; the /login
-// page reads GET /api/auth/methods to render only the enabled methods.
 export default function AdminAuthentication({ token, onLogout }) {
   const [googleEnabled, setGoogleEnabled] = useState(false)
   const [passwordEnabled, setPasswordEnabled] = useState(true)
@@ -57,7 +54,6 @@ export default function AdminAuthentication({ token, onLogout }) {
     }
   }, [token, onLogout])
 
-  // Optimistic toggle; reverted if the save fails.
   async function toggleMethod(key) {
     const next = {
       googleEnabled: key === 'google' ? !googleEnabled : googleEnabled,
@@ -85,7 +81,6 @@ export default function AdminAuthentication({ token, onLogout }) {
       setGoogleEnabled(data.googleEnabled)
       setPasswordEnabled(data.passwordEnabled)
     } catch (err) {
-      // Revert the optimistic change.
       setGoogleEnabled(googleEnabled)
       setPasswordEnabled(passwordEnabled)
       setMethodsError(err.message)

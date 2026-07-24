@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react'
 
-// Notion section of the admin panel. The integration lets the assistant search
-// and read Notion pages. The token is write-only (the server never returns it);
-// only whether it is configured is shown.
 export default function AdminNotion({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
   const [notionToken, setNotionToken] = useState('')

@@ -1,6 +1,3 @@
-/* Share-conversation modal. Structure comes from the .modal/.btn/.input
-   primitives (styles/ui.css); only what is specific to this modal lives here. */
-
 .share-modal {
   max-width: 440px;
 }

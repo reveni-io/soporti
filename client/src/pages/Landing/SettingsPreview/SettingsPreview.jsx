@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './SettingsPreview.css'
 
-// A faithful, non-interactive preview of the real Custom instructions panel
-// (SettingsModal). It reuses the modal's own classes and, when it scrolls into
-// view, "types" an example set of instructions — caret, live character count
-// and a final "Saved" — echoing the live feel of the hero chat.
-
 const EXAMPLE = `I'm on the Support team, so keep answers non-technical and behaviour-focused.
 Always mention the customer name and order id when they're relevant.
 Reply in Spanish, and prefer a small table when you show data.
