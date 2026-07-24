@@ -3,8 +3,6 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import config from '../config.js'
 
-// 'false' disables, a number trusts that many hops, anything else is passed
-// through (Express also accepts named presets like 'loopback').
 function parseTrustProxy(value) {
   if (value === 'false') return false
   if (/^\d+$/.test(value)) return parseInt(value, 10)
@@ -33,9 +31,6 @@ export function setupSecurity(app) {
     })
   )
 
-  // No custom keyGenerator: express-rate-limit's default already keys on the
-  // client IP and normalizes IPv6 (incl. IPv4-mapped addresses), which is the
-  // per-client bypass the library's own CVE fix hardened.
   const chatLimiter = rateLimit({
     windowMs: 60 * 1000,
     limit: 10,
@@ -52,8 +47,6 @@ export function setupSecurity(app) {
     message: { error: 'Too many requests. Please wait a moment.' },
   })
 
-  // Credential endpoints get a strict limiter: password login and the
-  // first-run admin bootstrap are the two brute-forceable surfaces.
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 10,

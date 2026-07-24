@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockHelmet = vi.fn(() => 'helmet-middleware')
 const mockCors = vi.fn(() => 'cors-middleware')
 const mockRateLimit = vi.fn(() => 'rate-limiter')
-// Mutable so individual tests can change the security settings; setupSecurity
-// reads them at call time.
 const mockConfig = { security: { corsOrigins: [], trustProxy: '1' } }
 
 vi.mock('helmet', () => ({ default: mockHelmet }))
@@ -79,8 +77,6 @@ describe('setupSecurity', () => {
 
   it('relies on the default IP key generator (no custom keyGenerator)', () => {
     setupSecurity(app)
-    // express-rate-limit v8's default keyGenerator already normalizes IPv6,
-    // so no per-limiter override is set.
     for (const call of mockRateLimit.mock.calls) {
       expect(call[0].keyGenerator).toBeUndefined()
     }

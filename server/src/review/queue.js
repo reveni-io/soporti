@@ -1,9 +1,3 @@
-// In-memory FIFO queue for review jobs. Jobs carry a dedupeKey; a job is
-// rejected while another job with the same key is queued or running, so a
-// simultaneous label + reviewer-request gesture yields a single review while a
-// deliberate re-trigger later still works (one-shot semantics).
-// Queued jobs do not survive a process restart — GitHub's webhook redelivery
-// covers that gap for the MVP.
 export class ReviewQueue {
   #items = []
   #keys = new Set()
@@ -14,8 +8,6 @@ export class ReviewQueue {
       throw new Error('ReviewQueue requires a processor function.')
     }
     this.processor = processor
-    // Guard against NaN from a bad env var: NaN comparisons are always false,
-    // which would silently freeze the queue.
     this.concurrency = Number.isFinite(concurrency) && concurrency >= 1 ? Math.floor(concurrency) : 1
     this.onError = onError
   }
@@ -48,9 +40,7 @@ export class ReviewQueue {
         .catch(err => {
           try {
             this.onError(err, job)
-          } catch {
-            // onError must never break the queue loop.
-          }
+          } catch {}
         })
         .finally(() => {
           this.#keys.delete(job.dedupeKey)

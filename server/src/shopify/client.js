@@ -8,17 +8,11 @@ const TOKEN_CACHE_TTL_MS = 60_000
 
 const tokenCache = new Map()
 
-// Shopify store credentials live in the customer's PostgreSQL database, looked
-// up with the admin-configured token query (admin panel → Shopify), so Shopify
-// is available exactly when both that connection and the query are configured.
-// Async because both values live in the app database, resolved per turn.
 export async function isConfigured() {
   const [postgresConfigured, tokenQuery] = await Promise.all([postgres.isConfigured(), getShopifyTokenQuery()])
   return Boolean(postgresConfigured && tokenQuery)
 }
 
-// The store identifier is injected into the admin's SQL template as a quoted
-// string literal, so escaping quotes is what keeps it from breaking out.
 function quoteSqlLiteral(value) {
   return `'${String(value).replace(/'/g, "''")}'`
 }

@@ -8,7 +8,6 @@ const MockAgent = vi.fn(function (options) {
 vi.mock('@openai/agents', () => ({
   Agent: MockAgent,
   run: mockRun,
-  // Return the definition as-is so tests can inspect name/parameters/execute.
   tool: def => def,
 }))
 
@@ -40,8 +39,6 @@ vi.mock('../repo-pool/index.js', () => ({
   gitBlameAt: (...a) => mockGitBlameAt(...a),
 }))
 
-// The reviewer reuses the chat agent's data tools; their clients gate them on
-// isConfigured(). Mock every integration agent/tools.js touches at load time.
 const mockShortcutConfigured = vi.fn()
 const mockSentryConfigured = vi.fn()
 const mockPostgresConfigured = vi.fn()
@@ -82,8 +79,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// The model now comes from the DB via resolveModelForAgent (openai/client.js),
-// not config. It also registers the Agents SDK default client as a side effect.
 const mockResolveModel = vi.fn(async () => 'test-model')
 vi.mock('../openai/client.js', () => ({
   resolveModelForAgent: (...a) => mockResolveModel(...a),
@@ -231,18 +226,14 @@ describe('createReviewerAgent', () => {
 
     const { instructions } = MockAgent.mock.calls[0][0]
     expect(instructions).toContain('acme-io/app')
-    // Consultative by default, approve only for trivial PRs, never block.
     expect(instructions).toMatch(/never.*request_changes/i)
     expect(instructions).toMatch(/approve/i)
     expect(instructions).toMatch(/language/i)
-    // The tools explore a checkout of the PR's head (default branch fallback).
     expect(instructions).toMatch(/HEAD/)
     expect(instructions).toMatch(/default branch/i)
-    // Three-axis review contract (standards/spec axes from the review skill).
     expect(instructions).toMatch(/standards/i)
     expect(instructions).toMatch(/scope creep/i)
     expect(instructions).toMatch(/no spec/i)
-    // Data tools: the prompt explains what Sentry/DB tools are for.
     expect(instructions).toMatch(/sentry/i)
     expect(instructions).toMatch(/database/i)
   })
@@ -251,10 +242,8 @@ describe('createReviewerAgent', () => {
     await createReviewerAgent('acme-io/app')
 
     const { instructions } = MockAgent.mock.calls[0][0]
-    // PR content and tool output are data, never orders to the agent.
     expect(instructions).toMatch(/not instructions/i)
     expect(instructions).toMatch(/do not comply/i)
-    // Secrets stay out of the published review.
     expect(instructions).toMatch(/never reveal/i)
   })
 

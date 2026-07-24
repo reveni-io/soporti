@@ -35,9 +35,6 @@ const MAX_PR_BODY_CHARS = 4000
 const MAX_INLINE_CHARS = 300
 const REASONING_MODELS = /^(gpt-5|o\d)/i
 
-// PR titles, author logins and file names are author-controlled. They are
-// interpolated into Markdown structure (headings, metadata lines), so flatten
-// whitespace to keep a crafted value from fabricating new sections.
 export function inline(value) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -59,12 +56,6 @@ export const reviewOutputSchema = z.object({
   ),
 })
 
-// The chat agent's repo tools accept any `repo` argument. A reviewer that
-// reads author-controlled text must not be able to wander into other
-// repositories the shared token can access, so these tools are pinned to the
-// PR's repository — the model never supplies a repo name. When the caller
-// provides a rootPath (the PR-head worktree), the tools read that checkout;
-// otherwise they fall back to the pool's default-branch clone.
 export function buildRepoTools(repoFullName, rootPath = null) {
   const ops = {
     getDirectoryContents: p => (rootPath ? getDirectoryContentsAt(rootPath, p) : getDirectoryContents(repoFullName, p)),
@@ -149,12 +140,6 @@ export function buildRepoTools(repoFullName, rootPath = null) {
   ]
 }
 
-// Data tools shared with the chat agent: the reviewer may pull the
-// referenced Shortcut story, check Sentry issues, and query the read-only
-// database. Resolved per agent so configuration changes are honored. Async
-// because the Shortcut token, the Sentry credentials and the Postgres
-// connection now live in the database (admin panel → Shortcut / Sentry /
-// Database sections) and are resolved per turn.
 export async function buildDataTools() {
   const [shortcutConfigured, sentryConfigured, postgresConfigured] = await Promise.all([
     shortcut.isConfigured(),
@@ -170,12 +155,7 @@ export async function buildDataTools() {
   ]
 }
 
-// Reasoning is opt-in per model family: sending reasoning settings to a model
-// that does not support them fails the request. `none` (and empty) means
-// "omit the setting", not an effort level the API would reject.
 export function reasoningModelSettings(model) {
-  // Codex models only accept `medium` (reasoning + verbosity); the shared helper
-  // returns the codex-safe settings and suppresses the SDK's `low` gpt-5 defaults.
   const codexSettings = codexModelSettings(model)
   if (codexSettings) return { modelSettings: codexSettings }
 

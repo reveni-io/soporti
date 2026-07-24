@@ -30,10 +30,6 @@ import { getOpenAIApiKey, getOpenAIModel } from './openai/settings.js'
 
 const app = express()
 
-// GitHub webhook goes first: it authenticates by HMAC signature over the raw
-// bytes, so it must see requests before the JSON parser, JWT auth and rate
-// limiting below. Always mounted; inert until a webhook secret is saved in
-// the admin panel (GitHub section).
 setupReviewWebhook(app)
 
 setupSecurity(app)
@@ -80,8 +76,6 @@ app.listen(config.port, async () => {
     console.error('Failed to run database migrations:', err.message)
   }
 
-  // Everything below reads app_config, so it must run AFTER the migrations
-  // (on a fresh database the table does not exist until they are applied).
   try {
     console.log(`PostgreSQL: ${(await isPostgresConfigured()) ? 'configured' : 'not configured'}`)
     if ((await countAdmins()) === 0) {
@@ -106,9 +100,6 @@ app.listen(config.port, async () => {
     console.error('Failed to check for an admin account:', err.message)
   }
 
-  // Always hand the conversation store to the bot module — even when Slack is
-  // not configured yet — so a later save in the admin panel can reconnect it
-  // without a server restart. startSlackBot is a no-op until tokens are set.
   try {
     await startSlackBot(conversationStore)
   } catch (err) {

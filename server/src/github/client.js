@@ -2,8 +2,6 @@ import { Octokit } from '@octokit/rest'
 import { getGithubToken } from './settings.js'
 import { parseRepo } from './sanitize.js'
 
-// The token lives in the database (admin panel → GitHub section), so the
-// client is built lazily and rebuilt whenever the stored token changes.
 let octokitInstance = null
 let octokitInstanceToken = null
 

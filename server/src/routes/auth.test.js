@@ -160,8 +160,6 @@ describe('POST /api/auth/login', () => {
 
   it('returns the same generic 401 for a Google-only account (no passwordHash)', async () => {
     findUserByEmail.mockResolvedValue({ ...passwordUser, passwordHash: null })
-    // Even if the compare against the dummy hash somehow passed, no
-    // passwordHash means no password login.
     verifyPassword.mockResolvedValue(true)
 
     const res = await request(app).post('/api/auth/login').send({ email: 'sam@example.com', password: 'secret123' })

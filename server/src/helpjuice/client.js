@@ -3,8 +3,6 @@ import { getHelpjuiceApiKey, getHelpjuiceAccount, isHelpjuiceConfigured } from '
 const REQUEST_TIMEOUT_MS = 15_000
 
 async function request(method, path) {
-  // The API key and account live in the database (admin panel → Helpjuice
-  // section), so they are resolved per request instead of read once from env vars.
   const [apiKey, account] = await Promise.all([getHelpjuiceApiKey(), getHelpjuiceAccount()])
   if (!apiKey || !account) {
     throw new Error('Helpjuice is not configured. Set the API key and account in the admin panel (Helpjuice section).')
@@ -73,9 +71,6 @@ export async function getArticle(articleId) {
   }
 }
 
-// Async because the credentials live in the database now. Whether the
-// Helpjuice tools are registered is resolved per turn (see buildAgentTools /
-// createAgent).
 export async function isConfigured() {
   return isHelpjuiceConfigured()
 }

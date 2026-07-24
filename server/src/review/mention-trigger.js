@@ -1,18 +1,9 @@
-// Pure detection of a Mention from a GitHub webhook
-// delivery: a PR comment — general conversation or review thread — that
-// @-mentions the reviewer login. A Mention gets exactly one reply and never
-// triggers a review, so only freshly created comments count.
 const REPO_FULL_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-// GitHub only linkifies @login when it stands alone: preceded by start or a
-// non-word character (so jose@example.com is not a mention) and not run into
-// more login characters. The trailing guard rejects both @soporti-botX and
-// @soporti-bot-ops (a different, hyphenated login) — `\b` would wrongly accept
-// the latter, since `-` is a word boundary.
 function mentionsLogin(body, login) {
   return new RegExp(`(^|[^\\w@])@${escapeRegExp(login)}(?![\\w-])`, 'i').test(body)
 }
@@ -32,7 +23,6 @@ export function detectMention({ eventName, payload, reviewerLogin }) {
   if (!repoFullName || !REPO_FULL_NAME.test(repoFullName)) return null
 
   if (eventName === 'issue_comment') {
-    // issue_comment fires for plain issues too; only PR conversations count.
     if (!payload.issue?.pull_request || !payload.issue.number) return null
     return buildMention('issue', repoFullName, payload.issue.number, comment)
   }

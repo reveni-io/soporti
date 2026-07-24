@@ -1,19 +1,11 @@
 import { getOpenAIClient } from '../openai/client.js'
 import { getVectorStoreId } from '../openai/settings.js'
 
-// The OpenAI API key and vector store id live in the database (admin panel →
-// OpenAI section). Each call resolves them fresh (cached briefly); knowledge
-// features degrade gracefully when either isn't configured.
-
-// Resolves the vector store + client together (both cached reads), returning
-// null when either is unconfigured so each caller can pick its own fallback.
 async function resolveStore() {
   const [storeId, client] = await Promise.all([getVectorStoreId(), getOpenAIClient()])
   return storeId && client ? { storeId, client } : null
 }
 
-// Whether solved cases can be saved. The 👍/👎 feedback only makes sense when
-// this is true — a saved case needs both a vector store and an API key to land.
 export async function isKnowledgeBaseConfigured() {
   return (await resolveStore()) !== null
 }

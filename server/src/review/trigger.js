@@ -1,8 +1,3 @@
-// Pure detection of a Review Trigger from a GitHub webhook
-// delivery. Returns a normalized trigger object, or null when the event is not
-// an explicit request for Soporti to review an open pull request.
-// GitHub constrains owner and repo names to these characters; anything else is
-// a malformed payload and must not reach the reviewer prompt or the API.
 const REPO_FULL_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 
 export function detectTrigger({ eventName, payload, reviewerLogin, label }) {

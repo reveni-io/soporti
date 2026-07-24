@@ -2,7 +2,6 @@ import { eq, count } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { users } from './schema.js'
 
-// Columns safe to return to callers (never the password hash).
 const userColumns = {
   id: users.id,
   googleId: users.googleId,
@@ -16,16 +15,10 @@ function normalizeEmail(email) {
   return email.trim().toLowerCase()
 }
 
-// Google login upsert, unified by email: one row per person. A row created by
-// an admin with a password gets its googleId linked on the first Google login
-// with the same email, so a person may have both passwordHash and googleId.
-// Slack identities have no email and stay as separate rows. role is never
-// touched here — only admins change roles.
 export async function upsertGoogleUser({ googleId, email, name, picture }, retry = true) {
   const db = getDb()
   const normalizedEmail = normalizeEmail(email)
 
-  // 1. Known Google identity: refresh the profile.
   const [byGoogle] = await db.select(userColumns).from(users).where(eq(users.googleId, googleId)).limit(1)
   if (byGoogle) {
     const [user] = await db
@@ -36,9 +29,6 @@ export async function upsertGoogleUser({ googleId, email, name, picture }, retry
     return user
   }
 
-  // 2. Same email exists (e.g. an admin-created password user): link the
-  // Google identity to that row. Keep existing name/picture unless Google
-  // provides one.
   const [byEmail] = await db.select(userColumns).from(users).where(eq(users.email, normalizedEmail)).limit(1)
   if (byEmail) {
     const [user] = await db
@@ -54,8 +44,6 @@ export async function upsertGoogleUser({ googleId, email, name, picture }, retry
     return user
   }
 
-  // 3. New person: insert. On a unique violation (two concurrent first
-  // logins), retry once — the row now exists and lands in branch 1 or 2.
   try {
     const [user] = await db
       .insert(users)
@@ -70,11 +58,6 @@ export async function upsertGoogleUser({ googleId, email, name, picture }, retry
   }
 }
 
-// Inserts the Slack user on first interaction, or refreshes last_login_at on
-// subsequent ones. Slack identities are kept as separate rows from Google
-// ones — same human may have two rows (one per provider). Name is only
-// overwritten when a non-empty value is provided (events don't carry it;
-// slash commands do).
 export async function upsertSlackUser({ slackId, name }) {
   const conflictSet = { lastLoginAt: new Date() }
   if (name) conflictSet.name = name
@@ -93,7 +76,6 @@ export async function upsertSlackUser({ slackId, name }) {
   return user
 }
 
-// Includes passwordHash — for the login route only, never expose it further.
 export async function findUserByEmail(email) {
   const [user] = await getDb()
     .select({ ...userColumns, passwordHash: users.passwordHash })
@@ -121,8 +103,6 @@ export async function countAdmins() {
   return row?.value ?? 0
 }
 
-// For the admin panel. hasPassword/hasGoogle/hasSlack are derived so the
-// password hash never leaves the DB layer.
 export async function listUsers() {
   const rows = await getDb()
     .select({
@@ -140,8 +120,6 @@ export async function listUsers() {
     .orderBy(users.id)
   return rows.map(({ googleId, slackId, passwordHash, ...user }) => ({
     ...user,
-    // Slack identities carry no email and often no name; keep the slackId so the
-    // admin panel can fall back to it as a display label.
     slackId,
     hasGoogle: Boolean(googleId),
     hasSlack: Boolean(slackId),
@@ -153,9 +131,6 @@ export async function touchLastLogin(id) {
   await getDb().update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id))
 }
 
-// First-run bootstrap helper. If the email already exists (e.g. the operator
-// signed in with Google before creating the admin account), the existing row
-// is promoted to admin and given the password; otherwise a new row is created.
 export async function setAdminCredentials({ email, name, passwordHash }) {
   const db = getDb()
   const normalizedEmail = normalizeEmail(email)

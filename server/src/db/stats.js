@@ -2,8 +2,6 @@ import { sql, gte } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { conversations } from './schema.js'
 
-// Conversations are purged 14 days after their last use, so usage stats are
-// only honest within that window. 7 days keeps them well inside it.
 export const USAGE_WINDOW_DAYS = 7
 
 export async function getUsageStats() {

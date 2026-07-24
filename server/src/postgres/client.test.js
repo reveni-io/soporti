@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockQuery = vi.fn()
-// end() returns a promise: the client awaits it on shutdown and attaches a
-// .catch() on the fire-and-forget teardown when the connection changes.
 const mockEnd = vi.fn(async () => {})
 
 vi.mock('pg', () => ({
@@ -21,8 +19,6 @@ vi.mock('pg', () => ({
   },
 }))
 
-// The connection string and row cap live in the database now; mock the
-// settings module.
 const getPostgresConnection = vi.fn(async () => 'postgresql://localhost:5432/testdb')
 const isPostgresConfigured = vi.fn(async () => true)
 const getPostgresMaxRows = vi.fn(async () => 100)
@@ -209,7 +205,7 @@ describe('shutdown', () => {
 describe('connection rotation', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    await shutdown() // start from a clean pool
+    await shutdown()
     vi.clearAllMocks()
   })
 
@@ -218,11 +214,11 @@ describe('connection rotation', () => {
 
     getPostgresConnection.mockResolvedValue('postgresql://localhost:5432/db-a')
     await listSchemas()
-    expect(mockEnd).not.toHaveBeenCalled() // first build, nothing stale to close
+    expect(mockEnd).not.toHaveBeenCalled()
 
     getPostgresConnection.mockResolvedValue('postgresql://localhost:5432/db-b')
     await listSchemas()
-    expect(mockEnd).toHaveBeenCalledTimes(1) // stale db-a pool torn down
+    expect(mockEnd).toHaveBeenCalledTimes(1)
   })
 
   it('reuses the pool while the connection string is unchanged', async () => {

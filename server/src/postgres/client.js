@@ -17,10 +17,6 @@ function buildConnectionString(raw) {
   }
 }
 
-// Resolves the connection pool, rebuilding it when the stored connection string
-// changes (admin edits it) so rotation takes effect without a restart. The
-// string lives in the database (admin panel → Database section), so it is
-// resolved per acquisition instead of read once from an env var.
 async function getPool() {
   const raw = await getPostgresConnection()
   if (!raw) {
@@ -28,13 +24,8 @@ async function getPool() {
   }
   const connString = buildConnectionString(raw)
 
-  // From here on there is no `await`, so the null-check and the assignment run
-  // atomically within a single microtask — concurrent callers cannot each build
-  // a pool.
   if (pool && poolConnString === connString) return pool
   if (pool) {
-    // Connection string changed: tear down the stale pool. Fire-and-forget so
-    // the common path stays await-free (and atomic).
     const stale = pool
     pool = null
     poolConnString = null
@@ -60,9 +51,6 @@ async function getPool() {
   return pool
 }
 
-// Async because the connection string lives in the database now. Whether the
-// Postgres tools are registered is resolved per turn (see buildAgentTools /
-// createAgent).
 export async function isConfigured() {
   return isPostgresConfigured()
 }

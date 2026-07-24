@@ -30,7 +30,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// The webhook secret lives in the database; overridable per test.
 const mockGetWebhookSecret = vi.fn(async () => 'hook-secret')
 vi.mock('../github/settings.js', () => ({
   getWebhookSecret: mockGetWebhookSecret,
@@ -87,7 +86,6 @@ describe('setupReviewWebhook', () => {
     expect(res.status).toBe(503)
     expect(res.body.error).toContain('not configured')
     expect(mockRunReview).not.toHaveBeenCalled()
-    // No eager login resolution on unconfigured installs.
     expect(mockGetAuthenticatedLogin).not.toHaveBeenCalled()
   })
 
@@ -98,7 +96,7 @@ describe('setupReviewWebhook', () => {
     const app = express()
     const queue = setupReviewWebhook(app, { logger: silentLogger })
     expect(queue).not.toBeNull()
-    await tick() // let the login resolution settle
+    await tick()
 
     const res = await signedPost(app, reviewRequestedPayload('soporti-bot'))
     expect(res.status).toBe(202)
@@ -146,13 +144,11 @@ describe('setupReviewWebhook', () => {
 
     const app = express()
     setupReviewWebhook(app, { logger: silentLogger })
-    await tick() // boot resolution fails, login stays empty
+    await tick()
 
-    // First review request: login still unset, so it is ignored — but the
-    // attempt to read it kicks off a background re-resolution.
     const first = await signedPost(app, reviewRequestedPayload('soporti-bot'))
     expect(first.body).toEqual({ queued: false })
-    await tick() // re-resolution settles → login is now 'soporti-bot'
+    await tick()
 
     const second = await signedPost(app, reviewRequestedPayload('soporti-bot'))
     expect(second.body).toEqual({ queued: true })

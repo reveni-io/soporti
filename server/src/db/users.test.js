@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Chainable fake for drizzle's query builder: every chained method returns the
-// same object, and awaiting it consumes the next queued result (or rejects if
-// an Error was queued). One queued entry per executed query, in order.
 let queue = []
 let calls = []
 
@@ -76,7 +73,6 @@ describe('upsertGoogleUser', () => {
     expect(user).toEqual(linked)
     const update = calls.find(c => c.op === 'update')
     expect(update.steps.set.googleId).toBe('g-2')
-    // Existing name is kept when Google doesn't provide one; role never changes.
     expect(update.steps.set.name).toBe('Bea')
     expect(update.steps.set.picture).toBe('pic.png')
     expect(update.steps.set).not.toHaveProperty('role')
@@ -97,7 +93,6 @@ describe('upsertGoogleUser', () => {
     const raceErr = Object.assign(new Error('duplicate key'), { code: '23505' })
     const existing = { id: 4, googleId: 'g-4', email: 'd@x.io', role: 'user' }
     const updated = { ...existing, name: 'Dot' }
-    // 1st attempt: no googleId, no email, insert fails; 2nd: found by googleId.
     queue = [[], [], raceErr, [existing], [updated]]
 
     const user = await upsertGoogleUser({ googleId: 'g-4', email: 'd@x.io', name: 'Dot', picture: null })

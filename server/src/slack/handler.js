@@ -53,9 +53,6 @@ export async function processMessage({
 
   log('🚀', `Agent started for: "${message.slice(0, 120)}"`)
 
-  // Runs one streaming turn. On the first attempt we chain the persisted
-  // previousResponseId; if OpenAI has expired it (and no text has streamed yet)
-  // we retry once without it, relying on the conversation items in the DB.
   let sentText = false
 
   async function runTurn(prevResponseId) {
@@ -63,9 +60,6 @@ export async function processMessage({
     toolCalls.length = 0
     sentText = false
 
-    // Keep the SDK default reasoningItemIdPolicy ('preserve') — reasoning items
-    // must stay paired with their function_call. Rationale lives on
-    // PostgresSession.getItems, which sanitizes replayed history.
     const stream = await run(agent, message, {
       stream: true,
       maxTurns: config.agent.maxIterations,

@@ -71,7 +71,6 @@ describe('feedback', () => {
 
       vi.restoreAllMocks()
 
-      // Confirm it was actually removed
       return processFeedback(id, true).then(result => {
         expect(result).toEqual({ saved: false, reason: 'not_found' })
       })
@@ -84,7 +83,6 @@ describe('feedback', () => {
 
       expect(cleaned).toBe(0)
 
-      // Entry should still be accessible
       const result = await processFeedback(id, true)
       expect(result.saved).toBe(true)
     })

@@ -1,11 +1,5 @@
-// Pure helpers around the per-file patches returned by GitHub's
-// "list pull request files" API. A PR review comment can only anchor to a line
-// that appears on the RIGHT side of the diff (added or context lines); GitHub
-// rejects the whole review otherwise, so findings are validated here first.
-
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/
 
-// Returns Map<path, Set<rightSideLineNumber>> of commentable lines.
 export function commentableLines(files) {
   const result = new Map()
 
@@ -23,13 +17,10 @@ export function commentableLines(files) {
       }
       if (rightLine === null) continue
 
-      // '' covers blank context lines some diffs emit without the leading space.
       if (raw.startsWith('+') || raw.startsWith(' ') || raw === '') {
         lines.add(rightLine)
         rightLine++
       }
-      // '-' lines exist only on the LEFT side; '\ No newline at end of file'
-      // markers advance neither side.
     }
 
     if (lines.size > 0) result.set(file.filename, lines)
@@ -38,8 +29,6 @@ export function commentableLines(files) {
   return result
 }
 
-// Splits findings into those that anchor to a commentable line and those that
-// must be folded into the review body instead. Never mutates the input.
 export function partitionFindings(findings, files) {
   const valid = commentableLines(files)
   const anchored = []
@@ -57,15 +46,6 @@ export function partitionFindings(findings, files) {
   return { anchored, unanchored }
 }
 
-// Selects files until the changed-line budget is exhausted so huge PRs still
-// get a partial review instead of a failure. Files without a patch (binary or
-// too large for the API) are always reported as omitted — except files the
-// caller has verified to be empty (`emptyFilenames`): there is nothing inside
-// to review, so they must not demote the review to partial; they go in a
-// separate bucket so the agent can still judge whether their existence makes
-// sense. GitHub reports empty and binary files identically (no patch, 0
-// changed lines), so the verification has to come from outside — the caller
-// checks the checkout on disk.
 export function selectFilesWithinBudget(files, maxChangedLines, { emptyFilenames = new Set() } = {}) {
   const included = []
   const omitted = []

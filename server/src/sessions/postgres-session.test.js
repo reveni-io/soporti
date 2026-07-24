@@ -1,15 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Tag the query helpers so the fake db can interpret order direction, the
-// single-row delete used by popItem, and the replayable-only SQL predicate.
-// eq carries the targeted column + value.
 vi.mock('drizzle-orm', () => ({
   eq: (col, val) => ({ kind: 'eq', col, val }),
   and: (...conds) => ({ kind: 'and', conds }),
   asc: col => ({ dir: 'asc', col }),
   desc: col => ({ dir: 'desc', col }),
-  // The session's only raw SQL is the replayable-only predicate (excludes
-  // reasoning rows); the fake db mirrors that semantic when it sees the tag.
   sql: (strings, ...values) => ({ kind: 'sql', strings, values }),
 }))
 
@@ -25,11 +20,6 @@ function hasReplayableOnlyPredicate(pred) {
   return false
 }
 
-// Minimal drizzle-shaped fake backed by an in-memory array. All queries in
-// PostgresSession are scoped to a single conversation, so WHERE clauses are
-// treated as conversation-wide except the popItem delete keyed on id and the
-// replayable-only SQL predicate, which is applied as the real query would
-// (before ORDER BY/LIMIT).
 function makeFakeDb() {
   let rows = []
   let nextId = 1
@@ -142,7 +132,6 @@ describe('PostgresSession', () => {
       { type: 'function_call_output', call_id: 'c1', output: 'result' },
       { type: 'message', role: 'assistant', content: 'b' },
     ])
-    // Still stored — only the read path filters them.
     expect(db._rows()).toHaveLength(5)
   })
 
@@ -152,8 +141,6 @@ describe('PostgresSession', () => {
       { type: 'reasoning', id: 'rs_1', content: 'thinking' },
       { type: 'message', role: 'assistant', content: 'b' },
     ])
-    // The most recent 2 REPLAYABLE items — the reasoning row must not consume
-    // a limit slot.
     const items = await session.getItems(2)
     expect(items).toEqual([
       { type: 'message', role: 'user', content: 'a' },
@@ -167,7 +154,6 @@ describe('PostgresSession', () => {
     ])
     const items = await session.getItems()
     expect(items).toEqual([{ type: 'message', role: 'assistant', content: 'hi' }])
-    // Stored untouched — only the read path strips.
     expect(db._rows()[0].item).toEqual({
       type: 'message',
       role: 'assistant',

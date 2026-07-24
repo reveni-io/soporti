@@ -11,11 +11,6 @@ function log(icon, ...args) {
   console.log(`[${timestamp}] [auto-diagnose] ${icon}`, ...args)
 }
 
-// Builds the run() input. A plain string when there are no screenshots; a
-// multimodal user message (input_text + input_image) when there are. The text
-// stays a separate field from the image content so the prompt and similar-case
-// search always operate on a string (run accepts string | AgentInputItem[]).
-// images are data URIs or https URLs the model can fetch.
 export function buildAgentInput(promptText, images = []) {
   if (!Array.isArray(images) || images.length === 0) return promptText
   return [
@@ -26,13 +21,6 @@ export function buildAgentInput(promptText, images = []) {
   ]
 }
 
-// Runs one autonomous diagnosis for a ticket and returns the redacted reply
-// text. Reuses the chat agent in YOLO mode so it carries the full support
-// toolset (Sentry, Postgres, Shopify, Helpjuice, Notion, Drive, repos) with no
-// per-user custom instructions: the ticket is channel-writable input, so no
-// author's saved instructions may apply. Every reply passes
-// through redactSecrets — the same last line of defense the PR review path
-// uses.
 export async function diagnoseTicket(ticket, { images = [] } = {}) {
   const ticketText = buildTicketText(ticket)
   const similarCases = await searchSimilarCases(ticketText).catch(() => [])

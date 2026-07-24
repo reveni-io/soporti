@@ -50,8 +50,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// The empty-file verification stats files in the PR-head worktree; tests use
-// fake paths, so the fs module is mocked (default: everything fails to stat).
 const mockStat = vi.fn()
 vi.mock('node:fs/promises', () => ({ stat: mockStat }))
 
@@ -153,7 +151,6 @@ describe('runReview', () => {
     expect(review.body).toContain('Looks reasonable.')
     expect(review.body).toContain('outside the diff')
     expect(review.body).toContain('src/checkout.js')
-    // Non-correctness findings carry their axis in the rendered tag.
     expect(review.body).toContain('standards')
   })
 
@@ -328,7 +325,6 @@ describe('runReview', () => {
         empty: [],
       })
     )
-    // An omitted file still blocks APPROVE and demotes to partial.
     const review = mockCreatePullRequestReview.mock.calls[0][2]
     expect(review.event).toBe('COMMENT')
     expect(review.body).toMatch(/Partial review/)
@@ -355,8 +351,6 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    // Hybrid spec axis: the server detects the reference, the agent fetches
-    // the story itself through its Shortcut tools.
     expect(mockGetStory).not.toHaveBeenCalled()
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ storyId: 1234 }))
   })
@@ -556,8 +550,6 @@ describe('runReview', () => {
   })
 })
 
-// The verdict header is the fix for "did it finish / is it good or bad?": a
-// deterministic line atop every review so a human never has to read the badge.
 describe('verdict header', () => {
   beforeEach(() => vi.clearAllMocks())
 

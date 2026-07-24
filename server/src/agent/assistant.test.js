@@ -26,9 +26,6 @@ vi.mock('../openai/client.js', () => ({
 const buildRepoCatalogPrompt = vi.fn(async () => '')
 vi.mock('./repo-catalog.js', () => ({ buildRepoCatalogPrompt }))
 
-// The Shortcut, Google Drive, Notion and Helpjuice credentials live in the
-// database; createAgent resolves their availability per turn. Stub them so the
-// test never touches the DB.
 vi.mock('../shortcut/settings.js', () => ({ isShortcutConfigured: vi.fn(async () => false) }))
 vi.mock('../sentry/settings.js', () => ({ isSentryConfigured: vi.fn(async () => false) }))
 vi.mock('../google-drive/settings.js', () => ({ isDriveConfigured: vi.fn(async () => false) }))

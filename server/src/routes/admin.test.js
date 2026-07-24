@@ -13,7 +13,6 @@ const setAllowedDomains = vi.fn()
 const createSession = vi.fn(() => 'session-token')
 const verifySetupCode = vi.fn(() => true)
 const announceSetupCode = vi.fn()
-// Toggled per test: simulates the DB role check.
 let currentDbRole = 'admin'
 const requireAdmin = vi.fn(async (req, res, next) => {
   if (currentDbRole !== 'admin') return res.status(403).json({ error: 'Admin access required.' })
@@ -1342,7 +1341,6 @@ describe('PUT /api/admin/config/openai/api-key', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ apiKeyConfigured: true })
     expect(setOpenAIApiKey).toHaveBeenCalledWith('sk-new')
-    // The stats cache must be dropped so the solved-cases tile refreshes.
     expect(clearStatsCache).toHaveBeenCalled()
   })
 
@@ -1397,7 +1395,6 @@ describe('PUT /api/admin/config/openai/vector-store', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ vectorStoreId: 'vs_new' })
     expect(setVectorStoreId).toHaveBeenCalledWith('vs_new')
-    // Invalidate the stats cache so "Solved cases learned" reflects the new store.
     expect(clearStatsCache).toHaveBeenCalled()
   })
 

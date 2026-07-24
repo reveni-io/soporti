@@ -16,8 +16,6 @@ export class RepoPool {
     ttlMs = 30 * 60_000,
     cleanupMs = 5 * 60_000,
     basePath = DEFAULT_BASE_PATH,
-    // Async () => token. The token lives in the database (admin panel) and
-    // can change at runtime, so it is resolved per clone instead of baked in.
     getGithubToken = async () => null,
   } = {}) {
     this.maxSize = maxSize
@@ -62,11 +60,6 @@ export class RepoPool {
     return this._handle(repoFullName, entry)
   }
 
-  // Checkout of a PR's current head (GitHub publishes it on the base repo as
-  // refs/pull/N/head) in an ephemeral worktree, so callers can read the code
-  // WITH the PR applied. The worktree shares the clone's .git and pins the
-  // clone entry until released; release removes the worktree first, so the
-  // clone can never be evicted from under it.
   async acquireWorktree(repoFullName, prNumber) {
     const pr = Number(prNumber)
     if (!Number.isInteger(pr) || pr < 1) {

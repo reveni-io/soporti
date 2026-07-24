@@ -11,17 +11,9 @@ const { Pool } = pg
 const LOG_PREFIX = '[db]'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Application database (Drizzle ORM over node-postgres). Stores the app's own
-// data (users, ...). Distinct from server/src/postgres/client.js, the read-only
-// tool the agent uses to query customer databases.
 let pool = null
 let db = null
 
-// Normalizes the connection URL so node-postgres handles SSL predictably.
-// If `sslmode=...` is present in the URL we strip it and set the `ssl` option
-// explicitly, mirroring server/src/postgres/client.js. Managed providers
-// (DigitalOcean, Heroku, Neon, ...) serve certs whose chain Node doesn't trust
-// out of the box, so we disable verification when SSL is requested.
 export function parseDatabaseConfig(rawUrl) {
   let parsed
   try {
@@ -51,7 +43,6 @@ export function getDb() {
   return db
 }
 
-// Applies any pending migrations from the drizzle/ folder. Idempotent.
 export async function runMigrations() {
   const migrationsFolder = resolve(__dirname, '../../drizzle')
   await migrate(getDb(), { migrationsFolder })

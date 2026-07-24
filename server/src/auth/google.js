@@ -6,8 +6,6 @@ import { getGoogleClientId } from './google-settings.js'
 let client = null
 let clientIdForCache = null
 
-// The client id lives in the database (admin panel), so rebuild the OAuth2
-// client whenever it changes (or was cleared).
 function getClient(clientId) {
   if (!client || clientIdForCache !== clientId) {
     client = new OAuth2Client(clientId)
@@ -16,9 +14,6 @@ function getClient(clientId) {
   return client
 }
 
-// Verifies a Google ID token (the `credential` returned by the Sign in with
-// Google button), enforces email verification and the allowed domain, and
-// returns the normalized user profile. Throws on any failure.
 export async function verifyGoogleCredential(idToken) {
   const clientId = await getGoogleClientId()
   if (!clientId) {
@@ -45,8 +40,6 @@ export async function verifyGoogleCredential(idToken) {
     throw err
   }
 
-  // With Google explicitly enabled, an empty list means no domain restriction
-  // (any verified Google account); a non-empty list restricts to those domains.
   const emailDomain = payload.email.toLowerCase().split('@')[1]
   if (domains.length > 0 && !domains.some(domain => domain.toLowerCase() === emailDomain)) {
     const err = new Error(`Only ${domains.map(domain => `@${domain}`).join(', ')} accounts are allowed.`)

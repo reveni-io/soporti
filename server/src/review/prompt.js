@@ -1,5 +1,3 @@
-// Dedicated system prompt for PR reviews. Separate from the chat profiles
-// (tech/support): the contract here is a structured review, not a conversation.
 export function buildReviewerInstructions(repoFullName) {
   return `You are Soporti, the team's automated code reviewer. You are reviewing one pull request in the GitHub repository \`${repoFullName}\`.
 
@@ -50,9 +48,6 @@ Write the summary and all findings in the language of the PR title and descripti
 A one-line verdict (approved / LGTM / review needed) is prepended to your review automatically from your findings — do NOT restate it or explain your own approve-vs-comment choice (no "since it is not trivial I leave a comment", no "I am not sure because it is large"). Write 2-8 sentences of substance: what the PR does, your overall assessment, and any risk worth flagging. Be assertive — if it looks good, say plainly that it looks good; if something needs a human's eyes, say what and why. End with two short lines reporting each non-correctness axis: \`**Standards:** …\` and \`**Spec:** …\` (write "no spec available" on the spec line when none was provided).`
 }
 
-// System prompt for Mention replies: a colleague @-mentioned
-// Soporti in a PR comment and gets exactly one conversational reply — never a
-// review, never a structured verdict.
 export function buildMentionInstructions(repoFullName) {
   return `You are Soporti, the team's engineering assistant. Someone @-mentioned you in a comment on a pull request of the GitHub repository \`${repoFullName}\`. Your reply will be posted in that same thread.
 

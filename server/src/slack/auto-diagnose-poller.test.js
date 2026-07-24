@@ -18,7 +18,6 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-// Keep the pure helpers real; only stub the network wrappers.
 vi.mock('./lists-client.js', async orig => {
   const actual = await orig()
   return { ...actual, fetchList: vi.fn(), fetchSchema: vi.fn(), updateItemField: vi.fn(async () => ({ ok: true })) }
@@ -32,8 +31,6 @@ vi.mock('./attachments.js', () => ({
   collectTicketImages: vi.fn(async () => []),
 }))
 
-// The bot token lives in the database now; stub it so the poller does not hit
-// db/app-config.js (no DB in tests).
 vi.mock('./settings.js', () => ({
   getSlackBotToken: vi.fn(async () => 'xoxb-test'),
 }))
@@ -57,15 +54,12 @@ const diagnosed = id => ({
   ],
 })
 
-// Which rows got a diagnosis written, in order — the observable outcome of a
-// poll. Asserting on this (rather than on how many times a collaborator was
-// called) keeps the tests behavior-based (CONTRIBUTING.md "Testing").
 const writtenRows = () => updateItemField.mock.calls.map(([, args]) => args.rowId)
 
 describe('runPollOnce', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    stopAutoDiagnose() // clears the in-flight set between tests
+    stopAutoDiagnose()
     diagnoseTicket.mockResolvedValue('DIAGNOSIS')
     updateItemField.mockResolvedValue({ ok: true })
     fetchSchema.mockResolvedValue(COLUMNS)
@@ -93,7 +87,7 @@ describe('runPollOnce', () => {
 
   it('writes nothing when the diagnosis column cannot be resolved', async () => {
     fetchList.mockResolvedValue({ items: [undiagnosed('r1')] })
-    fetchSchema.mockResolvedValueOnce([{ id: 'x', name: 'Other' }]) // no Diagnosis column
+    fetchSchema.mockResolvedValueOnce([{ id: 'x', name: 'Other' }])
     const { processed } = await runPollOnce({})
     expect(processed).toBe(0)
     expect(updateItemField).not.toHaveBeenCalled()
@@ -115,7 +109,7 @@ describe('runPollOnce', () => {
     diagnoseTicket.mockRejectedValueOnce(new Error('agent boom'))
     const { processed } = await runPollOnce({})
     expect(processed).toBe(2)
-    expect(writtenRows()).toEqual(['r2']) // r1 failed before its write
+    expect(writtenRows()).toEqual(['r2'])
   })
 
   it('does not diagnose archived (closed) tickets', async () => {
@@ -128,8 +122,8 @@ describe('runPollOnce', () => {
 
   it('does not diagnose tickets created before the SKIP_BEFORE cutoff', async () => {
     config.autoDiagnose.skipBefore = '2026-06-24T00:00:00Z'
-    const old = { id: 'old', date_created: 1700000000, fields: [{ key: 'col_details', text: 'viejo' }] } // 2023
-    const fresh = { id: 'fresh', date_created: 1800000000, fields: [{ key: 'col_details', text: 'nuevo' }] } // 2027
+    const old = { id: 'old', date_created: 1700000000, fields: [{ key: 'col_details', text: 'viejo' }] }
+    const fresh = { id: 'fresh', date_created: 1800000000, fields: [{ key: 'col_details', text: 'nuevo' }] }
     fetchList.mockResolvedValue({ items: [old, fresh], columns: COLUMNS })
     const { processed } = await runPollOnce({})
     expect(processed).toBe(1)
@@ -162,11 +156,11 @@ describe('runPollOnce', () => {
       return new Promise(r => (resolveDiag = () => r('DIAGNOSIS')))
     })
 
-    const first = runPollOnce({}) // enters in-flight, awaits diagnoseTicket
-    await new Promise(r => setImmediate(r)) // let the first pass reach the await
-    await runPollOnce({}) // second, overlapping pass
+    const first = runPollOnce({})
+    await new Promise(r => setImmediate(r))
+    await runPollOnce({})
 
-    expect(started).toEqual(['r1']) // the overlapping pass did not start a second diagnosis
+    expect(started).toEqual(['r1'])
     resolveDiag()
     await first
     expect(writtenRows()).toEqual(['r1'])

@@ -112,7 +112,6 @@ describe('isSlackConfigured', () => {
     })
     expect(await isSlackConfigured()).toBe(true)
 
-    // App token missing → not configured (signing secret is irrelevant).
     _resetSlackSettingsCacheForTests()
     getConfigValue.mockImplementation(async key => (key === SLACK_BOT_TOKEN_KEY ? 'xoxb-abc' : null))
     expect(await isSlackConfigured()).toBe(false)

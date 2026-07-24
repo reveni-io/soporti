@@ -1,16 +1,7 @@
-// Prompt scaffolding for the autonomous ticket diagnosis (issue #56). The
-// agent's persona and toolset come from the chat factory (createAgent); the
-// diagnosis CONTRACT lives in the user turn we build here, so we can reuse
-// createAgent untouched and avoid framing the contract as soft "user
-// preferences". Everything is authored in English; the agent replies in the
-// ticket's language (the chat agent's final reminder handles that).
-
 const MAX_TITLE_CHARS = 300
 const MAX_LABEL_CHARS = 120
 const MAX_VALUE_CHARS = 4000
 
-// Field labels are interpolated into the prompt structure, so flatten their
-// whitespace to keep a crafted label from fabricating new sections.
 function flattenLabel(value) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -18,8 +9,6 @@ function flattenLabel(value) {
     .slice(0, MAX_LABEL_CHARS)
 }
 
-// A plain-text rendering of the ticket, used both inside the prompt and as the
-// query for similar-case search. ticket = { title, fields: [{ label, value }] }.
 export function buildTicketText(ticket) {
   const lines = []
   const title = String(ticket?.title ?? '')

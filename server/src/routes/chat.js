@@ -35,8 +35,6 @@ function sanitizeInput(rawArgs) {
   }
 }
 
-// Appends a text chunk to the running parts array, merging into the trailing
-// text part so the persisted history mirrors what useChat builds in the browser.
 function appendText(parts, text) {
   const last = parts[parts.length - 1]
   if (last && last.type === 'text') {
@@ -48,8 +46,6 @@ function appendText(parts, text) {
 
 export default function chatRoute(conversationStore) {
   router.post('/', async (req, res) => {
-    // "selectedRepos" is the legacy field name, still accepted for clients
-    // loaded before the rename to "selectedSources".
     const { sessionId, message, selectedSources, selectedRepos, profile } = req.body
 
     if (!message || typeof message !== 'string') {
@@ -71,11 +67,6 @@ export default function chatRoute(conversationStore) {
     const rawSources = Array.isArray(selectedSources) ? selectedSources : selectedRepos
     const sources = Array.isArray(rawSources) ? rawSources : []
 
-    // Resolve (and register as the Agents SDK default) the DB-configured OpenAI
-    // client before building the session: the compaction session constructs its
-    // client eagerly, so a missing key must fail cleanly here rather than throw
-    // while resolving the session — which, before the SSE headers are sent,
-    // would hang the request.
     if (!(await getOpenAIClient())) {
       return res
         .status(503)
@@ -128,13 +119,7 @@ export default function chatRoute(conversationStore) {
       const toolCalls = []
       let sentContent = false
 
-      // Runs one streaming turn. On the first attempt we chain the persisted
-      // previousResponseId; if OpenAI has expired it (and nothing has been sent
-      // to the client yet) we retry once without it, relying on the items in DB.
       async function runTurn(prevResponseId) {
-        // Keep the SDK default reasoningItemIdPolicy ('preserve') — reasoning
-        // items must stay paired with their function_call. Rationale lives on
-        // PostgresSession.getItems, which sanitizes replayed history.
         const stream = await run(agent, trimmedMessage, {
           stream: true,
           maxTurns: config.agent.maxIterations,
@@ -226,9 +211,6 @@ export default function chatRoute(conversationStore) {
         .filter(p => p.type === 'text')
         .map(p => p.content)
         .join('')
-      // Only offer the 👍/👎 feedback when the knowledge base is configured —
-      // a saved case needs a vector store to land in, so without one the
-      // thumbs would lead nowhere.
       if (await isKnowledgeBaseConfigured()) {
         const feedbackId = storePendingFeedback(trimmedMessage, finalText)
         sendEvent(res, { type: 'feedback_id', feedbackId })
