@@ -6,7 +6,7 @@
  * which have no backend to point at on a static host. */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import Landing from './components/Landing.jsx'
+import Landing from './pages/Landing/Landing.jsx'
 import './index.css'
 import './styles/ui.css'
 // The landing reuses presentational chat pieces — HeroChat renders real
@@ -14,8 +14,8 @@ import './styles/ui.css'
 // `.chart-block` tables and charts. Their styles live in the chat CSS, which
 // the full app loads globally but this standalone build must import explicitly,
 // or the hero chat preview, CSV tables and charts render unstyled.
-import './components/Message.css'
-import './components/ToolCall.css'
+import './common/Message/Message.css'
+import './common/ToolCall/ToolCall.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
