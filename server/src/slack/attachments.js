@@ -32,8 +32,7 @@ export async function collectTicketImages(item, { client, botToken, maxBytes, fe
       if (!file?.url_private || !mimetype.startsWith('image/')) continue
       if (file?.size && file.size > maxBytes) continue
       images.push(await downloadImageAsDataUri(file.url_private, { botToken, maxBytes, fetchImpl }))
-    } catch {
-    }
+    } catch {}
   }
   return images
 }

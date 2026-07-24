@@ -187,8 +187,7 @@ async function findEmptyFiles(files, rootPath) {
       try {
         const stats = await stat(resolved)
         if (stats.isFile() && stats.size === 0) empty.add(file.filename)
-      } catch {
-      }
+      } catch {}
     })
   )
 

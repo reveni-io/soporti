@@ -40,8 +40,7 @@ export class ReviewQueue {
         .catch(err => {
           try {
             this.onError(err, job)
-          } catch {
-          }
+          } catch {}
         })
         .finally(() => {
           this.#keys.delete(job.dedupeKey)
