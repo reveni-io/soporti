@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react'
+import {
+  absoluteApiUrl,
+  getGithubConfig,
+  isUnauthorized,
+  saveGithubCatalog,
+  saveGithubToken,
+  saveGithubWebhookSecret,
+} from '../../../services/services.js'
 
 export default function AdminGithub({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
@@ -26,21 +34,17 @@ export default function AdminGithub({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/github`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the GitHub settings')
-        const data = await res.json()
+        const data = await getGithubConfig(token)
         if (!active) return
         setTokenConfigured(data.tokenConfigured)
         setSecretConfigured(data.webhookSecretConfigured)
         setCatalog(data.repoCatalog)
         setInitialCatalog(data.repoCatalog)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -56,24 +60,15 @@ export default function AdminGithub({ token, onLogout }) {
     setSavingToken(true)
     setTokenError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/github/token`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ token: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the token')
+      const data = await saveGithubToken(token, value)
       setTokenConfigured(data.tokenConfigured)
       setGhToken('')
       setTokenSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setTokenError(err.message)
     } finally {
       setSavingToken(false)
@@ -90,24 +85,15 @@ export default function AdminGithub({ token, onLogout }) {
     setSavingSecret(true)
     setSecretError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/github/webhook-secret`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ secret: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the webhook secret')
+      const data = await saveGithubWebhookSecret(token, value)
       setSecretConfigured(data.webhookSecretConfigured)
       setWebhookSecret('')
       setSecretSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSecretError(err.message)
     } finally {
       setSavingSecret(false)
@@ -130,24 +116,15 @@ export default function AdminGithub({ token, onLogout }) {
     setSavingCatalog(true)
     setCatalogError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/github/catalog`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ catalog }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the catalog')
+      const data = await saveGithubCatalog(token, catalog)
       setCatalog(data.repoCatalog)
       setInitialCatalog(data.repoCatalog)
       setCatalogSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setCatalogError(err.message)
     } finally {
       setSavingCatalog(false)
@@ -228,7 +205,7 @@ export default function AdminGithub({ token, onLogout }) {
           <div className="admin__kv-row">
             <dt>Payload URL</dt>
             <dd>
-              <code>{`${import.meta.env.VITE_API_URL || window.location.origin}/api/webhooks/github`}</code>
+              <code>{absoluteApiUrl('/api/webhooks/github')}</code>
             </dd>
           </div>
           <div className="admin__kv-row">

@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback } from 'react'
+import { createFirstAdmin, signInWithGoogle, signInWithPassword } from '../services/services.js'
 
 const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
@@ -20,22 +21,12 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  const performLogin = useCallback(async (path, body) => {
+  const performLogin = useCallback(async signIn => {
     setError(null)
     setIsLoggingIn(true)
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Login failed')
-      }
+      const data = await signIn()
 
       localStorage.setItem(TOKEN_KEY, data.token)
       localStorage.setItem(USER_KEY, JSON.stringify(data.user))
@@ -56,18 +47,18 @@ export function AuthProvider({ children }) {
         setError('Google sign-in failed. Please try again.')
         return false
       }
-      return performLogin('/api/auth/google', { credential })
+      return performLogin(() => signInWithGoogle(credential))
     },
     [performLogin]
   )
 
   const loginWithPassword = useCallback(
-    (email, password) => performLogin('/api/auth/login', { email, password }),
+    (email, password) => performLogin(() => signInWithPassword(email, password)),
     [performLogin]
   )
 
   const bootstrapAdmin = useCallback(
-    (email, password, name, setupCode) => performLogin('/api/admin/bootstrap', { email, password, name, setupCode }),
+    (email, password, name, setupCode) => performLogin(() => createFirstAdmin(email, password, name, setupCode)),
     [performLogin]
   )
 

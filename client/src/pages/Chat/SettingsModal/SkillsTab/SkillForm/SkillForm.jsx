@@ -5,6 +5,7 @@ import {
   SKILL_NAME_MAX_LENGTH,
   SKILL_NAME_RE,
 } from '../../../../../constants.js'
+import { createSkill, isUnauthorized, updateSkill } from '../../../../../services/services.js'
 import './SkillForm.css'
 
 export default function SkillForm({ token, onLogout, skill, onSaved, onCancel }) {
@@ -29,28 +30,14 @@ export default function SkillForm({ token, onLogout, skill, onSaved, onCancel })
     setSaving(true)
     setError(null)
     try {
-      const url = isEdit
-        ? `${import.meta.env.VITE_API_URL}/api/skills/${skill.id}`
-        : `${import.meta.env.VITE_API_URL}/api/skills`
-      const res = await fetch(url, {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name, description, instructions }),
-      })
-      if (res.status === 401) {
+      const payload = { name, description, instructions }
+      const data = isEdit ? await updateSkill(token, skill.id, payload) : await createSkill(token, payload)
+      onSaved(data.skill)
+    } catch (err) {
+      if (isUnauthorized(err)) {
         onLogout?.()
         return
       }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to save skill')
-      }
-      const data = await res.json()
-      onSaved(data.skill)
-    } catch (err) {
       setError(err.message)
     } finally {
       setSaving(false)

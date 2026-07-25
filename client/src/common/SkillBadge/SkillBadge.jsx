@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOverlayDismiss } from '../../hooks/useOverlayDismiss/useOverlayDismiss.js'
+import { getSkill } from '../../services/services.js'
 import './SkillBadge.css'
 
 function SkillPreviewModal({ skillId, fallbackName, token, onClose }) {
@@ -12,15 +13,10 @@ function SkillPreviewModal({ skillId, fallbackName, token, onClose }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/skills/${skillId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 404) throw new Error('This skill no longer exists.')
-        if (!res.ok) throw new Error('Failed to load the skill.')
-        const data = await res.json()
+        const data = await getSkill(token, skillId)
         if (active) setSkill(data.skill)
       } catch (err) {
-        if (active) setError(err.message)
+        if (active) setError(err.status === 404 ? 'This skill no longer exists.' : err.message)
       }
     }
     load()

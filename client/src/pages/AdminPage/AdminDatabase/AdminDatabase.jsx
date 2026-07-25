@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  getDatabaseConfig,
+  isUnauthorized,
+  saveDatabaseConnection,
+  saveDatabaseMaxRows,
+} from '../../../services/services.js'
 
 export default function AdminDatabase({ token, onLogout }) {
   const [connectionConfigured, setConnectionConfigured] = useState(false)
@@ -19,19 +25,15 @@ export default function AdminDatabase({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/postgres`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the database settings')
-        const data = await res.json()
+        const data = await getDatabaseConfig(token)
         if (!active) return
         setConnectionConfigured(data.connectionConfigured)
         setMaxRows(String(data.maxRows ?? ''))
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -47,24 +49,15 @@ export default function AdminDatabase({ token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/postgres/connection`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ connection: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the connection string')
+      const data = await saveDatabaseConnection(token, value)
       setConnectionConfigured(data.connectionConfigured)
       setConnection('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)
@@ -82,23 +75,14 @@ export default function AdminDatabase({ token, onLogout }) {
     setSavingMaxRows(true)
     setMaxRowsError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/postgres/max-rows`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ maxRows: maxRows === '' ? '' : Number(maxRows) }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the row limit')
+      const data = await saveDatabaseMaxRows(token, maxRows === '' ? '' : Number(maxRows))
       setMaxRows(String(data.maxRows))
       setMaxRowsSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setMaxRowsError(err.message)
     } finally {
       setSavingMaxRows(false)

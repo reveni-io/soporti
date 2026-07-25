@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { ROUTES } from '../../router/constants.js'
+import { getAdminStatus } from '../../services/services.js'
 import Login from '../../common/Login/Login.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
 import AdminUsers from './AdminUsers/AdminUsers.jsx'
@@ -205,9 +206,7 @@ export default function AdminPage() {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/status`)
-        if (!res.ok) throw new Error('Failed to check the admin status')
-        const data = await res.json()
+        const data = await getAdminStatus()
         if (active) setAdminExists(data.adminExists)
       } catch (err) {
         if (active) setStatusError(err.message)

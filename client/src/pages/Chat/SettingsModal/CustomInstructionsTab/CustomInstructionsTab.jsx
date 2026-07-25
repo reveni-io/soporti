@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { MAX_INSTRUCTIONS_LENGTH } from '../../../../constants.js'
+import { getUserInstructions, isUnauthorized, saveUserInstructions } from '../../../../services/services.js'
 import './CustomInstructionsTab.css'
 
 export default function CustomInstructionsTab({ token, onLogout }) {
@@ -14,19 +15,15 @@ export default function CustomInstructionsTab({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/user/instructions`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load instructions')
-        const data = await res.json()
+        const data = await getUserInstructions(token)
         if (!active) return
         setInstructions(data.instructions || '')
         setInitial(data.instructions || '')
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -42,27 +39,15 @@ export default function CustomInstructionsTab({ token, onLogout }) {
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/user/instructions`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ instructions }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to save')
-      }
-      const data = await res.json()
+      const data = await saveUserInstructions(token, instructions)
       setInstructions(data.instructions || '')
       setInitial(data.instructions || '')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setError(err.message)
     } finally {
       setSaving(false)

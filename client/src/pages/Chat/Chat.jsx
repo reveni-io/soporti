@@ -9,6 +9,7 @@ import Login from '../../common/Login/Login.jsx'
 import ShareModal from './ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import { YOLO_SOURCE } from '../../constants.js'
+import { createShare } from '../../services/services.js'
 import './Chat.css'
 
 export default function Chat() {
@@ -81,18 +82,7 @@ export default function Chat() {
     const conversationId = currentSessionId.current
     if (!conversationId) return
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/share`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ conversationId }),
-      })
-
-      if (!res.ok) throw new Error('Failed to create share')
-
-      const data = await res.json()
+      const data = await createShare(token, conversationId)
       setShareUrl(`${window.location.origin}${data.url}`)
     } catch (err) {
       console.error('Share failed:', err) // eslint-disable-line no-console

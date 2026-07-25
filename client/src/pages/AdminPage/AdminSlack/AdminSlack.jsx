@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getSlackConfig, isUnauthorized, saveSlackCredential } from '../../../services/services.js'
 
 export default function AdminSlack({ token, onLogout }) {
   const [botTokenConfigured, setBotTokenConfigured] = useState(false)
@@ -12,20 +13,16 @@ export default function AdminSlack({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/slack`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Slack settings')
-        const data = await res.json()
+        const data = await getSlackConfig(token)
         if (!active) return
         setBotTokenConfigured(data.botTokenConfigured)
         setAppTokenConfigured(data.appTokenConfigured)
         setSigningSecretConfigured(data.signingSecretConfigured)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -162,24 +159,15 @@ function SecretField({
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/slack/${endpoint}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ [bodyKey]: next }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      const data = await saveSlackCredential(token, { endpoint, bodyKey, value: next })
       setConfigured(data[responseKey])
       setValue('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)

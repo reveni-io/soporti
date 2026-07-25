@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
 
 export function useChat(token, onAuthError) {
   const [messages, setMessages] = useState([])
@@ -21,31 +22,17 @@ export function useChat(token, onAuthError) {
       abortRef.current = abortController
 
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+        const response = await streamChat(
+          token,
+          {
             sessionId: sessionIdRef.current,
             message: text,
             selectedSources,
             profile,
             skillIds: skills.map(s => s.id),
-          }),
-          signal: abortController.signal,
-        })
-
-        if (response.status === 401) {
-          onAuthError?.()
-          return
-        }
-
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Server error' }))
-          throw new Error(err.error || `HTTP ${response.status}`)
-        }
+          },
+          abortController.signal
+        )
 
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
@@ -159,6 +146,10 @@ export function useChat(token, onAuthError) {
         }
       } catch (err) {
         if (err.name === 'AbortError') return
+        if (isUnauthorized(err)) {
+          onAuthError?.()
+          return
+        }
         setMessages(prev => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -193,21 +184,13 @@ export function useChat(token, onAuthError) {
   const loadConversation = useCallback(
     async id => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/conversations/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        if (response.status === 401) {
-          onAuthError?.()
-          return
-        }
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-        const data = await response.json()
+        const data = await getConversation(token, id)
 
         sessionIdRef.current = id
         setMessages(data.messages || [])
-      } catch {}
+      } catch (err) {
+        if (isUnauthorized(err)) onAuthError?.()
+      }
     },
     [token, onAuthError]
   )

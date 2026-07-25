@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { sendFeedback as postFeedback } from '../../services/services.js'
 import './FeedbackButtons.css'
 
 export default function FeedbackButtons({ feedbackId, authToken }) {
@@ -7,14 +8,7 @@ export default function FeedbackButtons({ feedbackId, authToken }) {
   async function sendFeedback(useful) {
     setStatus(useful ? 'positive' : 'negative')
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ feedbackId, useful }),
-      })
+      await postFeedback(authToken, feedbackId, useful)
     } catch {}
   }
 
