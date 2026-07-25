@@ -1,112 +1,45 @@
-import { useEffect, useState } from 'react'
-import {
-  draftShopifyTokenQuery,
-  getShopifyConfig,
-  isUnauthorized,
-  saveShopifyTokenQuery,
-} from '../../../services/services.js'
+import { useState } from 'react'
+import { draftShopifyTokenQuery, getShopifyConfig, saveShopifyTokenQuery } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
 
 export default function AdminShopify({ token, onLogout }) {
-  const [tokenQuery, setTokenQuery] = useState('')
-  const [initialTokenQuery, setInitialTokenQuery] = useState('')
-  const [tokenQueryConfigured, setTokenQueryConfigured] = useState(false)
-  const [databaseConfigured, setDatabaseConfigured] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-  const [drafting, setDrafting] = useState(false)
+  const { config, error, patchConfig } = useAuthedConfig(getShopifyConfig, token, onLogout)
+  const [editedQuery, setEditedQuery] = useState(null)
+  const { saving, error: saveError, savedAt, save } = useSaveField(onLogout)
+  const { saving: drafting, error: draftError, save: runDraft } = useSaveField(onLogout)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const savedQuery = config?.tokenQuery ?? ''
+  const tokenQuery = editedQuery ?? savedQuery
 
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getShopifyConfig(token)
-        if (!active) return
-        setTokenQueryConfigured(data.tokenQueryConfigured)
-        setTokenQuery(data.tokenQuery)
-        setInitialTokenQuery(data.tokenQuery)
-        setDatabaseConfigured(data.databaseConfigured)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
-
-  async function saveTokenQuery(value) {
-    setSaving(true)
-    setSaveError(null)
-    try {
+  function persist(value) {
+    save(async () => {
       const data = await saveShopifyTokenQuery(token, value)
-      setTokenQueryConfigured(data.tokenQueryConfigured)
-      const saved = data.tokenQueryConfigured ? value.trim() : ''
-      setTokenQuery(saved)
-      setInitialTokenQuery(saved)
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
+      patchConfig({
+        tokenQueryConfigured: data.tokenQueryConfigured,
+        tokenQuery: data.tokenQueryConfigured ? value.trim() : '',
+      })
+      setEditedQuery(null)
+    })
   }
 
-  async function draftQuery() {
-    setDrafting(true)
-    setSaveError(null)
-    try {
+  function draftQuery() {
+    runDraft(async () => {
       const data = await draftShopifyTokenQuery(token)
-      setTokenQuery(data.query)
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setDrafting(false)
-    }
+      setEditedQuery(data.query)
+    })
   }
 
-  const dirty = tokenQuery !== initialTokenQuery
+  if (error || !config) return <AdminSectionStatus title="Shopify" error={error} />
 
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Shopify</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Shopify</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  const dirty = tokenQuery !== savedQuery
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Shopify integration</h2>
+      <AdminSection title="Shopify integration">
         <p className="admin__muted">
           Lets the assistant query the Shopify Admin API (read-only): orders, products, webhooks and GraphQL lookups. It
           has no credentials of its own: it works when the Database integration is connected and your Shopify store
@@ -114,25 +47,17 @@ export default function AdminShopify({ token, onLogout }) {
           enables the integration; removing it disables it.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {tokenQueryConfigured && databaseConfigured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={config.tokenQueryConfigured && config.databaseConfigured} />
 
-        {!databaseConfigured && (
+        {!config.databaseConfigured && (
           <p className="alert alert--warning">
             The Shopify integration needs the Database integration: configure the read-only connection in the Database
             section. The token query below runs against that database.
           </p>
         )}
-      </section>
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Store token query</h2>
+      <AdminSection title="Store token query">
         <p className="admin__muted">
           SQL that resolves a store to its Shopify Admin API credentials. Every occurrence of <code>{'{{store}}'}</code>{' '}
           is replaced with the store identifier the assistant was given (a domain or an ID), safely quoted as a string
@@ -145,7 +70,7 @@ export default function AdminShopify({ token, onLogout }) {
           save.
         </p>
 
-        {saveError && <p className="alert alert--error">{saveError}</p>}
+        {(saveError || draftError) && <p className="alert alert--error">{saveError || draftError}</p>}
 
         <textarea
           className="textarea textarea--code"
@@ -153,7 +78,7 @@ export default function AdminShopify({ token, onLogout }) {
             "SELECT domain, token\nFROM shopify_stores\nWHERE domain ILIKE '%' || {{store}} || '%' OR id::text = {{store}}\nLIMIT 1"
           }
           value={tokenQuery}
-          onChange={event => setTokenQuery(event.target.value)}
+          onChange={event => setEditedQuery(event.target.value)}
           disabled={saving || drafting}
           rows={8}
         />
@@ -163,24 +88,24 @@ export default function AdminShopify({ token, onLogout }) {
             className="btn btn--secondary"
             type="button"
             onClick={draftQuery}
-            disabled={!databaseConfigured || drafting || saving}
-            title={databaseConfigured ? undefined : 'Configure the Database integration first'}
+            disabled={!config.databaseConfigured || drafting || saving}
+            title={config.databaseConfigured ? undefined : 'Configure the Database integration first'}
           >
             {drafting ? 'Soporti is exploring the database...' : 'Draft with Soporti'}
           </button>
           <button
             className="btn btn--primary"
             type="button"
-            onClick={() => saveTokenQuery(tokenQuery)}
+            onClick={() => persist(tokenQuery)}
             disabled={!dirty || saving || drafting || !tokenQuery.trim()}
           >
             {saving ? 'Saving...' : 'Save query'}
           </button>
-          {tokenQueryConfigured && (
+          {config.tokenQueryConfigured && (
             <button
               className="btn btn--secondary"
               type="button"
-              onClick={() => saveTokenQuery('')}
+              onClick={() => persist('')}
               disabled={saving || drafting}
             >
               Remove
@@ -188,7 +113,7 @@ export default function AdminShopify({ token, onLogout }) {
           )}
           {!saveError && savedAt && !dirty && <span className="admin__saved">Saved</span>}
         </div>
-      </section>
+      </AdminSection>
     </>
   )
 }

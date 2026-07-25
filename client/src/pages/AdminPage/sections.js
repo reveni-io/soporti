@@ -1,0 +1,27 @@
+import AdminAuthentication from './AdminAuthentication/AdminAuthentication.jsx'
+import AdminDatabase from './AdminDatabase/AdminDatabase.jsx'
+import AdminGithub from './AdminGithub/AdminGithub.jsx'
+import AdminGoogleDrive from './AdminGoogleDrive/AdminGoogleDrive.jsx'
+import AdminHelpjuice from './AdminHelpjuice/AdminHelpjuice.jsx'
+import AdminNotion from './AdminNotion/AdminNotion.jsx'
+import AdminOpenAI from './AdminOpenAI/AdminOpenAI.jsx'
+import AdminSentry from './AdminSentry/AdminSentry.jsx'
+import AdminShopify from './AdminShopify/AdminShopify.jsx'
+import AdminShortcut from './AdminShortcut/AdminShortcut.jsx'
+import AdminSlack from './AdminSlack/AdminSlack.jsx'
+import AdminUsers from './AdminUsers/AdminUsers.jsx'
+
+export const SECTIONS = [
+  { path: 'users', label: 'Users', icon: 'users', Component: AdminUsers },
+  { path: 'authentication', label: 'Authentication', icon: 'shield', Component: AdminAuthentication },
+  { path: 'openai', label: 'OpenAI', icon: 'spark', Component: AdminOpenAI },
+  { path: 'github', label: 'GitHub', icon: 'github', Component: AdminGithub },
+  { path: 'google-drive', label: 'Google Drive', icon: 'google-drive', Component: AdminGoogleDrive },
+  { path: 'notion', label: 'Notion', icon: 'notion', Component: AdminNotion },
+  { path: 'helpjuice', label: 'Helpjuice', icon: 'help-circle', Component: AdminHelpjuice },
+  { path: 'database', label: 'Database', icon: 'database', Component: AdminDatabase },
+  { path: 'shopify', label: 'Shopify', icon: 'shopify', Component: AdminShopify },
+  { path: 'shortcut', label: 'Shortcut', icon: 'shortcut', Component: AdminShortcut },
+  { path: 'sentry', label: 'Sentry', icon: 'sentry', Component: AdminSentry },
+  { path: 'slack', label: 'Slack', icon: 'slack', Component: AdminSlack },
+]

@@ -1,81 +1,43 @@
-import { useEffect, useState } from 'react'
-import { getSentryConfig, isUnauthorized, saveSentryAuthToken, saveSentryOrg } from '../../../services/services.js'
+import { getSentryConfig, saveSentryAuthToken, saveSentryOrg } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
+import ValueField from '../ValueField/ValueField.jsx'
 
 export default function AdminSentry({ token, onLogout }) {
-  const [tokenConfigured, setTokenConfigured] = useState(false)
-  const [org, setOrg] = useState('')
+  const { config, error, patchConfig } = useAuthedConfig(getSentryConfig, token, onLogout)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getSentryConfig(token)
-        if (!active) return
-        setTokenConfigured(data.tokenConfigured)
-        setOrg(data.org)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
-
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Sentry</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
+  async function saveOrg(value) {
+    const data = await saveSentryOrg(token, value)
+    patchConfig({ org: data.org })
   }
 
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Sentry</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
+  async function saveAuthToken(value) {
+    const data = await saveSentryAuthToken(token, value)
+    patchConfig({ tokenConfigured: data.tokenConfigured })
   }
 
-  const configured = tokenConfigured && Boolean(org)
+  if (error || !config) return <AdminSectionStatus title="Sentry" error={error} />
+
+  const configured = config.tokenConfigured && Boolean(config.org)
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Sentry integration</h2>
+      <AdminSection title="Sentry integration">
         <p className="admin__muted">
           Lets the assistant search and inspect production errors and issues in Sentry. Both values are stored in the
           database; the auth token is never shown again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {configured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={configured} />
         <p className="admin__muted">
           The integration is enabled once both the organization and the auth token are set.
         </p>
-      </section>
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Setup</h2>
+      <AdminSection title="Setup">
         <ol className="admin__steps">
           <li>
             Your <strong>organization</strong> is the slug in your Sentry URL: the <code>my-org</code> in{' '}
@@ -87,140 +49,29 @@ export default function AdminSentry({ token, onLogout }) {
           </li>
           <li>Save both values below. The auth token is stored write-only and never shown again.</li>
         </ol>
-      </section>
+      </AdminSection>
 
-      <OrgField org={org} setOrg={setOrg} token={token} onLogout={onLogout} />
+      <AdminSection title="Organization">
+        <p className="admin__muted">
+          The slug of your Sentry organization (<code>sentry.io/organizations/&lt;org&gt;/</code>).
+        </p>
 
-      <TokenField configured={tokenConfigured} setConfigured={setTokenConfigured} token={token} onLogout={onLogout} />
+        <ValueField savedValue={config.org} onSave={saveOrg} onLogout={onLogout} placeholder="my-org" />
+      </AdminSection>
+
+      <AdminSection title="Auth token">
+        <p className="admin__muted">Used to call the Sentry API. Stored write-only and never shown again.</p>
+
+        <StatusRow configured={config.tokenConfigured} />
+
+        <SecretField
+          placeholder="Auth token"
+          configuredPlaceholder="Paste a new token to replace it"
+          configured={config.tokenConfigured}
+          onSave={saveAuthToken}
+          onLogout={onLogout}
+        />
+      </AdminSection>
     </>
-  )
-}
-
-function OrgField({ org, setOrg, token, onLogout }) {
-  const [value, setValue] = useState(org)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  async function save(next) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveSentryOrg(token, next)
-      setOrg(data.org)
-      setValue(data.org)
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    save(value.trim())
-  }
-
-  return (
-    <section className="admin__section card">
-      <h2 className="admin__section-title">Organization</h2>
-      <p className="admin__muted">
-        The slug of your Sentry organization (<code>sentry.io/organizations/&lt;org&gt;/</code>).
-      </p>
-
-      {saveError && <p className="alert alert--error">{saveError}</p>}
-
-      <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-        <input
-          className="input"
-          type="text"
-          placeholder="my-org"
-          autoComplete="off"
-          value={value}
-          onChange={event => setValue(event.target.value)}
-          disabled={saving}
-        />
-        <button className="btn btn--primary" type="submit" disabled={saving || value.trim() === org}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-      </form>
-    </section>
-  )
-}
-
-function TokenField({ configured, setConfigured, token, onLogout }) {
-  const [value, setValue] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  async function save(next) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveSentryAuthToken(token, next)
-      setConfigured(data.tokenConfigured)
-      setValue('')
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    if (!value.trim()) return
-    save(value.trim())
-  }
-
-  return (
-    <section className="admin__section card">
-      <h2 className="admin__section-title">Auth token</h2>
-      <p className="admin__muted">Used to call the Sentry API. Stored write-only and never shown again.</p>
-
-      <p className="admin__muted">
-        Status:{' '}
-        {configured ? (
-          <span className="badge badge--success">configured</span>
-        ) : (
-          <span className="badge">not configured</span>
-        )}
-      </p>
-
-      {saveError && <p className="alert alert--error">{saveError}</p>}
-
-      <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-        <input
-          className="input"
-          type="password"
-          placeholder={configured ? 'Paste a new token to replace it' : 'Auth token'}
-          autoComplete="off"
-          value={value}
-          onChange={event => setValue(event.target.value)}
-          disabled={saving}
-        />
-        <button className="btn btn--primary" type="submit" disabled={saving || !value.trim()}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        {configured && (
-          <button className="btn btn--secondary" type="button" onClick={() => save('')} disabled={saving}>
-            Remove
-          </button>
-        )}
-        {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-      </form>
-    </section>
   )
 }

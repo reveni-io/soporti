@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
 import { YOLO_SOURCE } from '../../../constants.js'
-import {
-  deleteConversation,
-  getConversations,
-  getIntegrations,
-  getRepos,
-  isUnauthorized,
-} from '../../../services/services.js'
+import { useConversations } from '../hooks/useConversations/useConversations.js'
+import { useRepos } from '../hooks/useRepos/useRepos.js'
+import { useSourceSearch } from '../hooks/useSourceSearch/useSourceSearch.js'
+import ConversationList from './ConversationList/ConversationList.jsx'
+import ProfileToggle from './ProfileToggle/ProfileToggle.jsx'
+import SidebarFooter from './SidebarFooter/SidebarFooter.jsx'
+import SidebarHeader from './SidebarHeader/SidebarHeader.jsx'
+import SourceList from './SourceList/SourceList.jsx'
 import './Sidebar.css'
 
 export default function Sidebar({
@@ -19,143 +19,31 @@ export default function Sidebar({
   onOpenSettings,
   onLoadConversation,
   conversationsReloadKey,
+  integrations,
   token,
   isOpen,
   onClose,
 }) {
-  const [repos, setRepos] = useState([])
-  const [integrations, setIntegrations] = useState([])
-  const [conversations, setConversations] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [search, setSearch] = useState('')
-
-  useEffect(() => {
-    async function fetchRepos() {
-      try {
-        const data = await getRepos(token)
-        setRepos(data.repos)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout()
-          return
-        }
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchRepos()
-  }, [token, onLogout])
-
-  useEffect(() => {
-    async function fetchConversations() {
-      try {
-        const data = await getConversations(token)
-        setConversations(data.conversations || [])
-      } catch {}
-    }
-    fetchConversations()
-  }, [token, conversationsReloadKey])
-
-  async function handleDeleteConversation(e, id) {
-    e.stopPropagation()
-    setConversations(prev => prev.filter(c => c.id !== id))
-    try {
-      await deleteConversation(token, id)
-    } catch {}
-  }
-
-  useEffect(() => {
-    async function fetchIntegrations() {
-      try {
-        const data = await getIntegrations(token)
-        setIntegrations(data.integrations || [])
-      } catch {}
-    }
-    fetchIntegrations()
-  }, [token])
-
-  const isYoloSelected = selectedSources.includes(YOLO_SOURCE)
-  const specificSelectedCount = selectedSources.filter(s => s !== YOLO_SOURCE).length
-
-  const q = search.toLowerCase()
-  const filteredRepos = repos.filter(repo => {
-    if (!search) return true
-    return (
-      repo.fullName.toLowerCase().includes(q) ||
-      (repo.description && repo.description.toLowerCase().includes(q)) ||
-      (repo.language && repo.language.toLowerCase().includes(q))
-    )
+  const { repos, loading, error } = useRepos(token, onLogout)
+  const { conversations, remove } = useConversations(token, conversationsReloadKey)
+  const { search, setSearch, filteredRepos, filteredIntegrations, yoloMatches } = useSourceSearch({
+    repos,
+    integrations,
   })
-  const filteredIntegrations = integrations.filter(integration => {
-    if (integration.selectable === false) return false
-    if (!search) return true
-    return (
-      integration.name.toLowerCase().includes(q) ||
-      (integration.description && integration.description.toLowerCase().includes(q))
-    )
-  })
-  const yoloMatchesSearch = !search || 'yolo'.includes(q) || 'auto'.includes(q)
+
+  const specificSelectedCount = selectedSources.filter(source => source !== YOLO_SOURCE).length
 
   return (
     <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
-      <div className="sidebar__header">
-        <div className="sidebar__header-row">
-          <h1 className="sidebar__title">Soporti</h1>
-          <button className="sidebar__close" onClick={onClose} aria-label="Close sidebar">
-            &times;
-          </button>
-        </div>
-        <p className="sidebar__subtitle">Your AI teammate for code, data & docs</p>
-      </div>
+      <SidebarHeader onClose={onClose} />
 
       <button className="sidebar__new-chat" onClick={onClearChat}>
         + New chat
       </button>
 
-      {conversations.length > 0 && (
-        <div className="sidebar__section sidebar__section--conversations">
-          <h2 className="sidebar__section-title">Conversations</h2>
-          <ul className="sidebar__conversation-list">
-            {conversations.map(conv => (
-              <li key={conv.id} className="sidebar__conversation" onClick={() => onLoadConversation?.(conv.id)}>
-                <span className="sidebar__conversation-title">{conv.title || 'Untitled conversation'}</span>
-                <button
-                  className="sidebar__conversation-delete"
-                  onClick={e => handleDeleteConversation(e, conv.id)}
-                  aria-label="Delete conversation"
-                >
-                  &times;
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ConversationList conversations={conversations} onSelect={onLoadConversation} onDelete={remove} />
 
-      <div className="sidebar__profile">
-        <h2 className="sidebar__section-title">Profile</h2>
-        <div className="sidebar__profile-toggle">
-          <button
-            className={`sidebar__profile-btn ${selectedProfile === 'support' ? 'sidebar__profile-btn--active' : ''}`}
-            onClick={() => onSelectProfile('support')}
-          >
-            Support
-          </button>
-          <button
-            className={`sidebar__profile-btn ${selectedProfile === 'tech' ? 'sidebar__profile-btn--active' : ''}`}
-            onClick={() => onSelectProfile('tech')}
-          >
-            Tech
-          </button>
-        </div>
-        <p className="sidebar__profile-hint">
-          {selectedProfile === 'tech'
-            ? 'Detailed code, architecture, and file paths'
-            : 'Simplified explanations focused on behavior'}
-        </p>
-      </div>
+      <ProfileToggle selectedProfile={selectedProfile} onSelectProfile={onSelectProfile} />
 
       <div className="sidebar__section">
         <h2 className="sidebar__section-title">Sources ({specificSelectedCount})</h2>
@@ -165,79 +53,25 @@ export default function Sidebar({
           className="sidebar__search"
           placeholder="Search sources..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={event => setSearch(event.target.value)}
         />
 
-        <ul className="sidebar__source-list">
-          {yoloMatchesSearch && (
-            <li
-              key="yolo"
-              className={`sidebar__source sidebar__source--yolo ${isYoloSelected ? 'sidebar__source--selected' : ''}`}
-              onClick={() => onToggleSource(YOLO_SOURCE)}
-            >
-              <span className="sidebar__source-check">{isYoloSelected ? '✓' : ''}</span>
-              <div className="sidebar__source-info">
-                <span className="sidebar__source-name">YOLO (auto)</span>
-                <span className="sidebar__source-desc">
-                  Let the agent decide which sources to use based on your question
-                </span>
-              </div>
-            </li>
-          )}
-
-          {filteredIntegrations.map(integration => {
-            const key = `integration:${integration.id}`
-            const isSelected = selectedSources.includes(key)
-            return (
-              <li
-                key={key}
-                className={`sidebar__source ${isSelected ? 'sidebar__source--selected' : ''}`}
-                onClick={() => onToggleSource(key)}
-              >
-                <span className="sidebar__source-check">{isSelected ? '✓' : ''}</span>
-                <div className="sidebar__source-info">
-                  <span className="sidebar__source-name">{integration.name}</span>
-                  <span className="sidebar__source-desc">{integration.description}</span>
-                </div>
-              </li>
-            )
-          })}
-
-          {loading && <li className="sidebar__info">Loading repos...</li>}
-          {error && <li className="sidebar__error">{error}</li>}
-
-          {filteredRepos.map(repo => {
-            const isSelected = selectedSources.includes(repo.fullName)
-            return (
-              <li
-                key={repo.fullName}
-                className={`sidebar__source ${isSelected ? 'sidebar__source--selected' : ''}`}
-                onClick={() => onToggleSource(repo.fullName)}
-              >
-                <span className="sidebar__source-check">{isSelected ? '✓' : ''}</span>
-                <div className="sidebar__source-info">
-                  <span className="sidebar__source-name">{repo.fullName}</span>
-                  {repo.language && <span className="sidebar__source-lang">{repo.language}</span>}
-                  {repo.description && <span className="sidebar__source-desc">{repo.description}</span>}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <SourceList
+          repos={filteredRepos}
+          integrations={filteredIntegrations}
+          yoloMatches={yoloMatches}
+          selectedSources={selectedSources}
+          onToggleSource={onToggleSource}
+          loadingRepos={loading}
+          reposError={error}
+        />
 
         {!loading && repos.length === 0 && !error && (
           <p className="sidebar__info">No repos found for this GitHub token.</p>
         )}
       </div>
 
-      <div className="sidebar__footer">
-        <button className="sidebar__settings" onClick={onOpenSettings}>
-          Settings
-        </button>
-        <button className="sidebar__logout" onClick={onLogout}>
-          Log out
-        </button>
-      </div>
+      <SidebarFooter onOpenSettings={onOpenSettings} onLogout={onLogout} />
     </aside>
   )
 }

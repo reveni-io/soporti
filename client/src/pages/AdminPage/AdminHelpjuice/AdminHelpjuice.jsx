@@ -1,84 +1,41 @@
-import { useEffect, useState } from 'react'
-import {
-  getHelpjuiceConfig,
-  isUnauthorized,
-  saveHelpjuiceAccount,
-  saveHelpjuiceApiKey,
-} from '../../../services/services.js'
+import { getHelpjuiceConfig, saveHelpjuiceAccount, saveHelpjuiceApiKey } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
+import ValueField from '../ValueField/ValueField.jsx'
 
 export default function AdminHelpjuice({ token, onLogout }) {
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
-  const [account, setAccount] = useState('')
+  const { config, error, patchConfig } = useAuthedConfig(getHelpjuiceConfig, token, onLogout)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getHelpjuiceConfig(token)
-        if (!active) return
-        setApiKeyConfigured(data.apiKeyConfigured)
-        setAccount(data.account)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
-
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Helpjuice</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
+  async function saveAccount(value) {
+    const data = await saveHelpjuiceAccount(token, value)
+    patchConfig({ account: data.account })
   }
 
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Helpjuice</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
+  async function saveApiKey(value) {
+    const data = await saveHelpjuiceApiKey(token, value)
+    patchConfig({ apiKeyConfigured: data.apiKeyConfigured })
   }
 
-  const configured = apiKeyConfigured && Boolean(account)
+  if (error || !config) return <AdminSectionStatus title="Helpjuice" error={error} />
+
+  const configured = config.apiKeyConfigured && Boolean(config.account)
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Helpjuice integration</h2>
+      <AdminSection title="Helpjuice integration">
         <p className="admin__muted">
           Lets the assistant search and read articles from the Helpjuice help center. Both values are stored in the
           database; the API key is never shown again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {configured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={configured} />
         <p className="admin__muted">The integration is enabled once both the account and the API key are set.</p>
-      </section>
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Setup</h2>
+      <AdminSection title="Setup">
         <ol className="admin__steps">
           <li>
             Your <strong>account</strong> is the subdomain of your help center: the <code>example</code> in{' '}
@@ -89,145 +46,29 @@ export default function AdminHelpjuice({ token, onLogout }) {
           </li>
           <li>Save both values below. The API key is stored write-only and never shown again.</li>
         </ol>
-      </section>
+      </AdminSection>
 
-      <AccountField account={account} setAccount={setAccount} token={token} onLogout={onLogout} />
+      <AdminSection title="Account">
+        <p className="admin__muted">
+          The subdomain of your help center (<code>&lt;account&gt;.helpjuice.com</code>).
+        </p>
 
-      <ApiKeyField
-        configured={apiKeyConfigured}
-        setConfigured={setApiKeyConfigured}
-        token={token}
-        onLogout={onLogout}
-      />
+        <ValueField savedValue={config.account} onSave={saveAccount} onLogout={onLogout} placeholder="example" />
+      </AdminSection>
+
+      <AdminSection title="API key">
+        <p className="admin__muted">Used to call the Helpjuice API. Stored write-only and never shown again.</p>
+
+        <StatusRow configured={config.apiKeyConfigured} />
+
+        <SecretField
+          placeholder="API key"
+          configuredPlaceholder="Paste a new key to replace it"
+          configured={config.apiKeyConfigured}
+          onSave={saveApiKey}
+          onLogout={onLogout}
+        />
+      </AdminSection>
     </>
-  )
-}
-
-function AccountField({ account, setAccount, token, onLogout }) {
-  const [value, setValue] = useState(account)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  async function save(next) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveHelpjuiceAccount(token, next)
-      setAccount(data.account)
-      setValue(data.account)
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    save(value.trim())
-  }
-
-  return (
-    <section className="admin__section card">
-      <h2 className="admin__section-title">Account</h2>
-      <p className="admin__muted">
-        The subdomain of your help center (<code>&lt;account&gt;.helpjuice.com</code>).
-      </p>
-
-      {saveError && <p className="alert alert--error">{saveError}</p>}
-
-      <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-        <input
-          className="input"
-          type="text"
-          placeholder="example"
-          autoComplete="off"
-          value={value}
-          onChange={event => setValue(event.target.value)}
-          disabled={saving}
-        />
-        <button className="btn btn--primary" type="submit" disabled={saving || value.trim() === account}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-      </form>
-    </section>
-  )
-}
-
-function ApiKeyField({ configured, setConfigured, token, onLogout }) {
-  const [value, setValue] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  async function save(next) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveHelpjuiceApiKey(token, next)
-      setConfigured(data.apiKeyConfigured)
-      setValue('')
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    if (!value.trim()) return
-    save(value.trim())
-  }
-
-  return (
-    <section className="admin__section card">
-      <h2 className="admin__section-title">API key</h2>
-      <p className="admin__muted">Used to call the Helpjuice API. Stored write-only and never shown again.</p>
-
-      <p className="admin__muted">
-        Status:{' '}
-        {configured ? (
-          <span className="badge badge--success">configured</span>
-        ) : (
-          <span className="badge">not configured</span>
-        )}
-      </p>
-
-      {saveError && <p className="alert alert--error">{saveError}</p>}
-
-      <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-        <input
-          className="input"
-          type="password"
-          placeholder={configured ? 'Paste a new key to replace it' : 'API key'}
-          autoComplete="off"
-          value={value}
-          onChange={event => setValue(event.target.value)}
-          disabled={saving}
-        />
-        <button className="btn btn--primary" type="submit" disabled={saving || !value.trim()}>
-          {saving ? 'Saving...' : 'Save'}
-        </button>
-        {configured && (
-          <button className="btn btn--secondary" type="button" onClick={() => save('')} disabled={saving}>
-            Remove
-          </button>
-        )}
-        {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-      </form>
-    </section>
   )
 }

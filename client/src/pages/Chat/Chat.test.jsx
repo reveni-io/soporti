@@ -3,6 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Chat from './Chat.jsx'
 
+function shareCalls() {
+  return global.fetch.mock.calls.filter(call => String(call[0]).includes('/api/share'))
+}
+
 vi.mock('../../hooks/useAuth/useAuth.js', () => ({
   useAuth: vi.fn(),
 }))
@@ -303,9 +307,9 @@ describe('Chat', () => {
 
     await user.click(screen.getByText('Share'))
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(shareCalls()).toHaveLength(2)
     })
-    for (const call of global.fetch.mock.calls) {
+    for (const call of shareCalls()) {
       const body = JSON.parse(call[1].body)
       expect(body).toEqual({ conversationId: 'a3bb189e-8bf9-4888-9912-ace4e6543002' })
     }
@@ -335,7 +339,7 @@ describe('Chat', () => {
     render(<Chat />)
     await user.click(screen.getByText('Share'))
 
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(shareCalls()).toHaveLength(0)
     expect(screen.queryByTestId('share-modal')).not.toBeInTheDocument()
   })
 

@@ -4,6 +4,8 @@ export function useAuthedResource(fetchResource, key, token, initialValue) {
   const [value, setValue] = useState(initialValue)
 
   useEffect(() => {
+    if (!token) return
+
     let cancelled = false
     async function load() {
       try {

@@ -1,103 +1,32 @@
-import { useEffect, useState } from 'react'
-import { getNotionConfig, isUnauthorized, saveNotionToken } from '../../../services/services.js'
+import { getNotionConfig, saveNotionToken } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
 
 export default function AdminNotion({ token, onLogout }) {
-  const [tokenConfigured, setTokenConfigured] = useState(false)
-  const [notionToken, setNotionToken] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getNotionConfig(token)
-        if (!active) return
-        setTokenConfigured(data.tokenConfigured)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
+  const { config, error, patchConfig } = useAuthedConfig(getNotionConfig, token, onLogout)
 
   async function saveToken(value) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveNotionToken(token, value)
-      setTokenConfigured(data.tokenConfigured)
-      setNotionToken('')
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
+    const data = await saveNotionToken(token, value)
+    patchConfig({ tokenConfigured: data.tokenConfigured })
   }
 
-  function handleSubmit(event) {
-    event.preventDefault()
-    if (!notionToken.trim()) return
-    saveToken(notionToken.trim())
-  }
-
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Notion</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Notion</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  if (error || !config) return <AdminSectionStatus title="Notion" error={error} />
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Notion integration</h2>
+      <AdminSection title="Notion integration">
         <p className="admin__muted">
           Lets the assistant search and read pages and databases from Notion. It only sees what is shared with the
           integration. The token is stored in the database and never shown again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {tokenConfigured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
-      </section>
+        <StatusRow configured={config.tokenConfigured} />
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Setup</h2>
+      <AdminSection title="Setup">
         <ol className="admin__steps">
           <li>
             In Notion, open <strong>Settings → Connections → Develop or manage integrations</strong> and create a{' '}
@@ -113,29 +42,15 @@ export default function AdminNotion({ token, onLogout }) {
           <li>Paste the secret below. It is stored write-only and never shown again.</li>
         </ol>
 
-        {saveError && <p className="alert alert--error">{saveError}</p>}
-
-        <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-          <input
-            className="input"
-            type="password"
-            placeholder={tokenConfigured ? 'Paste a new token to replace it' : 'ntn_...'}
-            autoComplete="off"
-            value={notionToken}
-            onChange={event => setNotionToken(event.target.value)}
-            disabled={saving}
-          />
-          <button className="btn btn--primary" type="submit" disabled={saving || !notionToken.trim()}>
-            {saving ? 'Saving...' : 'Save token'}
-          </button>
-          {tokenConfigured && (
-            <button className="btn btn--secondary" type="button" onClick={() => saveToken('')} disabled={saving}>
-              Remove
-            </button>
-          )}
-          {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-        </form>
-      </section>
+        <SecretField
+          placeholder="ntn_..."
+          configuredPlaceholder="Paste a new token to replace it"
+          configured={config.tokenConfigured}
+          onSave={saveToken}
+          onLogout={onLogout}
+          saveLabel="Save token"
+        />
+      </AdminSection>
     </>
   )
 }

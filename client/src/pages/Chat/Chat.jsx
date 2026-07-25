@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from './hooks/useChat/useChat.js'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
+import { useAuthedResource } from '../../hooks/useAuthedResource/useAuthedResource.js'
 import { useSkills } from '../../hooks/useSkills/useSkills.js'
 import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
@@ -9,7 +10,7 @@ import Login from '../../common/Login/Login.jsx'
 import ShareModal from './ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import { YOLO_SOURCE } from '../../constants.js'
-import { createShare } from '../../services/services.js'
+import { createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
 export default function Chat() {
@@ -31,6 +32,7 @@ export default function Chat() {
   } = useAuth()
   const authMethods = useAuthMethods()
   const skills = useSkills(token, logout)
+  const integrations = useAuthedResource(getIntegrations, 'integrations', token, [])
   const { messages, isLoading, sendMessage, stopGeneration, clearChat, loadConversation, currentSessionId } = useChat(
     token,
     logout
@@ -102,6 +104,7 @@ export default function Chat() {
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={convReloadKey}
+        integrations={integrations}
         token={token}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -114,6 +117,7 @@ export default function Chat() {
         hasSourcesSelected={selectedSources.length > 0}
         onOpenSidebar={() => setSidebarOpen(true)}
         onShare={handleShare}
+        integrations={integrations}
         token={token}
         skills={skills.skills}
       />

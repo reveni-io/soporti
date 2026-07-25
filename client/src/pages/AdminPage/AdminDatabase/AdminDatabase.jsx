@@ -1,116 +1,29 @@
-import { useEffect, useState } from 'react'
-import {
-  getDatabaseConfig,
-  isUnauthorized,
-  saveDatabaseConnection,
-  saveDatabaseMaxRows,
-} from '../../../services/services.js'
+import { getDatabaseConfig, saveDatabaseConnection, saveDatabaseMaxRows } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
+import ValueField from '../ValueField/ValueField.jsx'
 
 export default function AdminDatabase({ token, onLogout }) {
-  const [connectionConfigured, setConnectionConfigured] = useState(false)
-  const [connection, setConnection] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
-
-  const [maxRows, setMaxRows] = useState('')
-  const [savingMaxRows, setSavingMaxRows] = useState(false)
-  const [maxRowsError, setMaxRowsError] = useState(null)
-  const [maxRowsSavedAt, setMaxRowsSavedAt] = useState(null)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getDatabaseConfig(token)
-        if (!active) return
-        setConnectionConfigured(data.connectionConfigured)
-        setMaxRows(String(data.maxRows ?? ''))
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
+  const { config, error, patchConfig } = useAuthedConfig(getDatabaseConfig, token, onLogout)
 
   async function saveConnection(value) {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const data = await saveDatabaseConnection(token, value)
-      setConnectionConfigured(data.connectionConfigured)
-      setConnection('')
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
+    const data = await saveDatabaseConnection(token, value)
+    patchConfig({ connectionConfigured: data.connectionConfigured })
   }
 
-  function handleSubmit(event) {
-    event.preventDefault()
-    if (!connection.trim()) return
-    saveConnection(connection.trim())
+  async function saveMaxRows(value) {
+    const data = await saveDatabaseMaxRows(token, value === '' ? '' : Number(value))
+    patchConfig({ maxRows: data.maxRows })
   }
 
-  async function handleMaxRowsSubmit(event) {
-    event.preventDefault()
-    setSavingMaxRows(true)
-    setMaxRowsError(null)
-    try {
-      const data = await saveDatabaseMaxRows(token, maxRows === '' ? '' : Number(maxRows))
-      setMaxRows(String(data.maxRows))
-      setMaxRowsSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setMaxRowsError(err.message)
-    } finally {
-      setSavingMaxRows(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Database</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Database</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  if (error || !config) return <AdminSectionStatus title="Database" error={error} />
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Database integration</h2>
+      <AdminSection title="Database integration">
         <p className="admin__muted">
           Lets the assistant explore and run read-only queries against a PostgreSQL database. Only SELECT and WITH
           queries are allowed, and results are capped at the configurable row limit below. This is the customer
@@ -118,18 +31,10 @@ export default function AdminDatabase({ token, onLogout }) {
           again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {connectionConfigured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
-      </section>
+        <StatusRow configured={config.connectionConfigured} />
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Setup</h2>
+      <AdminSection title="Setup">
         <ol className="admin__steps">
           <li>
             Use a <strong>read-only</strong> database user — the tool only allows SELECT/WITH queries, but least
@@ -142,56 +47,33 @@ export default function AdminDatabase({ token, onLogout }) {
           <li>It is stored write-only and never shown again.</li>
         </ol>
 
-        {saveError && <p className="alert alert--error">{saveError}</p>}
+        <SecretField
+          placeholder="postgresql://..."
+          configuredPlaceholder="Paste a new connection string to replace it"
+          configured={config.connectionConfigured}
+          onSave={saveConnection}
+          onLogout={onLogout}
+          saveLabel="Save connection"
+        />
+      </AdminSection>
 
-        <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
-          <input
-            className="input"
-            type="password"
-            placeholder={connectionConfigured ? 'Paste a new connection string to replace it' : 'postgresql://...'}
-            autoComplete="off"
-            value={connection}
-            onChange={event => setConnection(event.target.value)}
-            disabled={saving}
-          />
-          <button className="btn btn--primary" type="submit" disabled={saving || !connection.trim()}>
-            {saving ? 'Saving...' : 'Save connection'}
-          </button>
-          {connectionConfigured && (
-            <button className="btn btn--secondary" type="button" onClick={() => saveConnection('')} disabled={saving}>
-              Remove
-            </button>
-          )}
-          {!saveError && savedAt && <span className="admin__saved">Saved</span>}
-        </form>
-      </section>
-
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Row limit</h2>
+      <AdminSection title="Row limit">
         <p className="admin__muted">
           Maximum number of rows a single query returns. Keeps large result sets from overflowing the assistant&apos;s
           context. Leave empty to reset to the default (100). A very high value can overflow that context.
         </p>
 
-        {maxRowsError && <p className="alert alert--error">{maxRowsError}</p>}
-
-        <form className="admin__form admin__form--row" onSubmit={handleMaxRowsSubmit}>
-          <input
-            className="input"
-            type="number"
-            min="1"
-            step="1"
-            placeholder="100"
-            value={maxRows}
-            onChange={event => setMaxRows(event.target.value)}
-            disabled={savingMaxRows}
-          />
-          <button className="btn btn--primary" type="submit" disabled={savingMaxRows}>
-            {savingMaxRows ? 'Saving...' : 'Save limit'}
-          </button>
-          {!maxRowsError && maxRowsSavedAt && <span className="admin__saved">Saved</span>}
-        </form>
-      </section>
+        <ValueField
+          savedValue={String(config.maxRows ?? '')}
+          onSave={saveMaxRows}
+          onLogout={onLogout}
+          type="number"
+          min="1"
+          step="1"
+          placeholder="100"
+          saveLabel="Save limit"
+        />
+      </AdminSection>
     </>
   )
 }

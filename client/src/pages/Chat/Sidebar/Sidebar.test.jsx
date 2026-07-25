@@ -10,6 +10,10 @@ const defaultProps = {
   onSelectProfile: vi.fn(),
   onClearChat: vi.fn(),
   onLogout: vi.fn(),
+  integrations: [
+    { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
+    { id: 'notion', name: 'Notion', description: 'Search Notion', selectable: true },
+  ],
   token: 'test-token',
   isOpen: false,
   onClose: vi.fn(),
@@ -26,17 +30,6 @@ describe('Sidebar', () => {
             repos: [
               { fullName: 'org/app', description: 'Main app', language: 'JavaScript' },
               { fullName: 'org/lib', description: 'Library', language: 'TypeScript' },
-            ],
-          }),
-        })
-      }
-      if (url.includes('/api/integrations')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            integrations: [
-              { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
-              { id: 'notion', name: 'Notion', description: 'Search Notion', selectable: true },
             ],
           }),
         })
