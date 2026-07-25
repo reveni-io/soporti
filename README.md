@@ -17,6 +17,8 @@ One-click deploys for DigitalOcean App Platform and Render — see the [deployme
 - **Zero-config-file setup** — Credentials and integrations are configured from the `/admin` panel and stored in the database; booting needs only `JWT_SECRET` and `DATABASE_URL`
 - **Multiple Integrations** — Connect GitHub, Notion, PostgreSQL, Sentry, Shortcut, Slack, Google Drive, Helpjuice, and Shopify
 - **Response Profiles** — Switch between "tech" (detailed, code-heavy) and "support" (simplified, behavior-focused) modes
+- **Custom Instructions** — Per-user instructions (your role, preferred style, language) added to every chat automatically
+- **Skills (`/commands`)** — Save reusable instruction snippets — a triage checklist, a review rubric, a tone of voice — and run one by starting a message with `/skill-name` (with autocomplete as you type `/`). The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` placeholders slot in what you typed after the command. Create and edit them in the chat's **Settings → Skills**
 - **Real-time Streaming** — Server-Sent Events for live response streaming
 - **Rich Rendering** — Markdown, syntax highlighting, Mermaid diagrams (rendered as SVG), and Recharts-based charts
 - **Slack Bot** — Interact with the assistant directly from Slack via @mentions

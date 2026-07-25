@@ -6,6 +6,7 @@ import { searchSimilarCases, isKnowledgeBaseConfigured } from '../knowledge/clie
 import { storePendingFeedback } from '../knowledge/feedback.js'
 import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
+import { getSkillsByIds } from '../db/skills.js'
 import { getOpenAIClient } from '../openai/client.js'
 
 const router = Router()
@@ -46,7 +47,7 @@ function appendText(parts, text) {
 
 export default function chatRoute(conversationStore) {
   router.post('/', async (req, res) => {
-    const { sessionId, message, selectedSources, selectedRepos, profile } = req.body
+    const { sessionId, message, selectedSources, selectedRepos, profile, skillIds } = req.body
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'A "message" string is required.' })
@@ -67,6 +68,10 @@ export default function chatRoute(conversationStore) {
     const rawSources = Array.isArray(selectedSources) ? selectedSources : selectedRepos
     const sources = Array.isArray(rawSources) ? rawSources : []
 
+    const cleanSkillIds = (Array.isArray(skillIds) ? skillIds : [])
+      .filter(id => Number.isInteger(id) && id > 0)
+      .slice(0, 10)
+
     if (!(await getOpenAIClient())) {
       return res
         .status(503)
@@ -84,14 +89,27 @@ export default function chatRoute(conversationStore) {
 
     sendEvent(res, { type: 'session_id', sessionId: conversationId })
 
-    const [items, similarCases, customInstructions] = await Promise.all([
+    const [items, similarCases, customInstructions, carriedSkillIds] = await Promise.all([
       session.getItems(),
       searchSimilarCases(trimmedMessage),
       getCustomInstructions(req.user.id).catch(err => {
         console.error('Failed to load custom instructions:', err)
         return null
       }),
+      conversationStore.getInvokedSkillIds(conversationId).catch(err => {
+        console.error('Failed to load conversation skills:', err)
+        return []
+      }),
     ])
+
+    const activeSkillIds = [...new Set([...carriedSkillIds, ...cleanSkillIds])].slice(0, 10)
+    const invokedSkills =
+      activeSkillIds.length > 0
+        ? await getSkillsByIds(activeSkillIds, req.user.id).catch(err => {
+            console.error('Failed to load skills:', err)
+            return []
+          })
+        : []
     console.log(`\n${'─'.repeat(60)}`)
     log('📩', `New message: "${trimmedMessage.slice(0, 120)}"`)
     log('📂', `Sources: ${sources.length > 0 ? sources.join(', ') : '(none selected)'}`)
@@ -102,6 +120,16 @@ export default function chatRoute(conversationStore) {
     if (customInstructions) {
       log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
     }
+    const newlyInvokedSkills = invokedSkills.filter(s => cleanSkillIds.includes(s.id))
+    if (invokedSkills.length > 0) {
+      const described = invokedSkills.map(s => (newlyInvokedSkills.includes(s) ? s.name : `${s.name} (carried over)`))
+      log('⚡', `Skill(s) applied: ${described.join(', ')}`)
+    }
+
+    const agentInput =
+      newlyInvokedSkills.length > 0
+        ? `${newlyInvokedSkills.map(s => `/${s.name}`).join(' ')} ${trimmedMessage}`
+        : trimmedMessage
 
     const assistantParts = []
     let lastResponseId
@@ -109,6 +137,8 @@ export default function chatRoute(conversationStore) {
     try {
       const agent = await createAgent(sources, profile, similarCases, {
         customInstructions: customInstructions ?? '',
+        skills: invokedSkills,
+        skillArguments: trimmedMessage,
       })
       const agentStart = Date.now()
 
@@ -120,7 +150,7 @@ export default function chatRoute(conversationStore) {
       let sentContent = false
 
       async function runTurn(prevResponseId) {
-        const stream = await run(agent, trimmedMessage, {
+        const stream = await run(agent, agentInput, {
           stream: true,
           maxTurns: config.agent.maxIterations,
           session,
@@ -216,10 +246,15 @@ export default function chatRoute(conversationStore) {
         sendEvent(res, { type: 'feedback_id', feedbackId })
       }
 
+      const userParts = [
+        ...newlyInvokedSkills.map(s => ({ type: 'skill', skillId: s.id, name: s.name })),
+        { type: 'text', content: trimmedMessage },
+      ]
+
       await conversationStore.saveTurn(conversationId, {
         lastResponseId,
         uiMessages: [
-          { role: 'user', parts: [{ type: 'text', content: trimmedMessage }] },
+          { role: 'user', parts: userParts },
           { role: 'assistant', parts: assistantParts },
         ],
       })

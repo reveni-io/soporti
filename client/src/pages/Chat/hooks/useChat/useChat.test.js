@@ -59,6 +59,42 @@ describe('useChat', () => {
     expect(result.current.messages[1].parts.some(p => p.type === 'text' && p.content === 'Hello')).toBe(true)
   })
 
+  it('sends the skill ids in the body and tags the UI message with the skills', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', ['org/repo'], 'support', [{ id: 5, name: 'bug-triage' }])
+    })
+
+    expect(result.current.messages[0]).toEqual({
+      role: 'user',
+      content: 'hi',
+      skills: [{ id: 5, name: 'bug-triage' }],
+    })
+    const [, options] = global.fetch.mock.calls[0]
+    expect(JSON.parse(options.body).skillIds).toEqual([5])
+    expect(JSON.parse(options.body).message).toBe('hi')
+  })
+
+  it('defaults skillIds to an empty array when omitted', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', ['org/repo'], 'support')
+    })
+
+    const [, options] = global.fetch.mock.calls[0]
+    expect(JSON.parse(options.body).skillIds).toEqual([])
+  })
+
   it('does not send empty messages', async () => {
     global.fetch = vi.fn()
     const { result } = renderHook(() => useChat('token', vi.fn()))
@@ -157,17 +193,12 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual([])
   })
 
-  it('loadConversation restores messages from the server', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        messages: [
-          { role: 'user', parts: [{ type: 'text', content: 'How does auth work?' }] },
-          { role: 'assistant', parts: [{ type: 'text', content: 'It uses JWT.' }] },
-        ],
-      }),
-    })
+  it('loadConversation restores the render-shape messages served by the API', async () => {
+    const messages = [
+      { role: 'user', content: 'How does auth work?' },
+      { role: 'assistant', parts: [{ type: 'text', content: 'It uses JWT.' }] },
+    ]
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages }) })
 
     const { result } = renderHook(() => useChat('token', vi.fn()))
 
@@ -175,10 +206,20 @@ describe('useChat', () => {
       await result.current.loadConversation('conv-1')
     })
 
-    expect(result.current.messages).toEqual([
-      { role: 'user', content: 'How does auth work?' },
-      { role: 'assistant', parts: [{ type: 'text', content: 'It uses JWT.' }] },
-    ])
+    expect(result.current.messages).toEqual(messages)
+  })
+
+  it('loadConversation keeps invoked skills served on user messages', async () => {
+    const messages = [{ role: 'user', content: 'hi', skills: [{ id: 5, name: 'bug-triage' }] }]
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages }) })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+
+    expect(result.current.messages).toEqual(messages)
   })
 
   it('loadConversation calls onAuthError on 401', async () => {

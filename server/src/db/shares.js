@@ -3,6 +3,7 @@ import { and, eq, gt, lte, max } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { conversations, conversationMessages, shares } from './schema.js'
 import { ownedWebConversation } from './conversations.js'
+import { toRenderMessage } from './conversation-render.js'
 
 const TTL_MS = 24 * 60 * 60 * 1000
 
@@ -53,15 +54,4 @@ export async function getShare(shareId) {
     .orderBy(conversationMessages.createdAt, conversationMessages.id)
 
   return { messages: rows.map(toRenderMessage) }
-}
-
-function toRenderMessage({ role, parts }) {
-  if (role === 'user') {
-    const content = (parts || [])
-      .filter(part => part.type === 'text')
-      .map(part => part.content)
-      .join('')
-    return { role, content }
-  }
-  return { role, parts: parts || [] }
 }

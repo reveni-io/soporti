@@ -53,6 +53,30 @@ describe('Message', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 
+  it('renders the invoked command inline before the message text, clickable', () => {
+    const { container } = render(
+      <Message
+        message={{ role: 'user', content: 'Alert de reveni-ui', skills: [{ id: 5, name: 'review-component' }] }}
+        isStreaming={false}
+        token="tok"
+      />
+    )
+    expect(screen.getByRole('button', { name: '/review-component' })).toBeInTheDocument()
+    expect(container.querySelector('.message__bubble--user').textContent).toBe('/review-component Alert de reveni-ui')
+  })
+
+  it('renders invoked skills as plain chips without a token', () => {
+    render(
+      <Message
+        message={{ role: 'user', content: 'Hello', skills: [{ id: 5, name: 'bug-triage' }] }}
+        isStreaming={false}
+        token={null}
+      />
+    )
+    expect(screen.getByText('/bug-triage')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '/bug-triage' })).not.toBeInTheDocument()
+  })
+
   it('renders assistant text parts', () => {
     const message = {
       role: 'assistant',

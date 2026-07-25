@@ -1,9 +1,8 @@
 import { Router } from 'express'
 import { getCustomInstructions, updateCustomInstructions } from '../db/users.js'
+import { MAX_INSTRUCTIONS_LENGTH } from '../constants.js'
 
 const router = Router()
-
-const MAX_INSTRUCTIONS_LENGTH = 50_000
 
 router.get('/instructions', async (req, res) => {
   try {

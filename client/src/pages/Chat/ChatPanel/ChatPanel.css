@@ -190,6 +190,7 @@
 }
 
 .chat__input-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sp2);
@@ -200,22 +201,101 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+.chat__skill-menu {
+  position: absolute;
+  bottom: calc(100% + var(--sp2));
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  z-index: 10;
+}
+
+.chat__skill-menu-empty {
+  padding: var(--sp2) var(--sp3);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.chat__skill-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp2) var(--sp3);
+  cursor: pointer;
+}
+
+.chat__skill-menu-item--active {
+  background: var(--bg-cool);
+}
+
+.chat__skill-menu-name {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.chat__skill-menu-description {
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
 .chat__input-wrapper:focus-within {
   border-color: var(--green-bright);
   box-shadow: var(--focus-ring);
 }
 
-.chat__input {
+.chat__input-field {
+  position: relative;
+  display: flex;
   flex: 1;
+  min-width: 0;
+}
+
+.chat__input,
+.chat__input-highlight {
+  padding: 0;
   border: none;
-  outline: none;
-  background: transparent;
   font-family: var(--font-body);
   font-size: var(--fs-base);
+  font-weight: 400;
   line-height: 1.25rem;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.chat__input {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  background: transparent;
   resize: none;
   max-height: 200px;
   color: var(--text-primary);
+}
+
+.chat__input--overlaid {
+  color: transparent;
+  caret-color: var(--text-primary);
+}
+
+.chat__input-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--text-primary);
+}
+
+.chat__input-command {
+  color: var(--green-chart);
 }
 
 .chat__input::placeholder {

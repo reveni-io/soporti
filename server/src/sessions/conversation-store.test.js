@@ -331,7 +331,7 @@ describe('ConversationStore', () => {
     expect(await store.getWebMessages('c1', 5)).toBeNull()
   })
 
-  it('getWebMessages returns the messages for the owner', async () => {
+  it('getWebMessages returns the messages for the owner in render shape', async () => {
     db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5 })
     db._tables
       .get(conversationMessages)
@@ -342,9 +342,26 @@ describe('ConversationStore', () => {
 
     const msgs = await store.getWebMessages('c1', 5)
     expect(msgs).toEqual([
-      { role: 'user', parts: [{ type: 'text', content: 'hi' }] },
+      { role: 'user', content: 'hi' },
       { role: 'assistant', parts: [] },
     ])
+  })
+
+  it('getWebMessages exposes invoked skills on user messages', async () => {
+    db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5 })
+    db._tables.get(conversationMessages).push({
+      id: 1,
+      conversationId: 'c1',
+      role: 'user',
+      parts: [
+        { type: 'skill', skillId: 5, name: 'bug-triage' },
+        { type: 'text', content: 'hi' },
+      ],
+      createdAt: new Date(1),
+    })
+
+    const msgs = await store.getWebMessages('c1', 5)
+    expect(msgs).toEqual([{ role: 'user', content: 'hi', skills: [{ id: 5, name: 'bug-triage' }] }])
   })
 
   it('deleteWeb removes an owned conversation and reports it', async () => {

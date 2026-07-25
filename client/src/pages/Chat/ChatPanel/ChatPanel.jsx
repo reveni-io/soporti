@@ -3,6 +3,8 @@ import Message from '../../../common/Message/Message.jsx'
 import GridPattern from '../../../common/GridPattern/GridPattern.jsx'
 import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
 import TourModal from '../TourModal/TourModal.jsx'
+import { useAuthedResource } from '../../../hooks/useAuthedResource/useAuthedResource.js'
+import { SKILL_COMMAND_RE } from '../../../constants.js'
 import { sampleExampleQuestions } from '../example-questions.js'
 import './ChatPanel.css'
 
@@ -17,69 +19,86 @@ export default function ChatPanel({
   onOpenSidebar,
   onShare,
   token,
+  skills = [],
 }) {
   const [input, setInput] = useState('')
-  const [integrations, setIntegrations] = useState([])
-  const [stats, setStats] = useState(null)
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
+  const [menuDismissed, setMenuDismissed] = useState(false)
+  const [menuIndex, setMenuIndex] = useState(0)
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const highlightRef = useRef(null)
+
+  const integrations = useAuthedResource('/api/integrations', 'integrations', token, [])
+  const stats = useAuthedResource('/api/stats', 'stats', token, null)
+
+  function syncHighlightScroll() {
+    if (highlightRef.current && textareaRef.current) {
+      highlightRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   useEffect(() => {
-    let cancelled = false
-    async function fetchIntegrations() {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/integrations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (!cancelled) setIntegrations(data.integrations || [])
-      } catch {}
-    }
-    fetchIntegrations()
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  useEffect(() => {
-    let cancelled = false
-    async function fetchStats() {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (!cancelled) setStats(data.stats || null)
-      } catch {}
-    }
-    fetchStats()
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
+      syncHighlightScroll()
     }
   }, [input])
 
+  const command = skills.length > 0 ? input.match(SKILL_COMMAND_RE) : null
+  const invokedSkill = command ? (skills.find(s => s.name === command[1]) ?? null) : null
+  const menuOpen = Boolean(command) && command[2] === undefined && !menuDismissed
+  const matchingSkills = menuOpen ? skills.filter(s => s.name.startsWith(command[1])) : []
+
+  const commandPrefix = invokedSkill ? `/${invokedSkill.name}` : ''
+  const messageText = invokedSkill ? input.slice(commandPrefix.length).trim() : input.trim()
+
+  function handleInputChange(e) {
+    setInput(e.target.value)
+    setMenuDismissed(false)
+    setMenuIndex(0)
+  }
+
+  function selectSkill(skill) {
+    setInput(`/${skill.name} `)
+    textareaRef.current?.focus()
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
-    if (!input.trim() || isLoading || !hasSourcesSelected) return
-    onSend(input.trim())
+    if (!messageText || isLoading || !hasSourcesSelected) return
+    onSend(messageText, invokedSkill ? [{ id: invokedSkill.id, name: invokedSkill.name }] : [])
     setInput('')
   }
 
   function handleKeyDown(e) {
+    const navigable = matchingSkills.length > 0
+
+    if (menuOpen && e.key === 'Escape') {
+      e.preventDefault()
+      setMenuDismissed(true)
+      return
+    }
+    if (navigable && e.key === 'ArrowDown') {
+      e.preventDefault()
+      setMenuIndex(i => Math.min(i + 1, matchingSkills.length - 1))
+      return
+    }
+    if (navigable && e.key === 'ArrowUp') {
+      e.preventDefault()
+      setMenuIndex(i => Math.max(i - 1, 0))
+      return
+    }
+    if (navigable && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault()
+      selectSkill(matchingSkills[menuIndex])
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -213,16 +232,49 @@ export default function ChatPanel({
 
       <form className="chat__input-area" onSubmit={handleSubmit}>
         <div className="chat__input-wrapper">
-          <textarea
-            ref={textareaRef}
-            className="chat__input"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={hasSourcesSelected ? 'Ask Soporti anything...' : 'Select a source from the sidebar first...'}
-            rows={1}
-            disabled={isLoading || !hasSourcesSelected}
-          />
+          {menuOpen && (
+            <ul className="chat__skill-menu" role="listbox">
+              {matchingSkills.length === 0 ? (
+                <li className="chat__skill-menu-empty">No matching skills</li>
+              ) : (
+                matchingSkills.map((skill, i) => (
+                  <li
+                    key={skill.id}
+                    role="option"
+                    aria-selected={i === menuIndex}
+                    className={`chat__skill-menu-item${i === menuIndex ? ' chat__skill-menu-item--active' : ''}`}
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      selectSkill(skill)
+                    }}
+                  >
+                    <span className="chat__skill-menu-name">/{skill.name}</span>
+                    {skill.description && <span className="chat__skill-menu-description">{skill.description}</span>}
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+          <div className="chat__input-field">
+            {commandPrefix && (
+              <div className="chat__input-highlight" ref={highlightRef} aria-hidden="true">
+                <span className="chat__input-command">{commandPrefix}</span>
+                {input.slice(commandPrefix.length)}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              className={`chat__input${commandPrefix ? ' chat__input--overlaid' : ''}`}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onBlur={() => setMenuDismissed(true)}
+              onScroll={syncHighlightScroll}
+              placeholder={hasSourcesSelected ? 'Ask Soporti anything...' : 'Select a source from the sidebar first...'}
+              rows={1}
+              disabled={isLoading || !hasSourcesSelected}
+            />
+          </div>
           {isLoading ? (
             <button type="button" className="chat__btn chat__btn--stop" onClick={onStop} title="Stop">
               &#9632;
@@ -231,7 +283,7 @@ export default function ChatPanel({
             <button
               type="submit"
               className="chat__btn chat__btn--send"
-              disabled={!input.trim() || !hasSourcesSelected}
+              disabled={!messageText || !hasSourcesSelected}
               title="Send"
             >
               &#8593;

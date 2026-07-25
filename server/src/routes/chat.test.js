@@ -36,6 +36,10 @@ vi.mock('../db/users.js', () => ({
   getCustomInstructions: vi.fn(async () => null),
 }))
 
+vi.mock('../db/skills.js', () => ({
+  getSkillsByIds: vi.fn(async () => []),
+}))
+
 vi.mock('../openai/client.js', () => ({
   getOpenAIClient: vi.fn(async () => ({})),
 }))
@@ -44,6 +48,7 @@ import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
 import { getOpenAIClient } from '../openai/client.js'
+import { getSkillsByIds } from '../db/skills.js'
 import chatRoute from './chat.js'
 
 function createStreamMock(events) {
@@ -76,6 +81,7 @@ const conversationStore = {
     previousResponseId: undefined,
   })),
   saveTurn: vi.fn(async () => {}),
+  getInvokedSkillIds: vi.fn(async () => []),
 }
 const app = express()
 app.use(express.json())
@@ -94,6 +100,7 @@ describe('POST /api/chat', () => {
       previousResponseId: undefined,
     })
     conversationStore.saveTurn.mockResolvedValue(undefined)
+    conversationStore.getInvokedSkillIds.mockResolvedValue([])
   })
 
   it('returns 400 for missing message', async () => {
@@ -239,6 +246,145 @@ describe('POST /api/chat', () => {
 
     expect(createAgent).toHaveBeenCalledWith(['org/legacy'], undefined, [], {
       customInstructions: '',
+      skills: [],
+      skillArguments: 'test',
+    })
+  })
+
+  it('resolves skillIds to the user own skills and passes them to createAgent', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+    getSkillsByIds.mockResolvedValueOnce([{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }])
+
+    await request(app)
+      .post('/')
+      .send({ message: 'hi', skillIds: [5] })
+
+    expect(getSkillsByIds).toHaveBeenCalledWith([5], 1)
+    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+      customInstructions: '',
+      skills: [{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }],
+      skillArguments: 'hi',
+    })
+  })
+
+  it('persists the invoked command with the user message', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'ok' } }])
+    )
+    getSkillsByIds.mockResolvedValueOnce([{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }])
+
+    await request(app)
+      .post('/')
+      .send({ message: 'hi', skillIds: [5] })
+
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            parts: [
+              { type: 'skill', skillId: 5, name: 'bug-triage' },
+              { type: 'text', content: 'hi' },
+            ],
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('keeps a skill invoked earlier in the conversation active without re-persisting it', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'ok' } }])
+    )
+    conversationStore.getInvokedSkillIds.mockResolvedValue([5])
+    getSkillsByIds.mockResolvedValueOnce([{ id: 5, name: 'grilling', instructions: 'Interview me.' }])
+
+    await request(app).post('/').send({ message: 'my answer' })
+
+    expect(getSkillsByIds).toHaveBeenCalledWith([5], 1)
+    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+      customInstructions: '',
+      skills: [{ id: 5, name: 'grilling', instructions: 'Interview me.' }],
+      skillArguments: 'my answer',
+    })
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({ role: 'user', parts: [{ type: 'text', content: 'my answer' }] }),
+        ]),
+      })
+    )
+  })
+
+  it('shows the model the command as typed while keeping it out of the stored text', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+    getSkillsByIds.mockResolvedValueOnce([{ id: 5, name: 'code-review', instructions: 'Review it.' }])
+
+    await request(app)
+      .post('/')
+      .send({ message: 'the last commit of returns-frontend', skillIds: [5] })
+
+    expect(run.mock.calls[0][1]).toBe('/code-review the last commit of returns-frontend')
+    expect(createAgent.mock.calls[0][3].skillArguments).toBe('the last commit of returns-frontend')
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            parts: [
+              { type: 'skill', skillId: 5, name: 'code-review' },
+              { type: 'text', content: 'the last commit of returns-frontend' },
+            ],
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('does not prepend a command for a carried-over skill', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+    conversationStore.getInvokedSkillIds.mockResolvedValue([5])
+    getSkillsByIds.mockResolvedValueOnce([{ id: 5, name: 'grilling', instructions: 'Interview me.' }])
+
+    await request(app).post('/').send({ message: 'my answer' })
+
+    expect(run.mock.calls[0][1]).toBe('my answer')
+  })
+
+  it('merges a carried-over skill with one newly invoked in the same message', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+    conversationStore.getInvokedSkillIds.mockResolvedValue([5])
+
+    await request(app)
+      .post('/')
+      .send({ message: 'hi', skillIds: [7] })
+
+    expect(getSkillsByIds).toHaveBeenCalledWith([5, 7], 1)
+  })
+
+  it('filters out non-positive-integer skillIds before resolving', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app)
+      .post('/')
+      .send({ message: 'hi', skillIds: ['abc', 3.5, -1, 0, 9] })
+
+    expect(getSkillsByIds).toHaveBeenCalledWith([9], 1)
+  })
+
+  it('does not resolve skills when none are invoked nor carried over', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').send({ message: 'hi' })
+
+    expect(getSkillsByIds).not.toHaveBeenCalled()
+    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+      customInstructions: '',
+      skills: [],
+      skillArguments: 'hi',
     })
   })
 

@@ -7,6 +7,7 @@ vi.mock('../../common/ChartBlock/ChartBlock.jsx', () => ({ default: () => <div d
 vi.mock('../../common/CsvBlock/CsvBlock.jsx', () => ({ default: () => <div data-testid="csv" /> }))
 vi.mock('./HeroChat/HeroChat.jsx', () => ({ default: () => <div data-testid="hero-chat" /> }))
 vi.mock('./SettingsPreview/SettingsPreview.jsx', () => ({ default: () => <div data-testid="settings-preview" /> }))
+vi.mock('./SkillsPreview/SkillsPreview.jsx', () => ({ default: () => <div data-testid="skills-preview" /> }))
 vi.mock('react-syntax-highlighter', () => ({ Prism: ({ children }) => <pre>{children}</pre> }))
 vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({ oneDark: {} }))
 
@@ -63,6 +64,15 @@ describe('Landing', () => {
   it('shows real example questions', () => {
     render(<Landing />)
     expect(screen.getByText(/sign up with an email that already exists/i)).toBeInTheDocument()
+  })
+
+  it('presents skills as /commands, with a nav link to the section', () => {
+    const { container } = render(<Landing />)
+    expect(screen.getByRole('link', { name: 'Skills' })).toHaveAttribute('href', '#skills')
+    expect(container.querySelector('#skills')).toBeTruthy()
+    expect(screen.getByTestId('skills-preview')).toBeInTheDocument()
+    expect(screen.getByText('/code-review')).toBeInTheDocument()
+    expect(screen.getByText(/follows it for the rest of that/i)).toBeInTheDocument()
   })
 
   it('embeds a real (pre-rendered) Mermaid diagram even without a session', () => {

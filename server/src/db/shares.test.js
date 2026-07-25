@@ -114,6 +114,24 @@ describe('getShare', () => {
     })
   })
 
+  it('exposes invoked skills on user messages as skill refs', async () => {
+    const share = { conversationId: CONVERSATION_ID, messageCutoffId: 42 }
+    const rows = [
+      {
+        role: 'user',
+        parts: [
+          { type: 'skill', skillId: 5, name: 'bug-triage' },
+          { type: 'text', content: 'hi' },
+        ],
+      },
+    ]
+    queue = [[share], rows]
+
+    const result = await getShare('a'.repeat(32))
+
+    expect(result.messages).toEqual([{ role: 'user', content: 'hi', skills: [{ id: 5, name: 'bug-triage' }] }])
+  })
+
   it('falls back to empty parts for messages stored without them', async () => {
     queue = [[{ conversationId: CONVERSATION_ID, messageCutoffId: 1 }], [{ role: 'assistant', parts: null }]]
 
