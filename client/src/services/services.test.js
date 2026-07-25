@@ -167,9 +167,7 @@ describe('streamChat', () => {
     global.fetch = vi.fn().mockResolvedValue(response)
     const signal = new AbortController().signal
 
-    await expect(
-      streamChat('tok', { message: 'hi', skillIds: [5] }, signal)
-    ).resolves.toBe(response)
+    await expect(streamChat('tok', { message: 'hi', skillIds: [5] }, signal)).resolves.toBe(response)
 
     const [url, options] = lastCall()
     expect(url).toBe('/api/chat')
