@@ -7,6 +7,12 @@ vi.mock('../../../common/Message/Message.jsx', () => ({
   default: ({ message }) => <div data-testid="message">{message.content || 'assistant'}</div>,
 }))
 
+const INTEGRATIONS = [
+  { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
+  { id: 'notion', name: 'Notion', description: 'Search Notion', selectable: true },
+  { id: 'sentry', name: 'Sentry', description: 'Inspect errors', selectable: false },
+]
+
 const defaultProps = {
   messages: [],
   isLoading: false,
@@ -15,6 +21,7 @@ const defaultProps = {
   hasSourcesSelected: true,
   onOpenSidebar: vi.fn(),
   onShare: vi.fn(),
+  integrations: INTEGRATIONS,
   token: 'test-token',
 }
 
@@ -59,10 +66,8 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Sentry')).toBeInTheDocument()
   })
 
-  it('renders no integration chips when the fetch fails', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
-    const { container } = render(<ChatPanel {...defaultProps} />)
-    await waitFor(() => expect(global.fetch).toHaveBeenCalled())
+  it('renders no integration chips when there are no integrations', () => {
+    const { container } = render(<ChatPanel {...defaultProps} integrations={[]} />)
     expect(container.querySelector('.chat__capabilities')).toBeNull()
     expect(screen.getByText('Ask Soporti anything')).toBeInTheDocument()
   })

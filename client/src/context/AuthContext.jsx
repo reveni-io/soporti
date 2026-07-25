@@ -7,6 +7,14 @@ const USER_KEY = 'auth_user'
 
 const AuthContext = createContext(null)
 
+export function readStoredToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
 function loadUser() {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY)) || null
@@ -16,7 +24,7 @@ function loadUser() {
 }
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY))
+  const [token, setToken] = useState(readStoredToken)
   const [user, setUser] = useState(loadUser)
   const [error, setError] = useState(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)

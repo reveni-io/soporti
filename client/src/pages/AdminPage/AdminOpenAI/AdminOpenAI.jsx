@@ -1,220 +1,72 @@
-import { useEffect, useState } from 'react'
 import {
   getOpenAIConfig,
-  isUnauthorized,
   saveOpenAIApiKey,
   saveOpenAIModel,
   saveOpenAIVectorStore,
 } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
+import ValueField from '../ValueField/ValueField.jsx'
 
 export default function AdminOpenAI({ token, onLogout }) {
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
-  const [apiKey, setApiKey] = useState('')
-  const [savingKey, setSavingKey] = useState(false)
-  const [keyError, setKeyError] = useState(null)
-  const [keySavedAt, setKeySavedAt] = useState(null)
-
-  const [model, setModel] = useState('')
-  const [initialModel, setInitialModel] = useState('')
-  const [savingModel, setSavingModel] = useState(false)
-  const [modelError, setModelError] = useState(null)
-  const [modelSavedAt, setModelSavedAt] = useState(null)
-
-  const [vectorStoreId, setVectorStoreId] = useState('')
-  const [initialVectorStoreId, setInitialVectorStoreId] = useState('')
-  const [savingVectorStore, setSavingVectorStore] = useState(false)
-  const [vectorStoreError, setVectorStoreError] = useState(null)
-  const [vectorStoreSavedAt, setVectorStoreSavedAt] = useState(null)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getOpenAIConfig(token)
-        if (!active) return
-        setApiKeyConfigured(data.apiKeyConfigured)
-        setModel(data.model)
-        setInitialModel(data.model)
-        setVectorStoreId(data.vectorStoreId)
-        setInitialVectorStoreId(data.vectorStoreId)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
+  const { config, error, patchConfig } = useAuthedConfig(getOpenAIConfig, token, onLogout)
 
   async function saveApiKey(value) {
-    setSavingKey(true)
-    setKeyError(null)
-    try {
-      const data = await saveOpenAIApiKey(token, value)
-      setApiKeyConfigured(data.apiKeyConfigured)
-      setApiKey('')
-      setKeySavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setKeyError(err.message)
-    } finally {
-      setSavingKey(false)
-    }
+    const data = await saveOpenAIApiKey(token, value)
+    patchConfig({ apiKeyConfigured: data.apiKeyConfigured })
   }
 
-  function handleApiKeySubmit(event) {
-    event.preventDefault()
-    if (!apiKey.trim()) return
-    saveApiKey(apiKey.trim())
+  async function saveModel(value) {
+    const data = await saveOpenAIModel(token, value)
+    patchConfig({ model: data.model })
   }
 
-  async function handleModelSave() {
-    setSavingModel(true)
-    setModelError(null)
-    try {
-      const data = await saveOpenAIModel(token, model)
-      setModel(data.model)
-      setInitialModel(data.model)
-      setModelSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setModelError(err.message)
-    } finally {
-      setSavingModel(false)
-    }
+  async function saveVectorStore(value) {
+    const data = await saveOpenAIVectorStore(token, value)
+    patchConfig({ vectorStoreId: data.vectorStoreId })
   }
 
-  async function handleVectorStoreSave() {
-    setSavingVectorStore(true)
-    setVectorStoreError(null)
-    try {
-      const data = await saveOpenAIVectorStore(token, vectorStoreId)
-      setVectorStoreId(data.vectorStoreId)
-      setInitialVectorStoreId(data.vectorStoreId)
-      setVectorStoreSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setVectorStoreError(err.message)
-    } finally {
-      setSavingVectorStore(false)
-    }
-  }
-
-  const modelDirty = model !== initialModel
-  const vectorStoreDirty = vectorStoreId !== initialVectorStoreId
-
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">OpenAI</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">OpenAI</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  if (error || !config) return <AdminSectionStatus title="OpenAI" error={error} />
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">OpenAI API key</h2>
+      <AdminSection title="OpenAI API key">
         <p className="admin__muted">
           API key used by the assistant, the PR-review agents and the knowledge base. It is stored in the database and
           never shown again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {apiKeyConfigured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={config.apiKeyConfigured} />
 
-        {keyError && <p className="alert alert--error">{keyError}</p>}
+        <SecretField
+          placeholder="sk-..."
+          configuredPlaceholder="Paste a new key to replace it"
+          configured={config.apiKeyConfigured}
+          onSave={saveApiKey}
+          onLogout={onLogout}
+          saveLabel="Save key"
+        />
+      </AdminSection>
 
-        <form className="admin__form admin__form--row" onSubmit={handleApiKeySubmit}>
-          <input
-            className="input"
-            type="password"
-            placeholder={apiKeyConfigured ? 'Paste a new key to replace it' : 'sk-...'}
-            autoComplete="off"
-            value={apiKey}
-            onChange={event => setApiKey(event.target.value)}
-            disabled={savingKey}
-          />
-          <button className="btn btn--primary" type="submit" disabled={savingKey || !apiKey.trim()}>
-            {savingKey ? 'Saving...' : 'Save key'}
-          </button>
-          {apiKeyConfigured && (
-            <button className="btn btn--secondary" type="button" onClick={() => saveApiKey('')} disabled={savingKey}>
-              Remove
-            </button>
-          )}
-          {!keyError && keySavedAt && <span className="admin__saved">Saved</span>}
-        </form>
-      </section>
-
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Model</h2>
+      <AdminSection title="Model">
         <p className="admin__muted">
           The chat and review model. Required — there is no default, so the assistant stays disabled until you set one.
           Any model available to your API key works (e.g. <code>gpt-4o</code>, <code>gpt-5.2-codex</code>).
         </p>
 
-        {modelError && <p className="alert alert--error">{modelError}</p>}
+        <ValueField
+          savedValue={config.model}
+          onSave={saveModel}
+          onLogout={onLogout}
+          placeholder="gpt-4o"
+          saveLabel="Save model"
+        />
+      </AdminSection>
 
-        <div className="admin__form admin__form--row">
-          <input
-            className="input"
-            type="text"
-            placeholder="gpt-4o"
-            autoComplete="off"
-            value={model}
-            onChange={event => setModel(event.target.value)}
-            disabled={savingModel}
-          />
-          <button
-            className="btn btn--primary"
-            type="button"
-            onClick={handleModelSave}
-            disabled={!modelDirty || savingModel}
-          >
-            {savingModel ? 'Saving...' : 'Save model'}
-          </button>
-          {!modelError && modelSavedAt && !modelDirty && <span className="admin__saved">Saved</span>}
-        </div>
-      </section>
-
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Knowledge base vector store</h2>
+      <AdminSection title="Knowledge base vector store">
         <p className="admin__muted">
           OpenAI vector store id used to surface similar solved cases. Optional — leave empty to disable the knowledge
           base. Create one at{' '}
@@ -229,29 +81,13 @@ export default function AdminOpenAI({ token, onLogout }) {
           .
         </p>
 
-        {vectorStoreError && <p className="alert alert--error">{vectorStoreError}</p>}
-
-        <div className="admin__form admin__form--row">
-          <input
-            className="input"
-            type="text"
-            placeholder="vs_..."
-            autoComplete="off"
-            value={vectorStoreId}
-            onChange={event => setVectorStoreId(event.target.value)}
-            disabled={savingVectorStore}
-          />
-          <button
-            className="btn btn--primary"
-            type="button"
-            onClick={handleVectorStoreSave}
-            disabled={!vectorStoreDirty || savingVectorStore}
-          >
-            {savingVectorStore ? 'Saving...' : 'Save'}
-          </button>
-          {!vectorStoreError && vectorStoreSavedAt && !vectorStoreDirty && <span className="admin__saved">Saved</span>}
-        </div>
-      </section>
+        <ValueField
+          savedValue={config.vectorStoreId}
+          onSave={saveVectorStore}
+          onLogout={onLogout}
+          placeholder="vs_..."
+        />
+      </AdminSection>
     </>
   )
 }

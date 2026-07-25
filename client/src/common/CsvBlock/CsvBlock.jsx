@@ -1,64 +1,9 @@
 import { memo, useMemo } from 'react'
+import Icon from '../Icon/Icon.jsx'
+import { downloadCsv, parseCsv } from './csv.js'
 
 const MAX_PREVIEW_ROWS = 50
-
-function parseCsv(text) {
-  const rows = []
-  let row = []
-  let field = ''
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"'
-          i++
-        } else {
-          inQuotes = false
-        }
-      } else {
-        field += char
-      }
-      continue
-    }
-
-    if (char === '"') {
-      inQuotes = true
-    } else if (char === ',') {
-      row.push(field)
-      field = ''
-    } else if (char === '\n') {
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ''
-    } else if (char !== '\r') {
-      field += char
-    }
-  }
-
-  if (field !== '' || row.length > 0) {
-    row.push(field)
-    rows.push(row)
-  }
-
-  return rows
-}
-
-function downloadCsv(csv) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'soporti-export.csv'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-}
+const ICON_SIZE = 14
 
 export default memo(function CsvBlock({ csv, canDownload = true }) {
   const rows = useMemo(() => parseCsv(csv.trim()), [csv])
@@ -80,21 +25,7 @@ export default memo(function CsvBlock({ csv, canDownload = true }) {
         </span>
         {canDownload && (
           <button type="button" className="csv-block__download" onClick={() => downloadCsv(csv)}>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
+            <Icon name="download" size={ICON_SIZE} />
             Download CSV
           </button>
         )}
@@ -109,10 +40,10 @@ export default memo(function CsvBlock({ csv, canDownload = true }) {
             </tr>
           </thead>
           <tbody>
-            {previewBody.map((r, ri) => (
-              <tr key={ri}>
-                {r.map((cell, ci) => (
-                  <td key={ci}>{cell}</td>
+            {previewBody.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex}>{cell}</td>
                 ))}
               </tr>
             ))}

@@ -1,117 +1,60 @@
-import { useEffect, useState } from 'react'
-import { getGoogleDriveConfig, isUnauthorized, saveGoogleDriveCredentials } from '../../../services/services.js'
+import { useState } from 'react'
+import { getGoogleDriveConfig, saveGoogleDriveCredentials } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
 
 export default function AdminGoogleDrive({ token, onLogout }) {
-  const [configured, setConfigured] = useState(false)
-  const [serviceAccountEmail, setServiceAccountEmail] = useState('')
+  const { config, error, patchConfig } = useAuthedConfig(getGoogleDriveConfig, token, onLogout)
   const [credentials, setCredentials] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedAt, setSavedAt] = useState(null)
+  const { saving, error: saveError, savedAt, save } = useSaveField(onLogout)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getGoogleDriveConfig(token)
-        if (!active) return
-        setConfigured(data.credentialsConfigured)
-        setServiceAccountEmail(data.serviceAccountEmail || '')
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
-
-  async function saveCredentials(value) {
-    setSaving(true)
-    setSaveError(null)
-    try {
+  async function persist(value) {
+    const saved = await save(async () => {
       const data = await saveGoogleDriveCredentials(token, value)
-      setConfigured(data.credentialsConfigured)
-      setServiceAccountEmail(data.serviceAccountEmail || '')
-      setCredentials('')
-      setSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSaveError(err.message)
-    } finally {
-      setSaving(false)
-    }
+      patchConfig({
+        credentialsConfigured: data.credentialsConfigured,
+        serviceAccountEmail: data.serviceAccountEmail || '',
+      })
+    })
+    if (saved) setCredentials('')
   }
 
   function handleSubmit(event) {
     event.preventDefault()
     if (!credentials.trim()) return
-    saveCredentials(credentials.trim())
+    persist(credentials.trim())
   }
 
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Google Drive</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
+  if (error || !config) return <AdminSectionStatus title="Google Drive" error={error} />
 
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Google Drive</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  const configured = config.credentialsConfigured
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Google Drive integration</h2>
+      <AdminSection title="Google Drive integration">
         <p className="admin__muted">
           Lets the assistant search, browse and read documents in Google Drive (Docs, Sheets, Slides, PDFs and Office
           files). It is read-only and only sees what is explicitly shared with its service account.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {configured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={configured} />
 
-        {configured && serviceAccountEmail && (
+        {configured && config.serviceAccountEmail && (
           <dl className="admin__kv">
             <div className="admin__kv-row">
               <dt>Service account</dt>
               <dd>
-                <code>{serviceAccountEmail}</code>
+                <code>{config.serviceAccountEmail}</code>
               </dd>
             </div>
           </dl>
         )}
-      </section>
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Setup</h2>
+      <AdminSection title="Setup">
         <ol className="admin__steps">
           <li>
             In the Google Cloud Console, create a <strong>service account</strong> and enable the{' '}
@@ -158,19 +101,14 @@ export default function AdminGoogleDrive({ token, onLogout }) {
               {saving ? 'Saving...' : 'Save credentials'}
             </button>
             {configured && (
-              <button
-                className="btn btn--secondary"
-                type="button"
-                onClick={() => saveCredentials('')}
-                disabled={saving}
-              >
+              <button className="btn btn--secondary" type="button" onClick={() => persist('')} disabled={saving}>
                 Remove
               </button>
             )}
             {!saveError && savedAt && <span className="admin__saved">Saved</span>}
           </div>
         </form>
-      </section>
+      </AdminSection>
     </>
   )
 }

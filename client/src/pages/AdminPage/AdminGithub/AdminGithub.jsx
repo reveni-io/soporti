@@ -1,200 +1,78 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   absoluteApiUrl,
   getGithubConfig,
-  isUnauthorized,
   saveGithubCatalog,
   saveGithubToken,
   saveGithubWebhookSecret,
 } from '../../../services/services.js'
+import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
+import AdminSection from '../AdminSection/AdminSection.jsx'
+import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
+import StatusRow from '../StatusRow/StatusRow.jsx'
+
+const MAX_CATALOG_LENGTH = 100_000
+const SECRET_BYTES = 24
+
+function generateSecret() {
+  const bytes = new Uint8Array(SECRET_BYTES)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
 
 export default function AdminGithub({ token, onLogout }) {
-  const [tokenConfigured, setTokenConfigured] = useState(false)
-  const [ghToken, setGhToken] = useState('')
-  const [savingToken, setSavingToken] = useState(false)
-  const [tokenError, setTokenError] = useState(null)
-  const [tokenSavedAt, setTokenSavedAt] = useState(null)
+  const { config, error, patchConfig } = useAuthedConfig(getGithubConfig, token, onLogout)
+  const [editedCatalog, setEditedCatalog] = useState(null)
+  const { saving: savingCatalog, error: catalogError, savedAt: catalogSavedAt, save } = useSaveField(onLogout)
 
-  const [secretConfigured, setSecretConfigured] = useState(false)
-  const [webhookSecret, setWebhookSecret] = useState('')
-  const [savingSecret, setSavingSecret] = useState(false)
-  const [secretError, setSecretError] = useState(null)
-  const [secretSavedAt, setSecretSavedAt] = useState(null)
-
-  const [catalog, setCatalog] = useState('')
-  const [initialCatalog, setInitialCatalog] = useState('')
-  const [savingCatalog, setSavingCatalog] = useState(false)
-  const [catalogError, setCatalogError] = useState(null)
-  const [catalogSavedAt, setCatalogSavedAt] = useState(null)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let active = true
-    async function load() {
-      try {
-        const data = await getGithubConfig(token)
-        if (!active) return
-        setTokenConfigured(data.tokenConfigured)
-        setSecretConfigured(data.webhookSecretConfigured)
-        setCatalog(data.repoCatalog)
-        setInitialCatalog(data.repoCatalog)
-      } catch (err) {
-        if (isUnauthorized(err)) {
-          onLogout?.()
-          return
-        }
-        if (active) setError(err.message)
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      active = false
-    }
-  }, [token, onLogout])
+  const savedCatalog = config?.repoCatalog ?? ''
+  const catalog = editedCatalog ?? savedCatalog
 
   async function saveToken(value) {
-    setSavingToken(true)
-    setTokenError(null)
-    try {
-      const data = await saveGithubToken(token, value)
-      setTokenConfigured(data.tokenConfigured)
-      setGhToken('')
-      setTokenSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setTokenError(err.message)
-    } finally {
-      setSavingToken(false)
-    }
+    const data = await saveGithubToken(token, value)
+    patchConfig({ tokenConfigured: data.tokenConfigured })
   }
 
-  function handleTokenSubmit(event) {
-    event.preventDefault()
-    if (!ghToken.trim()) return
-    saveToken(ghToken.trim())
+  async function saveWebhookSecret(value) {
+    const data = await saveGithubWebhookSecret(token, value)
+    patchConfig({ webhookSecretConfigured: data.webhookSecretConfigured })
   }
 
-  async function saveSecret(value) {
-    setSavingSecret(true)
-    setSecretError(null)
-    try {
-      const data = await saveGithubWebhookSecret(token, value)
-      setSecretConfigured(data.webhookSecretConfigured)
-      setWebhookSecret('')
-      setSecretSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setSecretError(err.message)
-    } finally {
-      setSavingSecret(false)
-    }
-  }
-
-  function handleSecretSubmit(event) {
-    event.preventDefault()
-    if (!webhookSecret.trim()) return
-    saveSecret(webhookSecret.trim())
-  }
-
-  function generateSecret() {
-    const bytes = new Uint8Array(24)
-    crypto.getRandomValues(bytes)
-    setWebhookSecret(Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(''))
-  }
-
-  async function handleCatalogSave() {
-    setSavingCatalog(true)
-    setCatalogError(null)
-    try {
+  function handleCatalogSave() {
+    save(async () => {
       const data = await saveGithubCatalog(token, catalog)
-      setCatalog(data.repoCatalog)
-      setInitialCatalog(data.repoCatalog)
-      setCatalogSavedAt(Date.now())
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        onLogout?.()
-        return
-      }
-      setCatalogError(err.message)
-    } finally {
-      setSavingCatalog(false)
-    }
+      patchConfig({ repoCatalog: data.repoCatalog })
+      setEditedCatalog(null)
+    })
   }
 
-  const catalogDirty = catalog !== initialCatalog
+  if (error || !config) return <AdminSectionStatus title="GitHub" error={error} />
 
-  if (loading) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">GitHub</h2>
-        <p className="admin__muted">Loading...</p>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="admin__section card">
-        <h2 className="admin__section-title">GitHub</h2>
-        <p className="alert alert--error">{error}</p>
-      </section>
-    )
-  }
+  const catalogDirty = catalog !== savedCatalog
 
   return (
     <>
-      <section className="admin__section card">
-        <h2 className="admin__section-title">GitHub token</h2>
+      <AdminSection title="GitHub token">
         <p className="admin__muted">
           Personal access token used by every GitHub feature: repository tools, clones and PR reviews. It is stored in
           the database and never shown again after saving.
         </p>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {tokenConfigured ? (
-            <span className="badge badge--success">configured</span>
-          ) : (
-            <span className="badge">not configured</span>
-          )}
-        </p>
+        <StatusRow configured={config.tokenConfigured} />
 
-        {tokenError && <p className="alert alert--error">{tokenError}</p>}
+        <SecretField
+          placeholder="ghp_..."
+          configuredPlaceholder="Paste a new token to replace it"
+          configured={config.tokenConfigured}
+          onSave={saveToken}
+          onLogout={onLogout}
+          saveLabel="Save token"
+        />
+      </AdminSection>
 
-        <form className="admin__form admin__form--row" onSubmit={handleTokenSubmit}>
-          <input
-            className="input"
-            type="password"
-            placeholder={tokenConfigured ? 'Paste a new token to replace it' : 'ghp_...'}
-            autoComplete="off"
-            value={ghToken}
-            onChange={event => setGhToken(event.target.value)}
-            disabled={savingToken}
-          />
-          <button className="btn btn--primary" type="submit" disabled={savingToken || !ghToken.trim()}>
-            {savingToken ? 'Saving...' : 'Save token'}
-          </button>
-          {tokenConfigured && (
-            <button className="btn btn--secondary" type="button" onClick={() => saveToken('')} disabled={savingToken}>
-              Remove
-            </button>
-          )}
-          {!tokenError && tokenSavedAt && <span className="admin__saved">Saved</span>}
-        </form>
-      </section>
-
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Pull request reviews</h2>
+      <AdminSection title="Pull request reviews">
         <p className="admin__muted">
           Soporti reviews PRs when someone requests its review or adds the review label. Deliveries are authenticated
           with a shared webhook secret: generate one below and use the same value when creating the webhook in GitHub
@@ -224,47 +102,26 @@ export default function AdminGithub({ token, onLogout }) {
           </div>
         </dl>
 
-        <p className="admin__muted">
-          Status:{' '}
-          {secretConfigured ? (
-            <span className="badge badge--success">enabled</span>
-          ) : (
-            <span className="badge">disabled</span>
-          )}
-        </p>
+        <StatusRow configured={config.webhookSecretConfigured} configuredLabel="enabled" unconfiguredLabel="disabled" />
 
-        {secretError && <p className="alert alert--error">{secretError}</p>}
+        <SecretField
+          placeholder="Webhook secret"
+          configuredPlaceholder="Paste a new secret to rotate it"
+          configured={config.webhookSecretConfigured}
+          onSave={saveWebhookSecret}
+          onLogout={onLogout}
+          saveLabel="Save secret"
+          removeLabel="Disable"
+          masked={false}
+          onGenerate={generateSecret}
+        />
 
-        <form className="admin__form admin__form--row" onSubmit={handleSecretSubmit}>
-          <input
-            className="input"
-            type="text"
-            placeholder={secretConfigured ? 'Paste a new secret to rotate it' : 'Webhook secret'}
-            autoComplete="off"
-            value={webhookSecret}
-            onChange={event => setWebhookSecret(event.target.value)}
-            disabled={savingSecret}
-          />
-          <button className="btn btn--secondary" type="button" onClick={generateSecret} disabled={savingSecret}>
-            Generate
-          </button>
-          <button className="btn btn--primary" type="submit" disabled={savingSecret || !webhookSecret.trim()}>
-            {savingSecret ? 'Saving...' : 'Save secret'}
-          </button>
-          {secretConfigured && (
-            <button className="btn btn--secondary" type="button" onClick={() => saveSecret('')} disabled={savingSecret}>
-              Disable
-            </button>
-          )}
-          {!secretError && secretSavedAt && <span className="admin__saved">Saved</span>}
-        </form>
         <p className="admin__muted">
           Copy the secret into GitHub before saving — it is stored write-only and cannot be shown again.
         </p>
-      </section>
+      </AdminSection>
 
-      <section className="admin__section card">
-        <h2 className="admin__section-title">Repository catalog</h2>
+      <AdminSection title="Repository catalog">
         <p className="admin__muted">
           Free text describing what each repository covers. It is injected into the agent prompt so it can pick the most
           relevant repo(s) for a question before calling tools. Markdown works well (e.g. one <code>### org/repo</code>{' '}
@@ -277,13 +134,15 @@ export default function AdminGithub({ token, onLogout }) {
           className="textarea textarea--code"
           placeholder={'### org/backend (Python)\nThe backend: payments, auth, webhooks...'}
           value={catalog}
-          onChange={event => setCatalog(event.target.value)}
+          onChange={event => setEditedCatalog(event.target.value)}
           disabled={savingCatalog}
           rows={16}
         />
 
         <div className="admin__form admin__form--row">
-          <span className="admin__muted">{catalog.length.toLocaleString()} / 100,000 characters</span>
+          <span className="admin__muted">
+            {catalog.length.toLocaleString()} / {MAX_CATALOG_LENGTH.toLocaleString()} characters
+          </span>
           <button
             className="btn btn--primary"
             type="button"
@@ -294,7 +153,7 @@ export default function AdminGithub({ token, onLogout }) {
           </button>
           {!catalogError && catalogSavedAt && !catalogDirty && <span className="admin__saved">Saved</span>}
         </div>
-      </section>
+      </AdminSection>
     </>
   )
 }
