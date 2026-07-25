@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
 import { YOLO_SOURCE } from '../../../constants.js'
+import {
+  deleteConversation,
+  getConversations,
+  getIntegrations,
+  getRepos,
+  isUnauthorized,
+} from '../../../services/services.js'
 import './Sidebar.css'
 
 export default function Sidebar({
@@ -26,17 +33,13 @@ export default function Sidebar({
   useEffect(() => {
     async function fetchRepos() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/repos`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
+        const data = await getRepos(token)
+        setRepos(data.repos)
+      } catch (err) {
+        if (isUnauthorized(err)) {
           onLogout()
           return
         }
-        if (!res.ok) throw new Error('Failed to fetch repos')
-        const data = await res.json()
-        setRepos(data.repos)
-      } catch (err) {
         setError(err.message)
       } finally {
         setLoading(false)
@@ -48,13 +51,8 @@ export default function Sidebar({
   useEffect(() => {
     async function fetchConversations() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/conversations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setConversations(data.conversations || [])
-        }
+        const data = await getConversations(token)
+        setConversations(data.conversations || [])
       } catch {}
     }
     fetchConversations()
@@ -64,23 +62,15 @@ export default function Sidebar({
     e.stopPropagation()
     setConversations(prev => prev.filter(c => c.id !== id))
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/conversations/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      await deleteConversation(token, id)
     } catch {}
   }
 
   useEffect(() => {
     async function fetchIntegrations() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/integrations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setIntegrations(data.integrations || [])
-        }
+        const data = await getIntegrations(token)
+        setIntegrations(data.integrations || [])
       } catch {}
     }
     fetchIntegrations()

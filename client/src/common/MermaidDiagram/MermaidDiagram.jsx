@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { renderMermaid } from '../../services/services.js'
 
 export default function MermaidDiagram({ chart, token }) {
   const [svg, setSvg] = useState(null)
@@ -9,18 +10,7 @@ export default function MermaidDiagram({ chart, token }) {
 
     let cancelled = false
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/mermaid/render`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ chart }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
+    renderMermaid(token, chart)
       .then(data => {
         if (!cancelled) {
           setSvg(data.svg)

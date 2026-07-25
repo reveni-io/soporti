@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getGoogleDriveConfig, isUnauthorized, saveGoogleDriveCredentials } from '../../../services/services.js'
 
 export default function AdminGoogleDrive({ token, onLogout }) {
   const [configured, setConfigured] = useState(false)
@@ -15,19 +16,15 @@ export default function AdminGoogleDrive({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/google-drive`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Google Drive settings')
-        const data = await res.json()
+        const data = await getGoogleDriveConfig(token)
         if (!active) return
         setConfigured(data.credentialsConfigured)
         setServiceAccountEmail(data.serviceAccountEmail || '')
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -43,25 +40,16 @@ export default function AdminGoogleDrive({ token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/google-drive/credentials`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ credentials: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the credentials')
+      const data = await saveGoogleDriveCredentials(token, value)
       setConfigured(data.credentialsConfigured)
       setServiceAccountEmail(data.serviceAccountEmail || '')
       setCredentials('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)

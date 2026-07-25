@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getSkills, isUnauthorized } from '../../services/services.js'
 
 export function useSkills(token, onUnauthorized) {
   const [skills, setSkills] = useState([])
@@ -11,18 +12,14 @@ export function useSkills(token, onUnauthorized) {
     if (!token) return
     setLoading(true)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/skills`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.status === 401) {
-        onUnauthorizedRef.current?.()
-        return
-      }
-      if (!res.ok) throw new Error('Failed to load skills')
-      const data = await res.json()
+      const data = await getSkills(token)
       setSkills(data.skills || [])
       setError(null)
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onUnauthorizedRef.current?.()
+        return
+      }
       setError(err.message)
     } finally {
       setLoading(false)

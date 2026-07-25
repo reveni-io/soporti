@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  draftShopifyTokenQuery,
+  getShopifyConfig,
+  isUnauthorized,
+  saveShopifyTokenQuery,
+} from '../../../services/services.js'
 
 export default function AdminShopify({ token, onLogout }) {
   const [tokenQuery, setTokenQuery] = useState('')
@@ -17,21 +23,17 @@ export default function AdminShopify({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/shopify`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Shopify settings')
-        const data = await res.json()
+        const data = await getShopifyConfig(token)
         if (!active) return
         setTokenQueryConfigured(data.tokenQueryConfigured)
         setTokenQuery(data.tokenQuery)
         setInitialTokenQuery(data.tokenQuery)
         setDatabaseConfigured(data.databaseConfigured)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -47,26 +49,17 @@ export default function AdminShopify({ token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/shopify/token-query`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ tokenQuery: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the token query')
+      const data = await saveShopifyTokenQuery(token, value)
       setTokenQueryConfigured(data.tokenQueryConfigured)
       const saved = data.tokenQueryConfigured ? value.trim() : ''
       setTokenQuery(saved)
       setInitialTokenQuery(saved)
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)
@@ -77,18 +70,13 @@ export default function AdminShopify({ token, onLogout }) {
     setDrafting(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/shopify/draft-token-query`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.status === 401) {
+      const data = await draftShopifyTokenQuery(token)
+      setTokenQuery(data.query)
+    } catch (err) {
+      if (isUnauthorized(err)) {
         onLogout?.()
         return
       }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to draft the token query')
-      setTokenQuery(data.query)
-    } catch (err) {
       setSaveError(err.message)
     } finally {
       setDrafting(false)

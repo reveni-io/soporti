@@ -1,4 +1,11 @@
 import { useEffect, useState } from 'react'
+import {
+  getOpenAIConfig,
+  isUnauthorized,
+  saveOpenAIApiKey,
+  saveOpenAIModel,
+  saveOpenAIVectorStore,
+} from '../../../services/services.js'
 
 export default function AdminOpenAI({ token, onLogout }) {
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
@@ -26,15 +33,7 @@ export default function AdminOpenAI({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/openai`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the OpenAI settings')
-        const data = await res.json()
+        const data = await getOpenAIConfig(token)
         if (!active) return
         setApiKeyConfigured(data.apiKeyConfigured)
         setModel(data.model)
@@ -42,6 +41,10 @@ export default function AdminOpenAI({ token, onLogout }) {
         setVectorStoreId(data.vectorStoreId)
         setInitialVectorStoreId(data.vectorStoreId)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -57,24 +60,15 @@ export default function AdminOpenAI({ token, onLogout }) {
     setSavingKey(true)
     setKeyError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/openai/api-key`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ apiKey: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the API key')
+      const data = await saveOpenAIApiKey(token, value)
       setApiKeyConfigured(data.apiKeyConfigured)
       setApiKey('')
       setKeySavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setKeyError(err.message)
     } finally {
       setSavingKey(false)
@@ -91,24 +85,15 @@ export default function AdminOpenAI({ token, onLogout }) {
     setSavingModel(true)
     setModelError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/openai/model`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ model }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the model')
+      const data = await saveOpenAIModel(token, model)
       setModel(data.model)
       setInitialModel(data.model)
       setModelSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setModelError(err.message)
     } finally {
       setSavingModel(false)
@@ -119,24 +104,15 @@ export default function AdminOpenAI({ token, onLogout }) {
     setSavingVectorStore(true)
     setVectorStoreError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/openai/vector-store`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ vectorStoreId }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the vector store id')
+      const data = await saveOpenAIVectorStore(token, vectorStoreId)
       setVectorStoreId(data.vectorStoreId)
       setInitialVectorStoreId(data.vectorStoreId)
       setVectorStoreSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setVectorStoreError(err.message)
     } finally {
       setSavingVectorStore(false)

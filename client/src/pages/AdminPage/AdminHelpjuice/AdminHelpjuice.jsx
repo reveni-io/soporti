@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import {
+  getHelpjuiceConfig,
+  isUnauthorized,
+  saveHelpjuiceAccount,
+  saveHelpjuiceApiKey,
+} from '../../../services/services.js'
 
 export default function AdminHelpjuice({ token, onLogout }) {
   const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
@@ -11,19 +17,15 @@ export default function AdminHelpjuice({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/helpjuice`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Helpjuice settings')
-        const data = await res.json()
+        const data = await getHelpjuiceConfig(token)
         if (!active) return
         setApiKeyConfigured(data.apiKeyConfigured)
         setAccount(data.account)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -111,24 +113,15 @@ function AccountField({ account, setAccount, token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/helpjuice/account`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ account: next }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the account')
+      const data = await saveHelpjuiceAccount(token, next)
       setAccount(data.account)
       setValue(data.account)
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)
@@ -178,24 +171,15 @@ function ApiKeyField({ configured, setConfigured, token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/helpjuice/api-key`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ apiKey: next }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the API key')
+      const data = await saveHelpjuiceApiKey(token, next)
       setConfigured(data.apiKeyConfigured)
       setValue('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)

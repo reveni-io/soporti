@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { createAdminUser, getAdminUsers, isUnauthorized } from '../../../services/services.js'
 
 export default function AdminUsers({ token, onLogout }) {
   const [users, setUsers] = useState([])
@@ -14,18 +15,14 @@ export default function AdminUsers({ token, onLogout }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      if (!res.ok) throw new Error('Failed to load users')
-      const data = await res.json()
+      const data = await getAdminUsers(token)
       setUsers(data.users)
       setError(null)
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setError(err.message)
     } finally {
       setLoading(false)
@@ -41,20 +38,7 @@ export default function AdminUsers({ token, onLogout }) {
     setCreating(true)
     setCreateError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined, role }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to create the user')
+      await createAdminUser(token, { email: email.trim(), password, name: name.trim() || undefined, role })
 
       setEmail('')
       setName('')
@@ -62,6 +46,10 @@ export default function AdminUsers({ token, onLogout }) {
       setRole('user')
       await load()
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setCreateError(err.message)
     } finally {
       setCreating(false)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { deleteSkill, isUnauthorized } from '../../../../services/services.js'
 import SkillForm from './SkillForm/SkillForm.jsx'
 import './SkillsTab.css'
 
@@ -13,19 +14,15 @@ export default function SkillsTab({ token, onLogout, skills: skillStore }) {
 
   async function handleDelete(id) {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/skills/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      if (!res.ok) throw new Error('Failed to delete skill')
+      await deleteSkill(token, id)
       setPendingDeleteId(null)
       setDeleteError(null)
       await reload()
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setDeleteError(err.message)
     }
   }

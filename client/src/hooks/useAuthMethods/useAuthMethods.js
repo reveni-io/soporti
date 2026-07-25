@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getAuthMethods } from '../../services/services.js'
 
 export function useAuthMethods() {
   const [methods, setMethods] = useState(null)
@@ -7,9 +8,7 @@ export function useAuthMethods() {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/methods`)
-        if (!res.ok) throw new Error('unavailable')
-        const data = await res.json()
+        const data = await getAuthMethods()
         if (active) setMethods({ google: Boolean(data.google), password: Boolean(data.password) })
       } catch {
         if (active) setMethods({ google: true, password: true })

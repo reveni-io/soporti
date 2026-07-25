@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getSentryConfig, isUnauthorized, saveSentryAuthToken, saveSentryOrg } from '../../../services/services.js'
 
 export default function AdminSentry({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
@@ -11,19 +12,15 @@ export default function AdminSentry({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/sentry`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Sentry settings')
-        const data = await res.json()
+        const data = await getSentryConfig(token)
         if (!active) return
         setTokenConfigured(data.tokenConfigured)
         setOrg(data.org)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -109,24 +106,15 @@ function OrgField({ org, setOrg, token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/sentry/org`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ org: next }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the organization')
+      const data = await saveSentryOrg(token, next)
       setOrg(data.org)
       setValue(data.org)
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)
@@ -176,24 +164,15 @@ function TokenField({ configured, setConfigured, token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/sentry/auth-token`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ token: next }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the auth token')
+      const data = await saveSentryAuthToken(token, next)
       setConfigured(data.tokenConfigured)
       setValue('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)

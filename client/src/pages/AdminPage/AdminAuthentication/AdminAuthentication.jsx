@@ -1,4 +1,11 @@
 import { useEffect, useState } from 'react'
+import {
+  getAuthConfig,
+  isUnauthorized,
+  saveAllowedDomains,
+  saveAuthMethods,
+  saveGoogleClientId,
+} from '../../../services/services.js'
 
 export default function AdminAuthentication({ token, onLogout }) {
   const [googleEnabled, setGoogleEnabled] = useState(false)
@@ -26,15 +33,7 @@ export default function AdminAuthentication({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/auth`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the authentication settings')
-        const data = await res.json()
+        const data = await getAuthConfig(token)
         if (!active) return
         setGoogleEnabled(data.googleEnabled)
         setPasswordEnabled(data.passwordEnabled)
@@ -43,6 +42,10 @@ export default function AdminAuthentication({ token, onLogout }) {
         setDomains(data.domains)
         setInitialDomains(data.domains)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -64,23 +67,14 @@ export default function AdminAuthentication({ token, onLogout }) {
     setSavingMethods(true)
     setMethodsError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/auth/methods`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(next),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      const data = await saveAuthMethods(token, next)
       setGoogleEnabled(data.googleEnabled)
       setPasswordEnabled(data.passwordEnabled)
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setGoogleEnabled(googleEnabled)
       setPasswordEnabled(passwordEnabled)
       setMethodsError(err.message)
@@ -93,24 +87,15 @@ export default function AdminAuthentication({ token, onLogout }) {
     setSavingClientId(true)
     setClientIdError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/auth/google-client-id`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ googleClientId: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      const data = await saveGoogleClientId(token, value)
       setGoogleClientId(data.googleClientId)
       setInitialGoogleClientId(data.googleClientId)
       setClientIdSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setClientIdError(err.message)
     } finally {
       setSavingClientId(false)
@@ -141,24 +126,15 @@ export default function AdminAuthentication({ token, onLogout }) {
     setSavingDomains(true)
     setDomainsError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/allowed-domains`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ domains }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      const data = await saveAllowedDomains(token, domains)
       setDomains(data.domains)
       setInitialDomains(data.domains)
       setDomainsSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setDomainsError(err.message)
     } finally {
       setSavingDomains(false)

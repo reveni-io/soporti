@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Message from '../../common/Message/Message.jsx'
+import { getSharedConversation } from '../../services/services.js'
 import './SharedView.css'
 
 export default function SharedView({ shareId }) {
@@ -8,11 +9,7 @@ export default function SharedView({ shareId }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/share/${shareId}`)
-      .then(res => {
-        if (!res.ok) throw new Error('not_found')
-        return res.json()
-      })
+    getSharedConversation(shareId)
       .then(data => setShare(data))
       .catch(() => setError('not_found'))
       .finally(() => setLoading(false))

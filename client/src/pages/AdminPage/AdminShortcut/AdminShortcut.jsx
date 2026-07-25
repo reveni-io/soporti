@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getShortcutConfig, isUnauthorized, saveShortcutToken } from '../../../services/services.js'
 
 export default function AdminShortcut({ token, onLogout }) {
   const [tokenConfigured, setTokenConfigured] = useState(false)
@@ -14,18 +15,14 @@ export default function AdminShortcut({ token, onLogout }) {
     let active = true
     async function load() {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/shortcut`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.status === 401) {
-          onLogout?.()
-          return
-        }
-        if (!res.ok) throw new Error('Failed to load the Shortcut settings')
-        const data = await res.json()
+        const data = await getShortcutConfig(token)
         if (!active) return
         setTokenConfigured(data.tokenConfigured)
       } catch (err) {
+        if (isUnauthorized(err)) {
+          onLogout?.()
+          return
+        }
         if (active) setError(err.message)
       } finally {
         if (active) setLoading(false)
@@ -41,24 +38,15 @@ export default function AdminShortcut({ token, onLogout }) {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/shortcut/token`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ token: value }),
-      })
-      if (res.status === 401) {
-        onLogout?.()
-        return
-      }
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save the token')
+      const data = await saveShortcutToken(token, value)
       setTokenConfigured(data.tokenConfigured)
       setShortcutToken('')
       setSavedAt(Date.now())
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setSaveError(err.message)
     } finally {
       setSaving(false)

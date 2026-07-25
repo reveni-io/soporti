@@ -5,6 +5,7 @@ import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx
 import TourModal from '../TourModal/TourModal.jsx'
 import { useAuthedResource } from '../../../hooks/useAuthedResource/useAuthedResource.js'
 import { SKILL_COMMAND_RE } from '../../../constants.js'
+import { getIntegrations, getStats } from '../../../services/services.js'
 import { sampleExampleQuestions } from '../example-questions.js'
 import './ChatPanel.css'
 
@@ -29,8 +30,8 @@ export default function ChatPanel({
   const textareaRef = useRef(null)
   const highlightRef = useRef(null)
 
-  const integrations = useAuthedResource('/api/integrations', 'integrations', token, [])
-  const stats = useAuthedResource('/api/stats', 'stats', token, null)
+  const integrations = useAuthedResource(getIntegrations, 'integrations', token, [])
+  const stats = useAuthedResource(getStats, 'stats', token, null)
 
   function syncHighlightScroll() {
     if (highlightRef.current && textareaRef.current) {
