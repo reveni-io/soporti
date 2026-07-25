@@ -242,7 +242,7 @@ export default function Sidebar({
 
       <div className="sidebar__footer">
         <button className="sidebar__settings" onClick={onOpenSettings}>
-          Custom instructions
+          Settings
         </button>
         <button className="sidebar__logout" onClick={onLogout}>
           Log out

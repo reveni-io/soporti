@@ -4,6 +4,7 @@ import { OpenAIResponsesCompactionSession } from '@openai/agents'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
 import { ownedWebConversation } from '../db/conversations.js'
+import { toRenderMessage } from '../db/conversation-render.js'
 import { PostgresSession } from './postgres-session.js'
 import { getOpenAIClient } from '../openai/client.js'
 
@@ -158,7 +159,22 @@ export class ConversationStore {
       .where(eq(conversationMessages.conversationId, conversationId))
       .orderBy(conversationMessages.createdAt, conversationMessages.id)
 
-    return rows
+    return rows.map(toRenderMessage)
+  }
+
+  async getInvokedSkillIds(conversationId) {
+    const rows = await this.db
+      .select({ parts: conversationMessages.parts })
+      .from(conversationMessages)
+      .where(and(eq(conversationMessages.conversationId, conversationId), eq(conversationMessages.role, 'user')))
+
+    const ids = new Set()
+    for (const row of rows) {
+      for (const part of row.parts || []) {
+        if (part.type === 'skill' && Number.isInteger(part.skillId)) ids.add(part.skillId)
+      }
+    }
+    return [...ids]
   }
 
   async deleteWeb(conversationId, userId) {

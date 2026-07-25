@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useOverlayDismiss } from '../../../hooks/useOverlayDismiss/useOverlayDismiss.js'
 import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
 import { questionsForCategories } from '../example-questions.js'
 import './TourModal.css'
@@ -98,6 +99,7 @@ function buildSteps(integrations) {
 export default function TourModal({ integrations = [], onClose, onTryExample }) {
   const [stepIndex, setStepIndex] = useState(0)
   const [brokenImages, setBrokenImages] = useState(() => new Set())
+  const overlayProps = useOverlayDismiss(onClose)
 
   const steps = useMemo(() => buildSteps(integrations), [integrations])
   const step = steps[stepIndex]
@@ -116,14 +118,8 @@ export default function TourModal({ integrations = [], onClose, onTryExample }) 
   }
 
   return (
-    <div className="tour-modal__overlay modal-overlay" onClick={onClose}>
-      <div
-        className="modal tour-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="What can Soporti do?"
-        onClick={e => e.stopPropagation()}
-      >
+    <div className="tour-modal__overlay modal-overlay" {...overlayProps}>
+      <div className="modal tour-modal" role="dialog" aria-modal="true" aria-label="What can Soporti do?">
         <button className="modal__close tour-modal__close" onClick={onClose} aria-label="Close tour">
           &times;
         </button>

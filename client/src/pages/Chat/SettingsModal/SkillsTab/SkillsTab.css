@@ -1,0 +1,53 @@
+.skills-tab__status,
+.skills-tab__empty {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+}
+
+.skills-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.skills-tab__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3);
+  padding: var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.skills-tab__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.skills-tab__item-name {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+
+.skills-tab__item-description {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-tab__item-actions {
+  display: flex;
+  gap: var(--sp2);
+  flex-shrink: 0;
+}

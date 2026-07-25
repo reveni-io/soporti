@@ -8,6 +8,7 @@ import ChartBlock from '../ChartBlock/ChartBlock.jsx'
 import CsvBlock from '../CsvBlock/CsvBlock.jsx'
 import ToolCall from '../ToolCall/ToolCall.jsx'
 import FeedbackButtons from '../FeedbackButtons/FeedbackButtons.jsx'
+import SkillBadge from '../SkillBadge/SkillBadge.jsx'
 import './Message.css'
 
 const MERMAID_START =
@@ -199,7 +200,14 @@ export default function Message({ message, isStreaming, token }) {
   if (message.role === 'user') {
     return (
       <div className="message message--user">
-        <div className="message__bubble message__bubble--user">{message.content}</div>
+        <div className="message__bubble message__bubble--user">
+          {message.skills?.map(skill => (
+            <span key={skill.id ?? skill.name}>
+              <SkillBadge skill={skill} token={token} />{' '}
+            </span>
+          ))}
+          {message.content}
+        </div>
       </div>
     )
   }

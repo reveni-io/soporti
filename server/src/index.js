@@ -17,6 +17,7 @@ import statsRouter from './routes/stats.js'
 import shareRouter from './routes/share.js'
 import feedbackRouter from './routes/feedback.js'
 import userRouter from './routes/user.js'
+import skillsRouter from './routes/skills.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { setupReviewWebhook } from './review/index.js'
 import { pool } from './repo-pool/index.js'
@@ -50,6 +51,7 @@ app.use('/api/stats', statsRouter)
 app.use('/api/share', shareRouter)
 app.use('/api/feedback', feedbackRouter)
 app.use('/api/user', userRouter)
+app.use('/api/skills', skillsRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })

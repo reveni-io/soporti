@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from './hooks/useChat/useChat.js'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
+import { useSkills } from '../../hooks/useSkills/useSkills.js'
 import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
 import Login from '../../common/Login/Login.jsx'
@@ -28,6 +29,7 @@ export default function Chat() {
     isLoggingIn,
   } = useAuth()
   const authMethods = useAuthMethods()
+  const skills = useSkills(token, logout)
   const { messages, isLoading, sendMessage, stopGeneration, clearChat, loadConversation, currentSessionId } = useChat(
     token,
     logout
@@ -66,8 +68,8 @@ export default function Chat() {
     localStorage.setItem('selectedProfile', profile)
   }
 
-  function handleSend(text) {
-    sendMessage(text, selectedSources, selectedProfile)
+  function handleSend(text, skills = []) {
+    sendMessage(text, selectedSources, selectedProfile, skills)
   }
 
   async function handleLoadConversation(id) {
@@ -123,9 +125,12 @@ export default function Chat() {
         onOpenSidebar={() => setSidebarOpen(true)}
         onShare={handleShare}
         token={token}
+        skills={skills.skills}
       />
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
-      {settingsOpen && <SettingsModal token={token} onClose={() => setSettingsOpen(false)} onLogout={logout} />}
+      {settingsOpen && (
+        <SettingsModal token={token} onClose={() => setSettingsOpen(false)} onLogout={logout} skills={skills} />
+      )}
     </div>
   )
 }

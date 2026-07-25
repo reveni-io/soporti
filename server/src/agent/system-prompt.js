@@ -235,11 +235,18 @@ You have tools to query the Shopify Admin API (read-only). Use them when the use
 
 const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])
 
-export function buildBasePrompt(policy = null) {
+const SKILL_OVERRIDE_NOTICE = `## A skill is active — read it first
+
+The user has activated a skill for this conversation. Its instructions are in the "Active skill(s)" section below, and they **take priority over the "How to behave" rules above** — including being proactive, acting before asking, and being concise.
+
+Read that section and decide how to respond according to it. If the skill tells you to ask questions instead of answering, or to wait for the user before doing any work, then that is what this turn requires, even though the rules above would normally have you act immediately.`
+
+export function buildBasePrompt(policy = null, { hasActiveSkills = false } = {}) {
   const unrestricted = !policy || policy.unrestricted
   const parts = [CORE_INTRO]
   if (unrestricted || policy.repos.length > 0) parts.push(EXPLORE_CODE_SECTION)
   parts.push(CORE_GUIDELINES)
+  if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
   for (const [id, section] of Object.entries(INTEGRATION_PROMPT_SECTIONS)) {
     if (unrestricted || ALWAYS_AVAILABLE_INTEGRATIONS.has(id) || policy.integrations.includes(id)) {
       parts.push(section)
@@ -279,6 +286,38 @@ These cases describe how things worked when they were resolved — the code or d
 These cases may be written in a different language than the current user's message. Use them only for content/context — never let their language influence the language of your reply. Always follow the **Language** rule above.
 
 ${casesText}`
+}
+
+function applySkillArguments(instructions, skillArguments) {
+  const words = skillArguments.split(/\s+/).filter(Boolean)
+  return instructions.replace(/\$ARGUMENTS|\$([1-9])/g, (_, digit) =>
+    digit ? (words[Number(digit) - 1] ?? '') : skillArguments
+  )
+}
+
+export function buildSkillsPrompt(skills, skillArguments = '') {
+  const valid = Array.isArray(skills)
+    ? skills.filter(s => s && typeof s.name === 'string' && typeof s.instructions === 'string' && s.instructions.trim())
+    : []
+  if (valid.length === 0) return ''
+
+  const sections = valid
+    .map(s => `### ${s.name}\n\n${applySkillArguments(s.instructions.trim(), skillArguments)}`)
+    .join('\n\n')
+
+  const commandList = valid.map(s => `"/${s.name}"`).join(', ')
+
+  return `## Active skill(s) for this conversation
+
+**Follow the skill instructions below for this message.** They are a direct order from the user about how to handle this turn, not background information — the user activated them with a "/name" command in this conversation, and they stay active for every message from that point on, including this one, until the user starts a new chat.
+
+The active command(s) are ${commandList}. On the message where the user typed a command you receive it exactly as written — for example "/code-review the last commit of returns-frontend" — and the text after the command is what the skill operates on, not a standalone question to answer directly. Later messages in this conversation carry no command prefix, but the skill stays in force: keep applying it to whatever the user says next.
+
+**These instructions take precedence over the default behavior and response-style rules above** — including "be proactive / act first", brevity, and formatting defaults. The user picked this skill deliberately to change how you work here, so follow it literally even when it contradicts your defaults: if it tells you to interview the user, to ask exactly one question at a time and wait for the answer, or not to act until they confirm, then do that instead of answering directly or completing the task. Keep following it across follow-up messages — do not drop back to your default style just because the conversation continued — until the skill's own completion condition is met.
+
+What they do NOT override are the safety rules: stay read-only, never expose credentials or internal system details, and never fabricate code, data or behavior you have not actually read. Apply them combined with (not replacing) the user preferences above.
+
+${sections}`
 }
 
 export const VALID_PROFILES = ['tech', 'support']

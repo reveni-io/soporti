@@ -7,6 +7,7 @@ import CsvBlock from '../../common/CsvBlock/CsvBlock.jsx'
 import IntegrationIcon from '../../common/IntegrationIcon/IntegrationIcon.jsx'
 import HeroChat from './HeroChat/HeroChat.jsx'
 import SettingsPreview from './SettingsPreview/SettingsPreview.jsx'
+import SkillsPreview from './SkillsPreview/SkillsPreview.jsx'
 import returnFlowDiagram from './returnFlowDiagram.js'
 import { ROUTES } from '../../router/constants.js'
 import './Landing.css'
@@ -243,6 +244,9 @@ export default function Landing({ hideCta = false }) {
             </a>
             <a className="lp-nav__link" href="#integrations">
               Integrations
+            </a>
+            <a className="lp-nav__link" href="#skills">
+              Skills
             </a>
             <a className="lp-nav__link" href="#automations">
               Automations
@@ -493,7 +497,7 @@ export default function Landing({ hideCta = false }) {
               Set your custom instructions once and they&apos;re added to every chat — your role, the response style you
               like, the language you prefer. Soporti keeps them in mind so answers fit you from the first message.
             </p>
-            <div className="lp-ci-tags">
+            <div className="lp-tags">
               <span className="lp-qcard__tag">Your role</span>
               <span className="lp-qcard__tag">Response style</span>
               <span className="lp-qcard__tag">Language</span>
@@ -502,6 +506,39 @@ export default function Landing({ hideCta = false }) {
           </div>
           <div className="lp-split__visual">
             <SettingsPreview />
+          </div>
+        </div>
+      </Section>
+
+      <Section id="skills" className="lp-section--cool">
+        <div className="lp-split lp-split--reverse">
+          <div>
+            <span className="lp-eyebrow">Skills</span>
+            <h2 className="lp-h2">
+              Turn your team&apos;s playbooks into <em>/commands</em>.
+            </h2>
+            <p className="lp-lead">
+              A skill is a saved set of instructions — a triage checklist, a review rubric, a way of talking to
+              customers. Start a message with <strong>/skill-name</strong> and Soporti follows it for the rest of that
+              conversation. Custom instructions are always on; skills are opt-in, one chat at a time.
+            </p>
+            <ul className="lp-points">
+              <li>Autocomplete as soon as you type “/” — no need to remember the exact name</li>
+              <li>
+                <code>$ARGUMENTS</code> and <code>$1…$9</code> drop what you typed into the instructions
+              </li>
+              <li>A skill outranks the default style rules, so “interview me first” really does wait for you</li>
+              <li>Every message shows the skill it ran — click the badge to read it</li>
+            </ul>
+            <div className="lp-tags">
+              <span className="lp-qcard__tag lp-qcard__tag--cmd">/triage-ticket</span>
+              <span className="lp-qcard__tag lp-qcard__tag--cmd">/trace-order</span>
+              <span className="lp-qcard__tag lp-qcard__tag--cmd">/code-review</span>
+              <span className="lp-qcard__tag lp-qcard__tag--cmd">/explain-like-support</span>
+            </div>
+          </div>
+          <div className="lp-split__visual">
+            <SkillsPreview />
           </div>
         </div>
       </Section>

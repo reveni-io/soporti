@@ -7,10 +7,14 @@ export function useChat(token, onAuthError) {
   const abortRef = useRef(null)
 
   const sendMessage = useCallback(
-    async (text, selectedSources, profile) => {
+    async (text, selectedSources, profile, skills = []) => {
       if (!text.trim() || isLoading) return
 
-      setMessages(prev => [...prev, { role: 'user', content: text }, { role: 'assistant', parts: [] }])
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', content: text, ...(skills.length > 0 ? { skills } : {}) },
+        { role: 'assistant', parts: [] },
+      ])
       setIsLoading(true)
 
       const abortController = new AbortController()
@@ -28,6 +32,7 @@ export function useChat(token, onAuthError) {
             message: text,
             selectedSources,
             profile,
+            skillIds: skills.map(s => s.id),
           }),
           signal: abortController.signal,
         })
@@ -199,19 +204,9 @@ export function useChat(token, onAuthError) {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
         const data = await response.json()
-        const restored = (data.messages || []).map(m => {
-          if (m.role === 'user') {
-            const text = (m.parts || [])
-              .filter(p => p.type === 'text')
-              .map(p => p.content)
-              .join('')
-            return { role: 'user', content: text }
-          }
-          return { role: 'assistant', parts: m.parts || [] }
-        })
 
         sessionIdRef.current = id
-        setMessages(restored)
+        setMessages(data.messages || [])
       } catch {}
     },
     [token, onAuthError]

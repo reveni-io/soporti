@@ -15,6 +15,10 @@ vi.mock('../../hooks/useAuthMethods/useAuthMethods.js', () => ({
   useAuthMethods: vi.fn(() => ({ google: true, password: true })),
 }))
 
+vi.mock('../../hooks/useSkills/useSkills.js', () => ({
+  useSkills: vi.fn(() => ({ skills: [], loading: false, error: null, reload: vi.fn() })),
+}))
+
 vi.mock('./Sidebar/Sidebar.jsx', () => ({
   default: ({ onClearChat, onLogout, onToggleSource, onSelectProfile, isOpen, onClose }) => (
     <div data-testid="sidebar" data-open={isOpen}>
@@ -157,7 +161,7 @@ describe('Chat', () => {
     await user.click(screen.getByText('Toggle Source'))
     await user.click(screen.getByText('Send'))
 
-    expect(sendMessage).toHaveBeenCalledWith('hello', ['org/app'], 'support')
+    expect(sendMessage).toHaveBeenCalledWith('hello', ['org/app'], 'support', [])
   })
 
   it('clears chat on New Chat', async () => {
@@ -261,7 +265,7 @@ describe('Chat', () => {
     render(<Chat />)
     await user.click(screen.getByText('Set Tech'))
     await user.click(screen.getByText('Send'))
-    expect(sendMessage).toHaveBeenCalledWith('hello', ['yolo'], 'tech')
+    expect(sendMessage).toHaveBeenCalledWith('hello', ['yolo'], 'tech', [])
   })
 
   it('posts the conversationId on every share', async () => {

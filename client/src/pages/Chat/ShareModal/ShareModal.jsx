@@ -1,8 +1,10 @@
 import { useRef } from 'react'
+import { useOverlayDismiss } from '../../../hooks/useOverlayDismiss/useOverlayDismiss.js'
 import './ShareModal.css'
 
 export default function ShareModal({ url, onClose }) {
   const inputRef = useRef(null)
+  const overlayProps = useOverlayDismiss(onClose)
 
   function handleCopy() {
     navigator.clipboard.writeText(url).then(() => {
@@ -15,8 +17,8 @@ export default function ShareModal({ url, onClose }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal share-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" {...overlayProps}>
+      <div className="modal share-modal">
         <h3 className="modal__title">Share conversation</h3>
 
         <div className="share-modal__url-row">

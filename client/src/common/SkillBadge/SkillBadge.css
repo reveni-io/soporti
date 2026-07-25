@@ -1,0 +1,45 @@
+.skill-badge {
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 600;
+  color: var(--green-bright);
+}
+
+.skill-badge--clickable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.skill-badge--clickable:hover {
+  color: var(--green-bright-hover);
+}
+
+.skill-badge__status {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+}
+
+.skill-badge__description {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.skill-badge__instructions {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--sp3);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1.25rem;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

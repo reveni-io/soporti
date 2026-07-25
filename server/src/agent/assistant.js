@@ -6,6 +6,7 @@ import {
   buildSourceInstructions,
   buildProfileInstructions,
   buildSimilarCasesPrompt,
+  buildSkillsPrompt,
 } from './system-prompt.js'
 import { isYoloMode, buildSourcePolicy } from './sources.js'
 import { buildRepoCatalogPrompt } from './repo-catalog.js'
@@ -17,15 +18,21 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import * as shopify from '../shopify/client.js'
 
-export async function createAgent(selectedSources, profile, similarCases, { customInstructions = '' } = {}) {
+export async function createAgent(
+  selectedSources,
+  profile,
+  similarCases,
+  { customInstructions = '', skills: invokedSkills = [], skillArguments = '' } = {}
+) {
   const policy = buildSourcePolicy(selectedSources)
   const sourceInstructions = buildSourceInstructions(selectedSources)
   const profileInstructions = buildProfileInstructions(profile)
   const casesPrompt = buildSimilarCasesPrompt(similarCases)
   const catalogPrompt = isYoloMode(selectedSources) ? await buildRepoCatalogPrompt() : ''
   const userInstructions = typeof customInstructions === 'string' ? customInstructions.trim() : ''
+  const skillsPrompt = buildSkillsPrompt(invokedSkills, skillArguments)
 
-  const parts = [buildBasePrompt(policy)]
+  const parts = [buildBasePrompt(policy, { hasActiveSkills: Boolean(skillsPrompt) })]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)
   if (catalogPrompt) parts.push(catalogPrompt)
   if (casesPrompt) parts.push(casesPrompt)
@@ -34,6 +41,7 @@ export async function createAgent(selectedSources, profile, similarCases, { cust
       `## User preferences\n\nThe user has provided the following personal instructions. Follow them whenever they don't conflict with the safety and behavior rules above:\n\n${userInstructions}`
     )
   }
+  if (skillsPrompt) parts.push(skillsPrompt)
   parts.push(
     `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
   )
