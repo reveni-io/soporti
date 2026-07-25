@@ -1,141 +1,328 @@
-# CLAUDE.md
+# AI Agent Guidelines
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This document is the contract for AI agents working on the Soporti codebase: a light monorepo with `client/` (React 19 + Vite) and `server/` (Express + OpenAI Agents SDK). Both packages are ESM (`"type": "module"`).
 
-## Project Overview
-
-Soporti is an AI-powered code assistant that helps support and engineering teams understand and navigate code repositories. It uses OpenAI's Agent SDK to power a chat interface with tool-calling capabilities for exploring GitHub repos, querying databases, reading Notion pages, and inspecting Sentry issues.
+Everything here is mandatory. If a rule conflicts with existing code, follow the rule and flag the inconsistency instead of copying the old code.
 
 ## Commands
 
 ```bash
-# Install all dependencies (server + client)
-npm run install:all
-
-# Start both server and client in dev mode (concurrent)
-npm run dev
-
-# Server only (from root)
-npm run dev --prefix server
-
-# Client only (from root)
-npm run dev --prefix client
-
-# Build client for production
-npm run build:client
-
-# Run all tests (server + client)
-npm test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run only server or client tests
-npm test --prefix server
-npm test --prefix client
-
-# Watch mode
-npm run test:watch --prefix server
-npm run test:watch --prefix client
+npm run dev                                    # server (3001) + client (5173, proxies /api)
+npm test                                       # full suite (server + client)
+npm test --prefix server                       # one side only
+npm test --prefix server -- src/routes/skills.test.js   # a single file
+npm run lint                                   # eslint (both) + prettier --check
+npm run format                                 # prettier --write
+npm run test:coverage                          # 90% line threshold, enforced in CI
+npm run db:generate --prefix server            # regenerate migrations after editing db/schema.js
+npm run docker:up                              # PostgreSQL + server + client via Docker Compose
 ```
 
-Server runs on port 3001, client on port 5173 (proxies `/api` to server).
+`.env` lives at the repo root and holds only `DATABASE_URL`, `JWT_SECRET`, `VITE_GOOGLE_CLIENT_ID` and tunables — every credential is configured from `/admin` and stored in the database. Deployment shapes are documented in `docs/deployment.md`.
 
-## Architecture
+## General Rules
 
-Light monorepo with two independent packages:
+**NO COMMENTS**: NEVER add comments to the code. Code must be self-documenting through clear naming and small functions. The only exception is a functional directive the tooling needs (e.g. `/* eslint-disable */`). When reviewing a PR, flag any added comment as a violation.
+
+**ENGLISH ONLY**: every identifier, string literal, log message and test description is written in English.
+
+**FUNCTION DECLARATIONS, NOT ARROW CONSTANTS**: module-level functions, components and hooks are declared with `function` — the codebase does this exclusively, there is not a single `export const foo = () => {}`. Arrow functions are for callbacks and inline expressions only.
+
+```js
+// ✅ GOOD
+export function getSentryOrg() {
+  return getCachedValue(SENTRY_ORG_KEY)
+}
+
+export default function AdminSentry({ token, onLogout }) { ... }
+
+// ❌ BAD
+export const getSentryOrg = () => getCachedValue(SENTRY_ORG_KEY)
+```
+
+**IMPORTS CARRY THE EXTENSION**: always import with the full file extension — `'../db/skills.js'`, `'./Sidebar.jsx'`, `'../../services/services.js'`. Node ESM requires it and the client follows the same style.
+
+**NAMING**: `camelCase` for variables and functions. `PascalCase` for React components and their folders/files. `SCREAMING_SNAKE_CASE` for constants and regexes. Server files and folders are `kebab-case` (`auto-diagnose-poller.js`, `conversation-render.js`). Hook folders/files are `camelCase` matching the hook name (`hooks/useSkills/useSkills.js`). Handlers are named `handleX`, boolean values read as predicates (`isYoloSelected`, `configured`).
+
+**NO MAGIC VALUES**: values shared across files go in `constants.js` (`client/src/constants.js`, `server/src/constants.js`, `client/src/router/constants.js` for routes). File-private constants and regexes live at the top of the module in `SCREAMING_SNAKE_CASE`.
+
+```js
+// ✅ GOOD
+const NAME_RE = /^[a-z0-9-]{1,50}$/
+const CACHE_TTL_MS = 60_000
+
+// ❌ BAD
+if (!/^[a-z0-9-]{1,50}$/.test(name)) return res.status(400).json({ error: 'Invalid name.' })
+```
+
+**GUARD CLAUSES FIRST**: validate and bail out at the top, then write the happy path unindented. NEVER wrap the main logic in an `else`.
+
+```js
+// ✅ GOOD
+router.get('/:id', async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid skill ID.' })
+
+  const skill = await getSkillById(Number(req.params.id), req.user.id)
+  if (!skill) return res.status(404).json({ error: 'Skill not found.' })
+
+  res.json({ skill })
+})
+```
+
+**BLANK LINES BETWEEN LOGICAL BLOCKS**: group related statements and separate different groups with a blank line — declarations, guards, main logic, return.
+
+```js
+// ✅ GOOD
+function resolveLabel(items, isEnabled) {
+  const count = items.length
+
+  if (!isEnabled) return DEFAULT_LABEL
+  if (count === 0) return EMPTY_LABEL
+
+  return `${count} items`
+}
+
+// ❌ BAD
+function resolveLabel(items, isEnabled) {
+  const count = items.length
+  if (!isEnabled) return DEFAULT_LABEL
+  if (count === 0) return EMPTY_LABEL
+  return `${count} items`
+}
+```
+
+**ARROW FUNCTION BODIES**: implicit return only when the whole body fits on the same line. If it wraps, use `{}` with an explicit `return`.
+
+```js
+// ✅ GOOD
+const isSelected = source => selectedSources.includes(source)
+
+const filteredRepos = repos.filter(repo => {
+  if (!search) return true
+  return repo.fullName.toLowerCase().includes(query)
+})
+
+// ❌ BAD — implicit return wrapping to the next line
+const buildTooLongMessage = (field, limit) =>
+  `${field} is too long (max ${limit} characters). Shorten it and save again before continuing.`
+```
+
+**NO DEAD CODE**: no commented-out code, no unused exports, no leftover `console.log` on the client (`no-console` warns there). On the server, `console.error`/`console.log` are the intended logging mechanism — use them in `catch` blocks, never to trace happy paths.
+
+**NEVER LEAK SECRETS**: never log a token, connection string or credential, and never return a stored secret from an endpoint (see the write-only rule below). Anything posted outside the app (GitHub reviews, comments, Slack) goes through `review/output-guard.js`.
+
+**NO NEW DEPENDENCIES** without asking first. Prefer the primitives already in the repo.
+
+**DON'T HAND-FORMAT**: Prettier owns formatting (`.prettierrc.json`: no semicolons, single quotes, 120 columns, `arrowParens: avoid`, `trailingComma: es5`, 2 spaces). Write code close to that shape and let `npm run format` settle the rest.
+
+**DO WHAT WAS ASKED**: no speculative abstractions, no error handling for impossible cases, no extra config knobs. If a change needs a new env var, update `.env.example` in the same change.
+
+## Client Rules
+
+### Structure
+
+Folder-per-unit. Every component owns a folder with its `.jsx`, its `.test.jsx` and its `.css`:
 
 ```
-├── client/          # React 19 + Vite frontend
-├── server/          # Express + OpenAI Agents SDK backend
-├── package.json     # Root coordinator (concurrently for dev)
+pages/Chat/
+  Chat.jsx  Chat.test.jsx  Chat.css        # the page
+  Sidebar/                                 # page-private component
+    Sidebar.jsx  Sidebar.test.jsx  Sidebar.css
+  hooks/useChat/useChat.js                 # page-private hook
+  example-questions.js                     # page-private constants
+common/Message/                            # shared across pages
+hooks/useSkills/                           # shared across pages
 ```
 
-### Server (`server/src/`)
+A component used by a single page lives inside that page's folder. Promote it to `common/` only when a second page imports it. Entry points (`main.jsx`, `landing.jsx`), `router/`, `services/`, `context/`, `constants.js`, `index.css` and `styles/ui.css` stay at the `src/` root.
 
-- **Entry:** `index.js` — Express app setup, route mounting, optional Slack bot startup
-- **Config:** `config.js` — Env var loading with required/optional distinction. `.env` file lives at project root
-- **Agent:** `agent/` — OpenAI Agent SDK integration
-  - `assistant.js` — Agent factory, creates agent with dynamic instructions per request; combines the user's persistent custom instructions with any per-turn skill instructions (`skills` option, turn-scoped — see `skills.js` below)
-  - `tools.js` — All tool definitions (GitHub, Shortcut, Notion, PostgreSQL, Sentry)
-  - `system-prompt.js` — Base prompt + profile-specific instructions (tech vs support)
-- **Routes:** `routes/` — Express routers
-  - `auth.js` — POST `/api/auth/google` (Google sign-in → app session token), POST `/api/auth/login` (email+password → app session token; generic 401, dummy-hash compare against unknown emails, strict rate limit)
-  - `admin.js` — Admin API. Public: GET `/api/admin/status` (`{ adminExists }`), POST `/api/admin/bootstrap` (first-run admin creation; requires the setup code printed in the server logs — `auth/setup-code.js`, in-memory, regenerated per boot; self-disables with 403 once an admin exists; promotes an existing same-email row). Admin-only (`requireAdmin`): GET/POST `/api/admin/users` (list/create users — no self-registration; 409 on duplicate email), GET `/api/admin/config/auth` (`{ googleEnabled, passwordEnabled, domains, googleClientId }` — the client id is not secret, so its value is returned) + PUT `/api/admin/config/auth/methods` (sign-in toggles) and PUT `/api/admin/config/auth/google-client-id` (Google Sign-In client id used server-side to verify tokens — stored in the DB, must match the frontend's `VITE_GOOGLE_CLIENT_ID`), GET/PUT `/api/admin/config/allowed-domains` (Google domains list; empty = no restriction when Google is enabled), GET `/api/admin/config/google-drive` (`{ credentialsConfigured, serviceAccountEmail }` — the credential is write-only, only the non-secret service-account email is returned) + PUT `/api/admin/config/google-drive/credentials` (service-account key, accepts raw JSON or its base64 blob; empty clears; 400 on invalid), GET `/api/admin/config/github` (`{ tokenConfigured, webhookSecretConfigured, repoCatalog }` — secrets are write-only, never returned) + PUT `/api/admin/config/github/token`, `/api/admin/config/github/webhook-secret` and `/api/admin/config/github/catalog`, GET `/api/admin/config/openai` (`{ apiKeyConfigured, model, vectorStoreId }` — the API key is write-only, never returned) + PUT `/api/admin/config/openai/api-key`, `/api/admin/config/openai/model` and `/api/admin/config/openai/vector-store`, GET `/api/admin/config/notion` (`{ tokenConfigured }` — the token is write-only, never returned) + PUT `/api/admin/config/notion/token`, GET `/api/admin/config/shortcut` (`{ tokenConfigured }` — the token is write-only, never returned) + PUT `/api/admin/config/shortcut/token`, GET `/api/admin/config/sentry` (`{ tokenConfigured, org }` — the auth token is write-only, never returned; the organization slug is not secret, so its value is returned) + PUT `/api/admin/config/sentry/auth-token` and `/api/admin/config/sentry/org`, GET `/api/admin/config/helpjuice` (`{ apiKeyConfigured, account }` — the API key is write-only, never returned; the account subdomain is not secret, so its value is returned) + PUT `/api/admin/config/helpjuice/api-key` and `/api/admin/config/helpjuice/account`, GET `/api/admin/config/postgres` (`{ connectionConfigured, maxRows }` — the connection string carries a password, so it is write-only, never returned; `maxRows` is the query row cap, not secret; this is the agent's read-only query database, NOT the app DB) + PUT `/api/admin/config/postgres/connection` and `/api/admin/config/postgres/max-rows` (row cap, empty resets to the default 100, must be an integer >= 1 with no upper bound), GET `/api/admin/config/shopify` (`{ tokenQueryConfigured, tokenQuery, databaseConfigured }` — the store token query is SQL, not a credential, so its value is returned for editing) + PUT `/api/admin/config/shopify/token-query` (SQL template that resolves a store identifier to its Shopify `domain` + `token` in the read-only database; must be a SELECT/WITH containing the `{{store}}` placeholder; empty clears) and POST `/api/admin/config/shopify/draft-token-query` (runs a restricted agent — `shopify/query-drafter.js`, schema tools only, no `query_database`, so token values never enter its context — that explores the connected database and returns a drafted query for the admin to review; 409 without the Database connection, 422 when no credentials are found, nothing is saved), GET `/api/admin/config/slack` (`{ botTokenConfigured, appTokenConfigured, signingSecretConfigured }` — all three credentials are write-only, never returned) + PUT `/api/admin/config/slack/bot-token`, `/api/admin/config/slack/app-token` and `/api/admin/config/slack/signing-secret` (each reconnects the bot in place)
-  - `chat.js` — POST `/api/chat` (SSE streaming; resolves a persisted web conversation per turn; also resolves the conversation's active skills — those named in the body's `skillIds` PLUS any invoked earlier in the same conversation (`ConversationStore.getInvokedSkillIds` reads the persisted `{ type: 'skill' }` parts, so a skill stays active until the user starts a new chat and it survives page reloads) — and injects their instructions, which **take precedence over the base prompt's behavior/style rules** (`buildSkillsPrompt`: a skill that says "interview me, one question at a time, don't act yet" must win over "be proactive / act first", while the safety rules still hold; `buildBasePrompt(policy, { hasActiveSkills })` also emits an up-front override notice right after those rules, so the model learns a skill outranks them before it reads them, and the block names the active `/command`). On the turn a command is invoked the server re-prepends it to the text handed to `run()`, so the model (and the chained history) sees the message exactly as typed — `/code-review the last commit` — while `skillArguments`, the similar-case search and the stored transcript keep the command-free text, leaving one canonical stored representation. Only skills invoked in the current message are written to the transcript, so a message renders exactly as typed. Skills are conversation-scoped, never an always-on user preference. `$ARGUMENTS` occurrences inside a skill's instructions are replaced with the message and `$1`-`$9` with its whitespace-split words, in a single pass so placeholders inside the message are never re-substituted — `buildSkillsPrompt(skills, skillArguments)` in `agent/system-prompt.js` — and the transcript stored in `conversation_messages` records the invocation as a structured user part `{ type: 'skill', skillId, name }` before the text part, so history renders it as a badge even if the skill is later renamed or deleted)
-  - `conversations.js` — GET `/api/conversations` (sidebar history), GET/DELETE `/api/conversations/:id` (rehydrate / remove). Web only, scoped to `req.user`. The GET serves the same render shape as `/api/share/:id` — both convert the stored `conversation_messages` parts with the shared `db/conversation-render.js` (`toRenderMessage`: user messages collapse to `content` + optional `skills`, assistant messages keep `parts`), so the client renders a rehydrated history and a shared one through one code path
-  - `skills.js` — GET/POST `/api/skills`, GET/PUT/DELETE `/api/skills/:id` (per-user reusable instruction snippets — name + optional description + instructions; ownership-scoped like `conversations.js`, but `:id` is an integer, not a UUID; unique `(user_id, name)`, 409 on duplicate; the single GET backs the read-only skill preview opened from a message's skill badge). Attached to a single chat turn via `skillIds` in `POST /api/chat` — web chat only for now, not Slack
-  - `share.js` — POST `/api/share` (auth; body `{ conversationId }`; upserts ONE `shares` row per conversation — `db/shares.js` — frozen at a `conversation_messages.id` cutoff, 24h expiry, stable 32-hex token/URL on re-share; unowned/Slack/missing conversation → 404, no persisted messages yet → 400) and GET `/api/share/:id` (public — allowed through in `middleware/auth.js`; serves `{ messages }` — the frozen transcript converted server-side to the render shape, user messages as `content`, assistant as `parts`; 404 when missing/expired). Shares live only in the DB (no disk, no memory) and are never actively swept: the GET filters by `expires_at` and rows die with their conversation's delete/14-day-purge cascade
-  - `repos.js` — Repository listing
-  - `mermaid.js` — Diagram rendering to SVG
-  - `integrations.js` — Lists configured integrations
-- **Repo Pool:** `repo-pool/` — Shallow git clone pool with reference counting, TTL, and LRU eviction. Clones live in `/tmp/soporti-repos`
-- **PR Reviews:** `review/` — GitHub org webhook (`POST /api/webhooks/github`) that runs automated PR reviews when someone requests a review from the bot's GitHub user or adds the `soporti-review` label. HMAC-verified over the raw body, so it is mounted in `index.js` before any other middleware (JSON parser, JWT auth, rate limiting). Reviews are queued in-memory (deduped per PR+commit), posted as GitHub reviews with inline comments, and may APPROVE trivial PRs. Each review runs on three axes — correctness, standards (docs like CLAUDE.md/ADRs plus agent skills under `.claude/skills/`/`.agents/skills/` discovered in the checkout, citing the violated rule; skills are procedural standards, so a PR doing work a skill covers is checked against that skill), and spec (the server detects the `sc-NNNN` Shortcut reference in branch/title/body; the agent fetches the story itself with its Shortcut tools). The agent's repo tools explore an ephemeral git worktree of the PR's head (`RepoPool.acquireWorktree`, degrading to the default-branch clone), and the agent also carries the chat agent's Shortcut/Sentry/PostgreSQL data tools — including read-only prod queries, a deliberate risk; as a deterministic backstop, everything posted to GitHub (review bodies, inline comments, mention replies) passes through `output-guard.js`, which redacts credential-shaped strings. A 👀 reaction on the PR marks a review in progress (removed when it finishes). The webhook also answers **Mentions**: a PR comment (conversation or review thread) that @-mentions the bot user gets exactly one conversational reply in the same thread — quoting the triggering comment, never a review (`mention.js`; requires the org webhook to also send "Issue comments" and "Pull request review comments" events). The webhook secret is NOT an env var: it lives in the database (`github/settings.js`, `/admin` → GitHub) and is resolved per delivery — the route is always mounted and answers 503 until a secret is saved, so enabling/rotating needs no restart.
-- **Ticket auto-diagnose:** `slack/auto-diagnose-poller.js` + `slack/auto-diagnose.js` + `slack/lists-client.js` + `slack/attachments.js` + `slack/diagnose-prompt.js` — autonomous triage of support-channel tickets. A request-form Workflow stores each ticket as an item in a **Slack List**; the poller (`startAutoDiagnose`, wired in `bot.js` after the bot connects, using the bot-token WebClient) polls `slackLists.items.list` every `pollIntervalMs` and, for each item whose diagnosis column is still empty, reads the ticket + downloads any image attachments (`url_private`, `files:read`), runs `diagnoseTicket` — the **chat agent** via `createAgent(['yolo'], profile, …, { customInstructions: '' })`, so it carries the full support toolset and ignores the author's saved instructions — and writes the redacted result (`output-guard.js`) into the column via `slackLists.items.update` (`lists:write`). The empty column is the durable dedup marker (Slack never re-delivers; survives restarts); an in-memory in-flight set guards overlapping ticks. There is **no Slack API to write a list-item comment**, so the diagnosis lands in a field, not the item's comments. Enabled only when `SLACK_AUTODIAGNOSE_LIST_ID` is set; needs new bot scopes `lists:read`/`lists:write`/`files:read`. The Lists API wire shapes (cell value key, schema location, file-reference shape) are isolated in `lists-client.js`/`attachments.js` and confirmed against the real List at wiring
-- **OpenAI:** `openai/` — The OpenAI settings (API key, model, vector store id) live in the database, not env vars — the DB is the single source of truth (`openai/settings.js` — app_config keys `openai_api_key`, `openai_model`, `openai_vector_store_id`, 60s cache invalidated on save, edited from `/admin` → OpenAI). `openai/client.js` builds the OpenAI SDK client lazily from the stored key and registers it as the Agents SDK default client via `setDefaultOpenAIClient`, so agent runs use the DB key and key rotation takes effect without a restart. Every Agent factory (`createAgent`, `createReviewerAgent`, `createMentionAgent`) calls `resolveModelForAgent()` to ensure that client and resolve the model; there is no default model, so it throws a clear "configure it in /admin" error until both a key AND a model are set. The knowledge base (`knowledge/client.js`) resolves the same client + vector store id per call and degrades gracefully (returns empty / 0) when the vector store id is not configured
-- **Integrations:** `github/`, `notion/`, `postgres/`, `sentry/`, `shopify/`, `shortcut/`, `slack/` — Each optional, conditionally loaded when configured. GitHub is special: its token lives in the database (`github/settings.js` — app_config keys `github_token` and `repo_catalog`, 60s cache invalidated on save, edited from `/admin` → GitHub). `github/client.js` builds the Octokit client lazily from the stored token, and the repo pool resolves it per clone; GitHub calls fail with a clear "configure it in /admin" error until it is set. The repository catalog (free text describing what each repo covers) is injected into the agent prompt in YOLO mode (`agent/repo-catalog.js`; `createAgent` is async because of this read). Google Drive is similar: its read-only service-account credential lives in the database (`google-drive/settings.js` — app_config key `google_drive_credentials`, storing the validated JSON; `parseDriveCredentials` accepts the raw JSON key or its base64 blob, edited from `/admin` → Google Drive). `google-drive/client.js` builds the JWT client lazily from the stored credential and `isConfigured()` is now **async**, so whether the Drive tools are registered is resolved per turn — `createAgent` passes `driveConfigured` into `buildAgentTools`, and `integrations.js`/`slack/bot.js` await it. Only the size/concurrency tunables stay env vars. Notion follows the same pattern: its token lives in the database (`notion/settings.js` — app_config key `notion_token`, 60s cache invalidated on save, edited from `/admin` → Notion; NOT an env var). `notion/client.js` resolves the token per API call and its `isConfigured()` is **async**, so whether the Notion tools are registered is resolved per turn — `createAgent` passes `notionConfigured` into `buildAgentTools` (alongside `driveConfigured`), and `integrations.js`/`slack/bot.js` await it. Shortcut follows the same pattern: its API token lives in the database (`shortcut/settings.js` — app_config key `shortcut_api_token`, 60s cache invalidated on save, edited from `/admin` → Shortcut; NOT an env var). `shortcut/client.js` resolves the token per API call and its `isConfigured()` is **async**, so whether the Shortcut tools are registered is resolved per turn — `createAgent` passes `shortcutConfigured` into `buildAgentTools`, and `integrations.js`/`review/agent.js` (`buildDataTools`)/`review/reviewer.js` (story-reference detection) await it; Shortcut stays a non-selectable, always-available source. Helpjuice follows the same pattern with two values: its API key (secret, write-only) and account subdomain (not secret) live in the database (`helpjuice/settings.js` — app_config keys `helpjuice_api_key` and `helpjuice_account`, 60s cache invalidated on save, edited from `/admin` → Helpjuice; NOT env vars; configured only when BOTH are set). `helpjuice/client.js` resolves them per API call and its `isConfigured()` is **async** — `createAgent` passes `helpjuiceConfigured` into `buildAgentTools`, and `integrations.js`/`slack/bot.js` await it. Sentry follows the same pattern with two values: its auth token (secret, write-only) and organization slug (not secret) live in the database (`sentry/settings.js` — app_config keys `sentry_auth_token` and `sentry_org`, 60s cache invalidated on save, edited from `/admin` → Sentry; NOT env vars; configured only when BOTH are set). `sentry/client.js` resolves them per API call and its `isConfigured()` is **async**, so whether the Sentry tools are registered is resolved per turn — `createAgent` passes `sentryConfigured` into `buildAgentTools`, and `integrations.js`/`review/agent.js` (`buildDataTools`) await it; Sentry stays a non-selectable, always-available source. Slack follows the same DB pattern but is special because the bot holds a **long-lived Socket Mode connection** (opened once at boot) rather than resolving a token per call: its three credentials live in the database (`slack/settings.js` — app_config keys `slack_bot_token`, `slack_app_token`, `slack_signing_secret`, 60s cache; `isSlackConfigured()` is **async**; NOT env vars). `index.js` always calls `startSlackBot(conversationStore)` at boot (a no-op until tokens are set) so the module keeps the store reference; the admin PUT handlers call `restartSlackBot()` (stop + start) after saving, so the bot reconnects — or disconnects when tokens are cleared — without a server restart. Only the auto-diagnose tunables (`SLACK_AUTODIAGNOSE_*`) stay env vars. The agent's read-only PostgreSQL query tool (the customer database it explores, NOT the app DB) follows the same DB pattern: its connection string lives in the database (`postgres/settings.js` — app_config keys `postgres_connection` and `postgres_max_rows` (the query row cap, default 100, any integer >= 1, no upper bound), 60s cache invalidated on save, edited from `/admin` → Database; NOT env vars, the connection is a secret because it carries a password). `postgres/client.js` resolves the connection per pool acquisition and rebuilds the connection pool when the stored string changes, so rotation takes effect without a restart, and resolves the row cap per `runQuery`; its `isConfigured()` is **async**, so whether the Postgres tools are registered is resolved per turn — `createAgent` passes `postgresConfigured` into `buildAgentTools`, and `integrations.js`/`slack/bot.js`/`review/agent.js` (`buildDataTools`, now async) await it. Shopify rides on that read-only database: it has no credential of its own — each store's Admin API token is looked up in the customer database with an admin-configured SQL template (`shopify/settings.js` — app_config key `shopify_token_query`, 60s cache invalidated on save, edited from `/admin` → Shopify; NOT an env var, and NOT a hardcoded schema — every deployment maps its own tables). The template must be a read-only SELECT returning `domain` + `token` columns; `shopify/client.js` replaces every `{{store}}` placeholder with the store identifier the agent passed (a domain or an ID), quoted/escaped as a SQL string literal, and caches the result for 60s. The agent's Shopify tools take a single `store` parameter. `isConfigured()` is **async** and true only when BOTH the Postgres connection and the token query are set — `createAgent` passes `shopifyConfigured` into `buildAgentTools`, and `integrations.js`/`slack/bot.js` await it
-- **App DB:** `db/` — App's own PostgreSQL via Drizzle ORM (`DATABASE_URL`). `schema.js` (tables: `users` — with `role` 'user'|'admin' and nullable `password_hash` —, `conversations`, `conversation_items`, `conversation_messages`, `shares` — one row per shared conversation, cascade-deleted with it —, `skills` — per-user reusable instruction snippets, unique `(user_id, name)`, cascade-deleted with the user —, `app_config` — key/jsonb store for admin-editable settings), `index.js` (drizzle client + `runMigrations` + `shutdown`), `users.js` (`upsertGoogleUser` unifies identities by email: a password user who signs in with Google gets the `googleId` linked to the same row; plus `findUserByEmail`/`findUserById`/`createUserWithPassword`/`countAdmins`/`listUsers`/`setAdminCredentials`), `app-config.js` (get/set config values), `conversations.js` (`ownedWebConversation` — the shared "user owns this web conversation" predicate, used by `ConversationStore` and `shares.js`), `conversation-render.js` (`toRenderMessage` — the single stored-parts → render-shape conversion, used by both `ConversationStore.getWebMessages` and `shares.js`), `shares.js` (`createOrRefreshShare`/`getShare`), `skills.js` (`listSkills`/`createSkill`/`updateSkill`/`deleteSkill`/`getSkillsByIds` — all ownership-scoped). Migration SQL lives in `server/drizzle/` (regenerate with `npm run db:generate --prefix server` after schema changes); the server applies pending migrations on boot. Distinct from the agent's read-only `postgres/` query tool.
-- **Sessions:** Conversations are persisted in PostgreSQL — the DB is the source of truth, nothing is kept in memory (no TTL `Map`). `sessions/postgres-session.js` implements the SDK `Session` interface over `conversation_items` (the agent's **mutable** context, rewritten by compaction). `sessions/conversation-store.js` (`ConversationStore`) replaces the old in-memory `SessionManager` and Slack `threadMapper`: per turn it builds an ephemeral `OpenAIResponsesCompactionSession` wrapping a `PostgresSession`, and persists the chained `previousResponseId` (with a one-shot fallback when OpenAI has expired it). `resolveWeb`/`resolveSlack` get-or-create the conversation; `saveTurn` records the response id and, for web, appends the **immutable** UI transcript to `conversation_messages` (used to rehydrate the sidebar). Conversations are purged 14 days after their last use (`updated_at`) by an interval cleanup.
-- **Auth:** Google Sign-In + email/password. Sign-in methods are per-method toggles stored in the database (`auth/auth-methods.js`, app_config key `auth_methods`; defaults: Google OFF — fail closed on fresh installs — password ON). `auth/google.js` verifies the Google ID token, requires the Google toggle to be on, resolves the Google Sign-In client id from the database (`auth/google-settings.js`, app_config key `google_client_id`, 60s cache — NOT an env var; the frontend's `VITE_GOOGLE_CLIENT_ID` must be kept equal to it), and enforces the allowed email domains (`auth/allowed-domains.js`, `app_config`; with Google enabled, an EMPTY list means no restriction — any verified Google account). The password toggle gates regular users only: admins can always password-login (anti-lockout for `/admin`). Public `GET /api/auth/methods` tells the login page which methods to render (`useAuthMethods` hook) — it reports Google as enabled only when BOTH the toggle is on AND a client id is configured, so a broken button is never shown; the server enforces both regardless. `auth/password.js` hashes with bcryptjs (cost 12, 8–72 chars, `DUMMY_HASH` for timing-safe unknown-email compares). `middleware/auth.js` issues/validates stateless session JWTs (`jsonwebtoken`, signed with `JWT_SECRET`, default 24h; carries a `role` claim, legacy tokens default to 'user') and attaches `req.user`; `requireAdmin` re-checks the role against the DB on every request (the DB is authoritative — the JWT role claim is client UX only). First-run: the server logs a notice + a one-time setup code when no admin exists; `/admin` in the client asks for that code to create the admin (prevents setup hijack on public deploys). Users cannot self-register — admins create them in the panel. `middleware/security.js` honors `CORS_ORIGIN` (CSV; unset = `*`) and `TRUST_PROXY` (default `1`; set `false` when clients connect directly so the per-IP login rate limit can't be spoofed via X-Forwarded-For); `config.js` refuses to boot with the placeholder `JWT_SECRET`
-- **Security:** `middleware/security.js` — Helmet, CORS, rate limiting
+### API layer
 
-### Client (`client/src/`)
+**`services/services.js` IS THE ONLY PLACE THAT CALLS `fetch`** and the only place that knows an endpoint path. Adding an endpoint means adding one exported function there. NEVER build a URL, a header or a request body inside a component, page or hook.
 
-- **Routing:** `router/` — `Router.jsx` (react-router-dom `Routes`: `/login`, `/chat` (Chat), `/admin/*` (AdminPage), `/share/:shareId` (hex-validated, non-hex falls back to Landing), `*` → Landing) and `constants.js` (`ROUTES` — the route paths; import them instead of hardcoding paths in links/redirects). `main.jsx` only mounts providers + `BrowserRouter` + `<Router/>`
-- **Structure:** folder-per-unit layout. `pages/<PageName>/` holds `PageName.jsx` + `.test.jsx` + `.css`, its page-private components as `Component/` subfolders (`Component.jsx` + test + CSS) and page-private hooks under `hooks/<hookName>/`. Components shared across pages live in `common/<Component>/`; hooks shared across pages in `hooks/<hookName>/`. Entry points (`main.jsx`, `landing.jsx`), `router/`, `services/`, `constants.js`, `context/`, `index.css` and `styles/ui.css` stay at the `src/` root
-- **Pages:** `pages/Chat/` (main layout with sidebar and chat area — the `/chat` route), `pages/LoginPage/`, `pages/AdminPage/`, `pages/Landing/` (with its `HeroChat/`, `SettingsPreview/` and `SkillsPreview/` — the animated `/command` composer mock for the Skills section, self-styled because `landing.jsx` is a standalone entry that only loads `index.css`, `styles/ui.css`, `Message.css` and `ToolCall.css` — plus `returnFlowDiagram.js`), `pages/SharedView/`
-- **Shared components (`common/`):** `Message` (message rendering with markdown, code highlighting, charts, diagrams — composes `MermaidDiagram` (SVG diagram renderer), `ChartBlock` (Recharts renderer), `CsvBlock`, `ToolCall`, `FeedbackButtons`, `SkillBadge`), `SkillBadge` (clickable `/skill-name` chip on user messages + read-only preview modal), `GridPattern`, `IntegrationIcon`, `Login`
-- **Page components:** under `pages/Chat/` — `ChatPanel/` (chat interface; uses `TourModal/` and `example-questions.js`; a message starting with `/skill-name` invokes that skill — an autocomplete opens while the input is exactly `/` + a partial name and selecting completes the command in place; on submit the client strips the recognized leading command and sends the skill's id as `skillIds` with the rest as the message, and unknown commands are sent literally. While typing, a recognized command is highlighted inside the textarea itself: a `.chat__input-highlight` overlay mirrors the text behind a transparent-text textarea (`.chat__input--overlaid`, caret kept visible) with the `/name` prefix colored — the overlay only mounts while a command resolves, so typography/scroll only need to stay in sync in that case. Sent messages carry a `skills` field: `common/Message` renders the message exactly as typed (`/name rest of the message`) with the `/name` prefix as a highlighted, clickable `common/SkillBadge` inline in the bubble — clicking it opens a read-only preview (fetches `GET /api/skills/:id`; plain non-clickable text when there is no token, e.g. the public shared view). Leading-command only, not inline mentions mid-text — a deliberate v1 limit), `Sidebar/` (repo/profile selector), `ShareModal/`, `SettingsModal/` (tabbed: Custom instructions — `CustomInstructionsTab/` — and Skills — `SkillsTab/` with its `SkillForm/` for create/edit). Under `pages/AdminPage/` — `AdminPage.jsx` (state machine: bootstrap form when no admin exists → login → 403 for non-admins → panel; the panel routes one section per sub-route — `/admin/users`, `/admin/authentication`, `/admin/openai`, `/admin/github`, `/admin/google-drive`, `/admin/notion`, `/admin/helpjuice`, `/admin/database`, `/admin/shopify`, `/admin/shortcut`, `/admin/sentry`, `/admin/slack` — via its `SECTIONS` list + side nav, so new admin features add an entry there instead of growing one page) and one subfolder per section: `AdminUsers.jsx` (list/create users), `AdminAuthentication.jsx` (sign-in method toggles + Google Client ID field + Google domains editor), `AdminOpenAI.jsx` (write-only OpenAI API key, required model text field with no default, optional knowledge-base vector store id), `AdminGithub.jsx` (write-only GitHub token, PR-reviews webhook secret with generate button + setup help, repository catalog textarea), `AdminGoogleDrive.jsx` (write-only service-account credential accepting JSON or base64, configured service-account email + setup help), `AdminNotion.jsx` (write-only Notion integration token + setup help), `AdminHelpjuice.jsx` (write-only Helpjuice API key + editable non-secret account subdomain + setup help), `AdminDatabase.jsx` (write-only PostgreSQL connection string for the agent's read-only query tool — the customer database, not the app DB — plus a configurable query row limit + setup help), `AdminShopify.jsx` (editable SQL template that resolves a store identifier to its Shopify `domain` + `token` in the read-only database via the `{{store}}` placeholder — the query is not a secret, so it is shown for editing; warns when the Database integration is not configured, and a "Draft with Soporti" button has the assistant explore the schema and fill the editor for review), `AdminShortcut.jsx` (write-only Shortcut API token + setup help), `AdminSentry.jsx` (write-only Sentry auth token + editable non-secret organization slug + setup help), `AdminSlack.jsx` (three write-only Slack credentials — bot token, app token, signing secret — with per-field save/remove + setup help; saving reconnects the bot)
-- **API layer:** `services/services.js` — the **only** place that calls `fetch` and the only place that knows endpoint paths. No component, hook or page builds a URL or a request: they import a named service (`getSkills`, `saveSentryOrg`, `streamChat`, …). One private `request()` resolves the base url (`apiUrl` = `VITE_API_URL` + path, empty base = same-origin), attaches `Authorization: Bearer <token>` when a token is passed and `Content-Type: application/json` only when there is a body, then either returns the parsed JSON or throws an `ApiError` carrying `status` and `data.error || <per-call fallback> || HTTP <status>`. Callers handle 401 with `isUnauthorized(err)` → `onLogout()` before showing any error. Two escape hatches: `streamChat` returns the raw `Response` (SSE needs `body.getReader()`), and `absoluteApiUrl` builds a displayable absolute url (the GitHub webhook payload URL) falling back to `window.location.origin`. Adding an endpoint means adding one function here — never a `fetch` in a component
-- **Hooks:** shared in `hooks/<name>/` — `useAuth.js` (re-export of the context hook), `useAuthMethods.js`, `useOverlayDismiss.js` (the overlay mousedown/click dismiss idiom, used by every modal), `useAuthedResource.js` (generic authed resource → value: takes a **service function**, not a path), `useSkills.js` (the **single owner** of the user's skills list: `{ skills, loading, error, reload }`, created once in `Chat` and passed to both `ChatPanel` (autocomplete) and `SettingsModal` → `SkillsTab` (CRUD), which calls `reload()` after a mutation — there is deliberately no second fetch of `/api/skills` and no client-side re-sort, so the server's ordering stays authoritative); page-private hooks live inside the page folder — `pages/Chat/hooks/useChat/useChat.js` (SSE streaming, message state, `loadConversation` to rehydrate a past chat)
-- **Auth:** `context/AuthContext.jsx` — `AuthProvider` owns the shared auth state (token/user in localStorage, including `role`) and exposes `loginWithGoogle`, `loginWithPassword`, `bootstrapAdmin`, `logout`. `main.jsx` wraps the router in `GoogleOAuthProvider` + `AuthProvider`; `Login.jsx` renders the `<GoogleLogin>` button (`@react-oauth/google`) plus the email/password form (`onPasswordLogin`)
-- **Theming:** two-layer system, both loaded globally from `main.jsx`. (1) `index.css` — design tokens only (brand colors + `--*-rgb` triplets for alpha variants, semantic colors, shadows, `--focus-ring`, radius, `--sp*` spacing, `--fs-*` type scale, fonts). (2) `styles/ui.css` — shared UI primitives that consume those tokens: `.btn` (`--primary/--secondary/--danger/--sm/--block`), `.input`/`.textarea` (unified focus ring), `.card` (`--floating` for dark pages), `.modal-overlay`/`.modal` (+`__header/__title/__close/__actions`), `.alert` (`--error/--warning`), `.note`, `.badge` (`--success`), `.chip` (`--pill`). Component CSS files hold ONLY layout/structure and compose primitives via className (e.g. `className="btn btn--primary my-feature__save"`). Never hardcode hex/rgba/font sizes in component CSS — derive alphas with `rgba(var(--green-deep-rgb), 0.15)` or add a token. Exceptions: neutral black shadows, the landing's fluid `clamp()` display sizes, and `GridPattern.jsx` canvas constants (canvas can't read CSS vars; values mirror the tokens)
+```js
+// ✅ GOOD
+import { getSentryConfig, isUnauthorized } from '../../../services/services.js'
 
-### Key Patterns
+const data = await getSentryConfig(token)
 
-- **Streaming:** Server-sent events (SSE) for real-time response streaming from the agent
-- **Profiles:** "tech" (detailed, code-heavy) and "support" (simplified, behavior-focused) response modes
-- **Conditional integrations:** Tools are only registered with the agent if their env vars are configured
-- **Source enforcement:** the per-conversation source selection is enforced at the tool layer, not just in the prompt (`buildSourcePolicy` in `agent/sources.js` + `buildAgentTools` in `agent/tools.js`). YOLO (or a legacy empty selection) gets every configured tool; a specific selection only registers the repo tools (with the `repo` argument validated against the selected repos, and no `list_repos`) and the selected integrations' tools. Shortcut and Sentry are not selectable sources and stay always available. `buildBasePrompt` mirrors this: integration prompt sections are only injected when their tools are registered
-- **ES Modules:** Both server and client use `"type": "module"`
-- **Conversation-scoped instructions:** unlike custom instructions (always-on, persisted per user), a skill is invoked with a `/name` command on one message and then stays active for the rest of that conversation only — re-derived server-side each turn from the invocations stored in the transcript, never promoted to an always-on user preference. This matters because the system prompt is NOT part of the conversation history: `instructions` are a per-request field that OpenAI does not carry over via `previousResponseId`, so a skill must be re-injected on every turn or the model loses it entirely (only the messages persist)
+// ❌ BAD — a component that knows a URL
+const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/sentry`, {
+  headers: { Authorization: `Bearer ${token}` },
+})
+```
 
-## Environment Setup
+New service functions delegate to the private `request()` helper and pass a human `errorMessage` fallback. The only escape hatches are `streamChat` (returns the raw `Response` because SSE needs `body.getReader()`) and `absoluteApiUrl` (builds a displayable absolute URL).
 
-Copy `.env.example` to `.env` at the project root. Required variables:
-- `VITE_GOOGLE_CLIENT_ID`, `DATABASE_URL`, `JWT_SECRET`. The Google Sign-In client id (server side), the OpenAI settings (API key, model, vector store id), the GitHub token and the Google Drive service-account credential are not env vars — they live in the database, managed from `/admin` (Authentication, OpenAI, GitHub and Google Drive sections); the DB is the single source of truth. `VITE_GOOGLE_CLIENT_ID` stays an env var (baked into the frontend build) and must match the client id saved in `/admin`
-- `JWT_EXPIRES_IN` (defaults to `24h`) is optional. The Google sign-in domains are not an env var: they live in the database, managed from `/admin`
+**HANDLE 401 BEFORE ANY OTHER ERROR**: every call that can 401 checks `isUnauthorized(err)` and logs the user out instead of rendering an error.
 
-For local dev, `npm run docker:up` brings up PostgreSQL + server + client (Docker Compose); the `users` table is created on first boot. `npm run dev` runs the processes directly but requires your own PostgreSQL via `DATABASE_URL`.
+```js
+// ✅ GOOD
+try {
+  const data = await getSentryConfig(token)
+  setOrg(data.org)
+} catch (err) {
+  if (isUnauthorized(err)) {
+    onLogout?.()
+    return
+  }
+  setError(err.message)
+}
+```
 
-For production there are two supported shapes (see `docs/deployment.md`): `docker-compose.prod.yml` (`npm run docker:prod`) runs Postgres + server + nginx-served client on one origin and needs only `JWT_SECRET`; or split deployment — client as a static site built with `VITE_API_URL` pointing at the server (requires `CORS_ORIGIN` on the server), server from `server/Dockerfile` (listens on 8080 via `ENV PORT=8080`; platform-injected `PORT` overrides it). The reference deployment (DigitalOcean App Platform) uses the split shape: client via buildpack, server via its Dockerfile with `http_port: 8080`. There are also one-click deploy manifests linked from README buttons: `.do/deploy.template.yaml` (DigitalOcean — server + static client + dev Postgres on a single App Platform app behind one origin, server routed under `/api` with `preserve_path_prefix: true`) and `render.yaml` (Render — split shape: Docker server + static client + Postgres; `VITE_API_URL` wired via `fromService`, `JWT_SECRET` auto-generated, `CORS_ORIGIN` set manually post-deploy).
+### Components
 
-Optional integrations: PR-review tunables (`REVIEW_LABEL`, `REVIEW_REVIEWER_LOGIN`, `REVIEW_MAX_CHANGED_LINES`, `REVIEW_CONCURRENCY`, `REVIEW_REASONING_EFFORT` — the webhook secret itself lives in the DB, managed from `/admin`), the Google Drive tunables `GOOGLE_DRIVE_MAX_BYTES`, `GOOGLE_DRIVE_MAX_CHARS`, `GOOGLE_DRIVE_DOWNLOAD_TIMEOUT_MS`, `GOOGLE_DRIVE_PARSE_CONCURRENCY` (the credential itself lives in the DB, managed from `/admin` → Google Drive). The Notion token is not an env var either — it lives in the DB, managed from `/admin` → Notion. The Shortcut API token is not an env var either — it lives in the DB, managed from `/admin` → Shortcut. The Sentry credentials (auth token and organization slug) are not env vars either — they live in the DB, managed from `/admin` → Sentry. The Helpjuice credentials (API key and account subdomain) are not env vars either — they live in the DB, managed from `/admin` → Helpjuice. The agent's read-only PostgreSQL query connection is not an env var either — it lives in the DB, managed from `/admin` → Database (this is the customer database the agent explores, NOT the app DB). The Slack bot credentials (bot token, app token, signing secret) are not env vars either — they live in the DB, managed from `/admin` → Slack (only the `SLACK_AUTODIAGNOSE_*` tunables stay env vars)
+- Default export, props destructured in the signature: `export default function Sidebar({ token, onLogout }) {`.
+- **NO PROPTYPES**. NEVER add them.
+- **ONE EXPORTED COMPONENT PER FILE**. A small presentational sub-component used only by that file may live below it in the same file (see `AdminSentry.jsx` → `OrgField`, `TokenField`). The moment a second file needs it, it gets its own folder.
+- **EARLY RETURNS FOR LOADING, ERROR AND EMPTY STATES**, before the main `return`. NEVER nest them as ternaries inside the JSX.
 
-## Testing
+```jsx
+// ✅ GOOD
+if (loading) return <p className="admin__muted">Loading...</p>
+if (error) return <p className="alert alert--error">{error}</p>
+if (skills.length === 0) return <p className="skills__empty">No skills yet.</p>
 
-- **Framework:** Vitest for both server and client
-- **Server tests:** Node environment. Tests are colocated next to source files (e.g., `auth.test.js` next to `auth.js`). All external services (OpenAI, GitHub, Notion, PostgreSQL, Sentry, Shortcut, Slack) are mocked.
-- **Client tests:** jsdom environment. Uses `@testing-library/react` and `@testing-library/user-event`. Heavy dependencies (react-markdown, react-syntax-highlighter, mermaid) are mocked with `vi.mock()`.
-- **Setup files:** `server/src/__tests__/setup.js` (sets required env vars), `client/src/__tests__/setup.js` (jest-dom matchers, jsdom polyfills)
-- **Route tests:** Use `supertest` for Express integration testing, including SSE streaming
-- Tests run with no external dependencies — no API keys, databases, or network access needed
+return (
+  <ul className="skills__list">
+    {skills.map(skill => (
+      <SkillRow key={skill.id} skill={skill} onEdit={onEdit} />
+    ))}
+  </ul>
+)
 
-## Linting
+// ❌ BAD
+return <ul>{loading ? <Spinner /> : skills.length > 0 ? skills.map(renderSkill) : <Empty />}</ul>
+```
 
-- **Linter:** ESLint with flat config (`eslint.config.js`) in both server and client
-- **Server:** ESLint 10 + `@eslint/js` recommended rules, Node.js globals, `no-console` off
-- **Client:** ESLint 9 + `@eslint/js` recommended rules + `eslint-plugin-react` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh`, browser globals
-- **Run:** `npm run lint` from root (runs both), or `npm run lint --prefix server` / `npm run lint --prefix client`
+- **NO BUSINESS LOGIC IN COMPONENTS**: non-trivial state, fetching or derivation moves into a custom hook.
+- **NAMED HANDLERS FOR ANYTHING WITH LOGIC**: declare `function handleSubmit(event)` in the component body and pass the reference. Inline arrows are acceptable only for a trivial delegation (`onClick={() => onSelectProfile('tech')}`) or to pass the current item inside a `.map()`.
+- **NO CONDITIONAL PROP SPREADING**: never build props with `{...(cond && { prop })}`; pass each prop explicitly. Spreading a prop bag returned by a hook (`{...overlayProps}` from `useOverlayDismiss`) is the one accepted use of spread.
+- **NO PREMATURE MEMOIZATION**: a function re-created every render is the correct default. Reach for `useCallback`/`useMemo` only when there is a concrete consumer: the value is in another hook's dependency array, it is passed to a `React.memo` child, or the computation is genuinely expensive. A cheap `map`/`filter` over a small array is not.
 
-## Conventions
+### Hooks
 
-- All code (variables, functions) is written in English
-- **Do NOT write code comments.** Code must be self-explanatory — use clear naming and small functions instead. The only allowed exceptions are functional directives the tooling needs (e.g. `/* eslint-disable */`). When reviewing a PR, flag any added comment as a standards violation
-- Docker support exists in both `server/Dockerfile` and `client/Dockerfile` (multi-stage build + nginx serving `dist/` with an `/api` proxy — SSE-safe, SPA fallback; proxy target via `API_PROXY_TARGET`)
+- Shared hooks in `hooks/<name>/<name>.js`, page-private hooks in `pages/<Page>/hooks/<name>/<name>.js`. Named export, `use` prefix, returns an object (`{ skills, loading, error, reload }`).
+- **REUSE BEFORE CREATING**: before writing a hook that fetches something, grep for an existing consumer of that service function. A resource has a **single owner** hook — `useSkills` is created once in `Chat` and passed down to `ChatPanel` and `SettingsModal`; consumers call `reload()` after mutating. NEVER add a second fetch of the same endpoint, and never re-sort server-ordered data on the client.
+- For a plain authed GET, use `useAuthedResource` with a **service function** (never a path).
+- **GUARD STATE UPDATES AFTER `await`** in effects with a cancellation flag:
 
-## Versioning & releases
+```js
+useEffect(() => {
+  let active = true
+  async function load() {
+    const data = await getSentryConfig(token)
+    if (!active) return
+    setOrg(data.org)
+  }
+  load()
+  return () => {
+    active = false
+  }
+}, [token])
+```
 
-- The product version lives in the **root `package.json`** (`version`) — the single source of truth. `server` and `client` are private and stay at `0.0.0`; do not version them separately.
-- **Every PR to `main` MUST bump the root version** (semver-increasing). This is enforced by `.github/workflows/version-check.yml` ("Version bump check"), which is a required status check — a PR cannot merge without it. Bump with `npm version <patch|minor|major> --no-git-tag-version` at the repo root and commit. When reviewing a PR, flag a missing version bump as a standards violation.
-- On merge to `main`, `.github/workflows/release.yml` tags the commit `vX.Y.Z` and publishes a GitHub Release with auto-generated notes. No manual tagging.
+### Styling
+
+Two layers, both loaded globally from `main.jsx`: `index.css` holds design tokens, `styles/ui.css` holds shared primitives (`.btn` + `--primary/--secondary/--danger/--sm/--block`, `.input`/`.textarea`, `.card`, `.modal-overlay`/`.modal`, `.alert`, `.note`, `.badge`, `.chip`).
+
+- **COMPOSE THE PRIMITIVES**: reach for an existing class before writing CSS — `className="btn btn--primary admin__save"`. Component CSS holds only layout and structure.
+- **ALWAYS USE TOKENS**: NEVER hardcode a hex, an rgba, a spacing value or a font size. Use `var(--sp3)`, `var(--fs-sm)`, `var(--radius-md)`, `var(--text-muted)`, and derive alphas with `rgba(var(--green-deep-rgb), 0.15)`. If no token fits, add one to `index.css`.
+- **BEM-ISH NAMING**, block named after the component: `.sidebar`, `.sidebar__source`, `.sidebar__source--selected`.
+
+```css
+/* ✅ GOOD */
+.sidebar__source--selected {
+  background: var(--sidebar-selected);
+  padding: var(--sp3);
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-md);
+}
+
+/* ❌ BAD */
+.sidebar__source--selected {
+  background: #0d3a0b;
+  padding: 12px;
+  font-size: 13px;
+}
+```
+
+### Routing
+
+Routes live in `router/Router.jsx` and their paths in `router/constants.js` (`ROUTES`). Import `ROUTES` in links and redirects — NEVER hardcode a path string.
+
+## Server Rules
+
+### Structure
+
+One folder per domain under `server/src/`: `routes/` (Express routers), `agent/` (Agents SDK wiring, tools, prompts), `db/` (the app's own PostgreSQL via Drizzle), `sessions/`, `middleware/`, `review/`, and one folder per integration (`github/`, `notion/`, `sentry/`, `slack/`, `shopify/`, `postgres/`, …), each with a `client.js` (API calls) and a `settings.js` (stored credentials).
+
+### Routes
+
+One `Router` per resource, default-exported. Validate first, return the app's error shape, never let an exception escape:
+
+- Input validation lives in a small `parse*` helper that returns `{ error }` or `{ value }`; the handler turns `error` into `400`.
+- Errors are always `res.status(<code>).json({ error: '<human sentence>.' })`. Status codes in use: `400` invalid input, `401` no/invalid token, `403` wrong role, `404` missing or not owned, `409` duplicate, `422` unprocessable, `500` unexpected.
+- Every handler wraps its work in `try/catch`, logs with `console.error('Failed to …:', err)` and returns a generic `500` message. NEVER surface a raw error string to the client.
+- **OWNERSHIP IS SCOPED IN THE QUERY**, not checked afterwards: pass `req.user.id` into the DB function and treat "not found" and "not owned" identically (`404`).
+
+### Credentials and integrations
+
+**CREDENTIALS LIVE IN THE DATABASE, NOT IN ENV VARS.** Only `DATABASE_URL`, `JWT_SECRET`, `VITE_GOOGLE_CLIENT_ID` and pure tunables are env vars. When adding or touching an integration, follow the established pattern (`sentry/`, `notion/` are the minimal examples):
+
+1. `<domain>/settings.js` — read/write the value through `db/app-config.js` with a 60s cache, invalidate the cache on save, and expose an **async** `isConfigured()` plus `_reset<Domain>SettingsCacheForTests()`.
+2. `<domain>/client.js` — resolve the credential per call (or rebuild the client when it changes) so rotation needs no restart. Fail with a clear "configure it in /admin" error when unset.
+3. `routes/admin.js` — a `GET` returning only booleans (`{ tokenConfigured }`) plus non-secret values, and one `PUT` per value. **A STORED SECRET IS WRITE-ONLY: NEVER RETURN IT.** An empty value clears it.
+4. `pages/AdminPage/Admin<Domain>/` on the client, registered in `AdminPage.jsx`'s `SECTIONS`.
+5. Register the agent tools conditionally: `createAgent` resolves `<domain>Configured` and passes it into `buildAgentTools`; `routes/integrations.js` and the Slack bot `await` the same check.
+
+### Agent
+
+- New tools go in `agent/tools.js` following the existing structure, with a Zod schema and a description written for the model.
+- Tool registration is **enforced at the tool layer, not only in the prompt**: `buildSourcePolicy` (`agent/sources.js`) decides which tools exist for the selected sources, and `buildBasePrompt` only injects a section for tools that were registered. When you add a source-gated capability, update both.
+- Prompt text lives in `agent/system-prompt.js` (chat) or `review/prompt.js` (PR reviews) — never inline a multi-paragraph prompt at a call site.
+- The system prompt is **not** part of the conversation history: `instructions` are a per-request field, so anything conversation-scoped (like an invoked skill) must be re-derived and re-injected on every turn.
+
+### Database
+
+`db/schema.js` is the source of truth for the app's own schema. After editing it run `npm run db:generate --prefix server` and commit the generated SQL in `server/drizzle/` — the server applies pending migrations on boot. Shared query predicates (`ownedWebConversation`) and shared shape conversions (`conversation-render.js`) live in `db/` and are used by every caller; do not duplicate them in a route.
+
+This is distinct from `postgres/`, which is the agent's **read-only** query tool against a customer database.
+
+## Testing Rules
+
+- **Vitest, tests colocated next to the source**: `foo.js` → `foo.test.js`, `Sidebar.jsx` → `Sidebar.test.jsx`. Every new component, hook, route and module ships with its tests. CI enforces **90% line coverage** on both packages.
+- **`describe('<unit>')` + `it('<lowercase behavior sentence>')`**. Tests never hit the network, a database or a real API key.
+- **RENDER EXPLICITLY IN EACH TEST**. NEVER extract a `renderComponent` helper — the props under test must be visible in the test body.
+- **CLIENT: MOCK `global.fetch`**, not the services module, so the services layer is exercised too:
+
+```js
+global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ org: 'my-org' }) })
+```
+
+- **SERVER: `vi.mock()` THE MODULE BOUNDARY, then `await import()`** the mocked module and the unit under test (hoisting requires this order). Routes are tested with `supertest` over a bare `express()` app that injects `req.user`.
+- **PREFER `userEvent` OVER `fireEvent`** and always `await` interactions. Query by role first (`getByRole('button', { name: /save/i })`), then by text or display value.
+- **TEST BEHAVIOR, NOT IMPLEMENTATION**: assert what the user sees and the observable outcome (status code, response body, rendered text, the arguments the request was made with). A test whose only assertion is "this function was called" proves nothing. When asserting on a mock, check both the call count and the arguments.
+- **NO SNAPSHOT TESTS** for pages or composed components. Assert the specific conditional behavior instead.
+- **MOCK ≠ FIXTURE**: a mock replaces behavior (`vi.fn()`), a fixture is static data. Inline test data by default; extract it only when a second test file needs the exact same payload, and place it in a `__fixtures__/` folder at the closest common ancestor with a `Fixture`-suffixed export. NEVER name a file of static data `mocks.js`.
+
+## Before You Finish
+
+Run these in order, from the repo root, and fix what they report:
+
+```bash
+npm run lint     # eslint + prettier --check
+npm run format   # only if lint reported formatting issues, then re-run lint
+npm test         # the full suite, not just the files you touched
+```
+
+## Pull Requests
+
+The full process is in `CONTRIBUTING.md`. The rules an agent must not miss:
+
+- **ONE PR, ONE THING**. Never mix a feature with a refactor or a bug fix with formatting.
+- **BUMP THE ROOT VERSION**: every PR to `main` must bump `version` in the **root** `package.json` with `npm version <patch|minor|major> --no-git-tag-version`. `server` and `client` stay at `0.0.0`. This is a required CI check (`Version bump check`) and a PR cannot merge without it. Ask which increment applies if the change type is ambiguous. Never create tags by hand — merging to `main` tags and releases automatically.
+- **USE THE PR TEMPLATE** at `.github/pull_request_template.md`, filling in what changed, why, how, and how to test it.
+- **CONVENTIONAL COMMITS** for commits and the PR title (`feat(client): …`, `fix(server): …`) — the squashed title becomes the commit message on `main`.
+- **ATTACH SCREENSHOTS** for any UI or visual change.
+- Never push to `main` directly; rebase onto it instead of merging.
