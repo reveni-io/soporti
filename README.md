@@ -4,7 +4,9 @@
 
 AI-powered code assistant that helps support and engineering teams understand and navigate code repositories. Built with OpenAI's Agent SDK and a React chat interface.
 
-![Soporti — ask anything about how your product works](docs/images/landing.png)
+**[soporti.reveni.com](https://soporti.reveni.com)** — see what it looks like before installing it.
+
+[![Soporti — ask anything about how your product works](docs/images/landing.png)](https://soporti.reveni.com)
 
 [![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/reveni-io/soporti/tree/main) [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/reveni-io/soporti)
 
@@ -12,21 +14,44 @@ One-click deploys for DigitalOcean App Platform and Render — see the [deployme
 
 ## Features
 
-- **AI Chat with Tool Calling** — Ask questions about your codebase and get answers powered by OpenAI agents that can browse files, search code, and explore directory structures
-- **Admin-managed auth** — Email/password sign-in plus optional Google Sign-In (restrictable to your email domains); users are created from the admin panel and persisted in PostgreSQL
-- **Zero-config-file setup** — Credentials and integrations are configured from the `/admin` panel and stored in the database; booting needs only `JWT_SECRET` and `DATABASE_URL`
-- **Multiple Integrations** — Connect GitHub, Notion, PostgreSQL, Sentry, Shortcut, Slack, Google Drive, Helpjuice, and Shopify
-- **Response Profiles** — Switch between "tech" (detailed, code-heavy) and "support" (simplified, behavior-focused) modes
-- **Custom Instructions** — Per-user instructions (your role, preferred style, language) added to every chat automatically
-- **Skills (`/commands`)** — Save reusable instruction snippets — a triage checklist, a review rubric, a tone of voice — and run one by starting a message with `/skill-name` (with autocomplete as you type `/`). The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` placeholders slot in what you typed after the command. Create and edit them in the chat's **Settings → Skills**
-- **Real-time Streaming** — Server-Sent Events for live response streaming
-- **Rich Rendering** — Markdown, syntax highlighting, Mermaid diagrams (rendered as SVG), and Recharts-based charts
-- **Slack Bot** — Interact with the assistant directly from Slack via @mentions
-- **Shareable Conversations** — Generate read-only links to share chat sessions
+### Ask across your stack
+
+Every integration is optional and configured from the `/admin` panel — the assistant only gets tools for what you connect ([setup details](#optional-integrations)).
+
+| Source | What the assistant can do |
+|---|---|
+| **GitHub** | Browse repositories and directories, read files, search code by content, find files by name, and trace a file's history with `git log` / `git blame` |
+| **Database** | Explore schemas and tables, then answer with real data through read-only, row-capped `SELECT`s |
+| **Shortcut** | Read a story by ID or search stories — what was specced versus what shipped |
+| **Sentry** | Open an issue with its stacktrace, or find issues by error message |
+| **Notion** | Search and read the pages shared with the integration |
+| **Google Drive** | Search, list and read shared folders — Docs, Sheets, Slides, PDFs and Office files |
+| **Helpjuice** | Search and read your help center articles |
+| **Shopify** | Look up orders, products and webhooks store by store, or run read-only Admin GraphQL queries |
+| **Slack** | Ask the assistant from Slack, in a thread, with an @mention |
+
+### Make it answer your way
+
+- **Pick the sources per conversation** — scope a chat to the repos and integrations it may use, or go YOLO and give it everything. The selection is enforced when the tools are built, not just requested in the prompt
+- **Response profiles** — *support* (plain language, behavior-focused) or *tech* (detailed, code-heavy) for the same question
+- **Custom instructions** — your role, your language, your preferred level of detail, applied to every chat automatically
+- **Skills (`/commands`)** — save reusable instruction snippets (a triage checklist, a review rubric, a tone of voice) and run one by starting a message with `/skill-name`, with autocomplete as you type `/`. The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` slot in what you typed after the command. Create and edit them in **Settings → Skills**
 
 | Choose your sources | Switch response profiles |
 | --- | --- |
 | ![Sidebar sources selector with YOLO mode, integrations and repos](client/public/tour/sources.png) | ![Sidebar profile toggle between Support and Tech](client/public/tour/profiles.png) |
+
+### It also works without anyone asking
+
+- **Automated PR reviews** — request a review from the bot's GitHub user or add the `soporti-review` label, and it reviews the diff on three axes: correctness, your own written standards (CLAUDE.md, ADRs, agent skills found in the repo) and the linked Shortcut story. It posts inline comments and can approve trivial PRs
+- **Replies in PR threads** — @mention the bot in a PR comment or review thread and it answers there, once, with the branch checked out and its data tools available
+- **Slack ticket auto-diagnose** — tickets filed into a Slack List get triaged autonomously, screenshots included, with the diagnosis written back into the ticket
+- **Learns from what worked** — mark an answer as helpful and the case is saved to a knowledge base that later questions search automatically (needs a vector store id in `/admin` → OpenAI)
+
+### Keep and share the answers
+
+- **Conversation history** — chats are persisted and reopenable from the sidebar
+- **Read-only share links** — hand a conversation to someone with no account; the transcript is frozen at that point and the link expires in 24 hours
 
 ## Prerequisites
 
