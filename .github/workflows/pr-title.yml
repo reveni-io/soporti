@@ -1,0 +1,30 @@
+name: PR Title
+
+# The PR title becomes the commit message in main when we squash-merge, so it must
+# follow Conventional Commits. This job is meant to be a REQUIRED status check
+# (Settings -> Branches -> main). `edited` is in the trigger list so that retitling
+# a PR re-runs the check without needing a new push.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [main]
+
+jobs:
+  pr-title:
+    name: PR title check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure the title follows Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node -e '
+            const TITLE_RE = /^(feat|fix|refactor|test|chore|docs|style|perf)(\([a-z0-9-]+\))?!?: .+/;
+            const title = process.env.PR_TITLE;
+            if (!TITLE_RE.test(title)) {
+              console.error(`::error::PR title must follow Conventional Commits: <type>(<scope>): <description>. Allowed types: feat, fix, refactor, test, chore, docs, style, perf. Scopes are lowercase. Got: "${title}"`);
+              process.exit(1);
+            }
+            console.log(`PR title OK: ${title}`);
+          '

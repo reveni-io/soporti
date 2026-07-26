@@ -323,6 +323,6 @@ The full process is in `CONTRIBUTING.md`. The rules an agent must not miss:
 - **ONE PR, ONE THING**. Never mix a feature with a refactor or a bug fix with formatting.
 - **BUMP THE ROOT VERSION**: every PR to `main` must bump `version` in the **root** `package.json` with `npm version <patch|minor|major> --no-git-tag-version`. `server` and `client` stay at `0.0.0`. This is a required CI check (`Version bump check`) and a PR cannot merge without it. Ask which increment applies if the change type is ambiguous. Never create tags by hand — merging to `main` tags and releases automatically.
 - **USE THE PR TEMPLATE** at `.github/pull_request_template.md`, filling in what changed, why, how, and how to test it.
-- **CONVENTIONAL COMMITS** for commits and the PR title (`feat(client): …`, `fix(server): …`) — the squashed title becomes the commit message on `main`.
+- **CONVENTIONAL COMMITS** for commits and the PR title (`feat(client): …`, `fix(server): …`) — the squashed title becomes the commit message on `main`. The title is a required CI check (`PR title check`): `<type>(<scope>): <description>`, lowercase scope, types `feat|fix|refactor|test|chore|docs|style|perf`.
 - **ATTACH SCREENSHOTS** for any UI or visual change.
 - Never push to `main` directly; rebase onto it instead of merging.
