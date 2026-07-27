@@ -31,10 +31,19 @@ const setWebhookSecret = vi.fn()
 const getRepoCatalog = vi.fn()
 const setRepoCatalog = vi.fn()
 
+const getLlmProvider = vi.fn()
+const setLlmProvider = vi.fn()
 const getOpenAIApiKey = vi.fn()
 const setOpenAIApiKey = vi.fn()
 const getOpenAIModel = vi.fn()
 const setOpenAIModel = vi.fn()
+const getAnthropicApiKey = vi.fn()
+const setAnthropicApiKey = vi.fn()
+const getAnthropicModel = vi.fn()
+const setAnthropicModel = vi.fn()
+const getKnowledgeOwnApiKey = vi.fn()
+const getKnowledgeApiKey = vi.fn()
+const setKnowledgeApiKey = vi.fn()
 const getVectorStoreId = vi.fn()
 const setVectorStoreId = vi.fn()
 
@@ -125,11 +134,30 @@ vi.mock('../github/settings.js', () => ({
   getRepoCatalog,
   setRepoCatalog,
 }))
-vi.mock('../openai/settings.js', () => ({
+vi.mock('../llm/settings.js', () => ({
+  getLlmProvider,
+  setLlmProvider,
   getOpenAIApiKey,
   setOpenAIApiKey,
   getOpenAIModel,
   setOpenAIModel,
+  getAnthropicApiKey,
+  setAnthropicApiKey,
+  getAnthropicModel,
+  setAnthropicModel,
+}))
+vi.mock('../llm/registry.js', () => ({
+  DEFAULT_PROVIDER: 'openai',
+  isKnownProvider: id => id === 'openai' || id === 'anthropic',
+  listProviders: () => [
+    { id: 'openai', label: 'OpenAI' },
+    { id: 'anthropic', label: 'Anthropic' },
+  ],
+}))
+vi.mock('../knowledge/settings.js', () => ({
+  getOwnApiKey: getKnowledgeOwnApiKey,
+  getKnowledgeApiKey,
+  setKnowledgeApiKey,
   getVectorStoreId,
   setVectorStoreId,
 }))
@@ -200,10 +228,19 @@ beforeEach(() => {
   setWebhookSecret.mockReset()
   getRepoCatalog.mockReset()
   setRepoCatalog.mockReset()
+  getLlmProvider.mockReset()
+  setLlmProvider.mockReset()
   getOpenAIApiKey.mockReset()
   setOpenAIApiKey.mockReset()
   getOpenAIModel.mockReset()
   setOpenAIModel.mockReset()
+  getAnthropicApiKey.mockReset()
+  setAnthropicApiKey.mockReset()
+  getAnthropicModel.mockReset()
+  setAnthropicModel.mockReset()
+  getKnowledgeOwnApiKey.mockReset()
+  getKnowledgeApiKey.mockReset()
+  setKnowledgeApiKey.mockReset()
   getVectorStoreId.mockReset()
   setVectorStoreId.mockReset()
   clearStatsCache.mockReset()
@@ -1310,27 +1347,76 @@ describe('PUT /api/admin/config/github/catalog', () => {
   })
 })
 
-describe('GET /api/admin/config/openai', () => {
-  it('reports the model and vector store, never the API key', async () => {
+describe('GET /api/admin/config/llm', () => {
+  it('reports both providers and their models, never either API key', async () => {
+    getLlmProvider.mockResolvedValue('anthropic')
     getOpenAIApiKey.mockResolvedValue('sk-secret')
     getOpenAIModel.mockResolvedValue('gpt-5.2-codex')
-    getVectorStoreId.mockResolvedValue('vs_123')
+    getAnthropicApiKey.mockResolvedValue('sk-ant-secret')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
 
-    const res = await request(app).get('/api/admin/config/openai')
+    const res = await request(app).get('/api/admin/config/llm')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ apiKeyConfigured: true, model: 'gpt-5.2-codex', vectorStoreId: 'vs_123' })
-    expect(JSON.stringify(res.body)).not.toContain('sk-secret')
+    expect(res.body).toEqual({
+      provider: 'anthropic',
+      providers: [
+        { id: 'openai', label: 'OpenAI' },
+        { id: 'anthropic', label: 'Anthropic' },
+      ],
+      openaiApiKeyConfigured: true,
+      openaiModel: 'gpt-5.2-codex',
+      anthropicApiKeyConfigured: true,
+      anthropicModel: 'claude-opus-5',
+    })
+    expect(JSON.stringify(res.body)).not.toContain('secret')
   })
 
-  it('reports an unconfigured key, model and vector store as empty', async () => {
+  it('reports unconfigured credentials as empty and falls back to the default provider', async () => {
+    getLlmProvider.mockResolvedValue(null)
     getOpenAIApiKey.mockResolvedValue(null)
     getOpenAIModel.mockResolvedValue(null)
-    getVectorStoreId.mockResolvedValue(null)
+    getAnthropicApiKey.mockResolvedValue(null)
+    getAnthropicModel.mockResolvedValue(null)
 
-    const res = await request(app).get('/api/admin/config/openai')
+    const res = await request(app).get('/api/admin/config/llm')
 
-    expect(res.body).toEqual({ apiKeyConfigured: false, model: '', vectorStoreId: '' })
+    expect(res.body).toMatchObject({
+      provider: 'openai',
+      openaiApiKeyConfigured: false,
+      openaiModel: '',
+      anthropicApiKeyConfigured: false,
+      anthropicModel: '',
+    })
+  })
+
+  it('falls back to the default provider when the stored id is no longer registered', async () => {
+    getLlmProvider.mockResolvedValue('gemini')
+    getOpenAIApiKey.mockResolvedValue(null)
+    getOpenAIModel.mockResolvedValue(null)
+    getAnthropicApiKey.mockResolvedValue(null)
+    getAnthropicModel.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/admin/config/llm')
+
+    expect(res.body.provider).toBe('openai')
+  })
+})
+
+describe('PUT /api/admin/config/llm/provider', () => {
+  it('saves a supported provider', async () => {
+    const res = await request(app).put('/api/admin/config/llm/provider').send({ provider: 'anthropic' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ provider: 'anthropic' })
+    expect(setLlmProvider).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('rejects an unsupported provider', async () => {
+    expect((await request(app).put('/api/admin/config/llm/provider').send({ provider: 'gemini' })).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/llm/provider').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/llm/provider').send({ provider: 42 })).status).toBe(400)
+    expect(setLlmProvider).not.toHaveBeenCalled()
   })
 })
 
@@ -1388,9 +1474,109 @@ describe('PUT /api/admin/config/openai/model', () => {
   })
 })
 
-describe('PUT /api/admin/config/openai/vector-store', () => {
+describe('PUT /api/admin/config/anthropic/api-key', () => {
+  it('saves a trimmed key', async () => {
+    const res = await request(app).put('/api/admin/config/anthropic/api-key').send({ apiKey: '  sk-ant-new  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ apiKeyConfigured: true })
+    expect(setAnthropicApiKey).toHaveBeenCalledWith('sk-ant-new')
+  })
+
+  it('clears the key with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/anthropic/api-key').send({ apiKey: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ apiKeyConfigured: false })
+    expect(setAnthropicApiKey).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings and key-shaped garbage', async () => {
+    expect((await request(app).put('/api/admin/config/anthropic/api-key').send({})).status).toBe(400)
+    expect(
+      (await request(app).put('/api/admin/config/anthropic/api-key').send({ apiKey: 'has spaces inside' })).status
+    ).toBe(400)
+    expect(setAnthropicApiKey).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/anthropic/model', () => {
+  it('saves a trimmed model and echoes it back', async () => {
+    const res = await request(app).put('/api/admin/config/anthropic/model').send({ model: '  claude-opus-5  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ model: 'claude-opus-5' })
+    expect(setAnthropicModel).toHaveBeenCalledWith('claude-opus-5')
+  })
+
+  it('rejects a model-shaped garbage value', async () => {
+    expect(
+      (await request(app).put('/api/admin/config/anthropic/model').send({ model: 'claude opus with spaces' })).status
+    ).toBe(400)
+    expect(setAnthropicModel).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/admin/config/knowledge', () => {
+  it('reports the vector store and whether a dedicated key is set, never the key itself', async () => {
+    getKnowledgeOwnApiKey.mockResolvedValue('sk-knowledge-secret')
+    getKnowledgeApiKey.mockResolvedValue('sk-knowledge-secret')
+    getVectorStoreId.mockResolvedValue('vs_123')
+
+    const res = await request(app).get('/api/admin/config/knowledge')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ apiKeyConfigured: true, keyAvailable: true, vectorStoreId: 'vs_123' })
+    expect(JSON.stringify(res.body)).not.toContain('sk-knowledge-secret')
+  })
+
+  it('reports a key is available through the provider key alone', async () => {
+    getKnowledgeOwnApiKey.mockResolvedValue(null)
+    getKnowledgeApiKey.mockResolvedValue('sk-from-llm-section')
+    getVectorStoreId.mockResolvedValue('vs_123')
+
+    const res = await request(app).get('/api/admin/config/knowledge')
+
+    expect(res.body).toEqual({ apiKeyConfigured: false, keyAvailable: true, vectorStoreId: 'vs_123' })
+  })
+
+  it('reports no key available when neither a dedicated nor a provider key is set', async () => {
+    getKnowledgeOwnApiKey.mockResolvedValue(null)
+    getKnowledgeApiKey.mockResolvedValue(null)
+    getVectorStoreId.mockResolvedValue('vs_123')
+
+    const res = await request(app).get('/api/admin/config/knowledge')
+
+    expect(res.body).toEqual({ apiKeyConfigured: false, keyAvailable: false, vectorStoreId: 'vs_123' })
+  })
+})
+
+describe('PUT /api/admin/config/knowledge/api-key', () => {
+  it('saves a trimmed key and busts the stats cache', async () => {
+    getKnowledgeApiKey.mockResolvedValue('sk-knowledge')
+
+    const res = await request(app).put('/api/admin/config/knowledge/api-key').send({ apiKey: '  sk-knowledge  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ apiKeyConfigured: true, keyAvailable: true })
+    expect(setKnowledgeApiKey).toHaveBeenCalledWith('sk-knowledge')
+    expect(clearStatsCache).toHaveBeenCalled()
+  })
+
+  it('clears the key with an empty string so it falls back to the provider key', async () => {
+    getKnowledgeApiKey.mockResolvedValue('sk-from-llm-section')
+
+    const res = await request(app).put('/api/admin/config/knowledge/api-key').send({ apiKey: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ apiKeyConfigured: false, keyAvailable: true })
+    expect(setKnowledgeApiKey).toHaveBeenCalledWith('')
+  })
+})
+
+describe('PUT /api/admin/config/knowledge/vector-store', () => {
   it('saves a trimmed vector store id', async () => {
-    const res = await request(app).put('/api/admin/config/openai/vector-store').send({ vectorStoreId: '  vs_new  ' })
+    const res = await request(app).put('/api/admin/config/knowledge/vector-store').send({ vectorStoreId: '  vs_new  ' })
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ vectorStoreId: 'vs_new' })
@@ -1399,7 +1585,7 @@ describe('PUT /api/admin/config/openai/vector-store', () => {
   })
 
   it('clears the vector store with an empty string', async () => {
-    const res = await request(app).put('/api/admin/config/openai/vector-store').send({ vectorStoreId: '' })
+    const res = await request(app).put('/api/admin/config/knowledge/vector-store').send({ vectorStoreId: '' })
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ vectorStoreId: '' })
@@ -1407,9 +1593,10 @@ describe('PUT /api/admin/config/openai/vector-store', () => {
   })
 
   it('rejects non-strings and id-shaped garbage', async () => {
-    expect((await request(app).put('/api/admin/config/openai/vector-store').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/knowledge/vector-store').send({})).status).toBe(400)
     expect(
-      (await request(app).put('/api/admin/config/openai/vector-store').send({ vectorStoreId: 'vs with spaces' })).status
+      (await request(app).put('/api/admin/config/knowledge/vector-store').send({ vectorStoreId: 'vs with spaces' }))
+        .status
     ).toBe(400)
     expect(setVectorStoreId).not.toHaveBeenCalled()
   })

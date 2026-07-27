@@ -6,6 +6,7 @@ const LINKS = [
   { href: '#ask', label: 'Ask' },
   { href: '#renders', label: 'Answers' },
   { href: '#integrations', label: 'Integrations' },
+  { href: '#providers', label: 'Models' },
   { href: '#skills', label: 'Skills' },
   { href: '#automations', label: 'Automations' },
 ]

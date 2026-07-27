@@ -28,12 +28,11 @@ import {
   describeDatabaseTableTool,
   queryDatabaseTool,
 } from '../agent/tools.js'
-import { resolveModelForAgent, codexModelSettings } from '../openai/client.js'
+import { resolveModelForAgent } from '../llm/model.js'
 import { buildReviewerInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000
 const MAX_INLINE_CHARS = 300
-const REASONING_MODELS = /^(gpt-5|o\d)/i
 
 export function inline(value) {
   return String(value ?? '')
@@ -155,24 +154,16 @@ export async function buildDataTools() {
   ]
 }
 
-export function reasoningModelSettings(model) {
-  const codexSettings = codexModelSettings(model)
-  if (codexSettings) return { modelSettings: codexSettings }
-
-  const effort = config.review.reasoningEffort
-  const reasoningCapable = REASONING_MODELS.test(model)
-  return effort && effort !== 'none' && reasoningCapable ? { modelSettings: { reasoning: { effort } } } : {}
-}
-
 export async function createReviewerAgent(repoFullName, { rootPath = null } = {}) {
-  const model = await resolveModelForAgent()
+  const { model, modelSettings } = await resolveModelForAgent({ intent: 'review' })
+
   return new Agent({
     name: 'Soporti Reviewer',
     model,
     instructions: buildReviewerInstructions(repoFullName),
     tools: [...buildRepoTools(repoFullName, rootPath), ...(await buildDataTools())],
     outputType: reviewOutputSchema,
-    ...reasoningModelSettings(model),
+    modelSettings,
   })
 }
 
@@ -236,5 +227,11 @@ export async function runReviewerAgent({ trigger, files, omitted, empty, standar
   const agent = await createReviewerAgent(trigger.repoFullName, { rootPath })
   const input = buildReviewInput({ trigger, files, omitted, empty, standardsFiles, storyId })
   const result = await run(agent, input, { maxTurns: config.agent.maxIterations })
-  return result.finalOutput
+
+  const output = result?.finalOutput
+  if (!output) {
+    throw new Error('The reviewer produced no output — the run most likely hit the turn limit.')
+  }
+
+  return output
 }

@@ -41,13 +41,25 @@ import {
   setRepoCatalog,
 } from '../github/settings.js'
 import {
+  getLlmProvider,
+  setLlmProvider,
   getOpenAIApiKey,
   setOpenAIApiKey,
   getOpenAIModel,
   setOpenAIModel,
+  getAnthropicApiKey,
+  setAnthropicApiKey,
+  getAnthropicModel,
+  setAnthropicModel,
+} from '../llm/settings.js'
+import { DEFAULT_PROVIDER, isKnownProvider, listProviders } from '../llm/registry.js'
+import {
+  getOwnApiKey,
+  getKnowledgeApiKey,
+  setKnowledgeApiKey,
   getVectorStoreId,
   setVectorStoreId,
-} from '../openai/settings.js'
+} from '../knowledge/settings.js'
 import { countAdmins, setAdminCredentials, createUserWithPassword, listUsers, findUserByEmail } from '../db/users.js'
 import { clearStatsCache } from './stats.js'
 
@@ -55,9 +67,39 @@ const router = Router()
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DOMAIN_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const API_KEY_MAX_LENGTH = 300
+const MODEL_ID_MAX_LENGTH = 100
+const VECTOR_STORE_ID_MAX_LENGTH = 200
 
 function validEmail(email) {
   return typeof email === 'string' && email.trim().length <= 254 && EMAIL_REGEX.test(email.trim())
+}
+
+function parseSecret(value, { field, maxLength, message }) {
+  if (typeof value !== 'string') return { error: `"${field}" must be a string (empty to clear it).` }
+
+  const trimmed = value.trim()
+  if (trimmed.length > 0 && (trimmed.length > maxLength || /\s/.test(trimmed))) {
+    return { error: message }
+  }
+
+  return { value: trimmed }
+}
+
+function parseApiKey(value) {
+  return parseSecret(value, {
+    field: 'apiKey',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: 'That does not look like a valid API key.',
+  })
+}
+
+function parseModelId(value) {
+  return parseSecret(value, {
+    field: 'model',
+    maxLength: MODEL_ID_MAX_LENGTH,
+    message: 'That does not look like a valid model id.',
+  })
 }
 
 function invalidName(name) {
@@ -321,31 +363,54 @@ router.put('/config/github/catalog', async (req, res) => {
   }
 })
 
-router.get('/config/openai', async (_req, res) => {
+router.get('/config/llm', async (_req, res) => {
   try {
-    const [apiKey, model, vectorStoreId] = await Promise.all([getOpenAIApiKey(), getOpenAIModel(), getVectorStoreId()])
-    res.json({ apiKeyConfigured: Boolean(apiKey), model: model ?? '', vectorStoreId: vectorStoreId ?? '' })
+    const [provider, openaiApiKey, openaiModel, anthropicApiKey, anthropicModel] = await Promise.all([
+      getLlmProvider(),
+      getOpenAIApiKey(),
+      getOpenAIModel(),
+      getAnthropicApiKey(),
+      getAnthropicModel(),
+    ])
+
+    res.json({
+      provider: isKnownProvider(provider) ? provider : DEFAULT_PROVIDER,
+      providers: listProviders(),
+      openaiApiKeyConfigured: Boolean(openaiApiKey),
+      openaiModel: openaiModel ?? '',
+      anthropicApiKeyConfigured: Boolean(anthropicApiKey),
+      anthropicModel: anthropicModel ?? '',
+    })
   } catch (err) {
-    console.error('Admin get openai config error:', err)
-    res.status(500).json({ error: 'Failed to read the OpenAI settings.' })
+    console.error('Admin get llm config error:', err)
+    res.status(500).json({ error: 'Failed to read the LLM settings.' })
+  }
+})
+
+router.put('/config/llm/provider', async (req, res) => {
+  const { provider } = req.body ?? {}
+
+  if (typeof provider !== 'string' || !isKnownProvider(provider)) {
+    return res.status(400).json({ error: 'That is not a supported LLM provider.' })
+  }
+
+  try {
+    await setLlmProvider(provider)
+    res.json({ provider })
+  } catch (err) {
+    console.error('Admin set llm provider error:', err)
+    res.status(500).json({ error: 'Failed to save the LLM provider.' })
   }
 })
 
 router.put('/config/openai/api-key', async (req, res) => {
-  const { apiKey } = req.body ?? {}
-
-  if (typeof apiKey !== 'string') {
-    return res.status(400).json({ error: '"apiKey" must be a string (empty to clear it).' })
-  }
-  const trimmed = apiKey.trim()
-  if (trimmed.length > 0 && (trimmed.length > 300 || /\s/.test(trimmed))) {
-    return res.status(400).json({ error: 'That does not look like a valid OpenAI API key.' })
-  }
+  const { error, value } = parseApiKey(req.body?.apiKey)
+  if (error) return res.status(400).json({ error })
 
   try {
-    await setOpenAIApiKey(trimmed)
+    await setOpenAIApiKey(value)
     clearStatsCache()
-    res.json({ apiKeyConfigured: trimmed.length > 0 })
+    res.json({ apiKeyConfigured: value.length > 0 })
   } catch (err) {
     console.error('Admin set openai api key error:', err)
     res.status(500).json({ error: 'Failed to save the OpenAI API key.' })
@@ -353,42 +418,91 @@ router.put('/config/openai/api-key', async (req, res) => {
 })
 
 router.put('/config/openai/model', async (req, res) => {
-  const { model } = req.body ?? {}
-
-  if (typeof model !== 'string') {
-    return res.status(400).json({ error: '"model" must be a string (empty to clear it).' })
-  }
-  const trimmed = model.trim()
-  if (trimmed.length > 0 && (trimmed.length > 100 || /\s/.test(trimmed))) {
-    return res.status(400).json({ error: 'That does not look like a valid model id.' })
-  }
+  const { error, value } = parseModelId(req.body?.model)
+  if (error) return res.status(400).json({ error })
 
   try {
-    await setOpenAIModel(trimmed)
-    res.json({ model: trimmed })
+    await setOpenAIModel(value)
+    res.json({ model: value })
   } catch (err) {
     console.error('Admin set openai model error:', err)
     res.status(500).json({ error: 'Failed to save the model.' })
   }
 })
 
-router.put('/config/openai/vector-store', async (req, res) => {
-  const { vectorStoreId } = req.body ?? {}
-
-  if (typeof vectorStoreId !== 'string') {
-    return res.status(400).json({ error: '"vectorStoreId" must be a string (empty to clear it).' })
-  }
-  const trimmed = vectorStoreId.trim()
-  if (trimmed.length > 0 && (trimmed.length > 200 || /\s/.test(trimmed))) {
-    return res.status(400).json({ error: 'That does not look like a valid vector store id.' })
-  }
+router.put('/config/anthropic/api-key', async (req, res) => {
+  const { error, value } = parseApiKey(req.body?.apiKey)
+  if (error) return res.status(400).json({ error })
 
   try {
-    await setVectorStoreId(trimmed)
-    clearStatsCache()
-    res.json({ vectorStoreId: trimmed })
+    await setAnthropicApiKey(value)
+    res.json({ apiKeyConfigured: value.length > 0 })
   } catch (err) {
-    console.error('Admin set openai vector store error:', err)
+    console.error('Admin set anthropic api key error:', err)
+    res.status(500).json({ error: 'Failed to save the Anthropic API key.' })
+  }
+})
+
+router.put('/config/anthropic/model', async (req, res) => {
+  const { error, value } = parseModelId(req.body?.model)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setAnthropicModel(value)
+    res.json({ model: value })
+  } catch (err) {
+    console.error('Admin set anthropic model error:', err)
+    res.status(500).json({ error: 'Failed to save the model.' })
+  }
+})
+
+router.get('/config/knowledge', async (_req, res) => {
+  try {
+    const [ownApiKey, effectiveApiKey, vectorStoreId] = await Promise.all([
+      getOwnApiKey(),
+      getKnowledgeApiKey(),
+      getVectorStoreId(),
+    ])
+
+    res.json({
+      apiKeyConfigured: Boolean(ownApiKey),
+      keyAvailable: Boolean(effectiveApiKey),
+      vectorStoreId: vectorStoreId ?? '',
+    })
+  } catch (err) {
+    console.error('Admin get knowledge config error:', err)
+    res.status(500).json({ error: 'Failed to read the knowledge base settings.' })
+  }
+})
+
+router.put('/config/knowledge/api-key', async (req, res) => {
+  const { error, value } = parseApiKey(req.body?.apiKey)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setKnowledgeApiKey(value)
+    clearStatsCache()
+    res.json({ apiKeyConfigured: value.length > 0, keyAvailable: Boolean(await getKnowledgeApiKey()) })
+  } catch (err) {
+    console.error('Admin set knowledge api key error:', err)
+    res.status(500).json({ error: 'Failed to save the knowledge base API key.' })
+  }
+})
+
+router.put('/config/knowledge/vector-store', async (req, res) => {
+  const { error, value } = parseSecret(req.body?.vectorStoreId, {
+    field: 'vectorStoreId',
+    maxLength: VECTOR_STORE_ID_MAX_LENGTH,
+    message: 'That does not look like a valid vector store id.',
+  })
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setVectorStoreId(value)
+    clearStatsCache()
+    res.json({ vectorStoreId: value })
+  } catch (err) {
+    console.error('Admin set knowledge vector store error:', err)
     res.status(500).json({ error: 'Failed to save the vector store id.' })
   }
 })

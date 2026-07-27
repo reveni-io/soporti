@@ -14,13 +14,28 @@ const mockClient = {
   files: { create: mockFileCreate },
 }
 
-const getOpenAIClient = vi.fn(async () => mockClient)
+const openaiConstructor = vi.fn()
+vi.mock('openai', () => ({
+  default: class MockOpenAI {
+    constructor(opts) {
+      openaiConstructor(opts)
+      return mockClient
+    }
+  },
+}))
+
+const getKnowledgeApiKey = vi.fn(async () => 'sk-knowledge')
 const getVectorStoreId = vi.fn(async () => 'vs_configured')
+const isKnowledgeConfigured = vi.fn(async () => true)
+vi.mock('./settings.js', () => ({ getKnowledgeApiKey, getVectorStoreId, isKnowledgeConfigured }))
 
-vi.mock('../openai/client.js', () => ({ getOpenAIClient }))
-vi.mock('../openai/settings.js', () => ({ getVectorStoreId }))
-
-const { searchSimilarCases, saveSolvedCase, countSolvedCases, isKnowledgeBaseConfigured } = await import('./client.js')
+const {
+  searchSimilarCases,
+  saveSolvedCase,
+  countSolvedCases,
+  isKnowledgeBaseConfigured,
+  _resetKnowledgeClientForTests,
+} = await import('./client.js')
 
 describe('knowledge client', () => {
   beforeEach(() => {
@@ -28,8 +43,32 @@ describe('knowledge client', () => {
     mockVsRetrieve.mockReset()
     mockVsFileCreate.mockReset()
     mockFileCreate.mockReset()
-    getOpenAIClient.mockResolvedValue(mockClient)
+    openaiConstructor.mockReset()
+    getKnowledgeApiKey.mockResolvedValue('sk-knowledge')
     getVectorStoreId.mockResolvedValue('vs_configured')
+    isKnowledgeConfigured.mockResolvedValue(true)
+    _resetKnowledgeClientForTests()
+  })
+
+  describe('the openai client it owns', () => {
+    it('is built from the knowledge key rather than the chat provider credentials', async () => {
+      mockVsRetrieve.mockResolvedValue({ file_counts: { total: 3 } })
+
+      await countSolvedCases()
+
+      expect(openaiConstructor).toHaveBeenCalledWith({ apiKey: 'sk-knowledge' })
+    })
+
+    it('is rebuilt when the key rotates', async () => {
+      mockVsRetrieve.mockResolvedValue({ file_counts: { total: 3 } })
+      await countSolvedCases()
+
+      getKnowledgeApiKey.mockResolvedValue('sk-rotated')
+      await countSolvedCases()
+
+      expect(openaiConstructor).toHaveBeenNthCalledWith(1, { apiKey: 'sk-knowledge' })
+      expect(openaiConstructor).toHaveBeenNthCalledWith(2, { apiKey: 'sk-rotated' })
+    })
   })
 
   describe('searchSimilarCases', () => {
@@ -92,7 +131,7 @@ describe('knowledge client', () => {
     })
 
     it('returns empty array when no API key is configured', async () => {
-      getOpenAIClient.mockResolvedValue(null)
+      getKnowledgeApiKey.mockResolvedValue(null)
 
       const results = await searchSimilarCases('test')
 
@@ -144,17 +183,13 @@ describe('knowledge client', () => {
   })
 
   describe('isKnowledgeBaseConfigured', () => {
-    it('is true when both the vector store and the client are set', async () => {
+    it('reports the stored settings without constructing a client just to answer', async () => {
       await expect(isKnowledgeBaseConfigured()).resolves.toBe(true)
+      expect(openaiConstructor).not.toHaveBeenCalled()
     })
 
-    it('is false when the vector store is not configured', async () => {
-      getVectorStoreId.mockResolvedValue(null)
-      await expect(isKnowledgeBaseConfigured()).resolves.toBe(false)
-    })
-
-    it('is false when no API key is configured', async () => {
-      getOpenAIClient.mockResolvedValue(null)
+    it('is false when the settings say the knowledge base is not configured', async () => {
+      isKnowledgeConfigured.mockResolvedValue(false)
       await expect(isKnowledgeBaseConfigured()).resolves.toBe(false)
     })
   })

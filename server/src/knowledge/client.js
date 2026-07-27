@@ -1,13 +1,26 @@
-import { getOpenAIClient } from '../openai/client.js'
-import { getVectorStoreId } from '../openai/settings.js'
+import OpenAI from 'openai'
+import { getKnowledgeApiKey, getVectorStoreId, isKnowledgeConfigured } from './settings.js'
+
+const MIN_SCORE = 0.6
+
+let clientInstance = null
+let clientInstanceKey = null
+
+function resolveClient(apiKey) {
+  if (!clientInstance || clientInstanceKey !== apiKey) {
+    clientInstance = new OpenAI({ apiKey })
+    clientInstanceKey = apiKey
+  }
+  return clientInstance
+}
 
 async function resolveStore() {
-  const [storeId, client] = await Promise.all([getVectorStoreId(), getOpenAIClient()])
-  return storeId && client ? { storeId, client } : null
+  const [storeId, apiKey] = await Promise.all([getVectorStoreId(), getKnowledgeApiKey()])
+  return storeId && apiKey ? { storeId, client: resolveClient(apiKey) } : null
 }
 
 export async function isKnowledgeBaseConfigured() {
-  return (await resolveStore()) !== null
+  return isKnowledgeConfigured()
 }
 
 export async function searchSimilarCases(query, maxResults = 3) {
@@ -20,8 +33,6 @@ export async function searchSimilarCases(query, maxResults = 3) {
       query,
       max_num_results: maxResults,
     })
-
-    const MIN_SCORE = 0.6
 
     return (results.data || [])
       .filter(item => item.score >= MIN_SCORE)
@@ -48,6 +59,7 @@ export async function countSolvedCases() {
   const resolved = await resolveStore()
   if (!resolved) return 0
   const { storeId, client } = resolved
+
   const store = await client.vectorStores.retrieve(storeId)
   return store.file_counts?.total ?? 0
 }
@@ -55,7 +67,7 @@ export async function countSolvedCases() {
 export async function saveSolvedCase(question, answer) {
   const resolved = await resolveStore()
   if (!resolved) {
-    throw new Error('OpenAI vector store not configured. Set it in the admin panel (OpenAI section).')
+    throw new Error('Knowledge base not configured. Set the vector store in the admin panel (Knowledge section).')
   }
   const { storeId, client } = resolved
 
@@ -74,4 +86,9 @@ export async function saveSolvedCase(question, answer) {
   await client.vectorStores.files.create(storeId, { file_id: file.id })
 
   return file.id
+}
+
+export function _resetKnowledgeClientForTests() {
+  clientInstance = null
+  clientInstanceKey = null
 }

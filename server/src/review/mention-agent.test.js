@@ -60,12 +60,13 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-const mockResolveModel = vi.fn(async () => 'test-model')
-vi.mock('../openai/client.js', () => ({
-  resolveModelForAgent: (...a) => mockResolveModel(...a),
-  codexModelSettings: model =>
-    /codex/i.test(model) ? { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } } : null,
+const mockResolveModel = vi.fn(async () => ({
+  provider: 'openai',
+  modelId: 'test-model',
+  model: 'test-model',
+  modelSettings: {},
 }))
+vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
 
 const { createMentionAgent, buildMentionInput, runMentionAgent } = await import('./mention-agent.js')
 

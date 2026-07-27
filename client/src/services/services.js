@@ -207,8 +207,17 @@ export function saveAllowedDomains(token, domains) {
   })
 }
 
-export function getOpenAIConfig(token) {
-  return request('/api/admin/config/openai', { token, errorMessage: 'Failed to load the OpenAI settings' })
+export function getLlmConfig(token) {
+  return request('/api/admin/config/llm', { token, errorMessage: 'Failed to load the LLM settings' })
+}
+
+export function saveLlmProvider(token, provider) {
+  return request('/api/admin/config/llm/provider', {
+    method: 'PUT',
+    token,
+    body: { provider },
+    errorMessage: 'Failed to save the provider',
+  })
 }
 
 export function saveOpenAIApiKey(token, apiKey) {
@@ -229,8 +238,39 @@ export function saveOpenAIModel(token, model) {
   })
 }
 
-export function saveOpenAIVectorStore(token, vectorStoreId) {
-  return request('/api/admin/config/openai/vector-store', {
+export function saveAnthropicApiKey(token, apiKey) {
+  return request('/api/admin/config/anthropic/api-key', {
+    method: 'PUT',
+    token,
+    body: { apiKey },
+    errorMessage: 'Failed to save the API key',
+  })
+}
+
+export function saveAnthropicModel(token, model) {
+  return request('/api/admin/config/anthropic/model', {
+    method: 'PUT',
+    token,
+    body: { model },
+    errorMessage: 'Failed to save the model',
+  })
+}
+
+export function getKnowledgeConfig(token) {
+  return request('/api/admin/config/knowledge', { token, errorMessage: 'Failed to load the knowledge base settings' })
+}
+
+export function saveKnowledgeApiKey(token, apiKey) {
+  return request('/api/admin/config/knowledge/api-key', {
+    method: 'PUT',
+    token,
+    body: { apiKey },
+    errorMessage: 'Failed to save the API key',
+  })
+}
+
+export function saveKnowledgeVectorStore(token, vectorStoreId) {
+  return request('/api/admin/config/knowledge/vector-store', {
     method: 'PUT',
     token,
     body: { vectorStoreId },

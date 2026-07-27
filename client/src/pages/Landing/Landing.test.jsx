@@ -52,6 +52,12 @@ describe('Landing', () => {
     expect(intNames).toContain('Shopify')
   })
 
+  it('lists the supported LLM providers', () => {
+    const { container } = render(<Landing />)
+    const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)
+    expect(provNames).toEqual(['OpenAI', 'Anthropic'])
+  })
+
   it('links to the public GitHub repository (nav + footer, always visible)', () => {
     render(<Landing hideCta />)
     const ghLinks = screen.getAllByRole('link', { name: /github/i })

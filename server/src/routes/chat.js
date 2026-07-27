@@ -7,7 +7,7 @@ import { storePendingFeedback } from '../knowledge/feedback.js'
 import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
-import { getOpenAIClient } from '../openai/client.js'
+import { isConfigured } from '../llm/model.js'
 
 const router = Router()
 
@@ -72,10 +72,10 @@ export default function chatRoute(conversationStore) {
       .filter(id => Number.isInteger(id) && id > 0)
       .slice(0, 10)
 
-    if (!(await getOpenAIClient())) {
-      return res
-        .status(503)
-        .json({ error: 'OpenAI is not configured. Ask an admin to set the API key in the admin panel.' })
+    if (!(await isConfigured())) {
+      return res.status(503).json({
+        error: 'The assistant is not configured. Ask an admin to set the API key and model in the admin panel.',
+      })
     }
 
     const { conversationId, session, previousResponseId } = await conversationStore.resolveWeb(sessionId, req.user.id)
@@ -89,8 +89,7 @@ export default function chatRoute(conversationStore) {
 
     sendEvent(res, { type: 'session_id', sessionId: conversationId })
 
-    const [items, similarCases, customInstructions, carriedSkillIds] = await Promise.all([
-      session.getItems(),
+    const [similarCases, customInstructions, carriedSkillIds] = await Promise.all([
       searchSimilarCases(trimmedMessage),
       getCustomInstructions(req.user.id).catch(err => {
         console.error('Failed to load custom instructions:', err)
@@ -113,7 +112,7 @@ export default function chatRoute(conversationStore) {
     console.log(`\n${'─'.repeat(60)}`)
     log('📩', `New message: "${trimmedMessage.slice(0, 120)}"`)
     log('📂', `Sources: ${sources.length > 0 ? sources.join(', ') : '(none selected)'}`)
-    log('💬', `Conversation: ${conversationId} (history: ${items.length} items)`)
+    log('💬', `Conversation: ${conversationId}`)
     if (similarCases.length > 0) {
       log('📚', `Found ${similarCases.length} similar case(s)`)
     }
@@ -133,6 +132,7 @@ export default function chatRoute(conversationStore) {
 
     const assistantParts = []
     let lastResponseId
+    let unpersistedItems = null
 
     try {
       const agent = await createAgent(sources, profile, similarCases, {
@@ -212,6 +212,7 @@ export default function chatRoute(conversationStore) {
         }
 
         await stream.completed
+        unpersistedItems = prevResponseId ? stream.history : null
         return stream.lastResponseId
       }
 
@@ -253,6 +254,8 @@ export default function chatRoute(conversationStore) {
 
       await conversationStore.saveTurn(conversationId, {
         lastResponseId,
+        session,
+        unpersistedItems,
         uiMessages: [
           { role: 'user', parts: userParts },
           { role: 'assistant', parts: assistantParts },

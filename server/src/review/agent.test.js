@@ -79,15 +79,19 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-const mockResolveModel = vi.fn(async () => 'test-model')
-vi.mock('../openai/client.js', () => ({
-  resolveModelForAgent: (...a) => mockResolveModel(...a),
-  codexModelSettings: model =>
-    /codex/i.test(model) ? { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } } : null,
+const mockResolveModel = vi.fn(async () => ({
+  provider: 'openai',
+  modelId: 'test-model',
+  model: 'test-model',
+  modelSettings: {},
 }))
+vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
+
+function resolvedModel(modelSettings) {
+  return { provider: 'openai', modelId: 'test-model', model: 'test-model', modelSettings }
+}
 
 const { reviewOutputSchema, createReviewerAgent, buildReviewInput, runReviewerAgent } = await import('./agent.js')
-const config = (await import('../config.js')).default
 
 function sampleTrigger() {
   return {
@@ -282,37 +286,21 @@ describe('createReviewerAgent', () => {
     expect(names).not.toContain('query_database')
   })
 
-  it('enables reasoning for reasoning-capable models', async () => {
-    mockResolveModel.mockResolvedValueOnce('gpt-5.3-turbo')
+  it('asks the llm layer for review settings rather than chat settings', async () => {
+    await createReviewerAgent('acme-io/app')
+    expect(mockResolveModel).toHaveBeenCalledWith({ intent: 'review' })
+  })
+
+  it('passes the settings resolved by the llm layer straight to the agent', async () => {
+    mockResolveModel.mockResolvedValueOnce(resolvedModel({ reasoning: { effort: 'high' } }))
 
     await createReviewerAgent('acme-io/app')
     expect(MockAgent.mock.calls[0][0].modelSettings).toEqual({ reasoning: { effort: 'high' } })
   })
 
-  it('forces reasoning and verbosity to medium for codex models', async () => {
-    mockResolveModel.mockResolvedValueOnce('gpt-5.2-codex')
-
+  it('forwards an empty settings object untouched', async () => {
     await createReviewerAgent('acme-io/app')
-    expect(MockAgent.mock.calls[0][0].modelSettings).toEqual({
-      reasoning: { effort: 'medium' },
-      text: { verbosity: 'medium' },
-    })
-  })
-
-  it('sends no reasoning settings for non-reasoning models', async () => {
-    await createReviewerAgent('acme-io/app')
-    expect(MockAgent.mock.calls[0][0].modelSettings).toBeUndefined()
-  })
-
-  it('treats REVIEW_REASONING_EFFORT=none as "omit reasoning", not an effort level', async () => {
-    const originalEffort = config.review.reasoningEffort
-    mockResolveModel.mockResolvedValueOnce('gpt-5.3-turbo')
-    config.review.reasoningEffort = 'none'
-
-    await createReviewerAgent('acme-io/app')
-    expect(MockAgent.mock.calls[0][0].modelSettings).toBeUndefined()
-
-    config.review.reasoningEffort = originalEffort
+    expect(MockAgent.mock.calls[0][0].modelSettings).toEqual({})
   })
 })
 
@@ -443,5 +431,13 @@ describe('runReviewerAgent', () => {
     expect(typeof inputArg).toBe('string')
     expect(optionsArg).toEqual({ maxTurns: 7 })
     expect(result).toEqual(output)
+  })
+
+  it('throws instead of returning nothing when the run produces no final output', async () => {
+    mockRun.mockResolvedValue({ finalOutput: undefined })
+
+    await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toThrow(
+      /no output.*turn limit/i
+    )
   })
 })

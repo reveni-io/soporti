@@ -1,7 +1,7 @@
 import { Agent, run } from '@openai/agents'
 import config from '../config.js'
-import { resolveModelForAgent } from '../openai/client.js'
-import { buildRepoTools, buildDataTools, reasoningModelSettings, inline } from './agent.js'
+import { resolveModelForAgent } from '../llm/model.js'
+import { buildRepoTools, buildDataTools, inline } from './agent.js'
 import { buildMentionInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000
@@ -9,13 +9,14 @@ const MAX_COMMENT_CHARS = 2000
 const MAX_THREAD_COMMENTS = 30
 
 export async function createMentionAgent(repoFullName, { rootPath = null } = {}) {
-  const model = await resolveModelForAgent()
+  const { model, modelSettings } = await resolveModelForAgent({ intent: 'review' })
+
   return new Agent({
     name: 'Soporti Mention Responder',
     model,
     instructions: buildMentionInstructions(repoFullName),
     tools: [...buildRepoTools(repoFullName, rootPath), ...(await buildDataTools())],
-    ...reasoningModelSettings(model),
+    modelSettings,
   })
 }
 

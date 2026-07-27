@@ -13,12 +13,13 @@ vi.mock('@openai/agents', () => ({
   run: (...args) => mockRun(...args),
 }))
 
-const mockResolveModelForAgent = vi.fn(async () => 'gpt-test')
-const mockCodexModelSettings = vi.fn(() => null)
-vi.mock('../openai/client.js', () => ({
-  resolveModelForAgent: (...args) => mockResolveModelForAgent(...args),
-  codexModelSettings: (...args) => mockCodexModelSettings(...args),
+const mockResolveModelForAgent = vi.fn(async () => ({
+  provider: 'openai',
+  modelId: 'gpt-test',
+  model: 'gpt-test',
+  modelSettings: {},
 }))
+vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...args) => mockResolveModelForAgent(...args) }))
 
 vi.mock('../agent/tools.js', () => ({
   listDatabaseSchemasTool: { name: 'list_database_schemas' },
@@ -33,8 +34,12 @@ const SQL =
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockResolveModelForAgent.mockResolvedValue('gpt-test')
-  mockCodexModelSettings.mockReturnValue(null)
+  mockResolveModelForAgent.mockResolvedValue({
+    provider: 'openai',
+    modelId: 'gpt-test',
+    model: 'gpt-test',
+    modelSettings: {},
+  })
 })
 
 describe('draftShopifyTokenQuery', () => {
@@ -81,10 +86,18 @@ describe('draftShopifyTokenQuery', () => {
     expect(tools.map(t => t.name)).toEqual(['list_database_schemas', 'list_database_tables', 'describe_database_table'])
   })
 
-  it('propagates the "OpenAI not configured" error from model resolution', async () => {
-    mockResolveModelForAgent.mockRejectedValue(new Error('No OpenAI model configured — set it in /admin.'))
+  it('propagates the "not configured" error from model resolution', async () => {
+    mockResolveModelForAgent.mockRejectedValue(new Error('OpenAI model not configured — set it in /admin.'))
 
-    await expect(draftShopifyTokenQuery()).rejects.toThrow('No OpenAI model configured')
+    await expect(draftShopifyTokenQuery()).rejects.toThrow('model not configured')
     expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it('asks the llm layer for chat settings', async () => {
+    mockRun.mockResolvedValue({ finalOutput: SQL })
+
+    await draftShopifyTokenQuery()
+
+    expect(mockResolveModelForAgent).toHaveBeenCalledWith({ intent: 'chat' })
   })
 })

@@ -28,7 +28,7 @@ vi.mock('../db/users.js', () => ({
 import { run } from '@openai/agents'
 import { processMessage } from './handler.js'
 
-function createStreamMock(events) {
+function createStreamMock(events, { history, lastResponseId } = {}) {
   return {
     toStream: () => ({
       [Symbol.asyncIterator]() {
@@ -42,6 +42,8 @@ function createStreamMock(events) {
       },
     }),
     completed: Promise.resolve(),
+    history,
+    lastResponseId,
   }
 }
 
@@ -66,6 +68,45 @@ describe('processMessage', () => {
     expect(result.text).toBe('Hello world')
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
     expect(result.toolCalls).toEqual([])
+  })
+
+  it('returns the turn items when the provider kept the context server-side', async () => {
+    const turnHistory = [
+      { type: 'message', role: 'user', content: 'hi' },
+      { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Hello' }] },
+    ]
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hello' } }], {
+        history: turnHistory,
+      })
+    )
+
+    const result = await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      previousResponseId: 'resp_previous',
+      profile: 'support',
+    })
+
+    expect(result.unpersistedItems).toEqual(turnHistory)
+  })
+
+  it('leaves the turn items to the sdk when no context token was sent', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hello' } }], {
+        history: [{ type: 'message', role: 'user', content: 'hi' }],
+      })
+    )
+
+    const result = await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+    })
+
+    expect(result.unpersistedItems).toBeNull()
   })
 
   it('tracks tool calls', async () => {

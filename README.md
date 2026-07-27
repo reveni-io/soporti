@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/reveni-io/soporti/actions/workflows/ci.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/ci.yml) [![CodeQL](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE) ![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 
-AI-powered code assistant that helps support and engineering teams understand and navigate code repositories. Built with OpenAI's Agent SDK and a React chat interface.
+AI-powered code assistant that helps support and engineering teams understand and navigate code repositories. Built on the OpenAI Agents SDK — running against OpenAI or Anthropic, your choice — with a React chat interface.
 
 **[soporti.reveni.com](https://soporti.reveni.com)** — see what it looks like before installing it.
 
@@ -46,7 +46,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 - **Automated PR reviews** — request a review from the bot's GitHub user or add the `soporti-review` label, and it reviews the diff on three axes: correctness, your own written standards (CLAUDE.md, ADRs, agent skills found in the repo) and the linked Shortcut story. It posts inline comments and can approve trivial PRs
 - **Replies in PR threads** — @mention the bot in a PR comment or review thread and it answers there, once, with the branch checked out and its data tools available
 - **Slack ticket auto-diagnose** — tickets filed into a Slack List get triaged autonomously, screenshots included, with the diagnosis written back into the ticket
-- **Learns from what worked** — mark an answer as helpful and the case is saved to a knowledge base that later questions search automatically (needs a vector store id in `/admin` → OpenAI)
+- **Learns from what worked** — mark an answer as helpful and the case is saved to a knowledge base that later questions search automatically (needs a vector store id in `/admin` → Knowledge base; it runs on OpenAI Vector Stores whichever chat provider you pick, so it needs an OpenAI key of its own when the assistant is on Anthropic)
 
 ### Keep and share the answers
 
@@ -58,7 +58,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 - Node.js 20+ (or Docker + Docker Compose for the containerized setups)
 - Git
 - A PostgreSQL database (provided automatically by Docker Compose — see below)
-- An OpenAI API key — configured from the `/admin` panel after the first boot, not an env var
+- An OpenAI or Anthropic API key — configured from the `/admin` panel after the first boot, not an env var
 
 Optional, also configured from `/admin` later: a GitHub Personal Access Token, a Google OAuth Client ID for Google sign-in, Slack/Notion/Google Drive/Helpjuice credentials.
 
@@ -88,7 +88,7 @@ Edit `.env` and fill in the required values:
 | `JWT_EXPIRES_IN` | No | Session lifetime (default: `24h`) |
 | `CORS_ORIGIN` | No | Allowed browser origins (CSV) — set it when the client is served from a different domain than the API |
 
-Everything else — the OpenAI API key and model, the GitHub token and repository catalog, Slack, Notion, Google Drive, Helpjuice, the agent's read-only query database, Shopify, sign-in methods and allowed Google domains — is **not** an env var: it lives in the database and is managed from the admin panel (`/admin`) after the first-run setup.
+Everything else — the LLM provider, its API key and model, the GitHub token and repository catalog, Slack, Notion, Google Drive, Helpjuice, the agent's read-only query database, Shopify, sign-in methods and allowed Google domains — is **not** an env var: it lives in the database and is managed from the admin panel (`/admin`) after the first-run setup.
 
 3. **Start development**
 
@@ -114,7 +114,7 @@ This starts both the server (port 3001) and client (port 5173) concurrently. Ope
 
 1. Boot the app. With no admin user yet, the server prints a **one-time setup code** in its logs.
 2. Open `/admin`, enter the setup code and create the first admin (email + password).
-3. In `/admin` → OpenAI, set the API key and model (there is no default model — the chat won't run until both are set).
+3. In `/admin` → LLM, pick the provider (OpenAI or Anthropic) and set its API key and model (there is no default model — the chat won't run until both are set).
 4. Configure any integrations you want from the panel, and create regular users in `/admin` → Users (there is no self-registration).
 
 Google sign-in is optional and **off by default** (password sign-in is on) — see [Set up Google Sign-In](docs/deployment.md#set-up-google-sign-in) in the deployment guide to enable it.

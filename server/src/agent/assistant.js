@@ -1,5 +1,5 @@
 import { Agent } from '@openai/agents'
-import { resolveModelForAgent, codexModelSettings } from '../openai/client.js'
+import { resolveModelForAgent } from '../llm/model.js'
 import { buildAgentTools } from './tools.js'
 import {
   buildBasePrompt,
@@ -73,14 +73,13 @@ export async function createAgent(
     shopifyConfigured,
   })
 
-  const model = await resolveModelForAgent()
-  const codexSettings = codexModelSettings(model)
+  const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })
 
   return new Agent({
     name: 'Soporti',
     model,
     instructions: parts.join('\n\n'),
     tools,
-    ...(codexSettings ? { modelSettings: codexSettings } : {}),
+    modelSettings,
   })
 }
