@@ -31,7 +31,7 @@ describe('ShareModal', () => {
 
   it('shows expiration notice', () => {
     render(<ShareModal url="https://example.com" onClose={vi.fn()} />)
-    expect(screen.getByText(/24 hours/)).toBeInTheDocument()
+    expect(screen.getByText(/30 days/)).toBeInTheDocument()
   })
 
   it('calls onClose when Done clicked', async () => {

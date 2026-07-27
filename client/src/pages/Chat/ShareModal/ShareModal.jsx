@@ -34,7 +34,7 @@ export default function ShareModal({ url, onClose }) {
           </button>
         </div>
 
-        <p className="share-modal__notice">This link is temporary and will expire within 24 hours.</p>
+        <p className="share-modal__notice">This link is temporary and will expire within 30 days.</p>
 
         <button className="btn btn--secondary btn--block" onClick={onClose}>
           Done
