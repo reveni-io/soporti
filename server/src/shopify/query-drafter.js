@@ -1,5 +1,5 @@
 import { Agent, run } from '@openai/agents'
-import { resolveModelForAgent, codexModelSettings } from '../openai/client.js'
+import { resolveModelForAgent } from '../llm/model.js'
 import { listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool } from '../agent/tools.js'
 import { STORE_PLACEHOLDER } from './settings.js'
 import config from '../config.js'
@@ -31,15 +31,14 @@ function stripFences(text) {
 }
 
 export async function draftShopifyTokenQuery() {
-  const model = await resolveModelForAgent()
-  const codexSettings = codexModelSettings(model)
+  const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })
 
   const agent = new Agent({
     name: 'Soporti',
     model,
     instructions: DRAFTER_INSTRUCTIONS,
     tools: [listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool],
-    ...(codexSettings ? { modelSettings: codexSettings } : {}),
+    modelSettings,
   })
 
   const result = await run(agent, 'Draft the Shopify store token query for this database.', {

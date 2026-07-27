@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Express + OpenAI Agents SDK backend for Soporti.",
+  "description": "Express + OpenAI Agents SDK backend for Soporti, running against OpenAI or Anthropic.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/reveni-io/soporti.git",
@@ -23,8 +23,10 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "~3.0.103",
     "@octokit/rest": "^22.0.1",
-    "@openai/agents": "^0.13.2",
+    "@openai/agents": "^0.13.5",
+    "@openai/agents-extensions": "^0.13.5",
     "@slack/bolt": "^4.1.0",
     "bcryptjs": "^3.0.3",
     "beautiful-mermaid": "^1.1.3",

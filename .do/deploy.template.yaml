@@ -8,7 +8,7 @@
 # VITE_API_URL configuration is needed.
 #
 # The only value the wizard asks for is JWT_SECRET (openssl rand -hex 32).
-# Everything else (OpenAI key/model, integrations, users) is configured from
+# Everything else (LLM provider + key/model, integrations, users) is configured from
 # the /admin panel after the first boot — see docs/deployment.md.
 spec:
   name: soporti

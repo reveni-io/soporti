@@ -96,6 +96,10 @@ vi.mock('../knowledge/client.js', () => ({
   isKnowledgeBaseConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../llm/model.js', () => ({
+  isConfigured: vi.fn(async () => true),
+}))
+
 vi.mock('../agent/system-prompt.js', () => ({
   DEFAULT_PROFILE: 'support',
 }))
@@ -109,6 +113,7 @@ vi.mock('../db/users.js', () => ({
 const { listRepos } = await import('../github/client.js')
 const { processMessage } = await import('./handler.js')
 const { isKnowledgeBaseConfigured } = await import('../knowledge/client.js')
+const { isConfigured } = await import('../llm/model.js')
 
 function buildMockClient() {
   return {
@@ -293,6 +298,40 @@ describe('Slack bot', () => {
           text: ':hourglass_flipping_sand: _Thinking..._',
         })
       )
+    })
+
+    it('tells the user the assistant is unconfigured instead of running and failing', async () => {
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockResolvedValue({ text: 'Agent response' })
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> initial question', ts: 'thread-ts', channel: 'C123' },
+        client: mockClient,
+      })
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client: mockClient,
+        ack: vi.fn(),
+      })
+
+      processMessage.mockClear()
+      mockClient.chat.postMessage.mockClear()
+      isConfigured.mockResolvedValueOnce(false)
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> follow up', ts: 'ev-ts-2', thread_ts: 'thread-ts', channel: 'C123' },
+        client: mockClient,
+      })
+
+      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text: expect.stringMatching(/not configured/i) })
+      )
+      expect(processMessage).not.toHaveBeenCalled()
     })
 
     it('sends error when no repos found', async () => {

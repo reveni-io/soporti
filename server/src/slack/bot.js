@@ -15,6 +15,7 @@ import { markdownToSlack, splitMessage } from './formatter.js'
 import { DEFAULT_PROFILE } from '../agent/system-prompt.js'
 import { storePendingFeedback, processFeedback } from '../knowledge/feedback.js'
 import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
+import { isConfigured as isLlmConfigured } from '../llm/model.js'
 import { upsertSlackUser, getCustomInstructions, updateCustomInstructions } from '../db/users.js'
 
 const MAX_INSTRUCTIONS_LENGTH = 50_000
@@ -216,6 +217,15 @@ async function fetchThreadContext({ client, channelId, threadTs, eventTs }) {
 }
 
 async function runAndReply({ client, channelId, threadTs, question, sources, profile, slackUserId }) {
+  if (!(await isLlmConfigured())) {
+    await client.chat.postMessage({
+      channel: channelId,
+      thread_ts: threadTs,
+      text: '⚠️ The assistant is not configured yet. An admin needs to set the API key and model in the admin panel.',
+    })
+    return
+  }
+
   const thinking = await client.chat.postMessage({
     channel: channelId,
     thread_ts: threadTs,
@@ -238,7 +248,11 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       slackUserId,
     })
 
-    await conversationStore.saveTurn(conversationId, { lastResponseId: result.lastResponseId })
+    await conversationStore.saveTurn(conversationId, {
+      lastResponseId: result.lastResponseId,
+      session,
+      unpersistedItems: result.unpersistedItems,
+    })
 
     const slackText = markdownToSlack(result.text)
     const chunks = splitMessage(slackText)

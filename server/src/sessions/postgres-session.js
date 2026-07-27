@@ -3,6 +3,7 @@ import { getDb } from '../db/index.js'
 import { conversationItems } from '../db/schema.js'
 
 const REPLAYABLE_ONLY = sql`${conversationItems.item}->>'type' is distinct from 'reasoning'`
+const ID_STRIPPED_TYPES = new Set(['function_call', 'function_call_result'])
 
 function toReplayableItem(item) {
   if (!item || typeof item !== 'object') return item
@@ -10,7 +11,7 @@ function toReplayableItem(item) {
     const { id: _id, providerData: _providerData, ...rest } = item
     return rest
   }
-  if (item.type === 'function_call' && 'id' in item) {
+  if (ID_STRIPPED_TYPES.has(item.type) && 'id' in item) {
     const { id: _id, ...rest } = item
     return rest
   }

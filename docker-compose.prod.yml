@@ -1,6 +1,6 @@
 # Production stack: PostgreSQL + server + built client served by nginx, all on
 # one box. The required settings are JWT_SECRET and POSTGRES_PASSWORD (e.g.
-# `openssl rand -hex 32` each into .env). Everything else — OpenAI, GitHub,
+# `openssl rand -hex 32` each into .env). Everything else — the LLM provider, GitHub,
 # Slack, Notion, ... — is configured from the /admin panel after the first
 # boot (see docs/deployment.md).
 #

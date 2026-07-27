@@ -28,7 +28,7 @@ export const conversations = pgTable(
     userId: integer('user_id').references(() => users.id),
     slackChannelId: text('slack_channel_id'),
     slackThreadTs: text('slack_thread_ts'),
-    openaiLastResponseId: text('openai_last_response_id'),
+    lastResponseId: text('openai_last_response_id'),
     title: text('title'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

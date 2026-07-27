@@ -169,6 +169,12 @@ describe('PostgresSession', () => {
     expect(items).toEqual([{ type: 'function_call', call_id: 'c1', name: 'search', arguments: '{}' }])
   })
 
+  it('getItems strips ids from function_call_result items so another provider can replay them', async () => {
+    await session.addItems([{ type: 'function_call_result', id: 'fcr_1', call_id: 'c1', output: 'result' }])
+    const items = await session.getItems()
+    expect(items).toEqual([{ type: 'function_call_result', call_id: 'c1', output: 'result' }])
+  })
+
   it('getItems leaves user messages and items without provider ids untouched', async () => {
     await session.addItems([
       { type: 'message', role: 'user', content: 'a' },

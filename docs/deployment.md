@@ -2,10 +2,10 @@
 
 Soporti is designed so that a production deployment needs almost no configuration
 up front: the only required secrets at boot time are `JWT_SECRET` and a PostgreSQL
-database for the app itself. Everything else — the OpenAI API key and model, the
-GitHub token, Slack, Notion, Google Drive, Helpjuice, the agent's read-only query
-database, sign-in methods — lives in that database and is configured from the
-`/admin` panel after the first boot.
+database for the app itself. Everything else — the LLM provider, its API key and
+model, the GitHub token, Slack, Notion, Google Drive, Helpjuice, the agent's
+read-only query database, sign-in methods — lives in that database and is
+configured from the `/admin` panel after the first boot.
 
 There are two supported deployment shapes:
 
@@ -32,13 +32,41 @@ Platform and Render — see [One-click deploys](#one-click-deploys) below.
 3. Open `/admin` in the browser. It asks for that setup code and lets you create
    the first admin user (email + password). This self-disables once an admin
    exists, so grab the code before exposing the URL publicly — or right after.
-4. Sign in to `/admin` and configure, at minimum, **OpenAI** (API key + model —
-   there is no default model, the chat refuses to run until both are set).
+4. Sign in to `/admin` and configure, at minimum, the **LLM** section: pick a
+   provider (OpenAI or Anthropic) and set its API key and model — there is no
+   default model, the chat refuses to run until both are set.
 5. Optionally configure the rest from the panel: GitHub (token, repo catalog,
    PR-review webhook secret), Slack, Notion, Google Drive, Helpjuice, the
    read-only query Database, Shopify, sign-in methods and Google domains.
 6. Create regular users in `/admin` → Users (there is no self-registration).
    Password sign-in is ON and Google sign-in is OFF by default.
+
+## Choosing the LLM provider
+
+`/admin` → **LLM** selects which provider the assistant and the PR-review agents
+run on. Both providers' credentials are stored side by side, so switching back is
+just re-selecting the other one — nothing is cleared.
+
+|                          | OpenAI                                       | Anthropic                                        |
+| ------------------------ | -------------------------------------------- | ------------------------------------------------ |
+| Example models           | `gpt-4o`, `gpt-5.2-codex`                     | `claude-opus-5`, `claude-sonnet-5`                |
+| Conversation state       | Kept by OpenAI (Responses API)                | None — the Messages API is stateless              |
+| Where history lives      | OpenAI, keyed by a stored response id         | This app's `conversation_items` table             |
+| Context compaction       | Yes, via the Responses compaction session     | Not used (the models carry a 1M-token window)     |
+| Transient-error retries  | The `openai` client retries                   | The agent runner retries (429/5xx and network)    |
+
+Two consequences worth knowing before switching:
+
+- **The knowledge base stays on OpenAI.** It is built on OpenAI Vector Stores,
+  which Anthropic has no equivalent for. Under Anthropic, set a dedicated OpenAI
+  key in `/admin` → **Knowledge base**; leave it empty and it reuses the OpenAI
+  key from the LLM section.
+- **Conversations created before this version resume with a one-turn model
+  transcript under Anthropic.** While OpenAI held the conversation server-side
+  the app only persisted the first turn locally, so there is nothing else to
+  replay. The transcript users see in the web UI is stored separately and is
+  unaffected, and conversations started from this version on are complete.
+  Switching back to OpenAI restores the server-side history.
 
 ## Option 1 — Docker Compose (single origin)
 
@@ -67,7 +95,7 @@ Environment variables read by the compose file (all from `.env` or the shell):
 `DATABASE_URL` is set by the compose file to the internal `db` container.
 Postgres data persists in the `pgdata_prod` volume. The optional server tunables
 (`SLACK_AUTODIAGNOSE_*`, `REVIEW_*`, …) are also picked up
-from `.env` if present. Integration credentials (GitHub, OpenAI, Sentry, Notion,
+from `.env` if present. Integration credentials (GitHub, the LLM provider, Sentry, Notion,
 Shortcut, Slack, …) are not env vars — configure them from `/admin` after boot.
 
 To rebuild after pulling a new version: `npm run docker:prod` again (it
@@ -222,7 +250,7 @@ To avoid diagnosing the whole historical backlog on first activation, archived t
 ## Operational notes
 
 - **Migrations** run automatically on server boot; no separate deploy step.
-- **Rotating credentials** (OpenAI key, GitHub token, Slack tokens, query DB
+- **Rotating credentials** (the LLM provider key, GitHub token, Slack tokens, query DB
   connection) takes effect without a restart — they are re-read from the DB.
 - **Rate limiting** is in-memory and per-instance; running several server
   replicas multiplies the effective limits and breaks the review queue's

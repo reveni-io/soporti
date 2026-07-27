@@ -1,6 +1,6 @@
 # AI Agent Guidelines
 
-This document is the contract for AI agents working on the Soporti codebase: a light monorepo with `client/` (React 19 + Vite) and `server/` (Express + OpenAI Agents SDK). Both packages are ESM (`"type": "module"`).
+This document is the contract for AI agents working on the Soporti codebase: a light monorepo with `client/` (React 19 + Vite) and `server/` (Express + the OpenAI Agents SDK, running against OpenAI or Anthropic). Both packages are ESM (`"type": "module"`).
 
 Everything here is mandatory. If a rule conflicts with existing code, follow the rule and flag the inconsistency instead of copying the old code.
 
@@ -255,7 +255,15 @@ Routes live in `router/Router.jsx` and their paths in `router/constants.js` (`RO
 
 ### Structure
 
-One folder per domain under `server/src/`: `routes/` (Express routers), `agent/` (Agents SDK wiring, tools, prompts), `db/` (the app's own PostgreSQL via Drizzle), `sessions/`, `middleware/`, `review/`, and one folder per integration (`github/`, `notion/`, `sentry/`, `slack/`, `shopify/`, `postgres/`, …), each with a `client.js` (API calls) and a `settings.js` (stored credentials).
+One folder per domain under `server/src/`: `routes/` (Express routers), `agent/` (Agents SDK wiring, tools, prompts), `llm/` (the provider layer — see below), `db/` (the app's own PostgreSQL via Drizzle), `sessions/`, `middleware/`, `review/`, and one folder per integration (`github/`, `notion/`, `sentry/`, `slack/`, `shopify/`, `postgres/`, …), each with a `client.js` (API calls) and a `settings.js` (stored credentials).
+
+### LLM providers
+
+`llm/` is flat, like every other server folder. `model.js` is the only module the rest of the server imports: `resolveModelForAgent({ intent })`, `isConfigured()`, `wrapSession()`, `usesContinuationToken()`, `describeProvider()`. It never hands a provider module out — callers get plain values, never the module itself. `registry.js` maps a provider id to its module and `settings.js` owns the stored selection and every provider credential.
+
+Adding a provider is one new file plus one registry entry. A provider module exports `id`, `label`, `continuationToken` (whether the vendor stores conversation state server-side), an async `isConfigured()`, an async `buildModel()` returning `{ modelId, model }`, `modelSettings(modelId, { intent })` returning an object (never `null` — call sites spread it unconditionally), and `wrapSession(underlyingSession)`.
+
+**NEVER REACH FOR A VENDOR SDK OUTSIDE ITS PROVIDER MODULE.** `OpenAIResponsesCompactionSession`, `setDefaultOpenAIClient` and `aisdk()` belong in `llm/openai.js` and `llm/anthropic.js`. The one exception is `knowledge/`, which is pinned to OpenAI Vector Stores independently of the selected chat provider.
 
 ### Routes
 

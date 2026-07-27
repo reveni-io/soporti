@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { eq, and, desc, gte, lt, sql } from 'drizzle-orm'
-import { OpenAIResponsesCompactionSession } from '@openai/agents'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
 import { ownedWebConversation } from '../db/conversations.js'
 import { toRenderMessage } from '../db/conversation-render.js'
 import { PostgresSession } from './postgres-session.js'
-import { getOpenAIClient } from '../openai/client.js'
+import { usesContinuationToken, wrapSession } from '../llm/model.js'
 
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000
@@ -22,11 +21,12 @@ export class ConversationStore {
   }
 
   async buildSession(conversationId) {
-    const client = await getOpenAIClient()
-    return new OpenAIResponsesCompactionSession({
-      underlyingSession: new PostgresSession(conversationId, this.db),
-      ...(client ? { client } : {}),
-    })
+    return wrapSession(new PostgresSession(conversationId, this.db))
+  }
+
+  async carriedResponseId(storedId) {
+    if (!storedId) return undefined
+    return (await usesContinuationToken()) ? storedId : undefined
   }
 
   async resolveWeb(sessionId, userId) {
@@ -37,7 +37,7 @@ export class ConversationStore {
         .select({
           id: conversations.id,
           userId: conversations.userId,
-          lastResponseId: conversations.openaiLastResponseId,
+          lastResponseId: conversations.lastResponseId,
         })
         .from(conversations)
         .where(eq(conversations.id, conversationId))
@@ -50,7 +50,7 @@ export class ConversationStore {
           return {
             conversationId,
             session: await this.buildSession(conversationId),
-            previousResponseId: existing.lastResponseId ?? undefined,
+            previousResponseId: await this.carriedResponseId(existing.lastResponseId),
           }
         }
       }
@@ -72,7 +72,7 @@ export class ConversationStore {
       return {
         conversationId: existing.id,
         session: await this.buildSession(existing.id),
-        previousResponseId: existing.lastResponseId ?? undefined,
+        previousResponseId: await this.carriedResponseId(existing.lastResponseId),
       }
     }
 
@@ -92,22 +92,24 @@ export class ConversationStore {
     return {
       conversationId,
       session: await this.buildSession(conversationId),
-      previousResponseId: row.lastResponseId ?? undefined,
+      previousResponseId: await this.carriedResponseId(row.lastResponseId),
     }
   }
 
   async _findSlack(channelId, threadTs) {
     const [row] = await this.db
-      .select({ id: conversations.id, lastResponseId: conversations.openaiLastResponseId })
+      .select({ id: conversations.id, lastResponseId: conversations.lastResponseId })
       .from(conversations)
       .where(and(eq(conversations.slackChannelId, channelId), eq(conversations.slackThreadTs, threadTs)))
       .limit(1)
     return row ?? null
   }
 
-  async saveTurn(conversationId, { lastResponseId, uiMessages = [] } = {}) {
+  async saveTurn(conversationId, { lastResponseId, uiMessages = [], session, unpersistedItems } = {}) {
     const set = { updatedAt: new Date() }
-    if (lastResponseId !== undefined) set.openaiLastResponseId = lastResponseId ?? null
+    if (lastResponseId !== undefined && (await usesContinuationToken())) {
+      set.lastResponseId = lastResponseId ?? null
+    }
 
     const firstUser = uiMessages.find(m => m.role === 'user')
     if (firstUser) {
@@ -126,6 +128,10 @@ export class ConversationStore {
         }))
       )
     }
+
+    if (!session || !unpersistedItems?.length) return
+
+    await session.addItems(unpersistedItems)
   }
 
   async listWeb(userId) {

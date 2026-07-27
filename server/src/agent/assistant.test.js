@@ -16,12 +16,13 @@ vi.mock('./tools.js', () => {
   }
 })
 
-const mockResolveModel = vi.fn(async () => 'gpt-4o')
-vi.mock('../openai/client.js', () => ({
-  resolveModelForAgent: (...a) => mockResolveModel(...a),
-  codexModelSettings: model =>
-    /codex/i.test(model) ? { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } } : null,
+const mockResolveModel = vi.fn(async () => ({
+  provider: 'openai',
+  modelId: 'gpt-4o',
+  model: 'gpt-4o',
+  modelSettings: {},
 }))
+vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
 
 const buildRepoCatalogPrompt = vi.fn(async () => '')
 vi.mock('./repo-catalog.js', () => ({ buildRepoCatalogPrompt }))
@@ -43,15 +44,38 @@ describe('createAgent', () => {
     expect(agent.model).toBe('gpt-4o')
   })
 
-  it('sets no modelSettings for non-codex models', async () => {
-    const agent = await createAgent([], 'support')
-    expect(agent.modelSettings).toBeUndefined()
+  it('asks the llm layer for chat settings', async () => {
+    await createAgent([], 'support')
+    expect(mockResolveModel).toHaveBeenCalledWith({ intent: 'chat' })
   })
 
-  it('forces reasoning and verbosity to medium for codex models', async () => {
-    mockResolveModel.mockResolvedValueOnce('gpt-5.2-codex')
+  it('passes the settings resolved by the llm layer straight to the agent', async () => {
+    mockResolveModel.mockResolvedValueOnce({
+      provider: 'openai',
+      modelId: 'gpt-5.2-codex',
+      model: 'gpt-5.2-codex',
+      modelSettings: { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } },
+    })
+
     const agent = await createAgent([], 'support')
+
+    expect(agent.model).toBe('gpt-5.2-codex')
     expect(agent.modelSettings).toEqual({ reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } })
+  })
+
+  it('works with a provider whose model is an object rather than an id', async () => {
+    const aiSdkModel = { specificationVersion: 'v3' }
+    mockResolveModel.mockResolvedValueOnce({
+      provider: 'anthropic',
+      modelId: 'claude-opus-5',
+      model: aiSdkModel,
+      modelSettings: { providerData: { providerOptions: { anthropic: { thinking: { type: 'adaptive' } } } } },
+    })
+
+    const agent = await createAgent([], 'support')
+
+    expect(agent.model).toBe(aiSdkModel)
+    expect(agent.modelSettings.providerData.providerOptions.anthropic.thinking).toEqual({ type: 'adaptive' })
   })
 
   it('includes profile instructions in system prompt', async () => {

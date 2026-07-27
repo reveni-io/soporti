@@ -26,7 +26,7 @@ import { runMigrations, shutdown as shutdownDb } from './db/index.js'
 import { countAdmins } from './db/users.js'
 import { announceSetupCode } from './auth/setup-code.js'
 import { getGithubToken, getWebhookSecret } from './github/settings.js'
-import { getOpenAIApiKey, getOpenAIModel } from './openai/settings.js'
+import { describeProvider } from './llm/model.js'
 
 const app = express()
 
@@ -82,12 +82,12 @@ app.listen(config.port, async () => {
       console.log('[auth] No admin account exists yet. Open /admin in the web app to create one.')
       announceSetupCode()
     }
-    if (!(await getOpenAIApiKey())) {
-      console.log('[openai] No API key configured — set it in /admin (OpenAI section) to enable the assistant.')
+    const { label, configured } = await describeProvider()
+    if (configured) {
+      console.log(`[llm] Provider: ${label}`)
     } else {
-      const model = await getOpenAIModel()
       console.log(
-        model ? `[openai] Model: ${model}` : '[openai] No model configured — set it in /admin (OpenAI section).'
+        `[llm] ${label} is not configured — set the API key and model in /admin (LLM section) to enable the assistant.`
       )
     }
     if (!(await getGithubToken())) {

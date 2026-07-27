@@ -9,14 +9,6 @@ vi.mock('drizzle-orm', () => ({
   sql: (strings, ...values) => ({ __sql: true, values }),
 }))
 
-vi.mock('@openai/agents', () => ({
-  OpenAIResponsesCompactionSession: class {
-    constructor(opts) {
-      this.underlyingSession = opts.underlyingSession
-    }
-  },
-}))
-
 vi.mock('./postgres-session.js', () => ({
   PostgresSession: class {
     constructor(conversationId) {
@@ -27,9 +19,13 @@ vi.mock('./postgres-session.js', () => ({
 
 vi.mock('../db/index.js', () => ({ getDb: vi.fn(() => null) }))
 
-vi.mock('../openai/client.js', () => ({ getOpenAIClient: vi.fn(async () => ({})) }))
+vi.mock('../llm/model.js', () => ({
+  usesContinuationToken: vi.fn(async () => true),
+  wrapSession: vi.fn(async session => ({ wrapped: true, underlyingSession: session })),
+}))
 
 import { conversations, conversationMessages } from '../db/schema.js'
+import { usesContinuationToken, wrapSession } from '../llm/model.js'
 import { ConversationStore } from './conversation-store.js'
 
 const COL_FIELD = new Map([
@@ -38,7 +34,7 @@ const COL_FIELD = new Map([
   [conversations.userId, 'userId'],
   [conversations.slackChannelId, 'slackChannelId'],
   [conversations.slackThreadTs, 'slackThreadTs'],
-  [conversations.openaiLastResponseId, 'openaiLastResponseId'],
+  [conversations.lastResponseId, 'lastResponseId'],
   [conversations.title, 'title'],
   [conversations.createdAt, 'createdAt'],
   [conversations.updatedAt, 'updatedAt'],
@@ -140,7 +136,7 @@ function makeFakeDb() {
               createdAt: new Date(),
               updatedAt: new Date(),
               title: null,
-              openaiLastResponseId: null,
+              lastResponseId: null,
               slackChannelId: null,
               slackThreadTs: null,
               userId: null,
@@ -201,6 +197,8 @@ describe('ConversationStore', () => {
   beforeEach(() => {
     db = makeFakeDb()
     store = new ConversationStore(db)
+    usesContinuationToken.mockReset().mockResolvedValue(true)
+    wrapSession.mockReset().mockImplementation(async session => ({ wrapped: true, underlyingSession: session }))
   })
 
   it('resolveWeb creates a new conversation when no id is given', async () => {
@@ -218,13 +216,40 @@ describe('ConversationStore', () => {
       id: 'sess-1',
       source: 'web',
       userId: 5,
-      openaiLastResponseId: 'resp_42',
+      lastResponseId: 'resp_42',
     })
 
     const result = await store.resolveWeb('sess-1', 5)
     expect(result.conversationId).toBe('sess-1')
     expect(result.previousResponseId).toBe('resp_42')
     expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
+  it('resolveWeb withholds a stored token from a provider that does not round-trip one', async () => {
+    usesContinuationToken.mockResolvedValue(false)
+    db._tables.get(conversations).push({
+      id: 'sess-1',
+      source: 'web',
+      userId: 5,
+      lastResponseId: 'resp_42',
+    })
+
+    const result = await store.resolveWeb('sess-1', 5)
+
+    expect(result.conversationId).toBe('sess-1')
+    expect(result.previousResponseId).toBeUndefined()
+    expect(db._tables.get(conversations)[0].lastResponseId).toBe('resp_42')
+  })
+
+  it('buildSession lets the active provider decide how to wrap the postgres session', async () => {
+    const bare = { id: 'bare-session' }
+    wrapSession.mockResolvedValue(bare)
+
+    const { session } = await store.resolveWeb(null, 5)
+
+    expect(session).toBe(bare)
+    expect(wrapSession).toHaveBeenCalledTimes(1)
+    expect(wrapSession.mock.calls[0][0].conversationId).toBeTruthy()
   })
 
   it('resolveWeb mints a new id when the id is owned by another user', async () => {
@@ -247,7 +272,7 @@ describe('ConversationStore', () => {
     expect(first.conversationId).toBeTruthy()
     expect(db._tables.get(conversations)).toHaveLength(1)
 
-    db._tables.get(conversations)[0].openaiLastResponseId = 'resp_slack'
+    db._tables.get(conversations)[0].lastResponseId = 'resp_slack'
 
     const second = await store.resolveSlack('C1', '123.45', 7)
     expect(second.conversationId).toBe(first.conversationId)
@@ -261,7 +286,7 @@ describe('ConversationStore', () => {
       source: 'slack',
       slackChannelId: 'C1',
       slackThreadTs: 't1',
-      openaiLastResponseId: 'resp_w',
+      lastResponseId: 'resp_w',
     })
     vi.spyOn(store, '_findSlack').mockResolvedValueOnce(null)
 
@@ -284,13 +309,69 @@ describe('ConversationStore', () => {
     })
 
     const conv = db._tables.get(conversations).find(c => c.id === 'c1')
-    expect(conv.openaiLastResponseId).toBe('resp_new')
+    expect(conv.lastResponseId).toBe('resp_new')
     expect(conv.title).toBe('How does auth work?')
 
     const msgs = db._tables.get(conversationMessages)
     expect(msgs).toHaveLength(2)
     expect(msgs[0]).toMatchObject({ conversationId: 'c1', role: 'user' })
     expect(msgs[1]).toMatchObject({ conversationId: 'c1', role: 'assistant' })
+  })
+
+  it('saveTurn does not persist a token a stateless provider produced', async () => {
+    usesContinuationToken.mockResolvedValue(false)
+    db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5, title: null, lastResponseId: 'resp_old' })
+
+    await store.saveTurn('c1', {
+      lastResponseId: 'msg_anthropic',
+      uiMessages: [{ role: 'user', parts: [{ type: 'text', content: 'Hello' }] }],
+    })
+
+    const conv = db._tables.get(conversations).find(c => c.id === 'c1')
+    expect(conv.lastResponseId).toBe('resp_old')
+    expect(db._tables.get(conversationMessages)).toHaveLength(1)
+  })
+
+  it('saveTurn stores the items the sdk skipped when the provider held the context', async () => {
+    db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5, title: null })
+    const session = { addItems: vi.fn(async () => {}) }
+    const turnItems = [
+      { type: 'message', role: 'user', content: 'Hello' },
+      { type: 'function_call', id: 'fc_1', callId: 'call_1', name: 'search', arguments: '{}' },
+    ]
+
+    await store.saveTurn('c1', {
+      lastResponseId: 'resp_new',
+      session,
+      unpersistedItems: turnItems,
+      uiMessages: [{ role: 'user', parts: [{ type: 'text', content: 'Hello' }] }],
+    })
+
+    expect(session.addItems).toHaveBeenCalledTimes(1)
+    expect(session.addItems).toHaveBeenCalledWith(turnItems)
+  })
+
+  it('saveTurn skips the session write when the turn produced no items', async () => {
+    db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5, title: null })
+    const session = { addItems: vi.fn(async () => {}) }
+
+    await store.saveTurn('c1', { session, unpersistedItems: [], uiMessages: [] })
+
+    expect(session.addItems).not.toHaveBeenCalled()
+  })
+
+  it('saveTurn leaves the items alone when the sdk already stored them', async () => {
+    db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5, title: null })
+    const session = { addItems: vi.fn(async () => {}) }
+
+    await store.saveTurn('c1', {
+      lastResponseId: 'resp_new',
+      session,
+      unpersistedItems: null,
+      uiMessages: [{ role: 'user', parts: [{ type: 'text', content: 'Hello' }] }],
+    })
+
+    expect(session.addItems).not.toHaveBeenCalled()
   })
 
   it('saveTurn keeps an existing title (coalesce)', async () => {

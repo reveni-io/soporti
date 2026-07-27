@@ -54,6 +54,7 @@ export async function processMessage({
   log('🚀', `Agent started for: "${message.slice(0, 120)}"`)
 
   let sentText = false
+  let unpersistedItems = null
 
   async function runTurn(prevResponseId) {
     fullText = ''
@@ -86,6 +87,7 @@ export async function processMessage({
     }
 
     await stream.completed
+    unpersistedItems = prevResponseId ? stream.history : null
     return stream.lastResponseId
   }
 
@@ -109,5 +111,5 @@ export async function processMessage({
     finalText += buildSourcesFooter(toolCalls)
   }
 
-  return { text: finalText, toolCalls, durationMs, lastResponseId }
+  return { text: finalText, toolCalls, durationMs, lastResponseId, unpersistedItems }
 }

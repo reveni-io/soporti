@@ -40,18 +40,18 @@ vi.mock('../db/skills.js', () => ({
   getSkillsByIds: vi.fn(async () => []),
 }))
 
-vi.mock('../openai/client.js', () => ({
-  getOpenAIClient: vi.fn(async () => ({})),
+vi.mock('../llm/model.js', () => ({
+  isConfigured: vi.fn(async () => true),
 }))
 
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
-import { getOpenAIClient } from '../openai/client.js'
+import { isConfigured } from '../llm/model.js'
 import { getSkillsByIds } from '../db/skills.js'
 import chatRoute from './chat.js'
 
-function createStreamMock(events) {
+function createStreamMock(events, { history, lastResponseId } = {}) {
   return {
     toStream: () => ({
       [Symbol.asyncIterator]() {
@@ -65,6 +65,8 @@ function createStreamMock(events) {
       },
     }),
     completed: Promise.resolve(),
+    history,
+    lastResponseId,
   }
 }
 
@@ -125,10 +127,13 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 503 when OpenAI is not configured (no session is built)', async () => {
-    getOpenAIClient.mockResolvedValueOnce(null)
+  it('returns 503 when the llm provider is not configured (no session is built)', async () => {
+    isConfigured.mockResolvedValueOnce(false)
+
     const res = await request(app).post('/').send({ message: 'hello' })
+
     expect(res.status).toBe(503)
+    expect(res.body.error).toMatch(/not configured/i)
     expect(conversationStore.resolveWeb).not.toHaveBeenCalled()
   })
 
@@ -211,6 +216,46 @@ describe('POST /api/chat', () => {
     )
   })
 
+  it('hands the turn items to the store when the provider kept the context server-side', async () => {
+    const session = buildSession()
+    conversationStore.resolveWeb.mockResolvedValue({
+      conversationId: TEST_CONVERSATION_ID,
+      session,
+      previousResponseId: 'resp_previous',
+    })
+    const turnHistory = [
+      { type: 'message', role: 'user', content: 'hello' },
+      { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Hi there' }] },
+    ]
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hi there' } }], {
+        history: turnHistory,
+      })
+    )
+
+    await request(app).post('/').send({ message: 'hello' })
+
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({ session, unpersistedItems: turnHistory })
+    )
+  })
+
+  it('leaves the turn items to the sdk when no context token was sent', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hi' } }], {
+        history: [{ type: 'message', role: 'user', content: 'hello' }],
+      })
+    )
+
+    await request(app).post('/').send({ message: 'hello' })
+
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({ unpersistedItems: null })
+    )
+  })
+
   it('retries without previousResponseId when the chained response expired', async () => {
     conversationStore.resolveWeb.mockResolvedValue({
       conversationId: TEST_CONVERSATION_ID,
@@ -235,6 +280,10 @@ describe('POST /api/chat', () => {
     expect(run.mock.calls[1][2].previousResponseId).toBeUndefined()
     expect(events.some(e => e.type === 'text_delta' && e.text === 'recovered')).toBe(true)
     expect(events.some(e => e.type === 'error')).toBe(false)
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({ unpersistedItems: null })
+    )
   })
 
   it('accepts the legacy selectedRepos field from older clients', async () => {
