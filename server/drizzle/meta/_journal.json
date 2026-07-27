@@ -50,6 +50,13 @@
       "when": 1784909018450,
       "tag": "0006_romantic_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785179754019,
+      "tag": "0007_brave_sunspot",
+      "breakpoints": true
     }
   ]
 }

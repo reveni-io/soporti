@@ -9,6 +9,7 @@ import ChatPanel from './ChatPanel/ChatPanel.jsx'
 import Login from '../../common/Login/Login.jsx'
 import ShareModal from './ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
+import SchedulesModal from './SchedulesModal/SchedulesModal.jsx'
 import { YOLO_SOURCE } from '../../constants.js'
 import { createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
@@ -19,6 +20,7 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [schedulesOpen, setSchedulesOpen] = useState(false)
   const [convReloadKey, setConvReloadKey] = useState(0)
   const wasLoading = useRef(false)
   const {
@@ -101,6 +103,7 @@ export default function Chat() {
         onSelectProfile={handleProfileChange}
         onClearChat={clearChat}
         onLogout={logout}
+        onOpenSchedules={() => setSchedulesOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={convReloadKey}
@@ -124,6 +127,15 @@ export default function Chat() {
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
       {settingsOpen && (
         <SettingsModal token={token} onClose={() => setSettingsOpen(false)} onLogout={logout} skills={skills} />
+      )}
+      {schedulesOpen && (
+        <SchedulesModal
+          token={token}
+          onClose={() => setSchedulesOpen(false)}
+          onLogout={logout}
+          selectedSources={selectedSources}
+          selectedProfile={selectedProfile}
+        />
       )}
     </div>
   )

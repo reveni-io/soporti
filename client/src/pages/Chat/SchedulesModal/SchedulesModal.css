@@ -1,0 +1,79 @@
+.schedules-modal {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.schedules-modal__description {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.schedules-modal__status,
+.schedules-modal__empty {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-muted);
+}
+
+.schedules-modal__error {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--orange-900);
+}
+
+.schedules-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.schedules-modal__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3);
+  padding: var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.schedules-modal__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.schedules-modal__question {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedules-modal__cadence {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.schedules-modal__runs {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.schedules-modal__item-actions {
+  display: flex;
+  gap: var(--sp2);
+  flex-shrink: 0;
+}

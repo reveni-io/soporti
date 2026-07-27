@@ -1,0 +1,56 @@
+.schedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding-top: var(--sp3);
+  border-top: 1px solid var(--border-default);
+}
+
+.schedule-form__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.schedule-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.schedule-form__label--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.schedule-form__textarea {
+  min-height: 72px;
+}
+
+.schedule-form__cadence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
+
+.schedule-form__select {
+  width: auto;
+}
+
+.schedule-form__hint {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.schedule-form__error {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--orange-900);
+}

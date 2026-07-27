@@ -32,6 +32,7 @@ const COL_FIELD = new Map([
   [conversations.id, 'id'],
   [conversations.source, 'source'],
   [conversations.userId, 'userId'],
+  [conversations.scheduleId, 'scheduleId'],
   [conversations.slackChannelId, 'slackChannelId'],
   [conversations.slackThreadTs, 'slackThreadTs'],
   [conversations.lastResponseId, 'lastResponseId'],
@@ -397,6 +398,39 @@ describe('ConversationStore', () => {
 
     const list = await store.listWeb(5)
     expect(list.map(c => c.id)).toEqual(['b', 'a'])
+  })
+
+  it('listWeb exposes which conversations came from a schedule', async () => {
+    db._tables
+      .get(conversations)
+      .push(
+        { id: 'a', source: 'web', userId: 5, title: 'A', scheduleId: 3, updatedAt: new Date() },
+        { id: 'b', source: 'web', userId: 5, title: 'B', scheduleId: null, updatedAt: new Date() }
+      )
+
+    const list = await store.listWeb(5)
+    expect(list.find(c => c.id === 'a').scheduleId).toBe(3)
+    expect(list.find(c => c.id === 'b').scheduleId).toBeNull()
+  })
+
+  it('createScheduled opens a web conversation linked to the schedule', async () => {
+    const { conversationId, session } = await store.createScheduled(5, 3)
+
+    expect(session.underlyingSession.conversationId).toBe(conversationId)
+    const [row] = db._tables.get(conversations)
+    expect(row).toMatchObject({ id: conversationId, source: 'web', userId: 5, scheduleId: 3 })
+  })
+
+  it('createScheduled conversations are listed and readable like any other', async () => {
+    const { conversationId } = await store.createScheduled(5, 3)
+    await store.saveTurn(conversationId, {
+      uiMessages: [{ role: 'user', parts: [{ type: 'text', content: 'Failed payments' }] }],
+    })
+
+    const list = await store.listWeb(5)
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ id: conversationId, title: 'Failed payments', scheduleId: 3 })
+    expect(await store.getWebMessages(conversationId, 5)).toHaveLength(1)
   })
 
   it('listWeb excludes conversations older than 14 days', async () => {

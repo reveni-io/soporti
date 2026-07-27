@@ -26,6 +26,21 @@ describe('ConversationList', () => {
     expect(screen.getByText('Untitled conversation')).toBeInTheDocument()
   })
 
+  it('marks the conversations produced by a schedule', () => {
+    render(
+      <ConversationList
+        conversations={[
+          { id: 'c1', title: 'Failed payments', scheduleId: 3 },
+          { id: 'c2', title: 'Auth question', scheduleId: null },
+        ]}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByLabelText('Scheduled run')).toHaveLength(1)
+  })
+
   it('selects a conversation by id', async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()
