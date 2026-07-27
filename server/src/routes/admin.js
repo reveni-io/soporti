@@ -10,6 +10,16 @@ import { getNotionToken, setNotionToken } from '../notion/settings.js'
 import { getShortcutToken, setShortcutToken } from '../shortcut/settings.js'
 import { getSentryToken, setSentryToken, getSentryOrg, setSentryOrg } from '../sentry/settings.js'
 import {
+  getBetterstackApiToken,
+  setBetterstackApiToken,
+  getBetterstackConnectHost,
+  setBetterstackConnectHost,
+  getBetterstackUsername,
+  setBetterstackUsername,
+  getBetterstackPassword,
+  setBetterstackPassword,
+} from '../betterstack/settings.js'
+import {
   getHelpjuiceApiKey,
   setHelpjuiceApiKey,
   getHelpjuiceAccount,
@@ -67,6 +77,7 @@ const router = Router()
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DOMAIN_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const HOST_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/
 const API_KEY_MAX_LENGTH = 300
 const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
@@ -704,6 +715,103 @@ router.put('/config/sentry/org', async (req, res) => {
   } catch (err) {
     console.error('Admin set sentry org error:', err)
     res.status(500).json({ error: 'Failed to save the Sentry organization.' })
+  }
+})
+
+router.get('/config/betterstack', async (_req, res) => {
+  try {
+    const [token, host, username, password] = await Promise.all([
+      getBetterstackApiToken(),
+      getBetterstackConnectHost(),
+      getBetterstackUsername(),
+      getBetterstackPassword(),
+    ])
+    res.json({
+      tokenConfigured: Boolean(token),
+      host: host ?? '',
+      username: username ?? '',
+      passwordConfigured: Boolean(password),
+    })
+  } catch (err) {
+    console.error('Admin get betterstack config error:', err)
+    res.status(500).json({ error: 'Failed to read the Better Stack settings.' })
+  }
+})
+
+router.put('/config/betterstack/api-token', async (req, res) => {
+  const parsed = parseSecret(req.body?.token, {
+    field: 'token',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: 'That does not look like a valid Better Stack API token.',
+  })
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
+
+  try {
+    await setBetterstackApiToken(parsed.value)
+    res.json({ tokenConfigured: parsed.value.length > 0 })
+  } catch (err) {
+    console.error('Admin set betterstack api token error:', err)
+    res.status(500).json({ error: 'Failed to save the Better Stack API token.' })
+  }
+})
+
+router.put('/config/betterstack/connect-host', async (req, res) => {
+  const { host } = req.body ?? {}
+
+  if (typeof host !== 'string') {
+    return res.status(400).json({ error: '"host" must be a string (empty to clear it).' })
+  }
+  const normalized = host
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '')
+  if (normalized.length > 0 && !HOST_REGEX.test(normalized)) {
+    return res.status(400).json({
+      error: 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").',
+    })
+  }
+
+  try {
+    await setBetterstackConnectHost(normalized)
+    res.json({ host: normalized })
+  } catch (err) {
+    console.error('Admin set betterstack connect host error:', err)
+    res.status(500).json({ error: 'Failed to save the Better Stack connect host.' })
+  }
+})
+
+router.put('/config/betterstack/connection-username', async (req, res) => {
+  const parsed = parseSecret(req.body?.username, {
+    field: 'username',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: 'That does not look like a valid Better Stack connection username.',
+  })
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
+
+  try {
+    await setBetterstackUsername(parsed.value)
+    res.json({ username: parsed.value })
+  } catch (err) {
+    console.error('Admin set betterstack connection username error:', err)
+    res.status(500).json({ error: 'Failed to save the Better Stack connection username.' })
+  }
+})
+
+router.put('/config/betterstack/connection-password', async (req, res) => {
+  const parsed = parseSecret(req.body?.password, {
+    field: 'password',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: 'That does not look like a valid Better Stack connection password.',
+  })
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
+
+  try {
+    await setBetterstackPassword(parsed.value)
+    res.json({ passwordConfigured: parsed.value.length > 0 })
+  } catch (err) {
+    console.error('Admin set betterstack connection password error:', err)
+    res.status(500).json({ error: 'Failed to save the Better Stack connection password.' })
   }
 })
 

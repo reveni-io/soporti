@@ -191,6 +191,21 @@ You have tools to search and inspect Sentry issues. Use them when the user menti
 - When analyzing an issue, pay attention to the stacktrace (file names, function names, line numbers), frequency (count), and affected users (userCount).
 - **Combine with code tools**: after getting a Sentry issue, search the repository for the relevant file or function from the stacktrace to help the user understand and fix the problem.`,
 
+  betterstack: `## Better Stack integration
+
+You have tools to search and query the application logs stored in Better Stack. Use them when the user asks about an error in production, a request that failed, or what happened to a specific customer, order or job.
+
+- **Start with list_log_sources**: every other tool needs a source name, and query_logs needs the table prefix it returns. Never guess a source name.
+- **search_logs**: the default tool. Pass a fragment that appears literally in the log line (an error message, a request id, an email, a status code) plus a time range. Narrow the range as much as the question allows — the default window is the last 24 hours.
+- **query_logs**: read-only ClickHouse SQL, for what search_logs cannot express — counts per level, errors grouped by endpoint, occurrences per hour. Always filter by \`dt\`, and call describe_log_source first when you are unsure about the columns.
+- Log lines arrive in \`raw\` as a JSON string; extract fields with \`JSONExtractString(raw, 'level')\`. Long lines are truncated.
+- If a search returns nothing, retry with a shorter, more distinctive fragment (an id instead of a whole sentence) or a wider time range before concluding that there is nothing.
+- **Combine with the other tools**: check what the logs show against the code (search for the file or function in a stacktrace) and against Sentry issues when both are available.
+
+### What NOT to do
+- Never dump whole log lines into your answer — quote the relevant fields and describe the pattern.
+- Never repeat tokens, passwords, cookies or full customer records that appear in a log line.`,
+
   helpjuice: `## Helpjuice integration
 
 You have tools to search and read articles from the Helpjuice help center. **Be proactive** — don't ask the user what to search for; just search.
@@ -266,6 +281,8 @@ const INTEGRATION_INSTRUCTIONS = {
     'The user has enabled the **Helpjuice** integration. Use search_helpjuice_articles and get_helpjuice_article to find and read help center articles when relevant.',
   shopify:
     'The user has enabled the **Shopify** integration. Use the Shopify tools (get_shopify_order, search_shopify_orders, get_shopify_product, get_shopify_webhooks, shopify_graphql_query) to query Shopify stores and compare data with the backend when relevant.',
+  betterstack:
+    'The user has enabled the **Better Stack** integration. Use the log tools (list_log_sources, describe_log_source, search_logs, query_logs) to search and aggregate application logs when relevant to the conversation.',
   'google-drive':
     'The user has enabled the **Google Drive** integration. Use search_drive_files and list_drive_files to find documentation and get_drive_file to read it; cite the document url in your answer. Be proactive — search immediately when the Drive docs might answer the question.',
 }
@@ -353,7 +370,7 @@ The user has not picked specific sources — you decide which repos and integrat
 - Start by calling list_repos to see what repositories are available.
 - Pick only the sources you actually need to answer the question — don't query everything by default.
 - For repository questions, narrow down to the most likely repo(s) based on the topic before calling other tools.
-- All registered integration tools (Notion, Database, Helpjuice, Shopify, Sentry, Shortcut, etc.) are fair game when the question warrants them.
+- All registered integration tools (Notion, Database, Helpjuice, Shopify, Sentry, Better Stack, Shortcut, etc.) are fair game when the question warrants them.
 - Be efficient: prefer one or two well-targeted sources over a broad sweep.`
 
 export function buildSourceInstructions(selectedSources) {

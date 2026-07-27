@@ -30,7 +30,16 @@ describe('buildBasePrompt', () => {
   it('includes every section when called without a policy (BASE_PROMPT)', () => {
     expect(BASE_PROMPT).toBe(buildBasePrompt())
     expect(BASE_PROMPT).toContain('## How to explore code')
-    for (const section of ['Shortcut', 'Notion', 'Google Drive', 'PostgreSQL', 'Sentry', 'Helpjuice', 'Shopify']) {
+    for (const section of [
+      'Shortcut',
+      'Notion',
+      'Google Drive',
+      'PostgreSQL',
+      'Sentry',
+      'Better Stack',
+      'Helpjuice',
+      'Shopify',
+    ]) {
       expect(BASE_PROMPT).toContain(`## ${section} integration`)
     }
   })
@@ -43,6 +52,7 @@ describe('buildBasePrompt', () => {
   it('only includes selected integration sections for a restricted policy', () => {
     const prompt = buildBasePrompt(buildSourcePolicy(['integration:postgres']))
     expect(prompt).toContain('## PostgreSQL integration')
+    expect(prompt).not.toContain('## Better Stack integration')
     expect(prompt).not.toContain('## Notion integration')
     expect(prompt).not.toContain('## Shopify integration')
     expect(prompt).not.toContain('## Helpjuice integration')
@@ -127,6 +137,16 @@ describe('buildSourceInstructions', () => {
     const result = buildSourceInstructions(['owner/repo', 'integration:notion'])
     expect(result).toContain('Notion')
     expect(result).toContain('search_notion_pages')
+  })
+
+  it('adds Better Stack integration instructions and its prompt section', () => {
+    const result = buildSourceInstructions(['integration:betterstack'])
+    expect(result).toContain('Better Stack')
+    expect(result).toContain('search_logs')
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:betterstack']))
+    expect(prompt).toContain('## Better Stack integration')
+    expect(prompt).toContain('query_logs')
   })
 
   it('adds Postgres integration instructions', () => {

@@ -18,6 +18,7 @@ import {
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as postgres from '../postgres/client.js'
+import * as betterstack from '../betterstack/client.js'
 import {
   getShortcutStoryTool,
   searchShortcutStoriesTool,
@@ -27,6 +28,7 @@ import {
   listDatabaseTablesTool,
   describeDatabaseTableTool,
   queryDatabaseTool,
+  BETTERSTACK_TOOLS,
 } from '../agent/tools.js'
 import { resolveModelForAgent } from '../llm/model.js'
 import { buildReviewerInstructions } from './prompt.js'
@@ -140,10 +142,11 @@ export function buildRepoTools(repoFullName, rootPath = null) {
 }
 
 export async function buildDataTools() {
-  const [shortcutConfigured, sentryConfigured, postgresConfigured] = await Promise.all([
+  const [shortcutConfigured, sentryConfigured, postgresConfigured, betterstackConfigured] = await Promise.all([
     shortcut.isConfigured(),
     sentry.isConfigured(),
     postgres.isConfigured(),
+    betterstack.isConfigured(),
   ])
   return [
     ...(shortcutConfigured ? [getShortcutStoryTool, searchShortcutStoriesTool] : []),
@@ -151,6 +154,7 @@ export async function buildDataTools() {
     ...(postgresConfigured
       ? [listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool, queryDatabaseTool]
       : []),
+    ...(betterstackConfigured ? BETTERSTACK_TOOLS : []),
   ]
 }
 

@@ -33,6 +33,7 @@ vi.mock('../google-drive/settings.js', () => ({ isDriveConfigured: vi.fn(async (
 vi.mock('../notion/settings.js', () => ({ isNotionConfigured: vi.fn(async () => false) }))
 vi.mock('../helpjuice/settings.js', () => ({ isHelpjuiceConfigured: vi.fn(async () => false) }))
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async () => false) }))
+vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 
 const { createAgent } = await import('./assistant.js')
@@ -224,5 +225,18 @@ describe('createAgent', () => {
       skills: [{ name: 'no-instructions' }, { instructions: 'no name' }, null, { name: 'blank', instructions: '   ' }],
     })
     expect(agent.instructions).not.toContain('Active skill')
+  })
+
+  it('forwards the resolved integration availability to the tool builder', async () => {
+    const { buildAgentTools } = await import('./tools.js')
+    const { isBetterstackConfigured } = await import('../betterstack/settings.js')
+    isBetterstackConfigured.mockResolvedValueOnce(true)
+
+    await createAgent(['integration:betterstack'], 'support')
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
+      expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false })
+    )
   })
 })

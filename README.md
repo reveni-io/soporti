@@ -24,6 +24,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 | **Database** | Explore schemas and tables, then answer with real data through read-only, row-capped `SELECT`s |
 | **Shortcut** | Read a story by ID or search stories — what was specced versus what shipped |
 | **Sentry** | Open an issue with its stacktrace, or find issues by error message |
+| **Better Stack** | Search the application logs by text and time range, or aggregate them with read-only ClickHouse SQL (counts per level, errors per endpoint) |
 | **Notion** | Search and read the pages shared with the integration |
 | **Google Drive** | Search, list and read shared folders — Docs, Sheets, Slides, PDFs and Office files |
 | **Helpjuice** | Search and read your help center articles |
@@ -150,6 +151,7 @@ All integrations are conditionally loaded — tools are only registered with the
 - **Helpjuice** — API key + account subdomain (`/admin` → Helpjuice).
 - **Shortcut** — API token (`/admin` → Shortcut). Generate one in Shortcut under **Settings → Your Account → API Tokens**. Powers story lookups and the spec axis of PR reviews.
 - **Sentry** — auth token + organization slug (`/admin` → Sentry). Create a token at [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/). Fetches issue details with stacktraces and searches issues by error message.
+- **Better Stack** — Telemetry API token plus the connect host, username and password of a ClickHouse HTTP client connection (`/admin` → Better Stack). Get the token under **API tokens → Team-based tokens**, and the other three from **Integrations → SQL API → Connect** on *ClickHouse HTTP client* (the password is only shown once, in the creation banner). Searches log lines and runs read-only SQL over them.
 - **Slack bot** — bot token, app token and signing secret (`/admin` → Slack); the bot (re)connects in place when they are saved. Uses Socket Mode (no public URL required). Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) with scopes: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`, `im:read`.
 
 ### Configured via env vars
