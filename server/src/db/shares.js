@@ -5,7 +5,7 @@ import { conversations, conversationMessages, shares } from './schema.js'
 import { ownedWebConversation } from './conversations.js'
 import { toRenderMessage } from './conversation-render.js'
 
-const TTL_MS = 24 * 60 * 60 * 1000
+const TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function createOrRefreshShare(conversationId, userId) {
   const db = getDb()

@@ -52,7 +52,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 ### Keep and share the answers
 
 - **Conversation history** — chats are persisted and reopenable from the sidebar
-- **Read-only share links** — hand a conversation to someone with no account; the transcript is frozen at that point and the link expires in 24 hours
+- **Read-only share links** — hand a conversation to someone with no account; the transcript is frozen at that point and the link expires in 30 days
 
 ## Prerequisites
 
