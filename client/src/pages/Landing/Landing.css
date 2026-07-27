@@ -469,14 +469,8 @@
   font-weight: 600;
   font-size: 1rem;
 }
-.lp-prov__models {
-  margin-top: var(--sp1);
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}
 .lp-prov__desc {
-  margin-top: var(--sp3);
+  margin-top: var(--sp1);
   font-size: var(--fs-base);
   color: var(--text-secondary);
   line-height: 1.5;
