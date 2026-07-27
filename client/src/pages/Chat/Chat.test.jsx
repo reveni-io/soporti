@@ -24,13 +24,24 @@ vi.mock('../../hooks/useSkills/useSkills.js', () => ({
 }))
 
 vi.mock('./Sidebar/Sidebar.jsx', () => ({
-  default: ({ onClearChat, onLogout, onToggleSource, onSelectProfile, isOpen, onClose }) => (
+  default: ({ onClearChat, onLogout, onToggleSource, onSelectProfile, onOpenSchedules, isOpen, onClose }) => (
     <div data-testid="sidebar" data-open={isOpen}>
       <button onClick={onClearChat}>New Chat</button>
       <button onClick={onLogout}>Logout</button>
       <button onClick={() => onToggleSource('org/app')}>Toggle Source</button>
       <button onClick={() => onSelectProfile('tech')}>Set Tech</button>
+      <button onClick={onOpenSchedules}>Open Schedules</button>
       <button onClick={onClose}>Close Sidebar</button>
+    </div>
+  ),
+}))
+
+vi.mock('./SchedulesModal/SchedulesModal.jsx', () => ({
+  default: ({ selectedSources, selectedProfile, onClose }) => (
+    <div data-testid="schedules-modal">
+      <span data-testid="schedules-sources">{selectedSources.join(',')}</span>
+      <span data-testid="schedules-profile">{selectedProfile}</span>
+      <button onClick={onClose}>Close Schedules</button>
     </div>
   ),
 }))
@@ -118,6 +129,38 @@ describe('Chat', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('chat')).toBeInTheDocument()
     expect(screen.queryByTestId('login')).not.toBeInTheDocument()
+  })
+
+  it('opens the schedules modal with the selected sources and profile', async () => {
+    const user = userEvent.setup()
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+    })
+
+    render(<Chat />)
+    expect(screen.queryByTestId('schedules-modal')).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Set Tech'))
+    await user.click(screen.getByText('Open Schedules'))
+
+    expect(screen.getByTestId('schedules-sources')).toHaveTextContent('yolo')
+    expect(screen.getByTestId('schedules-profile')).toHaveTextContent('tech')
+
+    await user.click(screen.getByText('Close Schedules'))
+
+    expect(screen.queryByTestId('schedules-modal')).not.toBeInTheDocument()
   })
 
   it('shows auth error in Login', () => {

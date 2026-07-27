@@ -13,6 +13,17 @@ const AUTOMATIONS = [
     ],
   },
   {
+    icon: '⏰',
+    title: 'Scheduled queries',
+    description:
+      'Save a question with a cadence and Soporti asks itself on time — hourly, daily, weekly or monthly, in your own time zone.',
+    bullets: [
+      'Runs with the sources and profile you picked',
+      'Every run lands as its own conversation you can continue',
+      'The answer is waiting before you think to ask',
+    ],
+  },
+  {
     icon: '🔍',
     title: 'Automated PR reviews',
     description:
@@ -41,9 +52,11 @@ export default function AutomationsSection() {
       <div className="lp-section__head">
         <span className="lp-eyebrow">Beyond the chat</span>
         <h2 className="lp-h2">Soporti shows up where the work happens.</h2>
-        <p className="lp-lead">The same brain that answers in chat also works autonomously across Slack and GitHub.</p>
+        <p className="lp-lead">
+          The same brain that answers in chat also works autonomously on a schedule, in Slack and on GitHub.
+        </p>
       </div>
-      <div className="lp-feat__grid">
+      <div className="lp-feat__grid lp-feat__grid--2col">
         {AUTOMATIONS.map(automation => (
           <FeatureCard
             key={automation.title}

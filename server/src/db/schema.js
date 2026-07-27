@@ -20,12 +20,39 @@ export const appConfig = pgTable('app_config', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const schedules = pgTable(
+  'schedules',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    question: text('question').notNull(),
+    sources: jsonb('sources').notNull(),
+    profile: text('profile').notNull(),
+    frequency: text('frequency').notNull(),
+    minute: integer('minute').notNull(),
+    hour: integer('hour'),
+    weekday: integer('weekday'),
+    monthDay: integer('month_day'),
+    timezone: text('timezone').notNull(),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+    lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+    lastStatus: text('last_status'),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('schedules_next_run_idx').on(table.nextRunAt)]
+)
+
 export const conversations = pgTable(
   'conversations',
   {
     id: uuid('id').primaryKey(),
     source: text('source').notNull(),
     userId: integer('user_id').references(() => users.id),
+    scheduleId: integer('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
     slackChannelId: text('slack_channel_id'),
     slackThreadTs: text('slack_thread_ts'),
     lastResponseId: text('openai_last_response_id'),

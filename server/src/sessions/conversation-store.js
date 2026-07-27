@@ -66,6 +66,14 @@ export class ConversationStore {
     return { conversationId, session: await this.buildSession(conversationId), previousResponseId: undefined }
   }
 
+  async createScheduled(userId, scheduleId) {
+    const conversationId = randomUUID()
+
+    await this.db.insert(conversations).values({ id: conversationId, source: 'web', userId, scheduleId })
+
+    return { conversationId, session: await this.buildSession(conversationId) }
+  }
+
   async resolveSlack(channelId, threadTs, userId) {
     const existing = await this._findSlack(channelId, threadTs)
     if (existing) {
@@ -140,6 +148,7 @@ export class ConversationStore {
       .select({
         id: conversations.id,
         title: conversations.title,
+        scheduleId: conversations.scheduleId,
         updatedAt: conversations.updatedAt,
         createdAt: conversations.createdAt,
       })

@@ -3,9 +3,11 @@ import {
   ApiError,
   absoluteApiUrl,
   createAdminUser,
+  createSchedule,
   createShare,
   createSkill,
   deleteConversation,
+  deleteSchedule,
   deleteSkill,
   draftShopifyTokenQuery,
   getAdminStatus,
@@ -13,6 +15,7 @@ import {
   getAuthMethods,
   getConversation,
   getRepos,
+  getSchedules,
   getSharedConversation,
   getSkill,
   getSkills,
@@ -323,6 +326,36 @@ describe('endpoints', () => {
     expect(options.method).toBe('POST')
     expect(options.body).toBeUndefined()
     expect(options.headers['Content-Type']).toBeUndefined()
+  })
+
+  it('reads the scheduled queries', async () => {
+    await getSchedules('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/schedules')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('creates a scheduled query', async () => {
+    await createSchedule('tok', { question: 'Failed payments?', frequency: 'daily', hour: 9, minute: 0 })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/schedules')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({
+      question: 'Failed payments?',
+      frequency: 'daily',
+      hour: 9,
+      minute: 0,
+    })
+  })
+
+  it('deletes a scheduled query', async () => {
+    await deleteSchedule('tok', 3)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/schedules/3')
+    expect(options.method).toBe('DELETE')
   })
 
   it('saves a slack credential under its own endpoint and body key', async () => {

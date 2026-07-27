@@ -1,2 +1,13 @@
 export const MAX_INSTRUCTIONS_LENGTH = 50_000
 export const MAX_DESCRIPTION_LENGTH = 200
+
+export const SCHEDULE_HOURLY = 'hourly'
+export const SCHEDULE_DAILY = 'daily'
+export const SCHEDULE_WEEKLY = 'weekly'
+export const SCHEDULE_MONTHLY = 'monthly'
+export const SCHEDULE_FREQUENCIES = [SCHEDULE_HOURLY, SCHEDULE_DAILY, SCHEDULE_WEEKLY, SCHEDULE_MONTHLY]
+export const SCHEDULE_MONTH_DAY_MAX = 28
+export const SCHEDULE_QUESTION_MAX_LENGTH = 10_000
+export const SCHEDULE_STATUS_OK = 'ok'
+export const SCHEDULE_STATUS_ERROR = 'error'
+export const MAX_SCHEDULES_PER_USER = 20

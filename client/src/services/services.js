@@ -163,6 +163,27 @@ export function deleteSkill(token, id) {
   return request(`/api/skills/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete skill' })
 }
 
+export function getSchedules(token) {
+  return request('/api/schedules', { token, errorMessage: 'Failed to load the scheduled queries' })
+}
+
+export function createSchedule(token, schedule) {
+  return request('/api/schedules', {
+    method: 'POST',
+    token,
+    body: schedule,
+    errorMessage: 'Failed to create the scheduled query',
+  })
+}
+
+export function deleteSchedule(token, id) {
+  return request(`/api/schedules/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the scheduled query',
+  })
+}
+
 export function getAdminUsers(token) {
   return request('/api/admin/users', { token, errorMessage: 'Failed to load users' })
 }

@@ -45,6 +45,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 
 - **Automated PR reviews** — request a review from the bot's GitHub user or add the `soporti-review` label, and it reviews the diff on three axes: correctness, your own written standards (CLAUDE.md, ADRs, agent skills found in the repo) and the linked Shortcut story. It posts inline comments and can approve trivial PRs
 - **Replies in PR threads** — @mention the bot in a PR comment or review thread and it answers there, once, with the branch checked out and its data tools available
+- **Scheduled queries** — save a question and a cadence (hourly, daily, weekly or monthly, in your own time zone) in **Scheduled queries**, and it asks itself on time with the sources and profile you had selected. Every run lands as a new conversation in the sidebar, marked with a clock, that you can open and keep chatting in
 - **Slack ticket auto-diagnose** — tickets filed into a Slack List get triaged autonomously, screenshots included, with the diagnosis written back into the ticket
 - **Learns from what worked** — mark an answer as helpful and the case is saved to a knowledge base that later questions search automatically (needs a vector store id in `/admin` → Knowledge base; it runs on OpenAI Vector Stores whichever chat provider you pick, so it needs an OpenAI key of its own when the assistant is on Anthropic)
 

@@ -61,6 +61,12 @@ const ICON_SHAPES = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 16 14" />
+    </>
+  ),
   download: (
     <>
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

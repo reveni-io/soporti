@@ -18,7 +18,9 @@ import shareRouter from './routes/share.js'
 import feedbackRouter from './routes/feedback.js'
 import userRouter from './routes/user.js'
 import skillsRouter from './routes/skills.js'
+import schedulesRouter from './routes/schedules.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
+import { startSchedulePoller, stopSchedulePoller } from './schedules/poller.js'
 import { setupReviewWebhook } from './review/index.js'
 import { pool } from './repo-pool/index.js'
 import { shutdown as shutdownPostgres, isConfigured as isPostgresConfigured } from './postgres/client.js'
@@ -52,6 +54,7 @@ app.use('/api/share', shareRouter)
 app.use('/api/feedback', feedbackRouter)
 app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
+app.use('/api/schedules', schedulesRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })
@@ -105,9 +108,12 @@ app.listen(config.port, async () => {
   } catch (err) {
     console.error('Failed to start Slack bot:', err.message)
   }
+
+  startSchedulePoller(conversationStore)
 })
 
 async function shutdown() {
+  stopSchedulePoller()
   await stopSlackBot()
   await pool.shutdown()
   await shutdownPostgres()

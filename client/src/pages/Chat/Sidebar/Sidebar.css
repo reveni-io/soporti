@@ -166,6 +166,13 @@
   color: var(--sidebar-text);
 }
 
+.sidebar__conversation-badge {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--sidebar-text-muted);
+}
+
 .sidebar__conversation-title {
   flex: 1;
   overflow: hidden;
@@ -349,6 +356,7 @@
   color: var(--sidebar-text-muted);
 }
 
+.sidebar__schedules,
 .sidebar__settings,
 .sidebar__logout {
   margin-top: var(--sp2);
@@ -364,6 +372,7 @@
   transition: background 0.15s, color 0.15s;
 }
 
+.sidebar__schedules:hover,
 .sidebar__settings:hover,
 .sidebar__logout:hover {
   background-color: var(--sidebar-hover);
