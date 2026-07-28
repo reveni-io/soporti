@@ -16,6 +16,7 @@ import { isDriveConfigured } from '../google-drive/settings.js'
 import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
+import { isBetterstackConfigured } from '../betterstack/settings.js'
 import * as shopify from '../shopify/client.js'
 
 export async function createAgent(
@@ -54,6 +55,7 @@ export async function createAgent(
     helpjuiceConfigured,
     postgresConfigured,
     shopifyConfigured,
+    betterstackConfigured,
   ] = await Promise.all([
     isShortcutConfigured(),
     isSentryConfigured(),
@@ -62,6 +64,7 @@ export async function createAgent(
     isHelpjuiceConfigured(),
     isPostgresConfigured(),
     shopify.isConfigured(),
+    isBetterstackConfigured(),
   ])
   const tools = buildAgentTools(policy, {
     shortcutConfigured,
@@ -71,6 +74,7 @@ export async function createAgent(
     helpjuiceConfigured,
     postgresConfigured,
     shopifyConfigured,
+    betterstackConfigured,
   })
 
   const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })

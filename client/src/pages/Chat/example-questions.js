@@ -87,6 +87,16 @@ export const EXAMPLE_QUESTIONS = [
     integrationId: 'sentry',
     text: 'Explain this Sentry error and its likely cause: <paste a Sentry link>',
   },
+  {
+    category: 'errors',
+    integrationId: 'betterstack',
+    text: 'Search the logs for 500s in the last hour and group them by endpoint',
+  },
+  {
+    category: 'errors',
+    integrationId: 'betterstack',
+    text: 'Find every log line for this request id and tell me what failed: <request id>',
+  },
 
   {
     category: 'docs',

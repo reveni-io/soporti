@@ -42,6 +42,7 @@ vi.mock('../repo-pool/index.js', () => ({
 const mockShortcutConfigured = vi.fn()
 const mockSentryConfigured = vi.fn()
 const mockPostgresConfigured = vi.fn()
+const mockBetterstackConfigured = vi.fn()
 
 vi.mock('../shortcut/client.js', () => ({
   isConfigured: () => mockShortcutConfigured(),
@@ -58,6 +59,13 @@ vi.mock('../postgres/client.js', () => ({
   listSchemas: vi.fn(),
   listTables: vi.fn(),
   describeTable: vi.fn(),
+  runQuery: vi.fn(),
+}))
+vi.mock('../betterstack/client.js', () => ({
+  isConfigured: () => mockBetterstackConfigured(),
+  listSources: vi.fn(),
+  describeSource: vi.fn(),
+  searchLogs: vi.fn(),
   runQuery: vi.fn(),
 }))
 vi.mock('../notion/client.js', () => ({ isConfigured: () => false, searchPages: vi.fn(), getPage: vi.fn() }))
@@ -178,6 +186,19 @@ describe('createReviewerAgent', () => {
       'git_log_file',
       'git_blame',
     ])
+  })
+
+  it('adds the Better Stack log tools only when the integration is configured', async () => {
+    await createReviewerAgent('acme-io/app')
+    expect(MockAgent.mock.calls[0][0].tools.map(t => t.name)).not.toContain('search_logs')
+
+    mockBetterstackConfigured.mockReturnValueOnce(true)
+    await createReviewerAgent('acme-io/app')
+
+    const names = MockAgent.mock.calls[1][0].tools.map(t => t.name)
+    expect(names).toContain('list_log_sources')
+    expect(names).toContain('search_logs')
+    expect(names).toContain('query_logs')
   })
 
   it('pins every tool to the triggered repository (no repo parameter exposed)', async () => {

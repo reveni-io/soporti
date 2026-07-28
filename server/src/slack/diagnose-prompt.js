@@ -47,7 +47,8 @@ export function buildDiagnosisPrompt(ticket) {
 
     '## How to investigate\n\n' +
       'Use your tools before concluding — do not speculate. Discover and search the relevant repositories, check ' +
-      'Sentry for matching errors, query the read-only database or Shopify for the affected order/customer, and ' +
+      'Sentry for matching errors, search the application logs in Better Stack for the failing request, customer ' +
+      'or order id, query the read-only database or Shopify for the affected order/customer, and ' +
       'consult Helpjuice or Notion for expected product behavior. Prefer evidence over guesses; if you cannot find ' +
       'enough, state what you checked and what is still unknown.',
 

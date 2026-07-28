@@ -58,11 +58,11 @@ const CAPABILITY_STEPS = [
   },
   {
     id: 'tracking',
-    integrationIds: ['shortcut', 'sentry'],
+    integrationIds: ['shortcut', 'sentry', 'betterstack'],
     title: 'Check tickets and errors',
     description:
-      'Ask about the status of ongoing work, or paste a Sentry link or alert and ask what caused the error — ' +
-      'all without leaving the chat.',
+      'Ask about the status of ongoing work, paste a Sentry link or alert and ask what caused the error, or have ' +
+      'it dig through the application logs — all without leaving the chat.',
     categories: ['tickets', 'errors'],
   },
 ]

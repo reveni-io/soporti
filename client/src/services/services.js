@@ -459,6 +459,46 @@ export function saveSentryAuthToken(token, value) {
   })
 }
 
+export function getBetterstackConfig(token) {
+  return request('/api/admin/config/betterstack', { token, errorMessage: 'Failed to load the Better Stack settings' })
+}
+
+export function saveBetterstackApiToken(token, value) {
+  return request('/api/admin/config/betterstack/api-token', {
+    method: 'PUT',
+    token,
+    body: { token: value },
+    errorMessage: 'Failed to save the API token',
+  })
+}
+
+export function saveBetterstackConnectHost(token, host) {
+  return request('/api/admin/config/betterstack/connect-host', {
+    method: 'PUT',
+    token,
+    body: { host },
+    errorMessage: 'Failed to save the connect host',
+  })
+}
+
+export function saveBetterstackConnectionUsername(token, username) {
+  return request('/api/admin/config/betterstack/connection-username', {
+    method: 'PUT',
+    token,
+    body: { username },
+    errorMessage: 'Failed to save the connection username',
+  })
+}
+
+export function saveBetterstackConnectionPassword(token, password) {
+  return request('/api/admin/config/betterstack/connection-password', {
+    method: 'PUT',
+    token,
+    body: { password },
+    errorMessage: 'Failed to save the connection password',
+  })
+}
+
 export function getSlackConfig(token) {
   return request('/api/admin/config/slack', { token, errorMessage: 'Failed to load the Slack settings' })
 }

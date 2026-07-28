@@ -41,6 +41,13 @@ vi.mock('../postgres/client.js', () => ({
   describeTable: vi.fn(),
   runQuery: vi.fn(),
 }))
+vi.mock('../betterstack/client.js', () => ({
+  isConfigured: () => false,
+  listSources: vi.fn(),
+  describeSource: vi.fn(),
+  searchLogs: vi.fn(),
+  runQuery: vi.fn(),
+}))
 vi.mock('../notion/client.js', () => ({ isConfigured: () => false, searchPages: vi.fn(), getPage: vi.fn() }))
 vi.mock('../helpjuice/client.js', () => ({ isConfigured: () => false, searchArticles: vi.fn(), getArticle: vi.fn() }))
 vi.mock('../shopify/client.js', () => ({

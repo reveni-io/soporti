@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import IntegrationIcon from './IntegrationIcon.jsx'
 
 describe('IntegrationIcon', () => {
-  it.each(['github', 'notion', 'postgres', 'shopify', 'google-drive', 'shortcut', 'sentry'])(
+  it.each(['github', 'notion', 'postgres', 'shopify', 'google-drive', 'shortcut', 'sentry', 'betterstack'])(
     'renders the %s brand mark',
     id => {
       const { container } = render(<IntegrationIcon id={id} />)

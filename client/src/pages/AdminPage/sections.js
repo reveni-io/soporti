@@ -1,4 +1,5 @@
 import AdminAuthentication from './AdminAuthentication/AdminAuthentication.jsx'
+import AdminBetterstack from './AdminBetterstack/AdminBetterstack.jsx'
 import AdminDatabase from './AdminDatabase/AdminDatabase.jsx'
 import AdminGithub from './AdminGithub/AdminGithub.jsx'
 import AdminGoogleDrive from './AdminGoogleDrive/AdminGoogleDrive.jsx'
@@ -25,5 +26,6 @@ export const SECTIONS = [
   { path: 'shopify', label: 'Shopify', icon: 'shopify', Component: AdminShopify },
   { path: 'shortcut', label: 'Shortcut', icon: 'shortcut', Component: AdminShortcut },
   { path: 'sentry', label: 'Sentry', icon: 'sentry', Component: AdminSentry },
+  { path: 'betterstack', label: 'Better Stack', icon: 'betterstack', Component: AdminBetterstack },
   { path: 'slack', label: 'Slack', icon: 'slack', Component: AdminSlack },
 ]

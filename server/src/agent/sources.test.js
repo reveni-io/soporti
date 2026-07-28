@@ -77,6 +77,16 @@ describe('collectConsultedSources', () => {
     expect(integrations).toEqual(['Notion', 'Database', 'Shopify', 'Helpjuice', 'Sentry', 'Shortcut'])
   })
 
+  it('credits Better Stack once for any of the log tools', () => {
+    const calls = [
+      { name: 'list_log_sources', arguments: '{}' },
+      { name: 'describe_log_source', arguments: '{"source":"API"}' },
+      { name: 'search_logs', arguments: '{"source":"API","query":"boom"}' },
+      { name: 'query_logs', arguments: '{"sql":"SELECT 1"}' },
+    ]
+    expect(collectConsultedSources(calls).integrations).toEqual(['Better Stack'])
+  })
+
   it('ignores list_repos discovery calls', () => {
     const calls = [{ name: 'list_repos', arguments: '{}' }]
     const { repos, integrations } = collectConsultedSources(calls)

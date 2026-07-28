@@ -7,6 +7,7 @@ import * as postgres from '../postgres/client.js'
 import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
+import * as betterstack from '../betterstack/client.js'
 import { YOLO_SOURCE } from '../agent/sources.js'
 import { processMessage } from './handler.js'
 import { getSlackSettings } from './settings.js'
@@ -120,6 +121,14 @@ async function buildSourceSelectorBlocks(question, repos) {
       text: { type: 'plain_text', text: 'Google Drive' },
       description: { type: 'plain_text', text: 'Search, browse and read Google Drive documents' },
       value: 'integration:google-drive',
+    })
+  }
+
+  if (await betterstack.isConfigured()) {
+    sourceOptions.push({
+      text: { type: 'plain_text', text: 'Better Stack' },
+      description: { type: 'plain_text', text: 'Search and query application logs' },
+      value: 'integration:betterstack',
     })
   }
 

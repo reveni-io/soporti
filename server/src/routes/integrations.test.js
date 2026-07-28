@@ -9,6 +9,7 @@ const shopifyIsConfigured = vi.fn()
 const googleDriveIsConfigured = vi.fn()
 const shortcutIsConfigured = vi.fn()
 const sentryIsConfigured = vi.fn()
+const betterstackIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({
   isConfigured: (...args) => notionIsConfigured(...args),
@@ -38,6 +39,10 @@ vi.mock('../sentry/client.js', () => ({
   isConfigured: (...args) => sentryIsConfigured(...args),
 }))
 
+vi.mock('../betterstack/client.js', () => ({
+  isConfigured: (...args) => betterstackIsConfigured(...args),
+}))
+
 const { default: router } = await import('./integrations.js')
 
 const app = express()
@@ -51,6 +56,7 @@ function configureAll(value) {
   googleDriveIsConfigured.mockReturnValue(value)
   shortcutIsConfigured.mockReturnValue(value)
   sentryIsConfigured.mockReturnValue(value)
+  betterstackIsConfigured.mockReturnValue(value)
 }
 
 describe('GET /api/integrations', () => {
@@ -70,6 +76,7 @@ describe('GET /api/integrations', () => {
       'google-drive',
       'shortcut',
       'sentry',
+      'betterstack',
     ])
   })
 
@@ -86,6 +93,16 @@ describe('GET /api/integrations', () => {
     expect(byId.helpjuice).toBe(true)
     expect(byId.shopify).toBe(true)
     expect(byId['google-drive']).toBe(true)
+    expect(byId.betterstack).toBe(true)
+  })
+
+  it('returns GitHub plus Better Stack when only Better Stack is configured', async () => {
+    configureAll(false)
+    betterstackIsConfigured.mockReturnValue(true)
+
+    const res = await request(app).get('/')
+    expect(res.body.integrations.map(i => i.id)).toEqual(['github', 'betterstack'])
+    expect(res.body.integrations[1].name).toBe('Better Stack')
   })
 
   it('returns GitHub plus Notion when only Notion is configured', async () => {

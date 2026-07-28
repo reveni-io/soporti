@@ -48,6 +48,14 @@ vi.mock('../sentry/client.js', () => ({
   isConfigured: vi.fn(() => true),
 }))
 
+vi.mock('../betterstack/client.js', () => ({
+  listSources: vi.fn(),
+  describeSource: vi.fn(),
+  searchLogs: vi.fn(),
+  runQuery: vi.fn(),
+  isConfigured: vi.fn(() => true),
+}))
+
 vi.mock('../helpjuice/client.js', () => ({
   searchArticles: vi.fn(),
   getArticle: vi.fn(),
@@ -106,6 +114,10 @@ const {
   searchDriveFilesTool,
   getDriveFileTool,
   listDriveFilesTool,
+  listLogSourcesTool,
+  describeLogSourceTool,
+  searchLogsTool,
+  queryLogsTool,
   allTools,
   buildRepoTools,
   buildAgentTools,
@@ -163,8 +175,16 @@ describe('tool definitions', () => {
     expect(listDriveFilesTool).toBeDefined()
   })
 
+  it('exports better stack log tools', () => {
+    expect(listLogSourcesTool).toBeDefined()
+    expect(describeLogSourceTool).toBeDefined()
+    expect(searchLogsTool).toBeDefined()
+    expect(queryLogsTool).toBeDefined()
+  })
+
   it('allTools excludes every runtime-gated integration tool', () => {
     expect(allTools.length).toBe(7)
+    expect(allTools.map(t => t.name)).not.toContain('search_logs')
     expect(allTools.map(t => t.name)).not.toContain('get_shortcut_story')
     expect(allTools.map(t => t.name)).not.toContain('get_sentry_issue')
     expect(allTools.map(t => t.name)).not.toContain('search_drive_files')
@@ -356,6 +376,29 @@ describe('buildAgentTools', () => {
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { shopifyConfigured: false }))).not.toContain('get_shopify_order')
     expect(names(buildAgentTools(yolo, { shopifyConfigured: true }))).toContain('get_shopify_order')
+  })
+
+  it('gates the Better Stack tools on betterstackConfigured', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['betterstack'] }
+    expect(names(buildAgentTools(selection, { betterstackConfigured: false }))).not.toContain('search_logs')
+    expect(names(buildAgentTools(selection, { betterstackConfigured: true }))).toEqual([
+      'list_log_sources',
+      'describe_log_source',
+      'search_logs',
+      'query_logs',
+    ])
+
+    const yolo = { unrestricted: true, repos: [], integrations: [] }
+    expect(names(buildAgentTools(yolo, { betterstackConfigured: false }))).not.toContain('search_logs')
+    expect(names(buildAgentTools(yolo, { betterstackConfigured: true }))).toContain('query_logs')
+  })
+
+  it('does not register the Better Stack tools for another selected integration', () => {
+    const tools = buildAgentTools(
+      { unrestricted: false, repos: [], integrations: ['notion'] },
+      { notionConfigured: true, betterstackConfigured: true }
+    )
+    expect(names(tools)).not.toContain('search_logs')
   })
 
   it('ignores unknown integration ids', () => {
@@ -551,6 +594,45 @@ describe('tool execute functions', () => {
     const result = await searchSentryIssuesTool.execute({ query: 'TypeError' })
     expect(JSON.parse(result)).toEqual([{ id: '1', title: 'Error' }])
     expect(sentry.searchIssues).toHaveBeenCalledWith('TypeError')
+  })
+
+  it('listLogSourcesTool.execute calls listSources and returns JSON', async () => {
+    const betterstack = await import('../betterstack/client.js')
+    betterstack.listSources.mockResolvedValue([{ name: 'API', table: 't123_api' }])
+    const result = await listLogSourcesTool.execute({})
+    expect(JSON.parse(result)).toEqual([{ name: 'API', table: 't123_api' }])
+    expect(betterstack.listSources).toHaveBeenCalledTimes(1)
+  })
+
+  it('describeLogSourceTool.execute forwards the source name', async () => {
+    const betterstack = await import('../betterstack/client.js')
+    betterstack.describeSource.mockResolvedValue({ source: 'API', columns: [{ name: 'dt', type: 'DateTime64(6)' }] })
+    const result = await describeLogSourceTool.execute({ source: 'API' })
+    expect(JSON.parse(result)).toEqual({ source: 'API', columns: [{ name: 'dt', type: 'DateTime64(6)' }] })
+    expect(betterstack.describeSource).toHaveBeenCalledWith('API')
+  })
+
+  it('searchLogsTool.execute forwards the whole search input', async () => {
+    const betterstack = await import('../betterstack/client.js')
+    betterstack.searchLogs.mockResolvedValue({ rowCount: 1, logs: [{ dt: '2026-07-27 10:00:00.000', raw: '{}' }] })
+    const input = {
+      source: 'API',
+      query: 'timeout',
+      from: '2026-07-27T00:00:00Z',
+      to: '2026-07-27T12:00:00Z',
+      limit: 5,
+    }
+    const result = await searchLogsTool.execute(input)
+    expect(JSON.parse(result)).toEqual({ rowCount: 1, logs: [{ dt: '2026-07-27 10:00:00.000', raw: '{}' }] })
+    expect(betterstack.searchLogs).toHaveBeenCalledWith(input)
+  })
+
+  it('queryLogsTool.execute forwards the sql and returns JSON', async () => {
+    const betterstack = await import('../betterstack/client.js')
+    betterstack.runQuery.mockResolvedValue({ rowCount: 1, rows: [{ total: 12 }] })
+    const result = await queryLogsTool.execute({ sql: 'SELECT count() AS total FROM remote(t123_api_logs)' })
+    expect(JSON.parse(result)).toEqual({ rowCount: 1, rows: [{ total: 12 }] })
+    expect(betterstack.runQuery).toHaveBeenCalledWith('SELECT count() AS total FROM remote(t123_api_logs)')
   })
 
   it('searchHelpjuiceArticlesTool.execute calls searchArticles and returns JSON', async () => {

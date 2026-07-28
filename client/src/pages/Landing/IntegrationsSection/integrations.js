@@ -20,6 +20,11 @@ export const INTEGRATIONS = [
     desc: 'Pulls issues and the latest event stack trace, so you can paste a link and ask what caused an error.',
   },
   {
+    id: 'betterstack',
+    name: 'Better Stack',
+    desc: 'Searches your application logs and runs read-only SQL over them, so you can ask what failed in production and when.',
+  },
+  {
     id: 'notion',
     name: 'Notion',
     desc: 'Reads internal Notion pages and databases to answer questions about processes and policies.',

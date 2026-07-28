@@ -13,6 +13,7 @@ import * as shortcut from '../shortcut/client.js'
 import * as notion from '../notion/client.js'
 import * as postgres from '../postgres/client.js'
 import * as sentry from '../sentry/client.js'
+import * as betterstack from '../betterstack/client.js'
 import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
@@ -302,6 +303,63 @@ export const queryDatabaseTool = tool({
   },
 })
 
+export const listLogSourcesTool = tool({
+  name: 'list_log_sources',
+  description:
+    'List the log sources available in Better Stack. Call this first: it returns each source name, platform, retention in days, and the table prefix to use in query_logs.',
+  parameters: z.object({}),
+  execute: async () => {
+    const sources = await betterstack.listSources()
+    return JSON.stringify(sources)
+  },
+})
+
+export const describeLogSourceTool = tool({
+  name: 'describe_log_source',
+  description:
+    'Describe the columns and types of a log source table in Better Stack. Use it before writing a query_logs query against an unfamiliar source.',
+  parameters: z.object({
+    source: z.string().describe('Log source name as returned by list_log_sources.'),
+  }),
+  execute: async input => {
+    const schema = await betterstack.describeSource(input.source)
+    return JSON.stringify(schema)
+  },
+})
+
+export const searchLogsTool = tool({
+  name: 'search_logs',
+  description:
+    'Search the log lines of a Better Stack source for a case-insensitive text fragment (an error message, a request id, an email, a status code). This is the fastest way to find matching logs. Returns the newest matches first, each with its timestamp and raw log line (a JSON string, truncated when very long).',
+  parameters: z.object({
+    source: z.string().describe('Log source name as returned by list_log_sources.'),
+    query: z.string().describe('Text fragment to look for inside the log line.'),
+    from: z
+      .string()
+      .optional()
+      .describe('Start of the time range as an ISO 8601 timestamp. Defaults to 24 hours before "to".'),
+    to: z.string().optional().describe('End of the time range as an ISO 8601 timestamp. Defaults to now.'),
+    limit: z.number().optional().describe('Maximum log lines to return (default 25, maximum 100).'),
+  }),
+  execute: async input => {
+    const result = await betterstack.searchLogs(input)
+    return JSON.stringify(result)
+  },
+})
+
+export const queryLogsTool = tool({
+  name: 'query_logs',
+  description:
+    "Execute a read-only ClickHouse SQL query against Better Stack logs. Use it for aggregates search_logs cannot express: counts per level, errors grouped by endpoint, occurrences per hour. Only SELECT and WITH (CTE) queries are allowed and results are capped at 100 rows. Take the table prefix from list_log_sources and read recent data with remote(<prefix>_logs) or historical data with s3Cluster(primary, <prefix>_s3) WHERE _row_type = 1. Available columns are dt (timestamp) and raw (the log line as a JSON string): extract fields with JSONExtractString(raw, 'level'). Always filter by dt and never add a FORMAT clause.",
+  parameters: z.object({
+    sql: z.string().describe('ClickHouse SELECT query to execute.'),
+  }),
+  execute: async input => {
+    const result = await betterstack.runQuery(input.sql)
+    return JSON.stringify(result)
+  },
+})
+
 export const getSentryIssueTool = tool({
   name: 'get_sentry_issue',
   description:
@@ -433,6 +491,7 @@ export const shopifyGraphqlQueryTool = tool({
 
 const SHORTCUT_TOOLS = [getShortcutStoryTool, searchShortcutStoriesTool]
 const SENTRY_TOOLS = [getSentryIssueTool, searchSentryIssuesTool]
+export const BETTERSTACK_TOOLS = [listLogSourcesTool, describeLogSourceTool, searchLogsTool, queryLogsTool]
 const DRIVE_TOOLS = [searchDriveFilesTool, getDriveFileTool, listDriveFilesTool]
 const NOTION_TOOLS = [searchNotionPagesTool, getNotionPageTool]
 const HELPJUICE_TOOLS = [searchHelpjuiceArticlesTool, getHelpjuiceArticleTool]
@@ -465,10 +524,12 @@ export function buildAgentTools(
     helpjuiceConfigured = false,
     postgresConfigured = false,
     shopifyConfigured = false,
+    betterstackConfigured = false,
   } = {}
 ) {
   const shortcutTools = shortcutConfigured ? SHORTCUT_TOOLS : []
   const sentryTools = sentryConfigured ? SENTRY_TOOLS : []
+  const betterstackTools = betterstackConfigured ? BETTERSTACK_TOOLS : []
   const driveTools = driveConfigured ? DRIVE_TOOLS : []
   const notionTools = notionConfigured ? NOTION_TOOLS : []
   const helpjuiceTools = helpjuiceConfigured ? HELPJUICE_TOOLS : []
@@ -485,6 +546,7 @@ export function buildAgentTools(
       ...helpjuiceTools,
       ...postgresTools,
       ...shopifyTools,
+      ...betterstackTools,
     ]
   } else {
     tools = []
@@ -502,6 +564,8 @@ export function buildAgentTools(
         tools.push(...postgresTools)
       } else if (id === 'shopify') {
         tools.push(...shopifyTools)
+      } else if (id === 'betterstack') {
+        tools.push(...betterstackTools)
       }
     }
     tools.push(...shortcutTools, ...sentryTools)

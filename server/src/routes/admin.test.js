@@ -65,6 +65,14 @@ const getSentryToken = vi.fn()
 const setSentryToken = vi.fn()
 const getSentryOrg = vi.fn()
 const setSentryOrg = vi.fn()
+const getBetterstackApiToken = vi.fn()
+const setBetterstackApiToken = vi.fn()
+const getBetterstackConnectHost = vi.fn()
+const setBetterstackConnectHost = vi.fn()
+const getBetterstackUsername = vi.fn()
+const setBetterstackUsername = vi.fn()
+const getBetterstackPassword = vi.fn()
+const setBetterstackPassword = vi.fn()
 
 const getHelpjuiceApiKey = vi.fn()
 const setHelpjuiceApiKey = vi.fn()
@@ -99,6 +107,16 @@ vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCre
 vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken }))
 vi.mock('../shortcut/settings.js', () => ({ getShortcutToken, setShortcutToken }))
 vi.mock('../sentry/settings.js', () => ({ getSentryToken, setSentryToken, getSentryOrg, setSentryOrg }))
+vi.mock('../betterstack/settings.js', () => ({
+  getBetterstackApiToken,
+  setBetterstackApiToken,
+  getBetterstackConnectHost,
+  setBetterstackConnectHost,
+  getBetterstackUsername,
+  setBetterstackUsername,
+  getBetterstackPassword,
+  setBetterstackPassword,
+}))
 vi.mock('../helpjuice/settings.js', () => ({
   getHelpjuiceApiKey,
   setHelpjuiceApiKey,
@@ -202,6 +220,14 @@ beforeEach(() => {
   setSentryToken.mockReset()
   getSentryOrg.mockReset()
   setSentryOrg.mockReset()
+  getBetterstackApiToken.mockReset()
+  setBetterstackApiToken.mockReset()
+  getBetterstackConnectHost.mockReset()
+  setBetterstackConnectHost.mockReset()
+  getBetterstackUsername.mockReset()
+  setBetterstackUsername.mockReset()
+  getBetterstackPassword.mockReset()
+  setBetterstackPassword.mockReset()
   getHelpjuiceApiKey.mockReset()
   setHelpjuiceApiKey.mockReset()
   getHelpjuiceAccount.mockReset()
@@ -798,6 +824,141 @@ describe('PUT /api/admin/config/sentry/org', () => {
     expect((await request(app).put('/api/admin/config/sentry/org').send({ org: 42 })).status).toBe(400)
     expect((await request(app).put('/api/admin/config/sentry/org').send({ org: 'not a slug' })).status).toBe(400)
     expect(setSentryOrg).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/admin/config/betterstack', () => {
+  it('reports secret presence without ever returning the secrets, and returns the host and username', async () => {
+    getBetterstackApiToken.mockResolvedValue('bs_token_secret')
+    getBetterstackConnectHost.mockResolvedValue('eu-nbg-2-connect.betterstackdata.com')
+    getBetterstackUsername.mockResolvedValue('u1234')
+    getBetterstackPassword.mockResolvedValue('p4ssw0rd_secret')
+
+    const res = await request(app).get('/api/admin/config/betterstack')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      tokenConfigured: true,
+      host: 'eu-nbg-2-connect.betterstackdata.com',
+      username: 'u1234',
+      passwordConfigured: true,
+    })
+    expect(JSON.stringify(res.body)).not.toContain('bs_token_secret')
+    expect(JSON.stringify(res.body)).not.toContain('p4ssw0rd_secret')
+  })
+
+  it('reports an unconfigured integration', async () => {
+    getBetterstackApiToken.mockResolvedValue(null)
+    getBetterstackConnectHost.mockResolvedValue(null)
+    getBetterstackUsername.mockResolvedValue(null)
+    getBetterstackPassword.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/admin/config/betterstack')
+
+    expect(res.body).toEqual({ tokenConfigured: false, host: '', username: '', passwordConfigured: false })
+  })
+})
+
+describe('PUT /api/admin/config/betterstack/api-token', () => {
+  it('saves a trimmed token and clears it with an empty string', async () => {
+    const saved = await request(app).put('/api/admin/config/betterstack/api-token').send({ token: '  bs_new  ' })
+    expect(saved.status).toBe(200)
+    expect(saved.body).toEqual({ tokenConfigured: true })
+    expect(setBetterstackApiToken).toHaveBeenCalledWith('bs_new')
+
+    const cleared = await request(app).put('/api/admin/config/betterstack/api-token').send({ token: '' })
+    expect(cleared.body).toEqual({ tokenConfigured: false })
+    expect(setBetterstackApiToken).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings and token-shaped garbage', async () => {
+    expect((await request(app).put('/api/admin/config/betterstack/api-token').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/betterstack/api-token').send({ token: 42 })).status).toBe(400)
+    expect(
+      (await request(app).put('/api/admin/config/betterstack/api-token').send({ token: 'has spaces inside' })).status
+    ).toBe(400)
+    expect(setBetterstackApiToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/betterstack/connect-host', () => {
+  it('normalizes a pasted host by dropping the scheme and trailing slash', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/betterstack/connect-host')
+      .send({ host: ' https://EU-NBG-2-connect.betterstackdata.com/ ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ host: 'eu-nbg-2-connect.betterstackdata.com' })
+    expect(setBetterstackConnectHost).toHaveBeenCalledWith('eu-nbg-2-connect.betterstackdata.com')
+  })
+
+  it('keeps an explicit port', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/betterstack/connect-host')
+      .send({ host: 'eu-fsn-3-connect.betterstackdata.com:443' })
+
+    expect(res.body).toEqual({ host: 'eu-fsn-3-connect.betterstackdata.com:443' })
+  })
+
+  it('clears the host with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/betterstack/connect-host').send({ host: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ host: '' })
+    expect(setBetterstackConnectHost).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings and anything that is not a hostname', async () => {
+    expect((await request(app).put('/api/admin/config/betterstack/connect-host').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/betterstack/connect-host').send({ host: 42 })).status).toBe(400)
+    expect(
+      (await request(app).put('/api/admin/config/betterstack/connect-host').send({ host: 'not a host' })).status
+    ).toBe(400)
+    expect(
+      (await request(app).put('/api/admin/config/betterstack/connect-host').send({ host: 'localhost' })).status
+    ).toBe(400)
+    expect(setBetterstackConnectHost).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/betterstack/connection-username', () => {
+  it('saves a trimmed username and returns it', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/betterstack/connection-username')
+      .send({ username: '  u1234  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ username: 'u1234' })
+    expect(setBetterstackUsername).toHaveBeenCalledWith('u1234')
+  })
+
+  it('rejects non-strings and usernames with whitespace', async () => {
+    expect((await request(app).put('/api/admin/config/betterstack/connection-username').send({})).status).toBe(400)
+    expect(
+      (await request(app).put('/api/admin/config/betterstack/connection-username').send({ username: 'u 1234' })).status
+    ).toBe(400)
+    expect(setBetterstackUsername).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/betterstack/connection-password', () => {
+  it('saves the password without returning it and clears it with an empty string', async () => {
+    const saved = await request(app)
+      .put('/api/admin/config/betterstack/connection-password')
+      .send({ password: '  p4ssw0rd  ' })
+    expect(saved.status).toBe(200)
+    expect(saved.body).toEqual({ passwordConfigured: true })
+    expect(JSON.stringify(saved.body)).not.toContain('p4ssw0rd')
+    expect(setBetterstackPassword).toHaveBeenCalledWith('p4ssw0rd')
+
+    const cleared = await request(app).put('/api/admin/config/betterstack/connection-password').send({ password: '' })
+    expect(cleared.body).toEqual({ passwordConfigured: false })
+    expect(setBetterstackPassword).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings', async () => {
+    expect((await request(app).put('/api/admin/config/betterstack/connection-password').send({})).status).toBe(400)
+    expect(setBetterstackPassword).not.toHaveBeenCalled()
   })
 })
 

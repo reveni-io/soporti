@@ -6,6 +6,7 @@ import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
+import * as betterstack from '../betterstack/client.js'
 
 const router = Router()
 
@@ -79,6 +80,15 @@ router.get('/', async (_req, res) => {
       name: 'Sentry',
       description: 'Inspect production errors and issues',
       selectable: false,
+    })
+  }
+
+  if (await betterstack.isConfigured()) {
+    integrations.push({
+      id: 'betterstack',
+      name: 'Better Stack',
+      description: 'Search and query application logs',
+      selectable: true,
     })
   }
 
