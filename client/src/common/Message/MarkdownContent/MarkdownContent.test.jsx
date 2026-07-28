@@ -53,6 +53,12 @@ describe('MarkdownContent', () => {
 
     expect(container.querySelector('.mermaid-diagram')).toBe(diagram)
     expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toContain('/api/mermaid/render')
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ chart: 'flowchart TD\n  A --> B' })
   })
 
   it('keeps a rendered chart mounted when re-rendered with the same content', () => {
