@@ -35,10 +35,16 @@ export default function Chat() {
   const authMethods = useAuthMethods()
   const skills = useSkills(token, logout)
   const integrations = useAuthedResource(getIntegrations, 'integrations', token, [])
-  const { messages, isLoading, sendMessage, stopGeneration, clearChat, loadConversation, currentSessionId } = useChat(
-    token,
-    logout
-  )
+  const {
+    messages,
+    isLoading,
+    conversationKey,
+    sendMessage,
+    stopGeneration,
+    clearChat,
+    loadConversation,
+    currentSessionId,
+  } = useChat(token, logout)
 
   useEffect(() => {
     if (wasLoading.current && !isLoading) {
@@ -115,6 +121,7 @@ export default function Chat() {
       <ChatPanel
         messages={messages}
         isLoading={isLoading}
+        conversationKey={conversationKey}
         onSend={handleSend}
         onStop={stopGeneration}
         hasSourcesSelected={selectedSources.length > 0}

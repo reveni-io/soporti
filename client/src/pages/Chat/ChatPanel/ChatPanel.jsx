@@ -15,6 +15,7 @@ const TOUR_SEEN_KEY = 'soportiTourSeen'
 export default function ChatPanel({
   messages,
   isLoading,
+  conversationKey,
   onSend,
   onStop,
   hasSourcesSelected,
@@ -27,7 +28,7 @@ export default function ChatPanel({
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
   const stats = useAuthedResource(getStats, 'stats', token, null)
-  const { scrollRef, contentRef, pinToBottom } = useAutoScroll()
+  const { scrollRef, contentRef, pinToBottom } = useAutoScroll(conversationKey)
   const { fill, ...composer } = useComposer({ skills, isLoading, hasSourcesSelected, onSend: handleSend })
 
   function handleSend(text, invokedSkills) {

@@ -1,4 +1,3 @@
-import { memo } from 'react'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
 import ToolCall from '../../ToolCall/ToolCall.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
@@ -19,7 +18,7 @@ export default function AssistantMessage({ message, isStreaming, token }) {
   )
 }
 
-const MessagePart = memo(function MessagePart({ part, isStreaming, token }) {
+function MessagePart({ part, isStreaming, token }) {
   if (part.type === 'text') {
     return <MarkdownContent content={part.content} isStreaming={isStreaming} token={token} />
   }
@@ -33,7 +32,7 @@ const MessagePart = memo(function MessagePart({ part, isStreaming, token }) {
   }
 
   return null
-})
+}
 
 function TypingIndicator() {
   return (

@@ -4,6 +4,7 @@ import { getConversation, isUnauthorized, streamChat } from '../../../../service
 export function useChat(token, onAuthError) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [conversationKey, setConversationKey] = useState(0)
   const sessionIdRef = useRef(null)
   const abortRef = useRef(null)
 
@@ -178,6 +179,7 @@ export function useChat(token, onAuthError) {
 
   const clearChat = useCallback(() => {
     setMessages([])
+    setConversationKey(key => key + 1)
     sessionIdRef.current = null
   }, [])
 
@@ -188,6 +190,7 @@ export function useChat(token, onAuthError) {
 
         sessionIdRef.current = id
         setMessages(data.messages || [])
+        setConversationKey(key => key + 1)
       } catch (err) {
         if (isUnauthorized(err)) onAuthError?.()
       }
@@ -198,6 +201,7 @@ export function useChat(token, onAuthError) {
   return {
     messages,
     isLoading,
+    conversationKey,
     sendMessage,
     stopGeneration,
     clearChat,

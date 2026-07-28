@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useAutoScroll } from './useAutoScroll.js'
 
-function StreamingList({ lines }) {
-  const { scrollRef, contentRef, pinToBottom } = useAutoScroll()
+function StreamingList({ lines, conversationKey = 0 }) {
+  const { scrollRef, contentRef, pinToBottom } = useAutoScroll(conversationKey)
 
   return (
     <div>
@@ -75,12 +76,12 @@ describe('useAutoScroll', () => {
     vi.unstubAllGlobals()
   })
 
-  it('observes the content element and pins the viewport to the bottom when it grows', () => {
+  it('observes the content and the viewport and pins the viewport to the bottom when they resize', () => {
     render(<StreamingList lines={['first']} />)
     const tracker = trackScrolling(screen.getByTestId('viewport'), { scrollHeight: 1000, clientHeight: 300 })
 
     expect(observers).toHaveLength(1)
-    expect(observers[0].observe).toHaveBeenCalledWith(screen.getByTestId('content'))
+    expect(observers[0].observe.mock.calls).toEqual([[screen.getByTestId('content')], [screen.getByTestId('viewport')]])
 
     observers[0].callback([])
     flushFrames()
@@ -116,6 +117,21 @@ describe('useAutoScroll', () => {
     expect(tracker.writes).toEqual([])
   })
 
+  it('abandons a scheduled scroll when the user scrolls up before the frame runs', () => {
+    render(<StreamingList lines={['first']} />)
+    const viewport = screen.getByTestId('viewport')
+    const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
+
+    observers[0].callback([])
+    tracker.scrollTop = 200
+    tracker.writes = []
+    fireEvent.scroll(viewport)
+    flushFrames()
+
+    expect(tracker.scrollTop).toBe(200)
+    expect(tracker.writes).toEqual([])
+  })
+
   it('follows the content again once the user scrolls close to the bottom', () => {
     render(<StreamingList lines={['first']} />)
     const viewport = screen.getByTestId('viewport')
@@ -134,28 +150,42 @@ describe('useAutoScroll', () => {
   })
 
   it('jumps back to the bottom when a message is sent from a scrolled up position', async () => {
+    const user = userEvent.setup()
     render(<StreamingList lines={['first']} />)
     const viewport = screen.getByTestId('viewport')
     const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
 
     tracker.scrollTop = 0
     fireEvent.scroll(viewport)
-    fireEvent.click(screen.getByRole('button', { name: /send/i }))
+    await user.click(screen.getByRole('button', { name: /send/i }))
     flushFrames()
 
     expect(tracker.scrollTop).toBe(1000)
   })
 
-  it('disconnects the observer and drops the pending frame on unmount', () => {
+  it('pins the viewport to the bottom again when another conversation is opened', () => {
+    const { rerender } = render(<StreamingList lines={['first']} conversationKey={1} />)
+    const viewport = screen.getByTestId('viewport')
+    const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
+
+    tracker.scrollTop = 0
+    fireEvent.scroll(viewport)
+    tracker.writes = []
+
+    rerender(<StreamingList lines={['another conversation']} conversationKey={2} />)
+    flushFrames()
+
+    expect(tracker.scrollTop).toBe(1000)
+  })
+
+  it('does not scroll after unmounting with a frame still pending', () => {
     const { unmount } = render(<StreamingList lines={['first']} />)
-    trackScrolling(screen.getByTestId('viewport'), { scrollHeight: 1000, clientHeight: 300 })
+    const tracker = trackScrolling(screen.getByTestId('viewport'), { scrollHeight: 1000, clientHeight: 300 })
 
     observers[0].callback([])
-    expect(frames.size).toBe(1)
-
     unmount()
+    flushFrames()
 
-    expect(observers[0].disconnect).toHaveBeenCalledTimes(1)
-    expect(frames.size).toBe(0)
+    expect(tracker.writes).toEqual([])
   })
 })
