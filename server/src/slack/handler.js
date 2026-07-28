@@ -4,6 +4,7 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import config from '../config.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { upsertSlackUser, getCustomInstructions } from '../db/users.js'
+import { formatUsage } from '../llm/usage.js'
 
 function log(icon, ...args) {
   const timestamp = new Date().toISOString().slice(11, 23)
@@ -87,6 +88,10 @@ export async function processMessage({
     }
 
     await stream.completed
+
+    const usage = formatUsage(stream.state?.usage)
+    if (usage) log('📊', usage)
+
     unpersistedItems = prevResponseId ? stream.history : null
     return stream.lastResponseId
   }

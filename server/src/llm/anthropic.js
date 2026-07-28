@@ -43,7 +43,7 @@ function reviewEffort() {
 }
 
 export function modelSettings(_modelId, { intent = 'chat' } = {}) {
-  const anthropicOptions = { thinking: { type: 'adaptive' } }
+  const anthropicOptions = { thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } }
 
   const effort = intent === 'review' ? reviewEffort() : null
   if (effort) anthropicOptions.effort = effort
