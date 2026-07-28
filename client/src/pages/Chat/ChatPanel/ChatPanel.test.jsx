@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatPanel from './ChatPanel.jsx'
 
@@ -435,6 +435,30 @@ describe('ChatPanel', () => {
       await user.keyboard('{Enter}')
 
       expect(onSend).toHaveBeenCalledWith('just a question', [])
+    })
+  })
+
+  describe('scrolling', () => {
+    function stubViewportMetrics(viewport) {
+      Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => 1000 })
+      Object.defineProperty(viewport, 'clientHeight', { configurable: true, get: () => 300 })
+    }
+
+    it('scrolls back to the bottom when another conversation is opened after scrolling up', async () => {
+      const { container, rerender } = render(
+        <ChatPanel {...defaultProps} messages={[{ role: 'user', content: 'first' }]} conversationKey={1} />
+      )
+
+      const viewport = container.querySelector('.chat__messages')
+      stubViewportMetrics(viewport)
+      viewport.scrollTop = 0
+      fireEvent.scroll(viewport)
+
+      rerender(
+        <ChatPanel {...defaultProps} messages={[{ role: 'user', content: 'another one' }]} conversationKey={2} />
+      )
+
+      await waitFor(() => expect(viewport.scrollTop).toBe(1000))
     })
   })
 })

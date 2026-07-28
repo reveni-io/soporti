@@ -209,6 +209,25 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual(messages)
   })
 
+  it('advances the conversation key when a conversation is loaded or cleared', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [] }) })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+    const initialKey = result.current.conversationKey
+
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+    const loadedKey = result.current.conversationKey
+
+    act(() => {
+      result.current.clearChat()
+    })
+
+    expect(loadedKey).not.toBe(initialKey)
+    expect(result.current.conversationKey).not.toBe(loadedKey)
+  })
+
   it('loadConversation keeps invoked skills served on user messages', async () => {
     const messages = [{ role: 'user', content: 'hi', skills: [{ id: 5, name: 'bug-triage' }] }]
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages }) })
