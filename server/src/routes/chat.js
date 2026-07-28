@@ -8,6 +8,7 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { isConfigured } from '../llm/model.js'
+import { formatUsage } from '../llm/usage.js'
 
 const router = Router()
 
@@ -212,6 +213,10 @@ export default function chatRoute(conversationStore) {
         }
 
         await stream.completed
+
+        const usage = formatUsage(stream.state?.usage)
+        if (usage) log('📊', usage)
+
         unpersistedItems = prevResponseId ? stream.history : null
         return stream.lastResponseId
       }

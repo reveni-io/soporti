@@ -3,6 +3,7 @@ import { createAgent } from '../agent/assistant.js'
 import { YOLO_SOURCE } from '../agent/sources.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { redactSecrets } from '../review/output-guard.js'
+import { formatUsage } from '../llm/usage.js'
 import config from '../config.js'
 import { buildDiagnosisPrompt, buildTicketText } from './diagnose-prompt.js'
 
@@ -36,6 +37,9 @@ export async function diagnoseTicket(ticket, { images = [] } = {}) {
 
   const result = await run(agent, input, { maxTurns: config.agent.maxIterations })
   const durationMs = Date.now() - startTime
+
+  const usage = formatUsage(result?.state?.usage)
+  if (usage) log('📊', usage)
 
   const output = result?.finalOutput
   const text = typeof output === 'string' ? output : output == null ? '' : JSON.stringify(output)

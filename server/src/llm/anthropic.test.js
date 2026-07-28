@@ -93,8 +93,16 @@ describe('modelSettings', () => {
     const settings = provider.modelSettings('claude-opus-5', { intent: 'chat' })
 
     expect(settings.providerData).toEqual({
-      providerOptions: { anthropic: { thinking: { type: 'adaptive' } } },
+      providerOptions: { anthropic: { thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } } },
     })
+  })
+
+  it('requests prompt caching so the tools and system prefix are not re-billed every turn', () => {
+    for (const intent of ['chat', 'review']) {
+      const { anthropic } = provider.modelSettings('claude-opus-5', { intent }).providerData.providerOptions
+
+      expect(anthropic.cacheControl).toEqual({ type: 'ephemeral' })
+    }
   })
 
   it('uses adaptive thinking rather than a token budget, which current models reject', () => {
@@ -108,14 +116,18 @@ describe('modelSettings', () => {
   it('adds the configured effort on a review turn', () => {
     const { anthropic } = provider.modelSettings('claude-opus-5', { intent: 'review' }).providerData.providerOptions
 
-    expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, effort: 'high' })
+    expect(anthropic).toEqual({
+      thinking: { type: 'adaptive' },
+      cacheControl: { type: 'ephemeral' },
+      effort: 'high',
+    })
   })
 
   it('drops an effort the anthropic api does not accept', () => {
     config.review.reasoningEffort = 'minimal'
     const { anthropic } = provider.modelSettings('claude-opus-5', { intent: 'review' }).providerData.providerOptions
 
-    expect(anthropic).toEqual({ thinking: { type: 'adaptive' } })
+    expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } })
   })
 
   it('never sends an effort on a chat turn', () => {
