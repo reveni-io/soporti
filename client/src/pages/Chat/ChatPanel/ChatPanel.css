@@ -74,7 +74,12 @@
 .chat__messages {
   flex: 1;
   overflow-y: auto;
+  overflow-anchor: none;
   padding: var(--sp6) var(--sp6) var(--sp2);
+}
+
+.chat__messages-list {
+  display: flow-root;
 }
 
 .chat__empty {

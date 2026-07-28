@@ -23,6 +23,14 @@ if (typeof globalThis.localStorage === 'undefined' || !globalThis.localStorage.g
 
 Element.prototype.scrollIntoView = vi.fn()
 
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
+
 if (!import.meta.env.VITE_API_URL) {
   import.meta.env.VITE_API_URL = ''
 }

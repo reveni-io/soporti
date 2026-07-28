@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import Message from '../../../common/Message/Message.jsx'
 import TourModal from '../TourModal/TourModal.jsx'
 import { useAuthedResource } from '../../../hooks/useAuthedResource/useAuthedResource.js'
 import { getStats } from '../../../services/services.js'
+import { useAutoScroll } from '../hooks/useAutoScroll/useAutoScroll.js'
 import { useComposer } from '../hooks/useComposer/useComposer.js'
 import ChatComposer from './ChatComposer/ChatComposer.jsx'
 import ChatEmptyState from './ChatEmptyState/ChatEmptyState.jsx'
@@ -24,14 +25,15 @@ export default function ChatPanel({
   skills = [],
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
-  const messagesEndRef = useRef(null)
 
   const stats = useAuthedResource(getStats, 'stats', token, null)
-  const { fill, ...composer } = useComposer({ skills, isLoading, hasSourcesSelected, onSend })
+  const { scrollRef, contentRef, pinToBottom } = useAutoScroll()
+  const { fill, ...composer } = useComposer({ skills, isLoading, hasSourcesSelected, onSend: handleSend })
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  function handleSend(text, invokedSkills) {
+    pinToBottom()
+    onSend(text, invokedSkills)
+  }
 
   function closeTour() {
     setTourOpen(false)
@@ -53,7 +55,7 @@ export default function ChatPanel({
         onShare={onShare}
       />
 
-      <div className="chat__messages">
+      <div className="chat__messages" ref={scrollRef}>
         {messages.length === 0 && (
           <ChatEmptyState
             hasSourcesSelected={hasSourcesSelected}
@@ -63,16 +65,16 @@ export default function ChatPanel({
           />
         )}
 
-        {messages.map((message, index) => (
-          <Message
-            key={index}
-            message={message}
-            isStreaming={isLoading && index === messages.length - 1}
-            token={token}
-          />
-        ))}
-
-        <div ref={messagesEndRef} />
+        <div className="chat__messages-list" ref={contentRef}>
+          {messages.map((message, index) => (
+            <Message
+              key={index}
+              message={message}
+              isStreaming={isLoading && index === messages.length - 1}
+              token={token}
+            />
+          ))}
+        </div>
       </div>
 
       <ChatComposer {...composer} isLoading={isLoading} hasSourcesSelected={hasSourcesSelected} onStop={onStop} />
