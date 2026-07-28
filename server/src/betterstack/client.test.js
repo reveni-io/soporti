@@ -87,6 +87,39 @@ describe('listSources', () => {
     expect(options.headers.Authorization).toBe('Bearer bs_token')
   })
 
+  it('follows the pagination links until the last page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [SOURCES_RESPONSE.data[0]],
+          pagination: { next: 'https://telemetry.betterstack.com/api/v1/sources?page=2&per_page=50' },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: [SOURCES_RESPONSE.data[1]], pagination: { next: null } }))
+
+    const sources = await listSources()
+
+    expect(sources.map(source => source.name)).toEqual(['API', 'Nginx'])
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch.mock.calls[1][0]).toBe('https://telemetry.betterstack.com/api/v1/sources?page=2&per_page=50')
+    expect(mockFetch.mock.calls[1][1].headers.Authorization).toBe('Bearer bs_token')
+  })
+
+  it('stops after the page cap and warns that the list is incomplete', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        data: [SOURCES_RESPONSE.data[0]],
+        pagination: { next: 'https://telemetry.betterstack.com/api/v1/sources?page=99&per_page=50' },
+      })
+    )
+
+    const sources = await listSources()
+
+    expect(mockFetch).toHaveBeenCalledTimes(20)
+    expect(sources).toHaveLength(20)
+    await expect(describeSource('billing')).rejects.toThrow('The source list was truncated, so more sources may exist.')
+  })
+
   it('serves the cached sources until the token changes', async () => {
     mockFetch.mockResolvedValue(jsonResponse(SOURCES_RESPONSE))
 

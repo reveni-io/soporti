@@ -9,6 +9,7 @@ import { redactSecrets } from '../review/output-guard.js'
 
 const SOURCES_URL = 'https://telemetry.betterstack.com/api/v1/sources'
 const SOURCES_PER_PAGE = 50
+const MAX_SOURCE_PAGES = 20
 const SOURCES_CACHE_TTL_MS = 60_000
 const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
@@ -41,22 +42,34 @@ async function readError(res) {
   return text.slice(0, MAX_ERROR_CHARS)
 }
 
+async function fetchSourcePage(url, token) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) {
+    throw new Error(`Better Stack sources request failed (${res.status}): ${await readError(res)}`)
+  }
+
+  return res.json()
+}
+
 export async function listSources() {
   const token = await getBetterstackApiToken()
   if (!token) throw new Error(NOT_CONFIGURED_ERROR)
 
   if (sourcesCache && sourcesCache.token === token && sourcesCache.expiresAt > Date.now()) return sourcesCache.sources
 
-  const res = await fetch(`${SOURCES_URL}?per_page=${SOURCES_PER_PAGE}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    throw new Error(`Better Stack sources request failed (${res.status}): ${await readError(res)}`)
+  const sources = []
+  let next = `${SOURCES_URL}?per_page=${SOURCES_PER_PAGE}`
+  let pages = 0
+
+  while (next && pages < MAX_SOURCE_PAGES) {
+    const body = await fetchSourcePage(next, token)
+
+    sources.push(...(body?.data ?? []).filter(hasTable).map(toSource))
+    next = body?.pagination?.next ?? null
+    pages += 1
   }
 
-  const body = await res.json()
-  const sources = (body?.data ?? []).filter(hasTable).map(toSource)
-  sourcesCache = { token, sources, expiresAt: Date.now() + SOURCES_CACHE_TTL_MS }
+  sourcesCache = { token, sources, truncated: Boolean(next), expiresAt: Date.now() + SOURCES_CACHE_TTL_MS }
 
   return sources
 }
@@ -68,7 +81,8 @@ async function resolveSource(name) {
   const match = sources.find(source => source.name.toLowerCase() === wanted || source.table.toLowerCase() === wanted)
   if (!match) {
     const available = sources.map(source => source.name).join(', ') || 'none'
-    throw new Error(`Unknown log source "${name}". Available sources: ${available}.`)
+    const note = sourcesCache.truncated ? ' The source list was truncated, so more sources may exist.' : ''
+    throw new Error(`Unknown log source "${name}". Available sources: ${available}.${note}`)
   }
 
   return match
