@@ -30,10 +30,10 @@ Use the following format:
 <type>/<short-description>
 ```
 
-Types: `feature/`, `fix/`, `refactor/`, `chore/`, `docs/`
+`<type>` is one of the commit types below: `feat/`, `fix/`, `refactor/`, `test/`, `chore/`, `docs/`, `style/`, `perf/`
 
 Examples:
-- `feature/add-sentry-error-details`
+- `feat/add-sentry-error-details`
 - `fix/sse-connection-timeout`
 - `refactor/extract-auth-middleware`
 
