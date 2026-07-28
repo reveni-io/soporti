@@ -81,6 +81,7 @@ const HOST_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/
 const API_KEY_MAX_LENGTH = 300
 const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
+const INVALID_HOST_ERROR = 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").'
 
 function validEmail(email) {
   return typeof email === 'string' && email.trim().length <= 254 && EMAIL_REGEX.test(email.trim())
@@ -756,20 +757,19 @@ router.put('/config/betterstack/api-token', async (req, res) => {
 })
 
 router.put('/config/betterstack/connect-host', async (req, res) => {
-  const { host } = req.body ?? {}
+  const parsed = parseSecret(req.body?.host, {
+    field: 'host',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: INVALID_HOST_ERROR,
+  })
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
 
-  if (typeof host !== 'string') {
-    return res.status(400).json({ error: '"host" must be a string (empty to clear it).' })
-  }
-  const normalized = host
-    .trim()
+  const normalized = parsed.value
     .toLowerCase()
     .replace(/^https?:\/\//, '')
     .replace(/\/+$/, '')
   if (normalized.length > 0 && !HOST_REGEX.test(normalized)) {
-    return res.status(400).json({
-      error: 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").',
-    })
+    return res.status(400).json({ error: INVALID_HOST_ERROR })
   }
 
   try {

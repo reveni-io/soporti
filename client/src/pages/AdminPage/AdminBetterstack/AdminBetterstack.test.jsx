@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminBetterstack from './AdminBetterstack.jsx'
 
 beforeEach(() => {
   vi.restoreAllMocks()
 })
+
+function saveButtonFor(input) {
+  return within(input.closest('form')).getByRole('button', { name: /^save$/i })
+}
 
 function mockGet({ tokenConfigured = false, host = '', username = '', passwordConfigured = false } = {}) {
   return {
@@ -66,7 +70,7 @@ describe('AdminBetterstack', () => {
     const input = await screen.findByPlaceholderText('eu-nbg-2-connect.betterstackdata.com')
 
     await user.type(input, 'https://EU-FSN-3-connect.betterstackdata.com')
-    await user.click(screen.getAllByRole('button', { name: /^save$/i })[1])
+    await user.click(saveButtonFor(input))
 
     await waitFor(() => {
       expect(input).toHaveValue('eu-fsn-3-connect.betterstackdata.com')
@@ -88,7 +92,7 @@ describe('AdminBetterstack', () => {
     const input = await screen.findByPlaceholderText('u123456')
 
     await user.type(input, 'u123456')
-    await user.click(screen.getAllByRole('button', { name: /^save$/i })[2])
+    await user.click(saveButtonFor(input))
 
     await waitFor(() => {
       expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/config/betterstack/connection-username')
@@ -107,7 +111,7 @@ describe('AdminBetterstack', () => {
     const input = await screen.findByPlaceholderText('Telemetry API token')
 
     await user.type(input, 'bs_newtoken')
-    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0])
+    await user.click(saveButtonFor(input))
 
     await waitFor(() => {
       expect(input).toHaveValue('')
@@ -128,7 +132,7 @@ describe('AdminBetterstack', () => {
     const input = await screen.findByPlaceholderText('Connection password')
 
     await user.type(input, 'p4ssw0rd')
-    await user.click(screen.getAllByRole('button', { name: /^save$/i })[3])
+    await user.click(saveButtonFor(input))
 
     expect(await screen.findAllByText('configured')).toHaveLength(3)
     expect(input).toHaveValue('')
@@ -152,7 +156,7 @@ describe('AdminBetterstack', () => {
     const input = await screen.findByPlaceholderText('eu-nbg-2-connect.betterstackdata.com')
 
     await user.type(input, 'not a host')
-    await user.click(screen.getAllByRole('button', { name: /^save$/i })[1])
+    await user.click(saveButtonFor(input))
 
     expect(await screen.findByText(/valid connect host/)).toBeInTheDocument()
   })

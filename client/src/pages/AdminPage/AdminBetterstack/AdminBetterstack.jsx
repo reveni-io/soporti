@@ -43,38 +43,22 @@ export default function AdminBetterstack({ token, onLogout }) {
     <>
       <AdminSection title="Better Stack integration">
         <p className="admin__muted">
-          Lets the assistant search and aggregate your application logs in Better Stack Telemetry. All four values are
-          stored in the database; the API token and the connection password are never shown again after saving.
+          Lets the assistant search and aggregate your application logs in Better Stack Telemetry. Setup pulls from two
+          places in Better Stack: an API token that lists your log sources, and an SQL connection that reads them. Both
+          are stored in the database, and the token and the connection password are never shown again after saving.
         </p>
 
         <StatusRow configured={configured} />
         <p className="admin__muted">
-          The integration is enabled once the API token, the connect host, the username and the password are set.
+          The integration is enabled once the API token and the whole SQL connection are set.
         </p>
-      </AdminSection>
-
-      <AdminSection title="Setup">
-        <ol className="admin__steps">
-          <li>
-            In Better Stack, open <strong>API tokens → Team-based tokens</strong>, pick your team and copy a{' '}
-            <strong>Telemetry API token</strong>. The assistant uses it to discover your log sources.
-          </li>
-          <li>
-            Then open <strong>Integrations → SQL API</strong> and click <strong>Connect</strong> on{' '}
-            <strong>ClickHouse HTTP client</strong>. Select the teams the connection may read and click{' '}
-            <strong>Create connection</strong>.
-          </li>
-          <li>
-            The success banner shows the <strong>Host</strong>, the <strong>username</strong> and the{' '}
-            <strong>password</strong>. Copy all three now — the password is only shown there, once.
-          </li>
-          <li>Save the four values below.</li>
-        </ol>
       </AdminSection>
 
       <AdminSection title="API token">
         <p className="admin__muted">
-          Telemetry API token, used to list your log sources. Stored write-only and never shown again.
+          Open <strong>API tokens → Team-based tokens</strong>, pick your team and copy a{' '}
+          <strong>Telemetry API token</strong>. It is only used to list your log sources and their retention — every
+          query goes through the SQL connection below.
         </p>
 
         <StatusRow configured={config.tokenConfigured} />
@@ -88,10 +72,17 @@ export default function AdminBetterstack({ token, onLogout }) {
         />
       </AdminSection>
 
-      <AdminSection title="Connect host">
+      <AdminSection title="SQL connection">
         <p className="admin__muted">
-          The host from the connection banner, without the scheme (e.g.{' '}
-          <code>eu-nbg-2-connect.betterstackdata.com</code>).
+          Open <strong>Integrations → SQL API</strong>, click <strong>Connect</strong> on{' '}
+          <strong>ClickHouse HTTP client</strong>, pick the teams the connection may read and click{' '}
+          <strong>Create connection</strong>. The banner then shows the three values below at once — copy them before
+          leaving it, the password is only shown there once.
+        </p>
+
+        <h3 className="admin__subsection-title">Host</h3>
+        <p className="admin__muted">
+          Without the scheme, e.g. <code>eu-nbg-2-connect.betterstackdata.com</code>.
         </p>
 
         <ValueField
@@ -100,18 +91,14 @@ export default function AdminBetterstack({ token, onLogout }) {
           onLogout={onLogout}
           placeholder="eu-nbg-2-connect.betterstackdata.com"
         />
-      </AdminSection>
 
-      <AdminSection title="Connection username">
-        <p className="admin__muted">The username of the ClickHouse HTTP client connection.</p>
+        <h3 className="admin__subsection-title">Username</h3>
 
         <ValueField savedValue={config.username} onSave={saveUsername} onLogout={onLogout} placeholder="u123456" />
-      </AdminSection>
 
-      <AdminSection title="Connection password">
+        <h3 className="admin__subsection-title">Password</h3>
         <p className="admin__muted">
-          The password of the ClickHouse HTTP client connection. Stored write-only and never shown again — if you lost
-          it, create a new connection in Better Stack.
+          Stored write-only and never shown again — if you lost it, create a new connection in Better Stack.
         </p>
 
         <StatusRow configured={config.passwordConfigured} />

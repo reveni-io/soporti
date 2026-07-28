@@ -16,15 +16,8 @@ vi.mock('./settings.js', () => ({
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-const {
-  listSources,
-  resolveSource,
-  describeSource,
-  searchLogs,
-  runQuery,
-  isConfigured,
-  _resetBetterstackSourcesCacheForTests,
-} = await import('./client.js')
+const { listSources, describeSource, searchLogs, runQuery, isConfigured, _resetBetterstackSourcesCacheForTests } =
+  await import('./client.js')
 
 const SOURCES_RESPONSE = {
   data: [
@@ -121,16 +114,18 @@ describe('listSources', () => {
   })
 })
 
-describe('resolveSource', () => {
-  beforeEach(() => mockFetch.mockResolvedValue(jsonResponse(SOURCES_RESPONSE)))
+describe('source resolution', () => {
+  beforeEach(() => mockFetch.mockResolvedValueOnce(jsonResponse(SOURCES_RESPONSE)))
 
   it('matches a source by name or table, ignoring case', async () => {
-    expect((await resolveSource('api')).table).toBe('t123_api')
-    expect((await resolveSource('T123_NGINX')).name).toBe('Nginx')
+    mockFetch.mockResolvedValue(textResponse(JSON.stringify({ meta: [], data: [] })))
+
+    expect((await describeSource('api')).table).toBe('t123_api_logs')
+    expect((await describeSource('T123_NGINX')).source).toBe('Nginx')
   })
 
   it('lists the available sources when the name is unknown', async () => {
-    await expect(resolveSource('billing')).rejects.toThrow(
+    await expect(describeSource('billing')).rejects.toThrow(
       'Unknown log source "billing". Available sources: API, Nginx.'
     )
   })
@@ -204,6 +199,7 @@ describe('searchLogs', () => {
     expect(sql).toContain("dt BETWEEN '2026-07-27 00:00:00' AND '2026-07-27 12:00:00'")
     expect(sql).toContain("positionCaseInsensitive(raw, 'boom') > 0")
     expect(sql).toContain('ORDER BY dt DESC LIMIT 10 FORMAT JSONEachRow')
+    expect(sql.match(/ORDER BY dt DESC LIMIT 10/g)).toHaveLength(3)
 
     const options = lastCall()[1]
     expect(lastCall()[0]).toBe('https://eu-nbg-2-connect.betterstackdata.com')
@@ -238,6 +234,15 @@ describe('searchLogs', () => {
 
     expect(result.logs[0].raw).toHaveLength(1000)
     expect(result.logs[0].rawTruncated).toBe(true)
+  })
+
+  it('redacts credentials that appear in a log line', async () => {
+    const raw = '{"authorization":"Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpM"}'
+    mockFetch.mockResolvedValueOnce(textResponse(JSON.stringify({ dt: '2026-07-27 10:00:00.000', raw })))
+
+    const result = await searchLogs({ source: 'API', query: 'authorization' })
+
+    expect(result.logs[0].raw).toBe('{"authorization":"Bearer [redacted]"}')
   })
 
   it('reports truncation when the limit is reached', async () => {
@@ -286,6 +291,16 @@ describe('runQuery', () => {
     expect(lastSql()).toBe(
       "SELECT * FROM (SELECT JSONExtractString(raw, 'level') AS level, count() AS total FROM remote(t123_api_logs) GROUP BY level) AS _q LIMIT 100 FORMAT JSONEachRow"
     )
+  })
+
+  it('redacts credentials extracted by the query', async () => {
+    mockFetch.mockResolvedValueOnce(
+      textResponse(JSON.stringify({ dsn: 'postgresql://app:s3cret@db.internal:5432/prod', total: 4 }))
+    )
+
+    const result = await runQuery("SELECT JSONExtractString(raw, 'dsn') AS dsn, count() AS total FROM remote(t1_l)")
+
+    expect(result.rows).toEqual([{ dsn: 'postgresql://[redacted]@db.internal:5432/prod', total: 4 }])
   })
 
   it('rejects anything that is not a single read-only statement', async () => {

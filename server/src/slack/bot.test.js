@@ -73,6 +73,10 @@ vi.mock('../google-drive/client.js', () => ({
   isConfigured: vi.fn(() => false),
 }))
 
+vi.mock('../betterstack/client.js', () => ({
+  isConfigured: vi.fn(() => false),
+}))
+
 vi.mock('./handler.js', () => ({
   processMessage: vi.fn(),
 }))
@@ -355,12 +359,14 @@ describe('Slack bot', () => {
       const helpjuice = await import('../helpjuice/client.js')
       const shopify = await import('../shopify/client.js')
       const googleDrive = await import('../google-drive/client.js')
+      const betterstack = await import('../betterstack/client.js')
 
       notion.isConfigured.mockReturnValue(true)
       postgres.isConfigured.mockReturnValue(true)
       helpjuice.isConfigured.mockReturnValue(true)
       shopify.isConfigured.mockReturnValue(true)
       googleDrive.isConfigured.mockReturnValue(true)
+      betterstack.isConfigured.mockReturnValue(true)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -383,13 +389,16 @@ describe('Slack bot', () => {
       expect(values).toContain('integration:helpjuice')
       expect(values).toContain('integration:shopify')
       expect(values).toContain('integration:google-drive')
+      expect(values).toContain('integration:betterstack')
     })
 
     it('omits integration source options when their integrations are not configured', async () => {
       const notion = await import('../notion/client.js')
       const googleDrive = await import('../google-drive/client.js')
+      const betterstack = await import('../betterstack/client.js')
       notion.isConfigured.mockReturnValue(false)
       googleDrive.isConfigured.mockReturnValue(false)
+      betterstack.isConfigured.mockReturnValue(false)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -409,6 +418,7 @@ describe('Slack bot', () => {
 
       expect(values).not.toContain('integration:notion')
       expect(values).not.toContain('integration:google-drive')
+      expect(values).not.toContain('integration:betterstack')
     })
 
     it('adds thread context into the question sent to processMessage', async () => {

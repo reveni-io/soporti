@@ -192,15 +192,13 @@ describe('createReviewerAgent', () => {
     await createReviewerAgent('acme-io/app')
     expect(MockAgent.mock.calls[0][0].tools.map(t => t.name)).not.toContain('search_logs')
 
-    mockBetterstackConfigured.mockReturnValue(true)
+    mockBetterstackConfigured.mockReturnValueOnce(true)
     await createReviewerAgent('acme-io/app')
 
     const names = MockAgent.mock.calls[1][0].tools.map(t => t.name)
     expect(names).toContain('list_log_sources')
     expect(names).toContain('search_logs')
     expect(names).toContain('query_logs')
-
-    mockBetterstackConfigured.mockReturnValue(false)
   })
 
   it('pins every tool to the triggered repository (no repo parameter exposed)', async () => {
