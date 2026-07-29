@@ -1,4 +1,10 @@
 import { isYoloMode, buildSourcePolicy } from './sources.js'
+import {
+  INTEGRATIONS,
+  ALWAYS_AVAILABLE_INTEGRATIONS,
+  resolveAvailableIntegrations,
+  integrationLabels,
+} from './integrations.js'
 
 const CORE_INTRO = `You are a code assistant that helps support and engineering teams understand, navigate, and answer questions about code repositories.
 
@@ -219,7 +225,24 @@ You have tools to search and read articles from the Helpjuice help center. **Be 
 - **get_helpjuice_article**: Read an article by ID. Returns title, URL, and the article body as plain text.
 - When you find relevant articles, **read them proactively** with get_helpjuice_article to give a complete answer instead of just listing titles.`,
 
-  shopify: `## Shopify integration
+  shopify: buildShopifySection,
+}
+
+const SHOPIFY_STORE_LOOKUP_WITH_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name, resolve it yourself FIRST: use the database tools to search the stores table by name (case-insensitive, partial match) and get the store's domain or ID.
+- If the search returns exactly one store, proceed with it and mention which store you resolved. If it returns several, show them (name, domain, ID) and ask the user to pick one. If it returns none, say so and ask for more details.
+- The same applies when a Shopify tool fails to find the store: resolve the identifier in the database before asking the user.`
+
+const SHOPIFY_STORE_LOOKUP_WITHOUT_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. The database tools are NOT available in this conversation, so you cannot look a name up yourself: try the name as the domain first, and only if Shopify does not find the store, ask the user for its domain or ID.`
+
+const SHOPIFY_BACKEND_COMPARISON = `3. Fetch the same data from the backend using \`query_database\`.
+4. Compare and highlight any discrepancies clearly.`
+
+const SHOPIFY_WITHOUT_BACKEND_COMPARISON = `3. Report what Shopify returns. The backend database is not available in this conversation, so state that you could not compare it against the backend instead of implying that you did.`
+
+function buildShopifySection(available) {
+  const hasDatabase = available.includes('postgres')
+
+  return `## Shopify integration
 
 You have tools to query the Shopify Admin API (read-only). Use them when the user asks about discrepancies between Shopify data and backend data, order issues, product details, or webhook debugging.
 
@@ -229,26 +252,20 @@ You have tools to query the Shopify Admin API (read-only). Use them when the use
 
 ### How to identify the store
 - Every Shopify tool requires a \`store\`: the store's domain (e.g. "mystore" or "mystore.myshopify.com") or its ID in the connected database.
-- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name, resolve it yourself FIRST: use the database tools to search the stores table by name (case-insensitive, partial match) and get the store's domain or ID.
-- If the search returns exactly one store, proceed with it and mention which store you resolved. If it returns several, show them (name, domain, ID) and ask the user to pick one. If it returns none, say so and ask for more details.
-- The same applies when a Shopify tool fails to find the store: resolve the identifier in the database before asking the user.
-- Only ask the user directly when the database tools are not available in this conversation.
+${hasDatabase ? SHOPIFY_STORE_LOOKUP_WITH_DATABASE : SHOPIFY_STORE_LOOKUP_WITHOUT_DATABASE}
 
 ### Tools
-- **get_shopify_order**: Get a Shopify order by its numeric ID. Compare with backend data using query_database.
+- **get_shopify_order**: Get a Shopify order by its numeric ID.
 - **search_shopify_orders**: Search orders by email, order number, or customer name.
 - **get_shopify_product**: Get product details including variants, prices, and inventory.
 - **get_shopify_webhooks**: List all configured webhooks — useful for debugging sync issues.
 - **shopify_graphql_query**: Execute a read-only GraphQL query for complex lookups not covered by other tools.
 
 ### Typical workflow for comparing data
-1. Identify the store (look it up with the database tools if needed).
+1. Identify the store.
 2. Fetch the data from Shopify using the appropriate tool.
-3. Fetch the same data from the backend using \`query_database\`.
-4. Compare and highlight any discrepancies clearly.`,
+${hasDatabase ? SHOPIFY_BACKEND_COMPARISON : SHOPIFY_WITHOUT_BACKEND_COMPARISON}`
 }
-
-const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])
 
 const SKILL_OVERRIDE_NOTICE = `## A skill is active — read it first
 
@@ -256,21 +273,22 @@ The user has activated a skill for this conversation. Its instructions are in th
 
 Read that section and decide how to respond according to it. If the skill tells you to ask questions instead of answering, or to wait for the user before doing any work, then that is what this turn requires, even though the rules above would normally have you act immediately.`
 
-export function buildBasePrompt(policy = null, { hasActiveSkills = false } = {}) {
+export function buildBasePrompt(policy = null, { hasActiveSkills = false, configured = {} } = {}) {
   const unrestricted = !policy || policy.unrestricted
+  const available = resolveAvailableIntegrations(policy, configured)
+
   const parts = [CORE_INTRO]
   if (unrestricted || policy.repos.length > 0) parts.push(EXPLORE_CODE_SECTION)
   parts.push(CORE_GUIDELINES)
   if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
-  for (const [id, section] of Object.entries(INTEGRATION_PROMPT_SECTIONS)) {
-    if (unrestricted || ALWAYS_AVAILABLE_INTEGRATIONS.has(id) || policy.integrations.includes(id)) {
-      parts.push(section)
-    }
+
+  for (const id of available) {
+    const section = INTEGRATION_PROMPT_SECTIONS[id]
+    if (section) parts.push(typeof section === 'function' ? section(available) : section)
   }
+
   return parts.join('\n\n')
 }
-
-export const BASE_PROMPT = buildBasePrompt()
 
 const INTEGRATION_INSTRUCTIONS = {
   notion:
@@ -363,24 +381,75 @@ You are talking to a support team member who is not a developer. Adapt your resp
 - When describing errors or issues, explain what the user would see and what it means in practical terms.`
 }
 
-const YOLO_INSTRUCTIONS = `## YOLO mode
+function buildYoloInstructions(configured) {
+  const labels = integrationLabels(resolveAvailableIntegrations(null, configured))
+
+  const integrationLine =
+    labels.length > 0
+      ? `- The integration tools available in this conversation are ${labels.join(', ')} — they are fair game when the question warrants them.`
+      : '- No integrations are available in this conversation, so answer from the repositories alone.'
+
+  return `## YOLO mode
 
 The user has not picked specific sources — you decide which repos and integrations to consult based on the question.
 
 - Start by calling list_repos to see what repositories are available.
 - Pick only the sources you actually need to answer the question — don't query everything by default.
 - For repository questions, narrow down to the most likely repo(s) based on the topic before calling other tools.
-- All registered integration tools (Notion, Database, Helpjuice, Shopify, Sentry, Better Stack, Shortcut, etc.) are fair game when the question warrants them.
+${integrationLine}
 - Be efficient: prefer one or two well-targeted sources over a broad sweep.`
+}
 
-export function buildSourceInstructions(selectedSources) {
-  if (isYoloMode(selectedSources)) return YOLO_INSTRUCTIONS
+const NO_SOURCES_NOTE = `No source is available in this conversation: no repository is selected and none of the selected integrations is configured in this app. You have no tools at all — do not answer from memory and do not claim to have checked anything. Tell the user that the sources they selected are not available and that an administrator has to configure them.`
+
+function joinLabels(labels) {
+  if (labels.length < 2) return labels.join('')
+
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+}
+
+function buildNoRepoNote(hasSelectedIntegrations, hasAlwaysAvailableIntegrations) {
+  if (hasSelectedIntegrations) {
+    return 'The user has not selected any repository for this conversation. Repository tools are not available; use the selected integrations below.'
+  }
+  if (hasAlwaysAvailableIntegrations) {
+    return 'The user has not selected any repository for this conversation, and none of the selected integrations is configured. Repository tools are not available; the only tools you have are the always-available ones described below.'
+  }
+
+  return NO_SOURCES_NOTE
+}
+
+function buildUnavailableNote(labels) {
+  if (labels.length === 0) return ''
+  if (labels.length === 1) {
+    return `${labels[0]} is selected but not configured in this app, so its tools are not available. If the answer depends on it, say so instead of guessing.`
+  }
+
+  return `${joinLabels(labels)} are selected but not configured in this app, so their tools are not available. If the answer depends on them, say so instead of guessing.`
+}
+
+function buildAlwaysAvailableNote(labels) {
+  if (labels.length === 0) return ''
+  if (labels.length === 1) {
+    return `${labels[0]} is not part of the source selection — its tools are always available, so use them when the question warrants it.`
+  }
+
+  return `${joinLabels(labels)} are not part of the source selection — their tools are always available, so use them when the question warrants it.`
+}
+
+export function buildSourceInstructions(selectedSources, configured = {}) {
+  if (isYoloMode(selectedSources)) return buildYoloInstructions(configured)
 
   const policy = buildSourcePolicy(selectedSources)
 
   if (policy.unrestricted) {
     return 'The user has not selected specific repos. Use list_repos first to see what is available.'
   }
+
+  const available = resolveAvailableIntegrations(policy, configured)
+  const selected = available.filter(id => !ALWAYS_AVAILABLE_INTEGRATIONS.has(id))
+  const alwaysAvailable = available.filter(id => ALWAYS_AVAILABLE_INTEGRATIONS.has(id))
+  const unavailable = policy.integrations.filter(id => INTEGRATIONS[id] && !available.includes(id))
 
   const parts = []
 
@@ -390,20 +459,18 @@ export function buildSourceInstructions(selectedSources) {
       `The user has selected the following repositories for this conversation:\n${repoList}\nUse these repo names directly — list_repos is not available. Repository tools only accept these repos; any other repository will be rejected. Do not try to consult sources outside this selection.`
     )
   } else {
-    parts.push(
-      'The user has not selected any repository for this conversation. Repository tools are not available; use the selected integrations below.'
-    )
+    parts.push(buildNoRepoNote(selected.length > 0, alwaysAvailable.length > 0))
   }
 
-  for (const id of policy.integrations) {
-    if (INTEGRATION_INSTRUCTIONS[id]) {
-      parts.push(INTEGRATION_INSTRUCTIONS[id])
-    }
+  for (const id of selected) {
+    if (INTEGRATION_INSTRUCTIONS[id]) parts.push(INTEGRATION_INSTRUCTIONS[id])
   }
 
-  parts.push(
-    'Shortcut and Sentry are not part of the source selection — their tools are always available, so use them when the question warrants it.'
-  )
+  const unavailableNote = buildUnavailableNote(integrationLabels(unavailable))
+  if (unavailableNote) parts.push(unavailableNote)
+
+  const alwaysAvailableNote = buildAlwaysAvailableNote(integrationLabels(alwaysAvailable))
+  if (alwaysAvailableNote) parts.push(alwaysAvailableNote)
 
   return parts.join('\n\n')
 }

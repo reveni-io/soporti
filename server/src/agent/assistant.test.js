@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@openai/agents', () => ({
   Agent: class Agent {
@@ -36,9 +36,35 @@ vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async ()
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 
+const { isShortcutConfigured } = await import('../shortcut/settings.js')
+const { isSentryConfigured } = await import('../sentry/settings.js')
+const { isDriveConfigured } = await import('../google-drive/settings.js')
+const { isNotionConfigured } = await import('../notion/settings.js')
+const { isHelpjuiceConfigured } = await import('../helpjuice/settings.js')
+const { isPostgresConfigured } = await import('../postgres/settings.js')
+const { isBetterstackConfigured } = await import('../betterstack/settings.js')
+const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js')
+const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
+const CONFIGURATION_CHECKS = [
+  isShortcutConfigured,
+  isSentryConfigured,
+  isDriveConfigured,
+  isNotionConfigured,
+  isHelpjuiceConfigured,
+  isPostgresConfigured,
+  isBetterstackConfigured,
+  isShopifyConfigured,
+]
+
 describe('createAgent', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+  })
+
   it('creates an agent with correct name and model', async () => {
     const agent = await createAgent([], 'support')
     expect(agent.name).toBe('Soporti')
@@ -92,9 +118,59 @@ describe('createAgent', () => {
     expect(agent.instructions).toContain('org/repo')
   })
 
-  it('includes integration instructions', async () => {
+  it('includes integration instructions for a configured integration', async () => {
+    isNotionConfigured.mockResolvedValue(true)
+
     const agent = await createAgent(['integration:notion'], 'support')
-    expect(agent.instructions).toContain('Notion')
+
+    expect(agent.instructions).toContain('## Notion integration')
+    expect(agent.instructions).toContain('search_notion_pages')
+    expect(agent.instructions).toContain('Repository tools are not available')
+  })
+
+  it('omits the section and instructions of a selected integration that is not configured', async () => {
+    const agent = await createAgent(['integration:notion'], 'support')
+
+    expect(agent.instructions).not.toContain('## Notion integration')
+    expect(agent.instructions).not.toContain('search_notion_pages')
+    expect(agent.instructions).toContain('No source is available in this conversation')
+    expect(agent.instructions).toContain('Notion is selected but not configured in this app')
+  })
+
+  it('omits the Shortcut and Sentry sections when neither is configured', async () => {
+    const agent = await createAgent(['org/repo'], 'support')
+
+    expect(agent.instructions).not.toContain('## Shortcut integration')
+    expect(agent.instructions).not.toContain('## Sentry integration')
+    expect(agent.instructions).not.toContain('not part of the source selection')
+  })
+
+  it('names only the configured always-available integration in a restricted selection', async () => {
+    isSentryConfigured.mockResolvedValue(true)
+
+    const agent = await createAgent(['org/repo'], 'support')
+
+    expect(agent.instructions).toContain('## Sentry integration')
+    expect(agent.instructions).toContain('Sentry is not part of the source selection')
+    expect(agent.instructions).not.toContain('## Shortcut integration')
+  })
+
+  it('lists only the configured integrations in YOLO mode', async () => {
+    isPostgresConfigured.mockResolvedValue(true)
+
+    const agent = await createAgent(['yolo'], 'support')
+
+    expect(agent.instructions).toContain('## PostgreSQL integration')
+    expect(agent.instructions).toContain('The integration tools available in this conversation are Database')
+    expect(agent.instructions).not.toContain('## Shopify integration')
+    expect(agent.instructions).not.toContain('## Google Drive integration')
+  })
+
+  it('tells the agent to rely on repositories in YOLO mode when no integration is configured', async () => {
+    const agent = await createAgent(['yolo'], 'support')
+
+    expect(agent.instructions).toContain('No integrations are available in this conversation')
+    expect(agent.instructions).not.toContain('## Notion integration')
   })
 
   it('includes base prompt', async () => {
@@ -103,7 +179,7 @@ describe('createAgent', () => {
   })
 
   it('injects the repo catalog in YOLO mode only', async () => {
-    buildRepoCatalogPrompt.mockResolvedValueOnce('## Repository catalog\n\norg/api: the backend')
+    buildRepoCatalogPrompt.mockResolvedValue('## Repository catalog\n\norg/api: the backend')
     const yoloAgent = await createAgent(['yolo'], 'support')
     expect(yoloAgent.instructions).toContain('org/api: the backend')
 
@@ -228,9 +304,7 @@ describe('createAgent', () => {
   })
 
   it('forwards the resolved integration availability to the tool builder', async () => {
-    const { buildAgentTools } = await import('./tools.js')
-    const { isBetterstackConfigured } = await import('../betterstack/settings.js')
-    isBetterstackConfigured.mockResolvedValueOnce(true)
+    isBetterstackConfigured.mockResolvedValue(true)
 
     await createAgent(['integration:betterstack'], 'support')
 

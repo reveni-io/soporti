@@ -26,14 +26,46 @@ export async function createAgent(
   { customInstructions = '', skills: invokedSkills = [], skillArguments = '' } = {}
 ) {
   const policy = buildSourcePolicy(selectedSources)
-  const sourceInstructions = buildSourceInstructions(selectedSources)
+
+  const [
+    shortcutConfigured,
+    sentryConfigured,
+    driveConfigured,
+    notionConfigured,
+    helpjuiceConfigured,
+    postgresConfigured,
+    shopifyConfigured,
+    betterstackConfigured,
+    catalogPrompt,
+  ] = await Promise.all([
+    isShortcutConfigured(),
+    isSentryConfigured(),
+    isDriveConfigured(),
+    isNotionConfigured(),
+    isHelpjuiceConfigured(),
+    isPostgresConfigured(),
+    shopify.isConfigured(),
+    isBetterstackConfigured(),
+    isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
+  ])
+  const configured = {
+    shortcutConfigured,
+    sentryConfigured,
+    driveConfigured,
+    notionConfigured,
+    helpjuiceConfigured,
+    postgresConfigured,
+    shopifyConfigured,
+    betterstackConfigured,
+  }
+
+  const sourceInstructions = buildSourceInstructions(selectedSources, configured)
   const profileInstructions = buildProfileInstructions(profile)
   const casesPrompt = buildSimilarCasesPrompt(similarCases)
-  const catalogPrompt = isYoloMode(selectedSources) ? await buildRepoCatalogPrompt() : ''
   const userInstructions = typeof customInstructions === 'string' ? customInstructions.trim() : ''
   const skillsPrompt = buildSkillsPrompt(invokedSkills, skillArguments)
 
-  const parts = [buildBasePrompt(policy, { hasActiveSkills: Boolean(skillsPrompt) })]
+  const parts = [buildBasePrompt(policy, { hasActiveSkills: Boolean(skillsPrompt), configured })]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)
   if (catalogPrompt) parts.push(catalogPrompt)
   if (casesPrompt) parts.push(casesPrompt)
@@ -47,35 +79,7 @@ export async function createAgent(
     `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
   )
 
-  const [
-    shortcutConfigured,
-    sentryConfigured,
-    driveConfigured,
-    notionConfigured,
-    helpjuiceConfigured,
-    postgresConfigured,
-    shopifyConfigured,
-    betterstackConfigured,
-  ] = await Promise.all([
-    isShortcutConfigured(),
-    isSentryConfigured(),
-    isDriveConfigured(),
-    isNotionConfigured(),
-    isHelpjuiceConfigured(),
-    isPostgresConfigured(),
-    shopify.isConfigured(),
-    isBetterstackConfigured(),
-  ])
-  const tools = buildAgentTools(policy, {
-    shortcutConfigured,
-    sentryConfigured,
-    driveConfigured,
-    notionConfigured,
-    helpjuiceConfigured,
-    postgresConfigured,
-    shopifyConfigured,
-    betterstackConfigured,
-  })
+  const tools = buildAgentTools(policy, configured)
 
   const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })
 

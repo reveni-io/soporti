@@ -122,6 +122,7 @@ const {
   buildRepoTools,
   buildAgentTools,
 } = await import('./tools.js')
+const { INTEGRATIONS } = await import('./integrations.js')
 
 describe('tool definitions', () => {
   it('exports all core tools', () => {
@@ -412,6 +413,13 @@ describe('buildAgentTools', () => {
       'get_sentry_issue',
       'search_sentry_issues',
     ])
+  })
+
+  it('registers tools for every integration in the registry', () => {
+    for (const [id, { flag }] of Object.entries(INTEGRATIONS)) {
+      const tools = buildAgentTools({ unrestricted: false, repos: [], integrations: [id] }, { [flag]: true })
+      expect(names(tools).length, id).toBeGreaterThan(0)
+    }
   })
 
   it('gates the Sentry tools on sentryConfigured', () => {

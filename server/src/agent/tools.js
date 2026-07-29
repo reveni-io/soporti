@@ -17,6 +17,7 @@ import * as betterstack from '../betterstack/client.js'
 import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
+import { resolveAvailableIntegrations } from './integrations.js'
 
 export const listReposTool = tool({
   name: 'list_repos',
@@ -514,62 +515,23 @@ export const allTools = [
   gitBlameTool,
 ]
 
-export function buildAgentTools(
-  policy,
-  {
-    shortcutConfigured = false,
-    sentryConfigured = false,
-    driveConfigured = false,
-    notionConfigured = false,
-    helpjuiceConfigured = false,
-    postgresConfigured = false,
-    shopifyConfigured = false,
-    betterstackConfigured = false,
-  } = {}
-) {
-  const shortcutTools = shortcutConfigured ? SHORTCUT_TOOLS : []
-  const sentryTools = sentryConfigured ? SENTRY_TOOLS : []
-  const betterstackTools = betterstackConfigured ? BETTERSTACK_TOOLS : []
-  const driveTools = driveConfigured ? DRIVE_TOOLS : []
-  const notionTools = notionConfigured ? NOTION_TOOLS : []
-  const helpjuiceTools = helpjuiceConfigured ? HELPJUICE_TOOLS : []
-  const postgresTools = postgresConfigured ? POSTGRES_TOOLS : []
-  const shopifyTools = shopifyConfigured ? SHOPIFY_TOOLS : []
-  let tools
-  if (!policy || policy.unrestricted) {
-    tools = [
-      ...allTools,
-      ...shortcutTools,
-      ...sentryTools,
-      ...driveTools,
-      ...notionTools,
-      ...helpjuiceTools,
-      ...postgresTools,
-      ...shopifyTools,
-      ...betterstackTools,
-    ]
-  } else {
-    tools = []
-    if (policy.repos.length > 0) {
-      tools.push(...buildRepoTools(policy.repos))
-    }
-    for (const id of policy.integrations) {
-      if (id === 'google-drive') {
-        tools.push(...driveTools)
-      } else if (id === 'notion') {
-        tools.push(...notionTools)
-      } else if (id === 'helpjuice') {
-        tools.push(...helpjuiceTools)
-      } else if (id === 'postgres') {
-        tools.push(...postgresTools)
-      } else if (id === 'shopify') {
-        tools.push(...shopifyTools)
-      } else if (id === 'betterstack') {
-        tools.push(...betterstackTools)
-      }
-    }
-    tools.push(...shortcutTools, ...sentryTools)
-  }
+const INTEGRATION_TOOLS = {
+  shortcut: SHORTCUT_TOOLS,
+  notion: NOTION_TOOLS,
+  'google-drive': DRIVE_TOOLS,
+  postgres: POSTGRES_TOOLS,
+  sentry: SENTRY_TOOLS,
+  betterstack: BETTERSTACK_TOOLS,
+  helpjuice: HELPJUICE_TOOLS,
+  shopify: SHOPIFY_TOOLS,
+}
 
-  return tools
+export function buildAgentTools(policy, configured) {
+  const integrationTools = resolveAvailableIntegrations(policy, configured).flatMap(id => INTEGRATION_TOOLS[id] ?? [])
+
+  if (!policy || policy.unrestricted) return [...allTools, ...integrationTools]
+
+  const repoTools = policy.repos.length > 0 ? buildRepoTools(policy.repos) : []
+
+  return [...repoTools, ...integrationTools]
 }
