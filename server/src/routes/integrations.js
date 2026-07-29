@@ -7,6 +7,7 @@ import * as googleDrive from '../google-drive/client.js'
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
+import { INTEGRATIONS } from '../agent/integrations.js'
 
 const router = Router()
 
@@ -23,7 +24,7 @@ router.get('/', async (_req, res) => {
   if (await notion.isConfigured()) {
     integrations.push({
       id: 'notion',
-      name: 'Notion',
+      name: INTEGRATIONS.notion.label,
       description: 'Search and read Notion pages',
       selectable: true,
     })
@@ -32,7 +33,7 @@ router.get('/', async (_req, res) => {
   if (await postgres.isConfigured()) {
     integrations.push({
       id: 'postgres',
-      name: 'Database',
+      name: INTEGRATIONS.postgres.label,
       description: 'Query and explore the PostgreSQL database',
       selectable: true,
     })
@@ -41,7 +42,7 @@ router.get('/', async (_req, res) => {
   if (await helpjuice.isConfigured()) {
     integrations.push({
       id: 'helpjuice',
-      name: 'Helpjuice',
+      name: INTEGRATIONS.helpjuice.label,
       description: 'Search and read help center articles',
       selectable: true,
     })
@@ -50,7 +51,7 @@ router.get('/', async (_req, res) => {
   if (await shopify.isConfigured()) {
     integrations.push({
       id: 'shopify',
-      name: 'Shopify',
+      name: INTEGRATIONS.shopify.label,
       description: 'Query Shopify orders, products, and webhooks (read-only)',
       selectable: true,
     })
@@ -59,7 +60,7 @@ router.get('/', async (_req, res) => {
   if (await googleDrive.isConfigured()) {
     integrations.push({
       id: 'google-drive',
-      name: 'Google Drive',
+      name: INTEGRATIONS['google-drive'].label,
       description: 'Search, browse and read Google Drive documents',
       selectable: true,
     })
@@ -68,7 +69,7 @@ router.get('/', async (_req, res) => {
   if (await shortcut.isConfigured()) {
     integrations.push({
       id: 'shortcut',
-      name: 'Shortcut',
+      name: INTEGRATIONS.shortcut.label,
       description: 'Look up stories, epics, and iterations',
       selectable: false,
     })
@@ -77,7 +78,7 @@ router.get('/', async (_req, res) => {
   if (await sentry.isConfigured()) {
     integrations.push({
       id: 'sentry',
-      name: 'Sentry',
+      name: INTEGRATIONS.sentry.label,
       description: 'Inspect production errors and issues',
       selectable: false,
     })
@@ -86,7 +87,7 @@ router.get('/', async (_req, res) => {
   if (await betterstack.isConfigured()) {
     integrations.push({
       id: 'betterstack',
-      name: 'Better Stack',
+      name: INTEGRATIONS.betterstack.label,
       description: 'Search and query application logs',
       selectable: true,
     })

@@ -1,3 +1,5 @@
+import { INTEGRATIONS } from './integrations.js'
+
 export const YOLO_SOURCE = 'yolo'
 
 export function isYoloMode(selectedSources) {
@@ -16,32 +18,26 @@ export function buildSourcePolicy(selectedSources) {
 
 const REPO_TOOLS = new Set(['get_directory_contents', 'get_file_contents', 'search_code'])
 
-const TOOL_TO_INTEGRATION = {
-  get_shortcut_story: 'Shortcut',
-  search_shortcut_stories: 'Shortcut',
-  search_notion_pages: 'Notion',
-  get_notion_page: 'Notion',
-  list_database_schemas: 'Database',
-  list_database_tables: 'Database',
-  describe_database_table: 'Database',
-  query_database: 'Database',
-  get_sentry_issue: 'Sentry',
-  search_sentry_issues: 'Sentry',
-  list_log_sources: 'Better Stack',
-  describe_log_source: 'Better Stack',
-  search_logs: 'Better Stack',
-  query_logs: 'Better Stack',
-  search_helpjuice_articles: 'Helpjuice',
-  get_helpjuice_article: 'Helpjuice',
-  get_shopify_order: 'Shopify',
-  search_shopify_orders: 'Shopify',
-  get_shopify_product: 'Shopify',
-  get_shopify_webhooks: 'Shopify',
-  shopify_graphql_query: 'Shopify',
-  search_drive_files: 'Google Drive',
-  get_drive_file: 'Google Drive',
-  list_drive_files: 'Google Drive',
+const INTEGRATION_TOOL_NAMES = {
+  shortcut: ['get_shortcut_story', 'search_shortcut_stories'],
+  notion: ['search_notion_pages', 'get_notion_page'],
+  'google-drive': ['search_drive_files', 'get_drive_file', 'list_drive_files'],
+  postgres: ['list_database_schemas', 'list_database_tables', 'describe_database_table', 'query_database'],
+  sentry: ['get_sentry_issue', 'search_sentry_issues'],
+  betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
+  helpjuice: ['search_helpjuice_articles', 'get_helpjuice_article'],
+  shopify: [
+    'get_shopify_order',
+    'search_shopify_orders',
+    'get_shopify_product',
+    'get_shopify_webhooks',
+    'shopify_graphql_query',
+  ],
 }
+
+const TOOL_TO_INTEGRATION = Object.fromEntries(
+  Object.entries(INTEGRATION_TOOL_NAMES).flatMap(([id, names]) => names.map(name => [name, INTEGRATIONS[id].label]))
+)
 
 function parseArgs(rawArgs) {
   if (!rawArgs) return {}
