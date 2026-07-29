@@ -74,7 +74,9 @@ const mockResolveModel = vi.fn(async () => ({
   modelSettings: {},
 }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
+vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 
+const { recordAgentRun } = await import('../db/agent-runs.js')
 const { createMentionAgent, buildMentionInput, runMentionAgent } = await import('./mention-agent.js')
 
 function sampleMention(overrides = {}) {
@@ -207,5 +209,34 @@ describe('runMentionAgent', () => {
     expect(agentArg).toBeInstanceOf(MockAgent)
     expect(typeof inputArg).toBe('string')
     expect(optionsArg).toEqual({ maxTurns: 7 })
+  })
+
+  it('records the reply against the PR it answered', async () => {
+    mockRun.mockResolvedValue({
+      finalOutput: 'Sí.',
+      state: { usage: { requests: 2, inputTokens: 9000, outputTokens: 120 } },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'get_shortcut_story' } }],
+    })
+
+    await runMentionAgent({ mention: sampleMention(), pr: samplePr(), thread: [] })
+
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_mention',
+      status: 'ok',
+      subject: 'acme-io/app#7',
+      usage: { requests: 2, inputTokens: 9000, outputTokens: 120, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['get_shortcut_story'],
+    })
+  })
+
+  it('records a failed run and rethrows when the agent fails', async () => {
+    mockRun.mockRejectedValue(new Error('model unavailable'))
+
+    await expect(runMentionAgent({ mention: sampleMention(), pr: samplePr(), thread: [] })).rejects.toThrow(
+      'model unavailable'
+    )
+
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'pr_mention', status: 'error', subject: 'acme-io/app#7' })
   })
 })

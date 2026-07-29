@@ -1,5 +1,42 @@
 import { describe, it, expect } from 'vitest'
-import { formatUsage } from './usage.js'
+import { extractUsage, formatUsage } from './usage.js'
+
+describe('extractUsage', () => {
+  it('returns the counters the run reported, with the cache details summed', () => {
+    const usage = extractUsage({
+      requests: 2,
+      inputTokens: 1000,
+      outputTokens: 50,
+      inputTokensDetails: [
+        { cached_tokens: 200, cache_write_tokens: 100 },
+        { cached_tokens: 300, cache_write_tokens: 50 },
+      ],
+    })
+
+    expect(usage).toEqual({
+      requests: 2,
+      inputTokens: 1000,
+      outputTokens: 50,
+      cachedInputTokens: 500,
+      cacheWriteTokens: 150,
+    })
+  })
+
+  it('defaults every missing counter to zero', () => {
+    expect(extractUsage({})).toEqual({
+      requests: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+    })
+  })
+
+  it('returns null when there is no usage', () => {
+    expect(extractUsage(null)).toBeNull()
+    expect(extractUsage(undefined)).toBeNull()
+  })
+})
 
 describe('formatUsage', () => {
   it('reports requests, input and output tokens', () => {

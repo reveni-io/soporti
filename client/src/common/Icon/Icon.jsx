@@ -32,6 +32,14 @@ const ICON_SHAPES = {
       <line x1="9.7" y1="14.3" x2="5.6" y2="18.4" />
     </>
   ),
+  chart: (
+    <>
+      <line x1="3" y1="21" x2="21" y2="21" />
+      <rect x="5" y="12" width="4" height="6" />
+      <rect x="11" y="8" width="4" height="10" />
+      <rect x="17" y="4" width="4" height="14" />
+    </>
+  ),
   spark: (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />
   ),

@@ -1,4 +1,4 @@
-const EMPTY_CELL = '—'
+import { EMPTY_CELL } from '../../../../constants.js'
 
 function formatDate(value) {
   if (!value) return EMPTY_CELL

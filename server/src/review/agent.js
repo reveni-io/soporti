@@ -31,10 +31,13 @@ import {
   BETTERSTACK_TOOLS,
 } from '../agent/tools.js'
 import { resolveModelForAgent } from '../llm/model.js'
+import { trackAgentRun } from '../agent/run-tracking.js'
+import { AGENT_CHANNEL_PR_REVIEW } from '../constants.js'
 import { buildReviewerInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000
 const MAX_INLINE_CHARS = 300
+const NO_OUTPUT_ERROR = 'The reviewer produced no output — the run most likely hit the turn limit.'
 
 export function inline(value) {
   return String(value ?? '')
@@ -230,12 +233,16 @@ export function buildReviewInput({ trigger, files, omitted, empty = [], standard
 export async function runReviewerAgent({ trigger, files, omitted, empty, standardsFiles, storyId, rootPath = null }) {
   const agent = await createReviewerAgent(trigger.repoFullName, { rootPath })
   const input = buildReviewInput({ trigger, files, omitted, empty, standardsFiles, storyId })
-  const result = await run(agent, input, { maxTurns: config.agent.maxIterations })
+  const subject = `${trigger.repoFullName}#${trigger.prNumber}`
 
-  const output = result?.finalOutput
-  if (!output) {
-    throw new Error('The reviewer produced no output — the run most likely hit the turn limit.')
-  }
+  const { result } = await trackAgentRun(
+    {
+      channel: AGENT_CHANNEL_PR_REVIEW,
+      subject,
+      failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR),
+    },
+    () => run(agent, input, { maxTurns: config.agent.maxIterations })
+  )
 
-  return output
+  return result.finalOutput
 }

@@ -17,12 +17,15 @@ vi.mock('../config.js', () => ({
   },
 }))
 
+vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
+
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { searchSimilarCases } from '../knowledge/client.js'
+import { recordAgentRun } from '../db/agent-runs.js'
 import { diagnoseTicket, buildAgentInput } from './auto-diagnose.js'
 
-const TICKET = { title: 'Bug', fields: [{ label: 'Details', value: 'roto' }] }
+const TICKET = { id: 'Rec01', title: 'Bug', fields: [{ label: 'Details', value: 'roto' }] }
 
 describe('buildAgentInput', () => {
   it('returns the plain prompt string when there are no images', () => {
@@ -89,5 +92,38 @@ describe('diagnoseTicket', () => {
     run.mockResolvedValue({ finalOutput: { unexpected: true } })
     const out = await diagnoseTicket(TICKET)
     expect(out).toContain('unexpected')
+  })
+
+  it('records the diagnosis run with its usage and tools', async () => {
+    run.mockResolvedValue({
+      finalOutput: 'Diagnóstico: ok',
+      state: { usage: { requests: 3, inputTokens: 5000, outputTokens: 300 } },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'get_sentry_issue' } }],
+    })
+
+    await diagnoseTicket(TICKET)
+
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'auto_diagnose',
+      status: 'ok',
+      subject: 'Rec01',
+      usage: { requests: 3, inputTokens: 5000, outputTokens: 300, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['get_sentry_issue'],
+    })
+  })
+
+  it('records the ticket without an id under no subject', async () => {
+    await diagnoseTicket({ title: 'Bug', fields: [] })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ subject: null }))
+  })
+
+  it('records a failed run and rethrows when the agent fails', async () => {
+    run.mockRejectedValue(new Error('model unavailable'))
+
+    await expect(diagnoseTicket(TICKET)).rejects.toThrow('model unavailable')
+
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'auto_diagnose', status: 'error', subject: 'Rec01' })
   })
 })

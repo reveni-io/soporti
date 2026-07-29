@@ -44,15 +44,21 @@ vi.mock('../llm/model.js', () => ({
   isConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../db/agent-runs.js', () => ({
+  recordAgentRun: vi.fn(),
+}))
+
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
 import { isConfigured } from '../llm/model.js'
 import { getSkillsByIds } from '../db/skills.js'
+import { recordAgentRun } from '../db/agent-runs.js'
 import chatRoute from './chat.js'
 
-function createStreamMock(events, { history, lastResponseId } = {}) {
+function createStreamMock(events, { history, lastResponseId, usage } = {}) {
   return {
+    state: usage ? { usage } : undefined,
     toStream: () => ({
       [Symbol.asyncIterator]() {
         let i = 0
@@ -480,5 +486,82 @@ describe('POST /api/chat', () => {
 
     expect(events.some(e => e.type === 'error')).toBe(true)
     expect(events.some(e => e.type === 'done')).toBe(true)
+  })
+
+  it('records the run with its usage and the tools it called', async () => {
+    run.mockResolvedValue(
+      createStreamMock(
+        [
+          {
+            type: 'run_item_stream_event',
+            item: { type: 'tool_call_item', rawItem: { name: 'search_code', arguments: '{}', callId: 'call-1' } },
+          },
+          { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Found it' } },
+        ],
+        {
+          usage: {
+            requests: 2,
+            inputTokens: 12_000,
+            outputTokens: 400,
+            inputTokensDetails: [{ cached_tokens: 9000, cache_write_tokens: 100 }],
+          },
+        }
+      )
+    )
+
+    await request(app).post('/').send({ message: 'search for auth' })
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'web',
+      status: 'ok',
+      usage: {
+        requests: 2,
+        inputTokens: 12_000,
+        outputTokens: 400,
+        cachedInputTokens: 9000,
+        cacheWriteTokens: 100,
+      },
+      durationMs: expect.any(Number),
+      tools: ['search_code'],
+    })
+  })
+
+  it('records a failed run when the agent throws', async () => {
+    run.mockRejectedValue(new Error('Agent crashed'))
+
+    await request(app).post('/').send({ message: 'hi' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error' })
+  })
+
+  it('records a turn once when persisting it fails after the answer streamed', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Found it' } }])
+    )
+    conversationStore.saveTurn.mockRejectedValue(new Error('db down'))
+
+    await request(app).post('/').send({ message: 'search for auth' })
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error' })
+    consoleError.mockRestore()
+  })
+
+  it('leaves the tool calls it could not name out of the recorded run', async () => {
+    run.mockResolvedValue(
+      createStreamMock([
+        { type: 'run_item_stream_event', item: { type: 'tool_call_item', rawItem: { arguments: '{}' } } },
+        {
+          type: 'run_item_stream_event',
+          item: { type: 'tool_call_item', rawItem: { name: 'search_code', arguments: '{}' } },
+        },
+      ])
+    )
+
+    await request(app).post('/').send({ message: 'search for auth' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ tools: ['search_code'] }))
   })
 })

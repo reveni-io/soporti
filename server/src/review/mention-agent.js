@@ -1,6 +1,8 @@
 import { Agent, run } from '@openai/agents'
 import config from '../config.js'
 import { resolveModelForAgent } from '../llm/model.js'
+import { trackAgentRun } from '../agent/run-tracking.js'
+import { AGENT_CHANNEL_PR_MENTION } from '../constants.js'
 import { buildRepoTools, buildDataTools, inline } from './agent.js'
 import { buildMentionInstructions } from './prompt.js'
 
@@ -61,6 +63,11 @@ export function buildMentionInput({ mention, pr, thread = [] }) {
 export async function runMentionAgent({ mention, pr, thread, rootPath = null }) {
   const agent = await createMentionAgent(mention.repoFullName, { rootPath })
   const input = buildMentionInput({ mention, pr, thread })
-  const result = await run(agent, input, { maxTurns: config.agent.maxIterations })
+  const subject = `${mention.repoFullName}#${mention.prNumber}`
+
+  const { result } = await trackAgentRun({ channel: AGENT_CHANNEL_PR_MENTION, subject }, () =>
+    run(agent, input, { maxTurns: config.agent.maxIterations })
+  )
+
   return result.finalOutput
 }

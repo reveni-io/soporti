@@ -94,11 +94,13 @@ const mockResolveModel = vi.fn(async () => ({
   modelSettings: {},
 }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
+vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 
 function resolvedModel(modelSettings) {
   return { provider: 'openai', modelId: 'test-model', model: 'test-model', modelSettings }
 }
 
+const { recordAgentRun } = await import('../db/agent-runs.js')
 const { reviewOutputSchema, createReviewerAgent, buildReviewInput, runReviewerAgent } = await import('./agent.js')
 
 function sampleTrigger() {
@@ -460,5 +462,55 @@ describe('runReviewerAgent', () => {
     await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toThrow(
       /no output.*turn limit/i
     )
+  })
+
+  it('records the review against the PR it reviewed', async () => {
+    mockRun.mockResolvedValue({
+      finalOutput: { summary: 'ok', verdict: 'comment', findings: [] },
+      state: { usage: { requests: 4, inputTokens: 40_000, outputTokens: 1500 } },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'get_file_contents' } }],
+    })
+
+    await runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })
+
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'ok',
+      subject: 'acme-io/app#7',
+      usage: { requests: 4, inputTokens: 40_000, outputTokens: 1500, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['get_file_contents'],
+    })
+  })
+
+  it('records a failed review when the run throws', async () => {
+    mockRun.mockRejectedValueOnce(new Error('model unavailable'))
+
+    await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toThrow(
+      'model unavailable'
+    )
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'pr_review', status: 'error', subject: 'acme-io/app#7' })
+  })
+
+  it('records the tokens a review burnt before it ran out of turns', async () => {
+    mockRun.mockResolvedValueOnce({
+      finalOutput: undefined,
+      state: { usage: { requests: 20, inputTokens: 400_000, outputTokens: 8000 } },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'search_code' } }],
+    })
+
+    await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toThrow(/no output/i)
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'error',
+      subject: 'acme-io/app#7',
+      usage: { requests: 20, inputTokens: 400_000, outputTokens: 8000, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['search_code'],
+    })
   })
 })

@@ -103,6 +103,7 @@ describe('toTicket', () => {
   it('labels fields by column name and falls back to id', () => {
     const ticket = toTicket(
       {
+        id: 'Rec01',
         title: 'T',
         fields: [
           { key: 'c1', text: 'High' },
@@ -112,12 +113,18 @@ describe('toTicket', () => {
       { columns: [{ id: 'c1', name: 'Priority' }] }
     )
     expect(ticket).toEqual({
+      id: 'Rec01',
       title: 'T',
       fields: [
         { label: 'Priority', value: 'High' },
         { label: 'c2', value: 'd' },
       ],
     })
+  })
+
+  it('carries the row id so a diagnosed ticket can be counted once', () => {
+    expect(toTicket({ row_id: 'Rec99', title: 'T' }).id).toBe('Rec99')
+    expect(toTicket({ title: 'T' }).id).toBe(null)
   })
 
   it('lifts the title from a configured title column', () => {

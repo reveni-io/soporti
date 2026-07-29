@@ -60,7 +60,10 @@ export const conversations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [uniqueIndex('conversations_slack_thread_idx').on(table.slackChannelId, table.slackThreadTs)]
+  table => [
+    uniqueIndex('conversations_slack_thread_idx').on(table.slackChannelId, table.slackThreadTs),
+    index('conversations_created_idx').on(table.createdAt),
+  ]
 )
 
 export const conversationItems = pgTable(
@@ -88,7 +91,10 @@ export const conversationMessages = pgTable(
     parts: jsonb('parts').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [index('conversation_messages_conversation_idx').on(table.conversationId, table.createdAt)]
+  table => [
+    index('conversation_messages_conversation_idx').on(table.conversationId, table.createdAt),
+    index('conversation_messages_created_idx').on(table.createdAt),
+  ]
 )
 
 export const shares = pgTable('shares', {
@@ -101,6 +107,25 @@ export const shares = pgTable('shares', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
+
+export const agentRuns = pgTable(
+  'agent_runs',
+  {
+    id: serial('id').primaryKey(),
+    channel: text('channel').notNull(),
+    status: text('status').notNull(),
+    subject: text('subject'),
+    requests: integer('requests').notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cachedInputTokens: integer('cached_input_tokens').notNull().default(0),
+    cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    tools: jsonb('tools').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('agent_runs_created_idx').on(table.createdAt), index('agent_runs_channel_idx').on(table.channel)]
+)
 
 export const skills = pgTable(
   'skills',

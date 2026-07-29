@@ -55,6 +55,10 @@ Every integration is optional and configured from the `/admin` panel — the ass
 - **Conversation history** — chats are persisted and reopenable from the sidebar
 - **Read-only share links** — hand a conversation to someone with no account; the transcript is frozen at that point and the link expires in 30 days
 
+### See what it is doing
+
+- **Usage stats** — `/admin` → **Stats** shows, over the last 7, 30 or 90 days or all time: conversations and messages, PRs reviewed, tickets auto-diagnosed, token spend (input, output, cache read and write with the hit rate), runs and p50/p95 response time per channel (web, Slack, schedules, PR reviews, PR mentions, auto-diagnose) and the most called tools. Conversation and message counts cover your whole history; the agent-run counters start filling in from the moment this version is deployed
+
 ## Prerequisites
 
 - Node.js 20+ (or Docker + Docker Compose for the containerized setups)
