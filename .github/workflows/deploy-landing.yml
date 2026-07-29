@@ -49,7 +49,7 @@ jobs:
       # Pages artifact deploys are served as-is (no Jekyll), but this is a cheap
       # guard against any future underscore-prefixed asset paths.
       - run: touch dist-landing/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: client/dist-landing
 
