@@ -89,7 +89,7 @@ export function toTicket(item, { columns = [], titleColumnId = '' } = {}) {
     if (value) fields.push({ label: nameById[key] || key, value })
   }
   if (!title) title = item?.title ?? item?.name ?? ''
-  return { title, fields }
+  return { id: getRowId(item), title, fields }
 }
 
 export function resolveColumnId(columns, { columnId = '', columnName = '' } = {}) {

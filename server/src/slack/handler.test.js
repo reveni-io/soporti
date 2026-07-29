@@ -25,11 +25,17 @@ vi.mock('../db/users.js', () => ({
   getCustomInstructions: vi.fn(async () => null),
 }))
 
+vi.mock('../db/agent-runs.js', () => ({
+  recordAgentRun: vi.fn(),
+}))
+
 import { run } from '@openai/agents'
+import { recordAgentRun } from '../db/agent-runs.js'
 import { processMessage } from './handler.js'
 
-function createStreamMock(events, { history, lastResponseId } = {}) {
+function createStreamMock(events, { history, lastResponseId, usage } = {}) {
   return {
+    state: usage ? { usage } : undefined,
     toStream: () => ({
       [Symbol.asyncIterator]() {
         let i = 0
@@ -147,5 +153,71 @@ describe('processMessage', () => {
 
     expect(result.text).toBe('')
     expect(result.toolCalls).toEqual([])
+  })
+
+  it('records the run with its usage and the tools it called', async () => {
+    run.mockResolvedValue(
+      createStreamMock(
+        [
+          { type: 'run_item_stream_event', item: { type: 'tool_call_item', rawItem: { name: 'search_code' } } },
+          { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Found it' } },
+        ],
+        { usage: { requests: 2, inputTokens: 800, outputTokens: 60, inputTokensDetails: [{ cached_tokens: 400 }] } }
+      )
+    )
+
+    await processMessage({ message: 'find auth', selectedSources: [], session: {}, profile: 'tech' })
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'slack',
+      status: 'ok',
+      usage: { requests: 2, inputTokens: 800, outputTokens: 60, cachedInputTokens: 400, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['search_code'],
+    })
+  })
+
+  it('leaves the tool calls it could not name out of the recorded run', async () => {
+    run.mockResolvedValue(
+      createStreamMock([
+        { type: 'run_item_stream_event', item: { type: 'tool_call_item', rawItem: {} } },
+        { type: 'run_item_stream_event', item: { type: 'tool_call_item', rawItem: { name: 'search_code' } } },
+      ])
+    )
+
+    await processMessage({ message: 'find auth', selectedSources: [], session: {}, profile: 'tech' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ tools: ['search_code'] }))
+  })
+
+  it('records a failed run and rethrows when the agent fails', async () => {
+    run.mockRejectedValue(new Error('model unavailable'))
+
+    await expect(
+      processMessage({ message: 'hi', selectedSources: [], session: {}, profile: 'support' })
+    ).rejects.toThrow('model unavailable')
+
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error' })
+  })
+
+  it('retries without the context token when the first turn fails before sending text', async () => {
+    run
+      .mockRejectedValueOnce(new Error('previous response not found'))
+      .mockResolvedValueOnce(
+        createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hello' } }])
+      )
+
+    const result = await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      previousResponseId: 'resp_previous',
+      profile: 'support',
+    })
+
+    expect(result.text).toBe('Hello')
+    expect(run.mock.calls[1][2].previousResponseId).toBeUndefined()
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', status: 'ok' }))
   })
 })

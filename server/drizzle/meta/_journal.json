@@ -57,6 +57,20 @@
       "when": 1785179754019,
       "tag": "0007_brave_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785269472086,
+      "tag": "0008_spotty_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785274677096,
+      "tag": "0009_majestic_changeling",
+      "breakpoints": true
     }
   ]
 }

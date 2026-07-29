@@ -21,6 +21,10 @@ vi.mock('../../common/GridPattern/GridPattern.jsx', () => ({
   default: () => null,
 }))
 
+vi.mock('./AdminStats/AdminStats.jsx', () => ({
+  default: () => <div data-testid="admin-stats" />,
+}))
+
 vi.mock('./AdminUsers/AdminUsers.jsx', () => ({
   default: () => <div data-testid="admin-users" />,
 }))
@@ -147,7 +151,7 @@ describe('AdminPage', () => {
     await user.type(screen.getByPlaceholderText('Setup code'), 'code-from-logs')
     await user.click(screen.getByRole('button', { name: /create admin account/i }))
 
-    expect(await screen.findByTestId('admin-users')).toBeInTheDocument()
+    expect(await screen.findByTestId('admin-stats')).toBeInTheDocument()
     expect(screen.queryByText(/No admin account exists yet/)).not.toBeInTheDocument()
   })
 
@@ -226,14 +230,15 @@ describe('AdminPage', () => {
     expect(screen.queryByTestId('admin-users')).not.toBeInTheDocument()
   })
 
-  it('lands on the Users section by default, with the section nav visible', async () => {
+  it('lands on the Stats section by default, with the section nav visible', async () => {
     mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
     mockStatus(true)
 
     renderPage()
 
-    expect(await screen.findByTestId('admin-users')).toBeInTheDocument()
+    expect(await screen.findByTestId('admin-stats')).toBeInTheDocument()
     expect(screen.queryByTestId('admin-authentication')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Stats' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Users' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Authentication' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Google Drive' })).toBeInTheDocument()
@@ -267,12 +272,12 @@ describe('AdminPage', () => {
     const user = userEvent.setup()
 
     renderPage()
-    await screen.findByTestId('admin-users')
+    await screen.findByTestId('admin-stats')
 
     await user.click(screen.getByRole('link', { name: 'Authentication' }))
 
     expect(await screen.findByTestId('admin-authentication')).toBeInTheDocument()
-    expect(screen.queryByTestId('admin-users')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('admin-stats')).not.toBeInTheDocument()
   })
 
   it('deep-links straight into a section', async () => {
@@ -291,7 +296,7 @@ describe('AdminPage', () => {
 
     renderPage('/admin/nonexistent')
 
-    expect(await screen.findByTestId('admin-users')).toBeInTheDocument()
+    expect(await screen.findByTestId('admin-stats')).toBeInTheDocument()
   })
 
   it('surfaces a status check failure', async () => {

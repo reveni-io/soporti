@@ -4,7 +4,10 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import config from '../config.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { upsertSlackUser, getCustomInstructions } from '../db/users.js'
-import { formatUsage } from '../llm/usage.js'
+import { recordAgentRun } from '../db/agent-runs.js'
+import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
+import { extractUsage, formatUsage } from '../llm/usage.js'
+import { AGENT_CHANNEL_SLACK, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 
 function log(icon, ...args) {
   const timestamp = new Date().toISOString().slice(11, 23)
@@ -51,6 +54,7 @@ export async function processMessage({
   const startTime = Date.now()
   const toolCalls = []
   let fullText = ''
+  let runUsage = null
 
   log('🚀', `Agent started for: "${message.slice(0, 120)}"`)
 
@@ -79,7 +83,7 @@ export async function processMessage({
       } else if (event.type === 'run_item_stream_event') {
         const item = event.item
         if (item.type === 'tool_call_item') {
-          const toolName = item.rawItem?.name || 'unknown'
+          const toolName = item.rawItem?.name || UNKNOWN_TOOL
           const toolArgs = item.rawItem?.arguments || '{}'
           log('  →', toolName)
           toolCalls.push({ name: toolName, arguments: toolArgs })
@@ -89,6 +93,7 @@ export async function processMessage({
 
     await stream.completed
 
+    runUsage = extractUsage(stream.state?.usage)
     const usage = formatUsage(stream.state?.usage)
     if (usage) log('📊', usage)
 
@@ -96,20 +101,35 @@ export async function processMessage({
     return stream.lastResponseId
   }
 
+  async function runWithRetry() {
+    try {
+      return await runTurn(previousResponseId)
+    } catch (err) {
+      if (!previousResponseId || sentText) throw err
+
+      log('♻️', `Retrying without previousResponseId (${err.message})`)
+      return runTurn(undefined)
+    }
+  }
+
   let lastResponseId
   try {
-    lastResponseId = await runTurn(previousResponseId)
+    lastResponseId = await runWithRetry()
   } catch (err) {
-    if (previousResponseId && !sentText) {
-      log('♻️', `Retrying without previousResponseId (${err.message})`)
-      lastResponseId = await runTurn(undefined)
-    } else {
-      throw err
-    }
+    await recordAgentRun({ channel: AGENT_CHANNEL_SLACK, status: RUN_STATUS_ERROR })
+    throw err
   }
 
   const durationMs = Date.now() - startTime
   log('✅', `Done in ${durationMs}ms (${toolCalls.length} tool calls)`)
+
+  await recordAgentRun({
+    channel: AGENT_CHANNEL_SLACK,
+    status: RUN_STATUS_OK,
+    usage: runUsage,
+    durationMs,
+    tools: toolNames(toolCalls),
+  })
 
   let finalText = fullText
   if (isYoloMode(selectedSources)) {

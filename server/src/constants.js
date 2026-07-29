@@ -11,3 +11,15 @@ export const SCHEDULE_QUESTION_MAX_LENGTH = 10_000
 export const SCHEDULE_STATUS_OK = 'ok'
 export const SCHEDULE_STATUS_ERROR = 'error'
 export const MAX_SCHEDULES_PER_USER = 20
+
+export const AGENT_CHANNEL_WEB = 'web'
+export const AGENT_CHANNEL_SLACK = 'slack'
+export const AGENT_CHANNEL_SCHEDULE = 'schedule'
+export const AGENT_CHANNEL_PR_REVIEW = 'pr_review'
+export const AGENT_CHANNEL_PR_MENTION = 'pr_mention'
+export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
+export const RUN_STATUS_OK = 'ok'
+export const RUN_STATUS_ERROR = 'error'
+export const STATS_RANGE_ALL = 'all'
+export const STATS_RANGE_DAYS = [7, 30, 90]
+export const TOP_TOOLS_LIMIT = 10

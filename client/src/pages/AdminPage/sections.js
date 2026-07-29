@@ -11,9 +11,11 @@ import AdminSentry from './AdminSentry/AdminSentry.jsx'
 import AdminShopify from './AdminShopify/AdminShopify.jsx'
 import AdminShortcut from './AdminShortcut/AdminShortcut.jsx'
 import AdminSlack from './AdminSlack/AdminSlack.jsx'
+import AdminStats from './AdminStats/AdminStats.jsx'
 import AdminUsers from './AdminUsers/AdminUsers.jsx'
 
 export const SECTIONS = [
+  { path: 'stats', label: 'Stats', icon: 'chart', Component: AdminStats },
   { path: 'users', label: 'Users', icon: 'users', Component: AdminUsers },
   { path: 'authentication', label: 'Authentication', icon: 'shield', Component: AdminAuthentication },
   { path: 'llm', label: 'LLM', icon: 'spark', Component: AdminLlm },

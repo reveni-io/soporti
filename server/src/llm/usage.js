@@ -7,20 +7,32 @@ function sumDetail(details, key) {
   return details.reduce((total, entry) => total + (entry?.[key] ?? 0), 0)
 }
 
-export function formatUsage(usage) {
+export function extractUsage(usage) {
   if (!usage) return null
 
-  const requests = usage.requests ?? 0
-  const inputTokens = usage.inputTokens ?? 0
-  const outputTokens = usage.outputTokens ?? 0
-  const cacheRead = sumDetail(usage.inputTokensDetails, CACHE_READ_KEY)
-  const cacheWrite = sumDetail(usage.inputTokensDetails, CACHE_WRITE_KEY)
+  return {
+    requests: usage.requests ?? 0,
+    inputTokens: usage.inputTokens ?? 0,
+    outputTokens: usage.outputTokens ?? 0,
+    cachedInputTokens: sumDetail(usage.inputTokensDetails, CACHE_READ_KEY),
+    cacheWriteTokens: sumDetail(usage.inputTokensDetails, CACHE_WRITE_KEY),
+  }
+}
+
+export function formatUsage(usage) {
+  const extracted = extractUsage(usage)
+  if (!extracted) return null
+
+  const { requests, inputTokens, outputTokens, cachedInputTokens, cacheWriteTokens } = extracted
 
   if (requests === 0 && inputTokens === 0 && outputTokens === 0) return null
 
   const parts = [`${requests} req`, `in ${inputTokens}`, `out ${outputTokens}`]
-  if (cacheWrite > 0) parts.push(`cache write ${cacheWrite}`)
-  if (inputTokens > 0) parts.push(`cache read ${cacheRead} (${Math.round((cacheRead / inputTokens) * 100)}%)`)
+  if (cacheWriteTokens > 0) parts.push(`cache write ${cacheWriteTokens}`)
+  if (inputTokens > 0) {
+    const hitRate = Math.round((cachedInputTokens / inputTokens) * 100)
+    parts.push(`cache read ${cachedInputTokens} (${hitRate}%)`)
+  }
 
   return parts.join(' · ')
 }

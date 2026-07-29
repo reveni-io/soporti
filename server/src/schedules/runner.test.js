@@ -4,11 +4,13 @@ vi.mock('@openai/agents', () => ({ run: vi.fn() }))
 vi.mock('../agent/assistant.js', () => ({ createAgent: vi.fn() }))
 vi.mock('../knowledge/client.js', () => ({ searchSimilarCases: vi.fn() }))
 vi.mock('../db/users.js', () => ({ getCustomInstructions: vi.fn() }))
+vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 
 const { run } = await import('@openai/agents')
 const { createAgent } = await import('../agent/assistant.js')
 const { searchSimilarCases } = await import('../knowledge/client.js')
 const { getCustomInstructions } = await import('../db/users.js')
+const { recordAgentRun } = await import('../db/agent-runs.js')
 const { runSchedule } = await import('./runner.js')
 
 const SCHEDULE = {
@@ -140,5 +142,52 @@ describe('runSchedule', () => {
     await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('model unavailable')
 
     expect(store.deleteWeb).toHaveBeenCalledWith(CONVERSATION_ID, 7)
+  })
+
+  it('records the run with its usage and the tools it called', async () => {
+    const store = makeStore()
+    run.mockResolvedValue({
+      finalOutput: 'Two payments failed.',
+      state: { usage: { requests: 2, inputTokens: 900, outputTokens: 40 } },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'query_database', arguments: '{}' } }],
+    })
+
+    await runSchedule(SCHEDULE, store)
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'schedule',
+      status: 'ok',
+      subject: null,
+      usage: { requests: 2, inputTokens: 900, outputTokens: 40, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['query_database'],
+    })
+  })
+
+  it('records a failed run when the agent throws', async () => {
+    const store = makeStore()
+    run.mockRejectedValue(new Error('model unavailable'))
+
+    await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('model unavailable')
+
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'schedule', status: 'error', subject: null })
+  })
+
+  it('records a failed run with the tokens it burnt when the assistant answers with nothing', async () => {
+    const store = makeStore()
+    run.mockResolvedValue({ finalOutput: '   ', state: { usage: { requests: 20, inputTokens: 400_000 } } })
+
+    await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('empty answer')
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'schedule',
+      status: 'error',
+      subject: null,
+      usage: { requests: 20, inputTokens: 400_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: [],
+    })
   })
 })

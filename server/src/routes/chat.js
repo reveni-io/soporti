@@ -8,7 +8,10 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { isConfigured } from '../llm/model.js'
-import { formatUsage } from '../llm/usage.js'
+import { extractUsage, formatUsage } from '../llm/usage.js'
+import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
+import { recordAgentRun } from '../db/agent-runs.js'
+import { AGENT_CHANNEL_WEB, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 
 const router = Router()
 
@@ -134,6 +137,7 @@ export default function chatRoute(conversationStore) {
     const assistantParts = []
     let lastResponseId
     let unpersistedItems = null
+    let runUsage = null
 
     try {
       const agent = await createAgent(sources, profile, similarCases, {
@@ -170,7 +174,7 @@ export default function chatRoute(conversationStore) {
             const item = event.item
 
             if (item.type === 'tool_call_item') {
-              const toolName = item.rawItem?.name || 'unknown'
+              const toolName = item.rawItem?.name || UNKNOWN_TOOL
               const toolArgs = item.rawItem?.arguments || '{}'
               const callId = item.rawItem?.callId || item.rawItem?.id
 
@@ -188,7 +192,7 @@ export default function chatRoute(conversationStore) {
               sendEvent(res, { type: 'tool_start', tool: toolName, input })
             } else if (item.type === 'tool_call_output_item') {
               const callId = item.rawItem?.callId
-              const toolName = item.rawItem?.name || callIdToName.get(callId) || 'unknown'
+              const toolName = item.rawItem?.name || callIdToName.get(callId) || UNKNOWN_TOOL
               const startTime = callId ? toolStartTimes.get(callId) : undefined
               const durationMs = startTime ? Date.now() - startTime : undefined
 
@@ -214,6 +218,7 @@ export default function chatRoute(conversationStore) {
 
         await stream.completed
 
+        runUsage = extractUsage(stream.state?.usage)
         const usage = formatUsage(stream.state?.usage)
         if (usage) log('📊', usage)
 
@@ -266,8 +271,17 @@ export default function chatRoute(conversationStore) {
           { role: 'assistant', parts: assistantParts },
         ],
       })
+
+      await recordAgentRun({
+        channel: AGENT_CHANNEL_WEB,
+        status: RUN_STATUS_OK,
+        usage: runUsage,
+        durationMs: totalMs,
+        tools: toolNames(toolCalls),
+      })
     } catch (err) {
       console.error('❌ Error:', err)
+      await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR })
       sendEvent(res, { type: 'error', message: 'An internal error occurred.' })
     }
 

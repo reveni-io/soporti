@@ -26,3 +26,14 @@ export const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thur
 export const SCHEDULE_MONTH_DAY_MAX = 28
 export const SCHEDULE_QUESTION_MAX_LENGTH = 10_000
 export const SCHEDULE_STATUS_ERROR = 'error'
+
+export const EMPTY_CELL = '—'
+
+export const STATS_RANGE_ALL = 'all'
+
+export const STATS_RANGE_OPTIONS = [
+  { value: '7', label: '7 days' },
+  { value: '30', label: '30 days' },
+  { value: '90', label: '90 days' },
+  { value: STATS_RANGE_ALL, label: 'All time' },
+]

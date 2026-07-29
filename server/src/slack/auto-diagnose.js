@@ -4,6 +4,8 @@ import { YOLO_SOURCE } from '../agent/sources.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { redactSecrets } from '../review/output-guard.js'
 import { formatUsage } from '../llm/usage.js'
+import { trackAgentRun } from '../agent/run-tracking.js'
+import { AGENT_CHANNEL_AUTO_DIAGNOSE } from '../constants.js'
 import config from '../config.js'
 import { buildDiagnosisPrompt, buildTicketText } from './diagnose-prompt.js'
 
@@ -32,11 +34,12 @@ export async function diagnoseTicket(ticket, { images = [] } = {}) {
   })
 
   const input = buildAgentInput(buildDiagnosisPrompt(ticket), images)
-  const startTime = Date.now()
   log('🚀', `Diagnosing ticket "${(ticket?.title ?? '').slice(0, 80)}" (${images.length} image(s))`)
 
-  const result = await run(agent, input, { maxTurns: config.agent.maxIterations })
-  const durationMs = Date.now() - startTime
+  const { result, durationMs } = await trackAgentRun(
+    { channel: AGENT_CHANNEL_AUTO_DIAGNOSE, subject: ticket?.id ?? null },
+    () => run(agent, input, { maxTurns: config.agent.maxIterations })
+  )
 
   const usage = formatUsage(result?.state?.usage)
   if (usage) log('📊', usage)

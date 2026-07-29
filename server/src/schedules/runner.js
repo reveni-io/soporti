@@ -4,12 +4,11 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import config from '../config.js'
 import { getCustomInstructions } from '../db/users.js'
 import { searchSimilarCases } from '../knowledge/client.js'
+import { toolCallsFromResult } from '../agent/run-items.js'
+import { trackAgentRun } from '../agent/run-tracking.js'
+import { AGENT_CHANNEL_SCHEDULE } from '../constants.js'
 
-function collectToolCalls(result) {
-  return (result?.newItems ?? [])
-    .filter(item => item?.type === 'tool_call_item')
-    .map(item => ({ name: item.rawItem?.name, arguments: item.rawItem?.arguments }))
-}
+const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
 
 function extractText(result) {
   const output = result?.finalOutput
@@ -34,12 +33,16 @@ export async function runSchedule(schedule, conversationStore) {
       customInstructions: customInstructions ?? '',
     })
 
-    const result = await run(agent, schedule.question, { maxTurns: config.agent.maxIterations, session })
+    const { result } = await trackAgentRun(
+      {
+        channel: AGENT_CHANNEL_SCHEDULE,
+        failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
+      },
+      () => run(agent, schedule.question, { maxTurns: config.agent.maxIterations, session })
+    )
 
     const answer = extractText(result)
-    if (answer.trim().length === 0) throw new Error('The assistant returned an empty answer.')
-
-    const footer = isYoloMode(sources) ? buildSourcesFooter(collectToolCalls(result)) : ''
+    const footer = isYoloMode(sources) ? buildSourcesFooter(toolCallsFromResult(result)) : ''
 
     await conversationStore.saveTurn(conversationId, {
       lastResponseId: result?.lastResponseId,
