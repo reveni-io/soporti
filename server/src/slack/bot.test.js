@@ -139,6 +139,7 @@ function buildMockConversationStore() {
       conversationId: 'conv-1',
       session: { id: 'sess-1' },
       previousResponseId: undefined,
+      isNewConversation: true,
     })),
     saveTurn: vi.fn(async () => {}),
   }
@@ -465,10 +466,12 @@ describe('Slack bot', () => {
 
   describe('confirm_selection handler', () => {
     let mockClient
+    let conversationStore
 
     beforeEach(async () => {
       mockClient = buildMockClient()
-      await startSlackBot(buildMockConversationStore())
+      conversationStore = buildMockConversationStore()
+      await startSlackBot(conversationStore)
     })
 
     it('sends error when pending question not found', async () => {
@@ -527,6 +530,12 @@ describe('Slack bot', () => {
     it('runs agent on successful selection', async () => {
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockResolvedValue({ text: 'Agent response' })
+      conversationStore.resolveSlack.mockResolvedValue({
+        conversationId: 'conv-1',
+        session: { id: 'sess-1' },
+        previousResponseId: undefined,
+        isNewConversation: false,
+      })
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123' },
@@ -555,6 +564,7 @@ describe('Slack bot', () => {
           message: expect.any(String),
           selectedSources: ['org/repo1'],
           profile: 'support',
+          isNewConversation: false,
         })
       )
       expect(mockClient.chat.postMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'Was this helpful?' }))

@@ -50,7 +50,7 @@ vi.mock('../db/agent-runs.js', () => ({
 
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
-import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
+import { isKnowledgeBaseConfigured, searchSimilarCases } from '../knowledge/client.js'
 import { isConfigured } from '../llm/model.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { recordAgentRun } from '../db/agent-runs.js'
@@ -82,14 +82,20 @@ function buildSession() {
   return { getItems: vi.fn(async () => []) }
 }
 
-const conversationStore = {
-  resolveWeb: vi.fn(async () => ({
+function buildResolvedWeb(overrides = {}) {
+  return {
     conversationId: TEST_CONVERSATION_ID,
     session: buildSession(),
     previousResponseId: undefined,
-  })),
-  saveTurn: vi.fn(async () => {}),
-  getInvokedSkillIds: vi.fn(async () => []),
+    isNewConversation: true,
+    ...overrides,
+  }
+}
+
+const conversationStore = {
+  resolveWeb: vi.fn(),
+  saveTurn: vi.fn(),
+  getInvokedSkillIds: vi.fn(),
 }
 const app = express()
 app.use(express.json())
@@ -102,11 +108,7 @@ app.use('/', chatRoute(conversationStore))
 describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    conversationStore.resolveWeb.mockResolvedValue({
-      conversationId: TEST_CONVERSATION_ID,
-      session: buildSession(),
-      previousResponseId: undefined,
-    })
+    conversationStore.resolveWeb.mockResolvedValue(buildResolvedWeb())
     conversationStore.saveTurn.mockResolvedValue(undefined)
     conversationStore.getInvokedSkillIds.mockResolvedValue([])
   })
@@ -204,6 +206,27 @@ describe('POST /api/chat', () => {
     expect(conversationStore.resolveWeb).toHaveBeenCalledWith(undefined, 1)
   })
 
+  it('searches similar cases on the first message of a conversation', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(searchSimilarCases).toHaveBeenCalledTimes(1)
+    expect(searchSimilarCases).toHaveBeenCalledWith('why does it 500?')
+    expect(createAgent.mock.calls[0][2]).toEqual([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+  })
+
+  it('skips the similar cases search on a follow-up message so the prompt stays cacheable', async () => {
+    conversationStore.resolveWeb.mockResolvedValue(buildResolvedWeb({ isNewConversation: false }))
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').send({ message: 'and what about the retries?', sessionId: TEST_CONVERSATION_ID })
+
+    expect(searchSimilarCases).not.toHaveBeenCalled()
+    expect(createAgent.mock.calls[0][2]).toEqual([])
+  })
+
   it('persists the turn after streaming completes', async () => {
     run.mockResolvedValue(
       createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hi there' } }])
@@ -224,11 +247,9 @@ describe('POST /api/chat', () => {
 
   it('hands the turn items to the store when the provider kept the context server-side', async () => {
     const session = buildSession()
-    conversationStore.resolveWeb.mockResolvedValue({
-      conversationId: TEST_CONVERSATION_ID,
-      session,
-      previousResponseId: 'resp_previous',
-    })
+    conversationStore.resolveWeb.mockResolvedValue(
+      buildResolvedWeb({ session, previousResponseId: 'resp_previous', isNewConversation: false })
+    )
     const turnHistory = [
       { type: 'message', role: 'user', content: 'hello' },
       { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Hi there' }] },
@@ -263,11 +284,9 @@ describe('POST /api/chat', () => {
   })
 
   it('retries without previousResponseId when the chained response expired', async () => {
-    conversationStore.resolveWeb.mockResolvedValue({
-      conversationId: TEST_CONVERSATION_ID,
-      session: buildSession(),
-      previousResponseId: 'resp_expired',
-    })
+    conversationStore.resolveWeb.mockResolvedValue(
+      buildResolvedWeb({ previousResponseId: 'resp_expired', isNewConversation: false })
+    )
     run
       .mockRejectedValueOnce(new Error('Previous response not found'))
       .mockResolvedValueOnce(
