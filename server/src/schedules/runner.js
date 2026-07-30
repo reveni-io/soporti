@@ -1,5 +1,6 @@
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
+import { buildUserTurn } from '../agent/user-turn.js'
 import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import config from '../config.js'
 import { getCustomInstructions } from '../db/users.js'
@@ -29,16 +30,17 @@ export async function runSchedule(schedule, conversationStore) {
       }),
     ])
 
-    const agent = await createAgent(sources, schedule.profile, similarCases, {
+    const agent = await createAgent(sources, schedule.profile, {
       customInstructions: customInstructions ?? '',
     })
+    const agentInput = buildUserTurn(schedule.question, { similarCases })
 
     const { result } = await trackAgentRun(
       {
         channel: AGENT_CHANNEL_SCHEDULE,
         failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
       },
-      () => run(agent, schedule.question, { maxTurns: config.agent.maxIterations, session })
+      () => run(agent, agentInput, { maxTurns: config.agent.maxIterations, session })
     )
 
     const answer = extractText(result)

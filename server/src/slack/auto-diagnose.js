@@ -1,5 +1,6 @@
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
+import { buildUserTurn } from '../agent/user-turn.js'
 import { YOLO_SOURCE } from '../agent/sources.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { redactSecrets } from '../review/output-guard.js'
@@ -29,11 +30,11 @@ export async function diagnoseTicket(ticket, { images = [] } = {}) {
   const similarCases = await searchSimilarCases(ticketText).catch(() => [])
   if (similarCases.length > 0) log('📚', `Found ${similarCases.length} similar case(s)`)
 
-  const agent = await createAgent([YOLO_SOURCE], config.autoDiagnose.profile, similarCases, {
+  const agent = await createAgent([YOLO_SOURCE], config.autoDiagnose.profile, {
     customInstructions: '',
   })
 
-  const input = buildAgentInput(buildDiagnosisPrompt(ticket), images)
+  const input = buildAgentInput(buildUserTurn(buildDiagnosisPrompt(ticket), { similarCases }), images)
   log('🚀', `Diagnosing ticket "${(ticket?.title ?? '').slice(0, 80)}" (${images.length} image(s))`)
 
   const { result, durationMs } = await trackAgentRun(

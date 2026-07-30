@@ -1,5 +1,6 @@
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
+import { buildUserTurn } from '../agent/user-turn.js'
 import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import config from '../config.js'
 import { searchSimilarCases } from '../knowledge/client.js'
@@ -49,9 +50,8 @@ export async function processMessage({
     log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
   }
 
-  const agent = await createAgent(selectedSources, profile, similarCases, {
-    customInstructions,
-  })
+  const agent = await createAgent(selectedSources, profile, { customInstructions })
+  const agentInput = buildUserTurn(message, { similarCases })
   const startTime = Date.now()
   const toolCalls = []
   let fullText = ''
@@ -67,7 +67,7 @@ export async function processMessage({
     toolCalls.length = 0
     sentText = false
 
-    const stream = await run(agent, message, {
+    const stream = await run(agent, agentInput, {
       stream: true,
       maxTurns: config.agent.maxIterations,
       session,

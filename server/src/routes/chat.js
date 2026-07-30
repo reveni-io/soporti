@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
+import { buildUserTurn } from '../agent/user-turn.js'
 import config from '../config.js'
 import { searchSimilarCases, isKnowledgeBaseConfigured } from '../knowledge/client.js'
 import { storePendingFeedback } from '../knowledge/feedback.js'
@@ -132,10 +133,10 @@ export default function chatRoute(conversationStore) {
       log('⚡', `Skill(s) applied: ${described.join(', ')}`)
     }
 
-    const agentInput =
-      newlyInvokedSkills.length > 0
-        ? `${newlyInvokedSkills.map(s => `/${s.name}`).join(' ')} ${trimmedMessage}`
-        : trimmedMessage
+    const agentInput = buildUserTurn(trimmedMessage, {
+      similarCases,
+      commands: newlyInvokedSkills.map(s => s.name),
+    })
 
     const assistantParts = []
     let lastResponseId
@@ -143,7 +144,7 @@ export default function chatRoute(conversationStore) {
     let runUsage = null
 
     try {
-      const agent = await createAgent(sources, profile, similarCases, {
+      const agent = await createAgent(sources, profile, {
         customInstructions: customInstructions ?? '',
         skills: invokedSkills,
         skillArguments: trimmedMessage,

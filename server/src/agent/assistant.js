@@ -5,7 +5,6 @@ import {
   buildBasePrompt,
   buildSourceInstructions,
   buildProfileInstructions,
-  buildSimilarCasesPrompt,
   buildSkillsPrompt,
 } from './system-prompt.js'
 import { isYoloMode, buildSourcePolicy } from './sources.js'
@@ -22,7 +21,6 @@ import * as shopify from '../shopify/client.js'
 export async function createAgent(
   selectedSources,
   profile,
-  similarCases,
   { customInstructions = '', skills: invokedSkills = [], skillArguments = '' } = {}
 ) {
   const policy = buildSourcePolicy(selectedSources)
@@ -61,14 +59,12 @@ export async function createAgent(
 
   const sourceInstructions = buildSourceInstructions(selectedSources, configured)
   const profileInstructions = buildProfileInstructions(profile)
-  const casesPrompt = buildSimilarCasesPrompt(similarCases)
   const userInstructions = typeof customInstructions === 'string' ? customInstructions.trim() : ''
   const skillsPrompt = buildSkillsPrompt(invokedSkills, skillArguments)
 
   const parts = [buildBasePrompt(policy, { hasActiveSkills: Boolean(skillsPrompt), configured })]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)
   if (catalogPrompt) parts.push(catalogPrompt)
-  if (casesPrompt) parts.push(casesPrompt)
   if (userInstructions) {
     parts.push(
       `## User preferences\n\nThe user has provided the following personal instructions. Follow them whenever they don't conflict with the safety and behavior rules above:\n\n${userInstructions}`

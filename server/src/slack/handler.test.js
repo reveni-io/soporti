@@ -203,7 +203,7 @@ describe('processMessage', () => {
     expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error' })
   })
 
-  it('searches similar cases on the message that opens the thread', async () => {
+  it('searches similar cases on the message that opens the thread and sends them in the user turn', async () => {
     searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
     run.mockResolvedValue(createStreamMock([]))
 
@@ -217,7 +217,9 @@ describe('processMessage', () => {
 
     expect(searchSimilarCases).toHaveBeenCalledTimes(1)
     expect(searchSimilarCases).toHaveBeenCalledWith('why 500?')
-    expect(createAgent.mock.calls[0][2]).toEqual([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    expect(run.mock.calls[0][1]).toContain('Bad token')
+    expect(run.mock.calls[0][1].endsWith('why 500?')).toBe(true)
+    expect(createAgent).toHaveBeenCalledWith([], 'tech', { customInstructions: '' })
   })
 
   it('skips the similar cases search on a reply to an existing thread', async () => {
@@ -232,7 +234,28 @@ describe('processMessage', () => {
     })
 
     expect(searchSimilarCases).not.toHaveBeenCalled()
-    expect(createAgent.mock.calls[0][2]).toEqual([])
+    expect(run.mock.calls[0][1]).toBe('and the retries?')
+  })
+
+  it('sends the same input on both attempts when the first turn is retried', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    run
+      .mockRejectedValueOnce(new Error('previous response not found'))
+      .mockResolvedValueOnce(
+        createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hello' } }])
+      )
+
+    await processMessage({
+      message: 'why 500?',
+      selectedSources: [],
+      session: {},
+      previousResponseId: 'resp_previous',
+      profile: 'tech',
+      isNewConversation: true,
+    })
+
+    expect(run.mock.calls[1][1]).toBe(run.mock.calls[0][1])
+    expect(run.mock.calls[1][1]).toContain('Bad token')
   })
 
   it('retries without the context token when the first turn fails before sending text', async () => {
