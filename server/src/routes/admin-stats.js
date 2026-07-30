@@ -5,10 +5,10 @@ import {
   AGENT_CHANNEL_AUTO_DIAGNOSE,
   AGENT_CHANNEL_PR_REVIEW,
   STATS_RANGE_ALL,
-  STATS_RANGE_DAYS,
+  STATS_RANGE_HOURS,
 } from '../constants.js'
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const HOUR_MS = 60 * 60 * 1000
 
 const SOURCES = {
   conversations: since => getConversationStats(since),
@@ -22,15 +22,15 @@ const SOURCES = {
 
 const router = Router()
 
-function parseDays(raw) {
+function parseHours(raw) {
   if (raw === undefined || raw === '' || raw === STATS_RANGE_ALL) return { value: null }
 
-  const days = Number(raw)
-  if (!STATS_RANGE_DAYS.includes(days)) {
-    return { error: `days must be one of ${STATS_RANGE_DAYS.join(', ')} or "${STATS_RANGE_ALL}".` }
+  const hours = Number(raw)
+  if (!STATS_RANGE_HOURS.includes(hours)) {
+    return { error: `hours must be one of ${STATS_RANGE_HOURS.join(', ')} or "${STATS_RANGE_ALL}".` }
   }
 
-  return { value: days }
+  return { value: hours }
 }
 
 async function loadSources(since) {
@@ -49,11 +49,11 @@ async function loadSources(since) {
   return loaded
 }
 
-function buildStats(days, loaded) {
+function buildStats(hours, loaded) {
   const { conversations, messages } = loaded
 
   return {
-    days,
+    hours,
     conversations: conversations?.conversations ?? null,
     activeUsers: conversations?.activeUsers ?? null,
     conversationsBySource: conversations?.bySource ?? null,
@@ -68,17 +68,17 @@ function buildStats(days, loaded) {
 }
 
 router.get('/', async (req, res) => {
-  const { error, value: days } = parseDays(req.query.days)
+  const { error, value: hours } = parseHours(req.query.hours)
   if (error) return res.status(400).json({ error })
 
   try {
-    const since = days === null ? null : new Date(Date.now() - days * DAY_MS)
+    const since = hours === null ? null : new Date(Date.now() - hours * HOUR_MS)
     const loaded = await loadSources(since)
     if (Object.values(loaded).every(value => value === null)) {
       return res.status(500).json({ error: 'Failed to load the stats.' })
     }
 
-    res.json({ stats: buildStats(days, loaded) })
+    res.json({ stats: buildStats(hours, loaded) })
   } catch (err) {
     console.error('Failed to load the admin stats:', err)
     res.status(500).json({ error: 'Failed to load the stats.' })

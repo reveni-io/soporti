@@ -57,7 +57,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 
 ### See what it is doing
 
-- **Usage stats** — `/admin` → **Stats** shows, over the last 7, 30 or 90 days or all time: conversations and messages, PRs reviewed, tickets auto-diagnosed, token spend (input, output, cache read and write with the hit rate), runs and p50/p95 response time per channel (web, Slack, schedules, PR reviews, PR mentions, auto-diagnose) and the most called tools. Conversation and message counts cover your whole history; the agent-run counters start filling in from the moment this version is deployed
+- **Usage stats** — `/admin` → **Stats** shows, over a range you pick (the last hour, 3 hours, 24 hours, 7, 30 or 90 days, or all time): conversations and messages, PRs reviewed, tickets auto-diagnosed, token spend (input, output, cache read and write with the hit rate), runs and p50/p95 response time per channel (web, Slack, schedules, PR reviews, PR mentions, auto-diagnose) and the most called tools. Conversation and message counts cover your whole history; the agent-run counters start filling in from the moment this version is deployed
 
 ## Prerequisites
 

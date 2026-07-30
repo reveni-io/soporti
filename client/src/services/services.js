@@ -91,8 +91,8 @@ export function getStats(token) {
   return request('/api/stats', { token, errorMessage: 'Failed to load the stats' })
 }
 
-export function getAdminStats(token, days) {
-  return request(`/api/admin/stats?days=${days}`, { token, errorMessage: 'Failed to load the stats' })
+export function getAdminStats(token, hours) {
+  return request(`/api/admin/stats?hours=${hours}`, { token, errorMessage: 'Failed to load the stats' })
 }
 
 export async function streamChat(token, body, signal) {

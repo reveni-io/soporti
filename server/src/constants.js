@@ -28,5 +28,5 @@ export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
 export const RUN_STATUS_OK = 'ok'
 export const RUN_STATUS_ERROR = 'error'
 export const STATS_RANGE_ALL = 'all'
-export const STATS_RANGE_DAYS = [7, 30, 90]
+export const STATS_RANGE_HOURS = [1, 3, 24, 168, 720, 2160]
 export const TOP_TOOLS_LIMIT = 10
