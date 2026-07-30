@@ -57,7 +57,7 @@ describe('GET /api/admin/stats', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.stats).toEqual({
-      days: null,
+      hours: null,
       conversations: 40,
       activeUsers: 5,
       conversationsBySource: [{ source: 'web', conversations: 40 }],
@@ -77,32 +77,43 @@ describe('GET /api/admin/stats', () => {
   })
 
   it('turns the range into a start date every source is filtered by', async () => {
-    const res = await request(app).get('/api/admin/stats?days=7')
+    const res = await request(app).get('/api/admin/stats?hours=168')
 
     expect(res.status).toBe(200)
-    expect(res.body.stats.days).toBe(7)
+    expect(res.body.stats.hours).toBe(168)
 
     const since = getConversationStats.mock.calls[0][0]
     expect(since).toBeInstanceOf(Date)
-    const elapsedDays = (Date.now() - since.getTime()) / (24 * 60 * 60 * 1000)
-    expect(elapsedDays).toBeCloseTo(7, 2)
+    const elapsedHours = (Date.now() - since.getTime()) / (60 * 60 * 1000)
+    expect(elapsedHours).toBeCloseTo(168, 1)
     expect(getMessageStats).toHaveBeenCalledWith(since)
     expect(getRunsByChannel).toHaveBeenCalledWith(since)
     expect(countDistinctSubjects).toHaveBeenCalledWith('pr_review', since)
   })
 
-  it('accepts every supported range and treats an empty one as all time', async () => {
-    for (const days of [30, 90]) {
-      const res = await request(app).get(`/api/admin/stats?days=${days}`)
-
-      expect(res.status).toBe(200)
-      expect(res.body.stats.days).toBe(days)
-    }
-
-    const res = await request(app).get('/api/admin/stats?days=')
+  it('filters by the hour when the range is sub-daily', async () => {
+    const res = await request(app).get('/api/admin/stats?hours=1')
 
     expect(res.status).toBe(200)
-    expect(res.body.stats.days).toBe(null)
+    expect(res.body.stats.hours).toBe(1)
+
+    const since = getConversationStats.mock.calls[0][0]
+    const elapsedHours = (Date.now() - since.getTime()) / (60 * 60 * 1000)
+    expect(elapsedHours).toBeCloseTo(1, 1)
+  })
+
+  it('accepts every supported range and treats an empty one as all time', async () => {
+    for (const hours of [3, 24, 720, 2160]) {
+      const res = await request(app).get(`/api/admin/stats?hours=${hours}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.stats.hours).toBe(hours)
+    }
+
+    const res = await request(app).get('/api/admin/stats?hours=')
+
+    expect(res.status).toBe(200)
+    expect(res.body.stats.hours).toBe(null)
     expect(getRunTotals).toHaveBeenLastCalledWith(null)
   })
 
@@ -114,10 +125,10 @@ describe('GET /api/admin/stats', () => {
   })
 
   it('re-queries every request so a range never serves stale numbers', async () => {
-    await request(app).get('/api/admin/stats?days=7')
+    await request(app).get('/api/admin/stats?hours=168')
     getRunTotals.mockResolvedValue({ ...TOTALS, runs: 13 })
 
-    const res = await request(app).get('/api/admin/stats?days=7')
+    const res = await request(app).get('/api/admin/stats?hours=168')
 
     expect(res.status).toBe(200)
     expect(res.body.stats.runs.runs).toBe(13)
@@ -125,18 +136,18 @@ describe('GET /api/admin/stats', () => {
   })
 
   it('rejects an unsupported range with a 400', async () => {
-    const res = await request(app).get('/api/admin/stats?days=365')
+    const res = await request(app).get('/api/admin/stats?hours=8760')
 
     expect(res.status).toBe(400)
-    expect(res.body.error).toMatch(/days must be one of/)
+    expect(res.body.error).toMatch(/hours must be one of/)
     expect(getRunTotals).not.toHaveBeenCalled()
   })
 
   it('rejects a non-numeric range with a 400', async () => {
-    const res = await request(app).get('/api/admin/stats?days=abc')
+    const res = await request(app).get('/api/admin/stats?hours=abc')
 
     expect(res.status).toBe(400)
-    expect(res.body.error).toMatch(/days must be one of/)
+    expect(res.body.error).toMatch(/hours must be one of/)
     expect(getRunTotals).not.toHaveBeenCalled()
   })
 

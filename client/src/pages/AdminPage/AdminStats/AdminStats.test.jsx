@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import AdminStats from './AdminStats.jsx'
 
 const sampleStats = {
-  days: null,
+  hours: null,
   conversations: 128,
   activeUsers: 9,
   conversationsBySource: [
@@ -74,7 +74,7 @@ describe('AdminStats', () => {
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('17')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledTimes(1)
-    expect(global.fetch.mock.calls[0][0]).toContain('/api/admin/stats?days=all')
+    expect(global.fetch.mock.calls[0][0]).toContain('/api/admin/stats?hours=all')
   })
 
   it('formats tokens, cache hit rate and latency', async () => {
@@ -106,17 +106,37 @@ describe('AdminStats', () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(okResponse(sampleStats))
-      .mockResolvedValueOnce(okResponse({ ...sampleStats, days: 7, conversations: 6 }))
+      .mockResolvedValueOnce(okResponse({ ...sampleStats, hours: 3, conversations: 6 }))
     const user = userEvent.setup()
 
     render(<AdminStats token="tok" onLogout={vi.fn()} />)
     await screen.findByText('128')
 
-    await user.click(screen.getByRole('button', { name: '7 days' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /range/i }), '3')
 
     expect(await screen.findByText('6')).toBeInTheDocument()
-    expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/stats?days=7')
-    expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute('aria-pressed', 'true')
+    expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/stats?hours=3')
+    expect(screen.getByRole('combobox', { name: /range/i })).toHaveValue('3')
+  })
+
+  it('offers the hourly ranges alongside the daily ones', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse(sampleStats))
+
+    render(<AdminStats token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('128')
+
+    const labels = screen.getAllByRole('option').map(option => option.textContent)
+
+    expect(labels).toEqual([
+      'Last hour',
+      'Last 3 hours',
+      'Last 24 hours',
+      'Last 7 days',
+      'Last 30 days',
+      'Last 90 days',
+      'All time',
+    ])
+    expect(screen.getByRole('combobox', { name: /range/i })).toHaveValue('all')
   })
 
   it('shows the empty states when nothing has run yet', async () => {
@@ -177,7 +197,7 @@ describe('AdminStats', () => {
     render(<AdminStats token="tok" onLogout={vi.fn()} />)
     await screen.findByText('Failed to load the stats.')
 
-    await user.click(screen.getByRole('button', { name: '7 days' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /range/i }), '3')
 
     expect(screen.getByText('Loading...')).toBeInTheDocument()
     expect(screen.queryByText('Failed to load the stats.')).not.toBeInTheDocument()

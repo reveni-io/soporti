@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useAdminStats } from './useAdminStats.js'
 
-const STATS = { days: null, conversations: 40 }
+const STATS = { hours: null, conversations: 40 }
 
 function okResponse(stats) {
   return { ok: true, status: 200, json: async () => ({ stats }) }
@@ -23,25 +23,25 @@ describe('useAdminStats', () => {
     expect(result.current.range).toBe('all')
     expect(result.current.loading).toBe(false)
     expect(result.current.error).toBeNull()
-    expect(global.fetch.mock.calls[0][0]).toContain('/api/admin/stats?days=all')
+    expect(global.fetch.mock.calls[0][0]).toContain('/api/admin/stats?hours=all')
   })
 
   it('reloads with the range the caller selects', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(okResponse(STATS))
-      .mockResolvedValueOnce(okResponse({ days: 7, conversations: 6 }))
+      .mockResolvedValueOnce(okResponse({ hours: 3, conversations: 6 }))
     const onLogout = vi.fn()
 
     const { result } = renderHook(() => useAdminStats('tok', onLogout))
     await waitFor(() => expect(result.current.stats).toEqual(STATS))
 
     act(() => {
-      result.current.setRange('7')
+      result.current.setRange('3')
     })
 
-    await waitFor(() => expect(result.current.stats).toEqual({ days: 7, conversations: 6 }))
-    expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/stats?days=7')
+    await waitFor(() => expect(result.current.stats).toEqual({ hours: 3, conversations: 6 }))
+    expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/stats?hours=3')
   })
 
   it('drops a stale error while the next range is loading', async () => {
@@ -56,17 +56,17 @@ describe('useAdminStats', () => {
     await waitFor(() => expect(result.current.error).toBe('Failed to load the stats.'))
 
     act(() => {
-      result.current.setRange('7')
+      result.current.setRange('3')
     })
 
     expect(result.current.loading).toBe(true)
     expect(result.current.error).toBeNull()
 
     await act(async () => {
-      resolveSecond(okResponse({ days: 7, conversations: 6 }))
+      resolveSecond(okResponse({ hours: 3, conversations: 6 }))
     })
 
-    expect(result.current.stats).toEqual({ days: 7, conversations: 6 })
+    expect(result.current.stats).toEqual({ hours: 3, conversations: 6 })
   })
 
   it('exposes the message of a failure that is not a 401', async () => {

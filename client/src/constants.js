@@ -32,8 +32,11 @@ export const EMPTY_CELL = '—'
 export const STATS_RANGE_ALL = 'all'
 
 export const STATS_RANGE_OPTIONS = [
-  { value: '7', label: '7 days' },
-  { value: '30', label: '30 days' },
-  { value: '90', label: '90 days' },
+  { value: '1', label: 'Last hour' },
+  { value: '3', label: 'Last 3 hours' },
+  { value: '24', label: 'Last 24 hours' },
+  { value: '168', label: 'Last 7 days' },
+  { value: '720', label: 'Last 30 days' },
+  { value: '2160', label: 'Last 90 days' },
   { value: STATS_RANGE_ALL, label: 'All time' },
 ]

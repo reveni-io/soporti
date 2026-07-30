@@ -17,19 +17,20 @@ export default function AdminStats({ token, onLogout }) {
         tickets. Token counts start when the agent-run tracking was deployed.
       </p>
 
-      <div className="admin-stats__range" role="group" aria-label="Range">
-        {STATS_RANGE_OPTIONS.map(option => (
-          <button
-            key={option.value}
-            type="button"
-            className={`btn btn--sm ${range === option.value ? 'btn--primary' : 'btn--secondary'}`}
-            aria-pressed={range === option.value}
-            onClick={() => setRange(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <label className="admin-stats__range">
+        Range
+        <select
+          className="input admin-stats__range-select"
+          value={range}
+          onChange={event => setRange(event.target.value)}
+        >
+          {STATS_RANGE_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <StatsContent stats={stats} loading={loading} error={error} />
     </AdminSection>
