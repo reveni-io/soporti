@@ -21,7 +21,6 @@ import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
   DEFAULT_FIND_RESULTS,
-  DEFAULT_SEARCH_RESULTS,
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
@@ -132,9 +131,9 @@ export function buildRepoTools(allowedRepos = null) {
           .int()
           .min(1)
           .max(MAX_SEARCH_RESULTS)
-          .default(DEFAULT_SEARCH_RESULTS)
+          .default(MAX_SEARCH_RESULTS)
           .describe(
-            `Max number of matches to return. Default ${DEFAULT_SEARCH_RESULTS}. Narrow the query or the path glob before raising it; the response reports totalCount and truncated so you know whether matches were left out.`
+            `Max number of matches to return. Default and max ${MAX_SEARCH_RESULTS}. This tool cannot page, and the matches it drops are the ones it happened to reach last — not the least relevant. When the response comes back truncated, narrow the query or the path glob and search again instead of treating the list as complete.`
           ),
       }),
       execute: guard(async input => {

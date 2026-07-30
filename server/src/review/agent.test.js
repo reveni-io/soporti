@@ -237,7 +237,7 @@ describe('createReviewerAgent', () => {
     expect(mockGitBlame).toHaveBeenCalledWith('acme-io/app', 'src/a.js', { startLine: 1, endLine: null })
   })
 
-  it('defaults its read and search tools to narrow windows', async () => {
+  it('defaults its file reads to a narrow window and bounds its search results', async () => {
     await createReviewerAgent('acme-io/app')
     const tools = MockAgent.mock.calls[0][0].tools
 
@@ -248,7 +248,7 @@ describe('createReviewerAgent', () => {
     expect(read.centerLine).toBeNull()
 
     const search = tools.find(t => t.name === 'search_code')
-    expect(search.parameters.parse({ query: 'foo' }).maxResults).toBe(30)
+    expect(search.parameters.parse({ query: 'foo' }).maxResults).toBe(100)
 
     const find = tools.find(t => t.name === 'find_files')
     expect(find.parameters.parse({ pattern: '*.js' }).maxResults).toBe(50)

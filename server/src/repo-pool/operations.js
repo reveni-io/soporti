@@ -7,7 +7,6 @@ import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
   DEFAULT_FIND_RESULTS,
-  DEFAULT_SEARCH_RESULTS,
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
@@ -138,14 +137,14 @@ export function searchCode(repoFullName, query, options = {}) {
 export async function searchCodeAt(
   localPath,
   query,
-  { pathGlob = '', caseInsensitive = false, regex = false, maxResults = DEFAULT_SEARCH_RESULTS } = {}
+  { pathGlob = '', caseInsensitive = false, regex = false, maxResults = MAX_SEARCH_RESULTS } = {}
 ) {
   if (!query || query.trim().length === 0) {
     throw new Error('A search query is required.')
   }
 
   const safeQuery = query.trim().slice(0, 256)
-  const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, DEFAULT_SEARCH_RESULTS)
+  const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS)
 
   const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs(), ...excludeEnvArgs()]
   if (caseInsensitive) args.push('-i')

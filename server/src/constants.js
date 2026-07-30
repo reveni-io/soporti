@@ -15,7 +15,6 @@ export const MAX_SCHEDULES_PER_USER = 20
 export const DEFAULT_FILE_LINES = 300
 export const MAX_FILE_LINES = 5000
 export const DEFAULT_CONTEXT_LINES = 100
-export const DEFAULT_SEARCH_RESULTS = 30
 export const MAX_SEARCH_RESULTS = 100
 export const DEFAULT_FIND_RESULTS = 50
 export const MAX_FIND_RESULTS = 200

@@ -265,13 +265,19 @@ describe('buildRepoTools repo guard', () => {
     })
   })
 
-  it('search_code and find_files default to modest result counts', () => {
+  it('find_files defaults to a modest result count while search_code keeps full coverage', () => {
     const tools = buildRepoTools()
-    const search = tools.find(t => t.name === 'search_code')
     const find = tools.find(t => t.name === 'find_files')
+    const search = tools.find(t => t.name === 'search_code')
 
-    expect(search.parameters.parse({ repo: 'org/app', query: 'foo' }).maxResults).toBe(30)
     expect(find.parameters.parse({ repo: 'org/app', pattern: '*.js' }).maxResults).toBe(50)
+    expect(search.parameters.parse({ repo: 'org/app', query: 'foo' }).maxResults).toBe(100)
+  })
+
+  it('warns the model that search_code cannot page', () => {
+    const search = buildRepoTools().find(t => t.name === 'search_code')
+
+    expect(search.parameters.shape.maxResults.description).toMatch(/cannot page/i)
   })
 
   it('every repo tool enforces the guard', async () => {

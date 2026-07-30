@@ -305,17 +305,6 @@ describe('searchCode', () => {
     expect(result.totalCount).toBe(20)
   })
 
-  it('caps results at the default when maxResults is not given', async () => {
-    const matches = Array.from({ length: 50 }, (_, i) => `/tmp/repos/owner--repo/src/f${i}.js:1:hit`).join('\n')
-    execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))
-
-    const result = await searchCode('owner/repo', 'hit')
-
-    expect(result.items).toHaveLength(30)
-    expect(result.totalCount).toBe(50)
-    expect(result.truncated).toBe(true)
-  })
-
   it('never returns more than the hard cap even when asked for more', async () => {
     const matches = Array.from({ length: 200 }, (_, i) => `/tmp/repos/owner--repo/src/f${i}.js:1:hit`).join('\n')
     execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))

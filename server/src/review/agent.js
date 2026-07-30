@@ -37,7 +37,6 @@ import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
   DEFAULT_FIND_RESULTS,
-  DEFAULT_SEARCH_RESULTS,
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
@@ -115,7 +114,7 @@ export function buildRepoTools(repoFullName, rootPath = null) {
         pathGlob: z.string().default(''),
         caseInsensitive: z.boolean().default(false),
         regex: z.boolean().default(false),
-        maxResults: z.number().int().min(1).max(MAX_SEARCH_RESULTS).default(DEFAULT_SEARCH_RESULTS),
+        maxResults: z.number().int().min(1).max(MAX_SEARCH_RESULTS).default(MAX_SEARCH_RESULTS),
       }),
       execute: async input =>
         JSON.stringify(
