@@ -206,7 +206,7 @@ describe('POST /api/chat', () => {
     expect(conversationStore.resolveWeb).toHaveBeenCalledWith(undefined, 1)
   })
 
-  it('searches similar cases on the first message of a conversation', async () => {
+  it('searches similar cases on the first message of a conversation and sends them in the user turn', async () => {
     searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
     run.mockResolvedValue(createStreamMock([]))
 
@@ -214,7 +214,21 @@ describe('POST /api/chat', () => {
 
     expect(searchSimilarCases).toHaveBeenCalledTimes(1)
     expect(searchSimilarCases).toHaveBeenCalledWith('why does it 500?')
-    expect(createAgent.mock.calls[0][2]).toEqual([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    expect(run.mock.calls[0][1]).toContain('Bad token')
+    expect(run.mock.calls[0][1].endsWith('why does it 500?')).toBe(true)
+  })
+
+  it('keeps the similar cases out of the system prompt so the prefix stays cacheable', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(createAgent).toHaveBeenCalledWith([], undefined, {
+      customInstructions: '',
+      skills: [],
+      skillArguments: 'why does it 500?',
+    })
   })
 
   it('skips the similar cases search on a follow-up message so the prompt stays cacheable', async () => {
@@ -224,7 +238,7 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'and what about the retries?', sessionId: TEST_CONVERSATION_ID })
 
     expect(searchSimilarCases).not.toHaveBeenCalled()
-    expect(createAgent.mock.calls[0][2]).toEqual([])
+    expect(run.mock.calls[0][1]).toBe('and what about the retries?')
   })
 
   it('persists the turn after streaming completes', async () => {
@@ -318,7 +332,7 @@ describe('POST /api/chat', () => {
       .post('/')
       .send({ message: 'test', selectedRepos: ['org/legacy'] })
 
-    expect(createAgent).toHaveBeenCalledWith(['org/legacy'], undefined, [], {
+    expect(createAgent).toHaveBeenCalledWith(['org/legacy'], undefined, {
       customInstructions: '',
       skills: [],
       skillArguments: 'test',
@@ -334,7 +348,7 @@ describe('POST /api/chat', () => {
       .send({ message: 'hi', skillIds: [5] })
 
     expect(getSkillsByIds).toHaveBeenCalledWith([5], 1)
-    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+    expect(createAgent).toHaveBeenCalledWith([], undefined, {
       customInstructions: '',
       skills: [{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }],
       skillArguments: 'hi',
@@ -377,7 +391,7 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'my answer' })
 
     expect(getSkillsByIds).toHaveBeenCalledWith([5], 1)
-    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+    expect(createAgent).toHaveBeenCalledWith([], undefined, {
       customInstructions: '',
       skills: [{ id: 5, name: 'grilling', instructions: 'Interview me.' }],
       skillArguments: 'my answer',
@@ -401,7 +415,7 @@ describe('POST /api/chat', () => {
       .send({ message: 'the last commit of returns-frontend', skillIds: [5] })
 
     expect(run.mock.calls[0][1]).toBe('/code-review the last commit of returns-frontend')
-    expect(createAgent.mock.calls[0][3].skillArguments).toBe('the last commit of returns-frontend')
+    expect(createAgent.mock.calls[0][2].skillArguments).toBe('the last commit of returns-frontend')
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
       expect.objectContaining({
@@ -455,7 +469,7 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'hi' })
 
     expect(getSkillsByIds).not.toHaveBeenCalled()
-    expect(createAgent).toHaveBeenCalledWith([], undefined, [], {
+    expect(createAgent).toHaveBeenCalledWith([], undefined, {
       customInstructions: '',
       skills: [],
       skillArguments: 'hi',

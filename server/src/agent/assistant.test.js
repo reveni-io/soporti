@@ -190,7 +190,7 @@ describe('createAgent', () => {
   })
 
   it('includes custom instructions when provided', async () => {
-    const agent = await createAgent([], 'support', [], { customInstructions: 'Always be concise.' })
+    const agent = await createAgent([], 'support', { customInstructions: 'Always be concise.' })
     expect(agent.instructions).toContain('User preferences')
     expect(agent.instructions).toContain('Always be concise.')
   })
@@ -201,7 +201,7 @@ describe('createAgent', () => {
   })
 
   it('includes an attached skill, combined with custom instructions', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       customInstructions: 'Always be concise.',
       skills: [{ name: 'bug-triage', instructions: 'Always ask for repro steps.' }],
     })
@@ -218,7 +218,7 @@ describe('createAgent', () => {
   })
 
   it('substitutes $ARGUMENTS in skill instructions with the message', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'review', instructions: 'Review $ARGUMENTS carefully. Again: $ARGUMENTS.' }],
       skillArguments: 'the Alert component',
     })
@@ -226,7 +226,7 @@ describe('createAgent', () => {
   })
 
   it('does not interpret dollar sequences in the message during substitution', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'review', instructions: 'Review $ARGUMENTS' }],
       skillArguments: "costs $& and $' today",
     })
@@ -234,7 +234,7 @@ describe('createAgent', () => {
   })
 
   it('substitutes positional $1-$9 placeholders with whitespace-split words', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'fix', instructions: 'Fix issue $1 with priority $2, full text: $ARGUMENTS' }],
       skillArguments: '123 high',
     })
@@ -242,7 +242,7 @@ describe('createAgent', () => {
   })
 
   it('replaces missing positional placeholders with an empty string', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'fix', instructions: 'First: $1, second: $2.' }],
       skillArguments: 'only',
     })
@@ -250,7 +250,7 @@ describe('createAgent', () => {
   })
 
   it('does not re-substitute placeholders inside the inserted message', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'say', instructions: 'Say $ARGUMENTS' }],
       skillArguments: 'it costs $1 today',
     })
@@ -258,7 +258,7 @@ describe('createAgent', () => {
   })
 
   it('gives an invoked skill precedence over the default behavior rules', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'grilling', instructions: 'Ask one question at a time and wait.' }],
     })
     expect(agent.instructions).toContain('take precedence over the default behavior')
@@ -266,7 +266,7 @@ describe('createAgent', () => {
   })
 
   it('warns about the active skill up front, before the behavior rules can be applied', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'grilling', instructions: 'Ask one question at a time and wait.' }],
     })
 
@@ -277,7 +277,7 @@ describe('createAgent', () => {
   })
 
   it('names the active command and frames the message as its argument', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'code-review', instructions: 'Review the diff.' }],
       skillArguments: 'the last commit of returns-frontend',
     })
@@ -292,7 +292,7 @@ describe('createAgent', () => {
   })
 
   it('ignores malformed skill entries', async () => {
-    const agent = await createAgent([], 'support', [], {
+    const agent = await createAgent([], 'support', {
       skills: [{ name: 'no-instructions' }, { instructions: 'no name' }, null, { name: 'blank', instructions: '   ' }],
     })
     expect(agent.instructions).not.toContain('Active skill')

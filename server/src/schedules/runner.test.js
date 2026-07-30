@@ -59,17 +59,27 @@ describe('runSchedule', () => {
 
   it('builds the agent with the sources, profile and custom instructions of the schedule', async () => {
     const store = makeStore()
-    searchSimilarCases.mockResolvedValue([{ id: 'case_1' }])
 
     await runSchedule({ ...SCHEDULE, sources: ['reveni-io/soporti'], profile: 'tech' }, store)
 
-    expect(createAgent).toHaveBeenCalledWith(['reveni-io/soporti'], 'tech', [{ id: 'case_1' }], {
+    expect(createAgent).toHaveBeenCalledWith(['reveni-io/soporti'], 'tech', {
       customInstructions: 'Be brief.',
     })
     expect(run).toHaveBeenCalledWith({ name: 'agent' }, 'Failed payments in the last 24h', {
       maxTurns: expect.any(Number),
       session: { id: 'session' },
     })
+  })
+
+  it('sends the similar cases in the user turn, ahead of the question', async () => {
+    const store = makeStore()
+    searchSimilarCases.mockResolvedValue([{ question: 'Why did it fail?', answer: 'The card expired.' }])
+
+    await runSchedule(SCHEDULE, store)
+
+    const [, input] = run.mock.calls[0]
+    expect(input).toContain('The card expired.')
+    expect(input.endsWith('Failed payments in the last 24h')).toBe(true)
   })
 
   it('appends the consulted sources in yolo mode', async () => {
@@ -104,7 +114,7 @@ describe('runSchedule', () => {
 
     await runSchedule(SCHEDULE, store)
 
-    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'support', [], { customInstructions: '' })
+    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'support', { customInstructions: '' })
   })
 
   it('serializes an answer that is not a string', async () => {

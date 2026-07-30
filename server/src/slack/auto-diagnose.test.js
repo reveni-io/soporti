@@ -55,9 +55,29 @@ describe('diagnoseTicket', () => {
 
   it('builds the chat agent in YOLO mode with no user instructions', async () => {
     await diagnoseTicket(TICKET)
-    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'tech', [], {
+    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'tech', {
       customInstructions: '',
     })
+  })
+
+  it('sends the similar cases in the user turn, ahead of the ticket', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why is it broken?', answer: 'A stale cache.' }])
+
+    await diagnoseTicket(TICKET)
+
+    const [, input] = run.mock.calls[0]
+    expect(input).toContain('A stale cache.')
+    expect(input.indexOf('A stale cache.')).toBeLessThan(input.indexOf('roto'))
+  })
+
+  it('keeps the similar cases alongside the ticket text when there are screenshots', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why is it broken?', answer: 'A stale cache.' }])
+
+    await diagnoseTicket(TICKET, { images: ['data:image/png;base64,AQID'] })
+
+    const [, input] = run.mock.calls[0]
+    expect(input[0].content[0].text).toContain('A stale cache.')
+    expect(input[0].content[0].text).toContain('roto')
   })
 
   it('runs with a string input when there are no screenshots', async () => {
