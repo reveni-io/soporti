@@ -3,14 +3,18 @@ import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { sanitizePath, parseRepo, BLOCKED_PATHS } from '../github/sanitize.js'
+import {
+  DEFAULT_CONTEXT_LINES,
+  DEFAULT_FILE_LINES,
+  DEFAULT_FIND_RESULTS,
+  MAX_FILE_LINES,
+  MAX_FIND_RESULTS,
+  MAX_SEARCH_RESULTS,
+} from '../constants.js'
 import { pool } from './pool.js'
 
 const execFileAsync = promisify(execFile)
 
-const MAX_SEARCH_RESULTS = 100
-const MAX_FIND_RESULTS = 200
-const DEFAULT_FILE_LINES = 2000
-const MAX_FILE_LINES = 5000
 const DEFAULT_LOG_LIMIT = 20
 const MAX_LOG_LIMIT = 100
 const MAX_BLAME_LINES = 500
@@ -73,35 +77,55 @@ export function getFileContents(repoFullName, path, options = {}) {
   return withClone(repoFullName, localPath => getFileContentsAt(localPath, path, options))
 }
 
-export async function getFileContentsAt(localPath, path, { offset = 0, limit = DEFAULT_FILE_LINES } = {}) {
+function clampInt(value, min, max, fallback) {
+  const parsed = Number.isFinite(value) ? Math.floor(value) : fallback
+  return Math.min(max, Math.max(min, parsed))
+}
+
+function resolveWindow({ offset, limit, centerLine, contextLines }, totalLines) {
+  if (!Number.isFinite(centerLine)) {
+    return {
+      offset: Math.max(0, Number.isFinite(offset) ? Math.floor(offset) : 0),
+      limit: clampInt(limit, 1, MAX_FILE_LINES, DEFAULT_FILE_LINES),
+    }
+  }
+
+  const span = clampInt(contextLines, 0, MAX_FILE_LINES, DEFAULT_CONTEXT_LINES)
+  const size = Math.min(MAX_FILE_LINES, span * 2 + 1)
+  const start = Math.floor(centerLine) - 1 - span
+
+  return { offset: Math.min(Math.max(0, start), Math.max(0, totalLines - size)), limit: size }
+}
+
+export async function getFileContentsAt(
+  localPath,
+  path,
+  { offset = 0, limit = DEFAULT_FILE_LINES, centerLine = null, contextLines = DEFAULT_CONTEXT_LINES } = {}
+) {
   const safePath = sanitizePath(path)
   if (!safePath) {
     throw new Error('A file path is required.')
   }
 
-  const safeOffset = Math.max(0, Number.isFinite(offset) ? Math.floor(offset) : 0)
-  const safeLimit = Math.min(
-    MAX_FILE_LINES,
-    Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : DEFAULT_FILE_LINES)
-  )
-
   const target = join(localPath, safePath)
   const raw = await readFile(target, 'utf-8')
   const allLines = raw.split('\n')
   const totalLines = allLines.length
-  const slice = allLines.slice(safeOffset, safeOffset + safeLimit)
-  const truncated = safeOffset + slice.length < totalLines
+
+  const range = resolveWindow({ offset, limit, centerLine, contextLines }, totalLines)
+  const slice = allLines.slice(range.offset, range.offset + range.limit)
+  const truncated = range.offset + slice.length < totalLines
 
   return {
     path: safePath,
     content: slice.join('\n'),
-    offset: safeOffset,
+    offset: range.offset,
     lineCount: slice.length,
     totalLines,
     truncated,
     ...(truncated && {
-      nextOffset: safeOffset + slice.length,
-      hint: `File has ${totalLines} lines; ${slice.length} returned starting at line ${safeOffset + 1}. Call again with offset=${safeOffset + slice.length} to read more.`,
+      nextOffset: range.offset + slice.length,
+      hint: `File has ${totalLines} lines; ${slice.length} returned starting at line ${range.offset + 1}. Call again with offset=${range.offset + slice.length} to read more.`,
     }),
   }
 }
@@ -120,10 +144,7 @@ export async function searchCodeAt(
   }
 
   const safeQuery = query.trim().slice(0, 256)
-  const cap = Math.min(
-    MAX_SEARCH_RESULTS,
-    Math.max(1, Number.isFinite(maxResults) ? Math.floor(maxResults) : MAX_SEARCH_RESULTS)
-  )
+  const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS)
 
   const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs(), ...excludeEnvArgs()]
   if (caseInsensitive) args.push('-i')
@@ -176,16 +197,13 @@ export function findFiles(repoFullName, pattern, options = {}) {
   return withClone(repoFullName, localPath => findFilesAt(localPath, pattern, options))
 }
 
-export async function findFilesAt(localPath, pattern, { maxResults = MAX_FIND_RESULTS } = {}) {
+export async function findFilesAt(localPath, pattern, { maxResults = DEFAULT_FIND_RESULTS } = {}) {
   if (!pattern || pattern.trim().length === 0) {
     throw new Error('A pattern is required.')
   }
 
   const safePattern = pattern.trim().slice(0, 200)
-  const cap = Math.min(
-    MAX_FIND_RESULTS,
-    Math.max(1, Number.isFinite(maxResults) ? Math.floor(maxResults) : MAX_FIND_RESULTS)
-  )
+  const cap = clampInt(maxResults, 1, MAX_FIND_RESULTS, DEFAULT_FIND_RESULTS)
   const usePathMatch = safePattern.includes('/')
 
   const args = [localPath, '-type', 'f']

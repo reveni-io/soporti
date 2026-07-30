@@ -12,6 +12,13 @@ export const SCHEDULE_STATUS_OK = 'ok'
 export const SCHEDULE_STATUS_ERROR = 'error'
 export const MAX_SCHEDULES_PER_USER = 20
 
+export const DEFAULT_FILE_LINES = 300
+export const MAX_FILE_LINES = 5000
+export const DEFAULT_CONTEXT_LINES = 100
+export const MAX_SEARCH_RESULTS = 100
+export const DEFAULT_FIND_RESULTS = 50
+export const MAX_FIND_RESULTS = 200
+
 export const AGENT_CHANNEL_WEB = 'web'
 export const AGENT_CHANNEL_SLACK = 'slack'
 export const AGENT_CHANNEL_SCHEDULE = 'schedule'

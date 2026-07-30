@@ -32,7 +32,15 @@ import {
 } from '../agent/tools.js'
 import { resolveModelForAgent } from '../llm/model.js'
 import { trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_PR_REVIEW } from '../constants.js'
+import {
+  AGENT_CHANNEL_PR_REVIEW,
+  DEFAULT_CONTEXT_LINES,
+  DEFAULT_FILE_LINES,
+  DEFAULT_FIND_RESULTS,
+  MAX_FILE_LINES,
+  MAX_FIND_RESULTS,
+  MAX_SEARCH_RESULTS,
+} from '../constants.js'
 import { buildReviewerInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000
@@ -79,15 +87,23 @@ export function buildRepoTools(repoFullName, rootPath = null) {
     }),
     tool({
       name: 'get_file_contents',
-      description:
-        'Read the contents of a file. Returns up to `limit` lines starting at `offset`; the response includes totalLines, truncated, and nextOffset to read more.',
+      description: `Read the contents of a file. Prefer a targeted window over a whole file: pass centerLine (a diff hunk line, a search_code match, a stacktrace frame) to get that line with contextLines on each side. Without centerLine it returns up to \`limit\` lines from \`offset\`, defaulting to the first ${DEFAULT_FILE_LINES}. The response includes totalLines, truncated and nextOffset to page when more is genuinely needed.`,
       parameters: z.object({
         path: z.string(),
+        centerLine: z.number().int().min(1).nullable().default(null),
+        contextLines: z.number().int().min(0).max(MAX_FILE_LINES).default(DEFAULT_CONTEXT_LINES),
         offset: z.number().int().min(0).default(0),
-        limit: z.number().int().min(1).max(5000).default(2000),
+        limit: z.number().int().min(1).max(MAX_FILE_LINES).default(DEFAULT_FILE_LINES),
       }),
       execute: async input =>
-        JSON.stringify(await ops.getFileContents(input.path, { offset: input.offset, limit: input.limit })),
+        JSON.stringify(
+          await ops.getFileContents(input.path, {
+            offset: input.offset,
+            limit: input.limit,
+            centerLine: input.centerLine,
+            contextLines: input.contextLines,
+          })
+        ),
     }),
     tool({
       name: 'search_code',
@@ -98,7 +114,7 @@ export function buildRepoTools(repoFullName, rootPath = null) {
         pathGlob: z.string().default(''),
         caseInsensitive: z.boolean().default(false),
         regex: z.boolean().default(false),
-        maxResults: z.number().int().min(1).max(100).default(100),
+        maxResults: z.number().int().min(1).max(MAX_SEARCH_RESULTS).default(MAX_SEARCH_RESULTS),
       }),
       execute: async input =>
         JSON.stringify(
@@ -116,7 +132,7 @@ export function buildRepoTools(repoFullName, rootPath = null) {
         'Find files by name or path pattern (shell wildcards, e.g. "auth.js", "src/*/index.ts") without reading their content.',
       parameters: z.object({
         pattern: z.string(),
-        maxResults: z.number().int().min(1).max(200).default(200),
+        maxResults: z.number().int().min(1).max(MAX_FIND_RESULTS).default(DEFAULT_FIND_RESULTS),
       }),
       execute: async input => JSON.stringify(await ops.findFiles(input.pattern, { maxResults: input.maxResults })),
     }),

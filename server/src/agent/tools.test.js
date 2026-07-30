@@ -238,6 +238,48 @@ describe('buildRepoTools repo guard', () => {
     expect(JSON.parse(result)).toEqual({ items: [{ path: 'src/a.js', line: 1, snippet: 'foo' }] })
   })
 
+  it('get_file_contents defaults to a narrow window instead of a whole file', () => {
+    const getFile = buildRepoTools().find(t => t.name === 'get_file_contents')
+
+    const input = getFile.parameters.parse({ repo: 'org/app', path: 'a.js' })
+
+    expect(input.limit).toBe(300)
+    expect(input.contextLines).toBe(100)
+    expect(input.centerLine).toBeNull()
+    expect(input.offset).toBe(0)
+  })
+
+  it('get_file_contents forwards centerLine and contextLines to the reader', async () => {
+    const { getFileContents } = await import('../repo-pool/index.js')
+    getFileContents.mockResolvedValue({ content: 'ok' })
+    const getFile = buildRepoTools().find(t => t.name === 'get_file_contents')
+
+    await getFile.execute(getFile.parameters.parse({ repo: 'org/app', path: 'a.js', centerLine: 412 }))
+
+    expect(getFileContents).toHaveBeenCalledTimes(1)
+    expect(getFileContents).toHaveBeenCalledWith('org/app', 'a.js', {
+      offset: 0,
+      limit: 300,
+      centerLine: 412,
+      contextLines: 100,
+    })
+  })
+
+  it('find_files defaults to a modest result count while search_code keeps full coverage', () => {
+    const tools = buildRepoTools()
+    const find = tools.find(t => t.name === 'find_files')
+    const search = tools.find(t => t.name === 'search_code')
+
+    expect(find.parameters.parse({ repo: 'org/app', pattern: '*.js' }).maxResults).toBe(50)
+    expect(search.parameters.parse({ repo: 'org/app', query: 'foo' }).maxResults).toBe(100)
+  })
+
+  it('warns the model that search_code cannot page', () => {
+    const search = buildRepoTools().find(t => t.name === 'search_code')
+
+    expect(search.parameters.shape.maxResults.description).toMatch(/cannot page/i)
+  })
+
   it('every repo tool enforces the guard', async () => {
     const tools = buildRepoTools(['org/allowed'])
     expect(tools).toHaveLength(6)
