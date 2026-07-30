@@ -1,6 +1,5 @@
 import OpenAI from 'openai'
 import { OpenAIResponsesCompactionSession, setDefaultOpenAIClient } from '@openai/agents'
-import config from '../config.js'
 import { getOpenAIApiKey, getOpenAIModel } from './settings.js'
 
 export const id = 'openai'
@@ -9,7 +8,7 @@ export const continuationToken = true
 
 const CODEX_MODELS = /codex/i
 const REASONING_MODELS = /^(gpt-5|o\d)/i
-const CODEX_SETTINGS = { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } }
+const CODEX_VERBOSITY = 'medium'
 
 let clientInstance = null
 let clientInstanceKey = null
@@ -45,12 +44,10 @@ export async function buildModel() {
   return { modelId, model: modelId }
 }
 
-export function modelSettings(modelId, { intent = 'chat' } = {}) {
-  if (CODEX_MODELS.test(modelId)) return CODEX_SETTINGS
-  if (intent !== 'review') return {}
-
-  const effort = config.review.reasoningEffort
-  if (!effort || effort === 'none' || !REASONING_MODELS.test(modelId)) return {}
+export function modelSettings(modelId, { effort } = {}) {
+  if (!effort) return {}
+  if (CODEX_MODELS.test(modelId)) return { reasoning: { effort }, text: { verbosity: CODEX_VERBOSITY } }
+  if (!REASONING_MODELS.test(modelId)) return {}
 
   return { reasoning: { effort } }
 }

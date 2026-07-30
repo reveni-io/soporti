@@ -92,12 +92,4 @@ describe('draftShopifyTokenQuery', () => {
     await expect(draftShopifyTokenQuery()).rejects.toThrow('model not configured')
     expect(mockRun).not.toHaveBeenCalled()
   })
-
-  it('asks the llm layer for chat settings', async () => {
-    mockRun.mockResolvedValue({ finalOutput: SQL })
-
-    await draftShopifyTokenQuery()
-
-    expect(mockResolveModelForAgent).toHaveBeenCalledWith({ intent: 'chat' })
-  })
 })

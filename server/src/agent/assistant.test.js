@@ -71,11 +71,6 @@ describe('createAgent', () => {
     expect(agent.model).toBe('gpt-4o')
   })
 
-  it('asks the llm layer for chat settings', async () => {
-    await createAgent([], 'support')
-    expect(mockResolveModel).toHaveBeenCalledWith({ intent: 'chat' })
-  })
-
   it('passes the settings resolved by the llm layer straight to the agent', async () => {
     mockResolveModel.mockResolvedValueOnce({
       provider: 'openai',

@@ -28,13 +28,15 @@ const PROVIDERS = { openai: openaiProvider, anthropic: anthropicProvider }
 vi.mock('./registry.js', () => ({ getProvider: id => PROVIDERS[id] ?? PROVIDERS.openai }))
 
 const getLlmProvider = vi.fn()
-vi.mock('./settings.js', () => ({ getLlmProvider }))
+const getReasoningEffort = vi.fn()
+vi.mock('./settings.js', () => ({ getLlmProvider, getReasoningEffort }))
 
 const { describeProvider, isConfigured, resolveModelForAgent, usesContinuationToken, wrapSession } =
   await import('./model.js')
 
 beforeEach(() => {
   getLlmProvider.mockReset().mockResolvedValue('openai')
+  getReasoningEffort.mockReset().mockResolvedValue('medium')
   for (const provider of [openaiProvider, anthropicProvider]) {
     provider.isConfigured.mockReset()
     provider.buildModel.mockReset()
@@ -84,24 +86,48 @@ describe('isConfigured', () => {
 })
 
 describe('resolveModelForAgent', () => {
-  it('returns a handle carrying the model and the settings for the intent', async () => {
+  it('returns a handle carrying the model and the settings built with the stored effort', async () => {
+    getReasoningEffort.mockResolvedValue('high')
     openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-5.2-codex', model: 'gpt-5.2-codex' })
-    openaiProvider.modelSettings.mockReturnValue({ reasoning: { effort: 'medium' } })
+    openaiProvider.modelSettings.mockReturnValue({ reasoning: { effort: 'high' } })
 
-    expect(await resolveModelForAgent({ intent: 'review' })).toEqual({
+    expect(await resolveModelForAgent()).toEqual({
       model: 'gpt-5.2-codex',
-      modelSettings: { reasoning: { effort: 'medium' } },
+      modelSettings: { reasoning: { effort: 'high' } },
     })
-    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-5.2-codex', { intent: 'review' })
+    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-5.2-codex', { effort: 'high' })
   })
 
-  it('defaults to the chat intent', async () => {
+  it('falls back to the default effort when nothing is stored', async () => {
+    getReasoningEffort.mockResolvedValue(null)
     openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-4o', model: 'gpt-4o' })
     openaiProvider.modelSettings.mockReturnValue({})
 
     await resolveModelForAgent()
 
-    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-4o', { intent: 'chat' })
+    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-4o', { effort: 'medium' })
+  })
+
+  it('falls back to the default effort when the stored value is not a supported level', async () => {
+    getReasoningEffort.mockResolvedValue('xhigh')
+    openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-4o', model: 'gpt-4o' })
+    openaiProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent()
+
+    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-4o', { effort: 'medium' })
+  })
+
+  it('resolves the effort through the active provider, not the default one', async () => {
+    getLlmProvider.mockResolvedValue('anthropic')
+    getReasoningEffort.mockResolvedValue('low')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-opus-5', model: 'claude-opus-5' })
+    anthropicProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent()
+
+    expect(anthropicProvider.modelSettings).toHaveBeenCalledWith('claude-opus-5', { effort: 'low' })
+    expect(openaiProvider.modelSettings).not.toHaveBeenCalled()
   })
 
   it('surfaces the provider error when the credentials are missing', async () => {

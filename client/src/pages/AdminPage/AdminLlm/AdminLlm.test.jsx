@@ -7,6 +7,7 @@ const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
   { id: 'anthropic', label: 'Anthropic' },
 ]
+const EFFORT_LEVELS = ['low', 'medium', 'high']
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -18,6 +19,7 @@ function mockGet({
   openaiModel = '',
   anthropicApiKeyConfigured = false,
   anthropicModel = '',
+  reasoningEffort = 'medium',
 } = {}) {
   return {
     ok: true,
@@ -29,6 +31,8 @@ function mockGet({
       openaiModel,
       anthropicApiKeyConfigured,
       anthropicModel,
+      reasoningEffort,
+      reasoningEffortLevels: EFFORT_LEVELS,
     }),
   }
 }
@@ -108,6 +112,50 @@ describe('AdminLlm', () => {
     expect(url).toContain('/api/admin/config/llm/provider')
     expect(options.method).toBe('PUT')
     expect(JSON.parse(options.body)).toEqual({ provider: 'anthropic' })
+  })
+
+  it('preselects the stored reasoning effort and offers every supported level', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGet({ reasoningEffort: 'high' }))
+
+    render(<AdminLlm token="tok" onLogout={vi.fn()} />)
+    const select = await screen.findByRole('combobox', { name: /reasoning effort/i })
+
+    expect(select).toHaveValue('high')
+    expect(screen.getAllByRole('option').map(option => option.value)).toEqual(expect.arrayContaining(EFFORT_LEVELS))
+  })
+
+  it('does not change the reasoning effort until save is pressed', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGet({ reasoningEffort: 'medium' }))
+    const user = userEvent.setup()
+
+    render(<AdminLlm token="tok" onLogout={vi.fn()} />)
+    const select = await screen.findByRole('combobox', { name: /reasoning effort/i })
+
+    await user.selectOptions(select, 'low')
+
+    expect(select).toHaveValue('low')
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves the selected reasoning effort when save is pressed', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ reasoningEffort: 'medium' }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ effort: 'low' }) })
+    const user = userEvent.setup()
+
+    render(<AdminLlm token="tok" onLogout={vi.fn()} />)
+    const select = await screen.findByRole('combobox', { name: /reasoning effort/i })
+
+    await user.selectOptions(select, 'low')
+    await user.click(screen.getByRole('button', { name: /save effort/i }))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(select).toHaveValue('low')
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/llm/reasoning-effort')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ effort: 'low' })
   })
 
   it('surfaces a provider error from the server', async () => {

@@ -337,11 +337,6 @@ describe('createReviewerAgent', () => {
     expect(names).not.toContain('query_database')
   })
 
-  it('asks the llm layer for review settings rather than chat settings', async () => {
-    await createReviewerAgent('acme-io/app')
-    expect(mockResolveModel).toHaveBeenCalledWith({ intent: 'review' })
-  })
-
   it('passes the settings resolved by the llm layer straight to the agent', async () => {
     mockResolveModel.mockResolvedValueOnce(resolvedModel({ reasoning: { effort: 'high' } }))
 

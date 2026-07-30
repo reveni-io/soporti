@@ -27,10 +27,7 @@ const getOpenAIApiKey = vi.fn()
 const getOpenAIModel = vi.fn()
 vi.mock('./settings.js', () => ({ getOpenAIApiKey, getOpenAIModel }))
 
-vi.mock('../config.js', () => ({ default: { review: { reasoningEffort: 'high' } } }))
-
 const provider = await import('./openai.js')
-const config = (await import('../config.js')).default
 
 beforeEach(() => {
   setDefaultOpenAIClient.mockReset()
@@ -38,7 +35,6 @@ beforeEach(() => {
   openaiConstructor.mockReset()
   getOpenAIApiKey.mockReset()
   getOpenAIModel.mockReset()
-  config.review.reasoningEffort = 'high'
   provider._resetOpenAIClientForTests()
 })
 
@@ -131,36 +127,29 @@ describe('buildModel', () => {
 })
 
 describe('modelSettings', () => {
-  it('forces reasoning and verbosity to medium for codex models on every intent', () => {
-    const expected = { reasoning: { effort: 'medium' }, text: { verbosity: 'medium' } }
-
-    expect(provider.modelSettings('gpt-5.2-codex', { intent: 'chat' })).toEqual(expected)
-    expect(provider.modelSettings('gpt-5-codex', { intent: 'review' })).toEqual(expected)
+  it('applies the effort it was given to reasoning-capable models', () => {
+    expect(provider.modelSettings('gpt-5.2', { effort: 'high' })).toEqual({ reasoning: { effort: 'high' } })
+    expect(provider.modelSettings('o3', { effort: 'low' })).toEqual({ reasoning: { effort: 'low' } })
   })
 
-  it('returns an empty object for a chat turn on a non-codex model', () => {
-    expect(provider.modelSettings('gpt-4o', { intent: 'chat' })).toEqual({})
-    expect(provider.modelSettings('gpt-5.2', { intent: 'chat' })).toEqual({})
+  it('pins verbosity for codex models while still honouring the effort', () => {
+    expect(provider.modelSettings('gpt-5.2-codex', { effort: 'low' })).toEqual({
+      reasoning: { effort: 'low' },
+      text: { verbosity: 'medium' },
+    })
+    expect(provider.modelSettings('gpt-5-codex', { effort: 'high' })).toEqual({
+      reasoning: { effort: 'high' },
+      text: { verbosity: 'medium' },
+    })
   })
 
-  it('applies the configured reasoning effort to reasoning-capable review models', () => {
-    expect(provider.modelSettings('gpt-5.2', { intent: 'review' })).toEqual({ reasoning: { effort: 'high' } })
-    expect(provider.modelSettings('o3', { intent: 'review' })).toEqual({ reasoning: { effort: 'high' } })
+  it('leaves a non-reasoning model on the SDK defaults, because it would reject the effort', () => {
+    expect(provider.modelSettings('gpt-4o', { effort: 'high' })).toEqual({})
   })
 
-  it('leaves a non-reasoning review model on the SDK defaults', () => {
-    expect(provider.modelSettings('gpt-4o', { intent: 'review' })).toEqual({})
-  })
-
-  it('skips the reasoning effort when it is disabled', () => {
-    config.review.reasoningEffort = 'none'
-    expect(provider.modelSettings('gpt-5.2', { intent: 'review' })).toEqual({})
-
-    config.review.reasoningEffort = ''
-    expect(provider.modelSettings('gpt-5.2', { intent: 'review' })).toEqual({})
-  })
-
-  it('defaults to the chat intent when none is given', () => {
+  it('sends nothing when no effort is resolved', () => {
+    expect(provider.modelSettings('gpt-5.2', { effort: '' })).toEqual({})
+    expect(provider.modelSettings('gpt-5.2-codex', { effort: undefined })).toEqual({})
     expect(provider.modelSettings('gpt-5.2')).toEqual({})
   })
 })

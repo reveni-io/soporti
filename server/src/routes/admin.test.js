@@ -41,6 +41,8 @@ const getAnthropicApiKey = vi.fn()
 const setAnthropicApiKey = vi.fn()
 const getAnthropicModel = vi.fn()
 const setAnthropicModel = vi.fn()
+const getReasoningEffort = vi.fn()
+const setReasoningEffort = vi.fn()
 const getKnowledgeOwnApiKey = vi.fn()
 const getKnowledgeApiKey = vi.fn()
 const setKnowledgeApiKey = vi.fn()
@@ -163,6 +165,8 @@ vi.mock('../llm/settings.js', () => ({
   setAnthropicApiKey,
   getAnthropicModel,
   setAnthropicModel,
+  getReasoningEffort,
+  setReasoningEffort,
 }))
 vi.mock('../llm/registry.js', () => ({
   DEFAULT_PROVIDER: 'openai',
@@ -264,6 +268,8 @@ beforeEach(() => {
   setAnthropicApiKey.mockReset()
   getAnthropicModel.mockReset()
   setAnthropicModel.mockReset()
+  getReasoningEffort.mockReset()
+  setReasoningEffort.mockReset()
   getKnowledgeOwnApiKey.mockReset()
   getKnowledgeApiKey.mockReset()
   setKnowledgeApiKey.mockReset()
@@ -1515,6 +1521,7 @@ describe('GET /api/admin/config/llm', () => {
     getOpenAIModel.mockResolvedValue('gpt-5.2-codex')
     getAnthropicApiKey.mockResolvedValue('sk-ant-secret')
     getAnthropicModel.mockResolvedValue('claude-opus-5')
+    getReasoningEffort.mockResolvedValue('low')
 
     const res = await request(app).get('/api/admin/config/llm')
 
@@ -1529,6 +1536,8 @@ describe('GET /api/admin/config/llm', () => {
       openaiModel: 'gpt-5.2-codex',
       anthropicApiKeyConfigured: true,
       anthropicModel: 'claude-opus-5',
+      reasoningEffort: 'low',
+      reasoningEffortLevels: ['low', 'medium', 'high'],
     })
     expect(JSON.stringify(res.body)).not.toContain('secret')
   })
@@ -1548,7 +1557,17 @@ describe('GET /api/admin/config/llm', () => {
       openaiModel: '',
       anthropicApiKeyConfigured: false,
       anthropicModel: '',
+      reasoningEffort: 'medium',
     })
+  })
+
+  it('falls back to the default effort when the stored one is not a supported level', async () => {
+    getLlmProvider.mockResolvedValue('anthropic')
+    getReasoningEffort.mockResolvedValue('xhigh')
+
+    const res = await request(app).get('/api/admin/config/llm')
+
+    expect(res.body.reasoningEffort).toBe('medium')
   })
 
   it('falls back to the default provider when the stored id is no longer registered', async () => {
@@ -1578,6 +1597,34 @@ describe('PUT /api/admin/config/llm/provider', () => {
     expect((await request(app).put('/api/admin/config/llm/provider').send({})).status).toBe(400)
     expect((await request(app).put('/api/admin/config/llm/provider').send({ provider: 42 })).status).toBe(400)
     expect(setLlmProvider).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/llm/reasoning-effort', () => {
+  it('saves a supported effort level', async () => {
+    const res = await request(app).put('/api/admin/config/llm/reasoning-effort').send({ effort: 'high' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ effort: 'high' })
+    expect(setReasoningEffort).toHaveBeenCalledWith('high')
+  })
+
+  it('rejects a level neither provider is guaranteed to accept', async () => {
+    for (const effort of ['xhigh', 'max', 'minimal', 'none', '', 42, undefined]) {
+      const res = await request(app).put('/api/admin/config/llm/reasoning-effort').send({ effort })
+
+      expect(res.status).toBe(400)
+    }
+    expect(setReasoningEffort).not.toHaveBeenCalled()
+  })
+
+  it('returns a 500 without leaking the error when the write fails', async () => {
+    setReasoningEffort.mockRejectedValue(new Error('connection refused to db-primary'))
+
+    const res = await request(app).put('/api/admin/config/llm/reasoning-effort').send({ effort: 'low' })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the reasoning effort.' })
   })
 })
 

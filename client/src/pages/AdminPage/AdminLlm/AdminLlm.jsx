@@ -6,6 +6,7 @@ import {
   saveLlmProvider,
   saveOpenAIApiKey,
   saveOpenAIModel,
+  saveReasoningEffort,
 } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
@@ -35,10 +36,29 @@ export default function AdminLlm({ token, onLogout }) {
           other one keeps whatever you saved for it.
         </p>
 
-        <ProviderSelect
+        <SelectField
           savedValue={config.provider}
-          providers={config.providers}
+          options={config.providers.map(provider => ({ value: provider.id, label: provider.label }))}
+          ariaLabel="Active provider"
+          saveLabel="Save provider"
           onSave={saveField(saveLlmProvider, { configKey: 'provider', responseKey: 'provider' })}
+          onLogout={onLogout}
+        />
+      </AdminSection>
+
+      <AdminSection title="Reasoning effort">
+        <p className="admin__muted">
+          How much the model thinks before answering. It applies to every agent run — chat, PR reviews, scheduled
+          questions and auto-diagnosis alike. Lower effort means fewer tokens, faster replies and fewer tool calls;
+          higher effort means deeper reasoning at a higher cost.
+        </p>
+
+        <SelectField
+          savedValue={config.reasoningEffort}
+          options={config.reasoningEffortLevels.map(level => ({ value: level, label: level }))}
+          ariaLabel="Reasoning effort"
+          saveLabel="Save effort"
+          onSave={saveField(saveReasoningEffort, { configKey: 'reasoningEffort', responseKey: 'effort' })}
           onLogout={onLogout}
         />
       </AdminSection>
@@ -119,7 +139,7 @@ export default function AdminLlm({ token, onLogout }) {
   )
 }
 
-function ProviderSelect({ savedValue, providers, onSave, onLogout }) {
+function SelectField({ savedValue, options, ariaLabel, saveLabel, onSave, onLogout }) {
   const [edited, setEdited] = useState(null)
   const { saving, error, savedAt, save } = useSaveField(onLogout)
 
@@ -141,19 +161,19 @@ function ProviderSelect({ savedValue, providers, onSave, onLogout }) {
       <form className="admin__form admin__form--row" onSubmit={handleSubmit}>
         <select
           className="input admin__input--select"
-          aria-label="Active provider"
+          aria-label={ariaLabel}
           value={value}
           onChange={event => setEdited(event.target.value)}
           disabled={saving}
         >
-          {providers.map(provider => (
-            <option key={provider.id} value={provider.id}>
-              {provider.label}
+          {options.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
         <button className="btn btn--primary" type="submit" disabled={saving || !dirty}>
-          {saving ? 'Saving...' : 'Save provider'}
+          {saving ? 'Saving...' : saveLabel}
         </button>
         {!error && savedAt && !dirty && <span className="admin__saved">Saved</span>}
       </form>

@@ -15,6 +15,9 @@ const {
   setAnthropicApiKey,
   getAnthropicModel,
   setAnthropicModel,
+  getReasoningEffort,
+  setReasoningEffort,
+  REASONING_EFFORT_KEY,
   LLM_PROVIDER_KEY,
   OPENAI_API_KEY_KEY,
   OPENAI_MODEL_KEY,
@@ -159,6 +162,29 @@ describe('getAnthropicModel', () => {
 
     expect(await getAnthropicModel()).toBe('claude-opus-5')
     expect(setConfigValue).toHaveBeenCalledWith(ANTHROPIC_MODEL_KEY, 'claude-opus-5')
+  })
+})
+
+describe('getReasoningEffort', () => {
+  it('returns the stored effort (trimmed) or null when unset', async () => {
+    getConfigValue.mockResolvedValue('  high  ')
+    expect(await getReasoningEffort()).toBe('high')
+    expect(getConfigValue).toHaveBeenCalledWith(REASONING_EFFORT_KEY)
+
+    _resetLlmSettingsCacheForTests()
+    getConfigValue.mockResolvedValue(null)
+    expect(await getReasoningEffort()).toBeNull()
+  })
+
+  it('saves the effort and invalidates the cache', async () => {
+    getConfigValue.mockResolvedValue('medium')
+    expect(await getReasoningEffort()).toBe('medium')
+
+    getConfigValue.mockResolvedValue('low')
+    await setReasoningEffort('low')
+
+    expect(await getReasoningEffort()).toBe('low')
+    expect(setConfigValue).toHaveBeenCalledWith(REASONING_EFFORT_KEY, 'low')
   })
 })
 

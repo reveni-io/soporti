@@ -261,9 +261,9 @@ One folder per domain under `server/src/`: `routes/` (Express routers), `agent/`
 
 ### LLM providers
 
-`llm/` is flat, like every other server folder. `model.js` is the only module the rest of the server imports: `resolveModelForAgent({ intent })`, `isConfigured()`, `wrapSession()`, `usesContinuationToken()`, `describeProvider()`. It never hands a provider module out — callers get plain values, never the module itself. `registry.js` maps a provider id to its module and `settings.js` owns the stored selection and every provider credential.
+`llm/` is flat, like every other server folder. `model.js` is the only module the rest of the server imports: `resolveModelForAgent()`, `isConfigured()`, `wrapSession()`, `usesContinuationToken()`, `describeProvider()`. It never hands a provider module out — callers get plain values, never the module itself. `registry.js` maps a provider id to its module and `settings.js` owns the stored selection, every provider credential and the shared reasoning effort. `model.js` resolves that effort once per run and passes it down, so a provider never reads it itself.
 
-Adding a provider is one new file plus one registry entry. A provider module exports `id`, `label`, `continuationToken` (whether the vendor stores conversation state server-side), an async `isConfigured()`, an async `buildModel()` returning `{ modelId, model }`, `modelSettings(modelId, { intent })` returning an object (never `null` — call sites spread it unconditionally), and `wrapSession(underlyingSession)`.
+Adding a provider is one new file plus one registry entry. A provider module exports `id`, `label`, `continuationToken` (whether the vendor stores conversation state server-side), an async `isConfigured()`, an async `buildModel()` returning `{ modelId, model }`, `modelSettings(modelId, { effort })` returning an object (never `null` — call sites spread it unconditionally), and `wrapSession(underlyingSession)`. `modelSettings` maps the shared effort onto the vendor's own parameter and drops it when that vendor or model would reject it.
 
 **NEVER REACH FOR A VENDOR SDK OUTSIDE ITS PROVIDER MODULE.** `OpenAIResponsesCompactionSession`, `setDefaultOpenAIClient` and `aisdk()` belong in `llm/openai.js` and `llm/anthropic.js`. The one exception is `knowledge/`, which is pinned to OpenAI Vector Stores independently of the selected chat provider.
 

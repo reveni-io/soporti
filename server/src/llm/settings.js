@@ -5,6 +5,7 @@ export const OPENAI_API_KEY_KEY = 'openai_api_key'
 export const OPENAI_MODEL_KEY = 'openai_model'
 export const ANTHROPIC_API_KEY_KEY = 'anthropic_api_key'
 export const ANTHROPIC_MODEL_KEY = 'anthropic_model'
+export const REASONING_EFFORT_KEY = 'reasoning_effort'
 
 const CACHE_TTL_MS = 60_000
 const cache = new Map()
@@ -64,6 +65,14 @@ export async function getAnthropicModel() {
 
 export async function setAnthropicModel(model) {
   await setValue(ANTHROPIC_MODEL_KEY, model)
+}
+
+export async function getReasoningEffort() {
+  return getCachedValue(REASONING_EFFORT_KEY)
+}
+
+export async function setReasoningEffort(effort) {
+  await setValue(REASONING_EFFORT_KEY, effort)
 }
 
 export function _resetLlmSettingsCacheForTests() {

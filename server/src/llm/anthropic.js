@@ -1,6 +1,5 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { aisdk } from '@openai/agents-extensions/ai-sdk'
-import config from '../config.js'
 import { getAnthropicApiKey, getAnthropicModel } from './settings.js'
 
 export const id = 'anthropic'
@@ -37,16 +36,10 @@ export function retryPolicy({ normalized }) {
   return normalized.statusCode !== undefined && RETRYABLE_STATUS.has(normalized.statusCode)
 }
 
-function reviewEffort() {
-  const effort = config.review.reasoningEffort
-  return EFFORT_LEVELS.has(effort) ? effort : null
-}
-
-export function modelSettings(_modelId, { intent = 'chat' } = {}) {
+export function modelSettings(_modelId, { effort } = {}) {
   const anthropicOptions = { thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } }
 
-  const effort = intent === 'review' ? reviewEffort() : null
-  if (effort) anthropicOptions.effort = effort
+  if (EFFORT_LEVELS.has(effort)) anthropicOptions.effort = effort
 
   return {
     retry: { maxRetries: MAX_RETRIES, policy: retryPolicy },
