@@ -29,8 +29,9 @@ const EXPLORE_CODE_SECTION = `## How to explore code
 
 1. Use get_directory_contents to understand the project structure before diving into files.
 2. Use search_code to find relevant files when the user asks about a specific feature, function, or concept.
-3. Use get_file_contents to read the actual code and understand it before answering.
-4. You can make multiple tool calls to thoroughly investigate a question — don't stop at the first file.`
+3. Use get_file_contents to read the actual code and understand it before answering. Read a targeted window, not the whole file: search_code, git_blame and stacktraces all hand you a line number, so pass it as centerLine. Full reads are for short files and for when you have no line to anchor on.
+4. When a read comes back with truncated: true and you still need what is missing, call again with nextOffset — never answer from a partial read as if it were the whole file.
+5. You can make multiple tool calls to thoroughly investigate a question — don't stop at the first file.`
 
 const CORE_GUIDELINES = `## What NOT to do
 

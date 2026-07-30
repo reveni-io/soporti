@@ -213,8 +213,13 @@ describe('createReviewerAgent', () => {
 
     mockGetFileContents.mockResolvedValue({ lines: [] })
     const getFile = tools.find(t => t.name === 'get_file_contents')
-    await getFile.execute({ path: 'src/a.js', offset: 0, limit: 100 })
-    expect(mockGetFileContents).toHaveBeenCalledWith('acme-io/app', 'src/a.js', { offset: 0, limit: 100 })
+    await getFile.execute({ path: 'src/a.js', offset: 0, limit: 100, centerLine: null, contextLines: 100 })
+    expect(mockGetFileContents).toHaveBeenCalledWith('acme-io/app', 'src/a.js', {
+      offset: 0,
+      limit: 100,
+      centerLine: null,
+      contextLines: 100,
+    })
 
     mockSearchCode.mockResolvedValue([])
     const search = tools.find(t => t.name === 'search_code')
@@ -232,14 +237,36 @@ describe('createReviewerAgent', () => {
     expect(mockGitBlame).toHaveBeenCalledWith('acme-io/app', 'src/a.js', { startLine: 1, endLine: null })
   })
 
+  it('defaults its read and search tools to narrow windows', async () => {
+    await createReviewerAgent('acme-io/app')
+    const tools = MockAgent.mock.calls[0][0].tools
+
+    const getFile = tools.find(t => t.name === 'get_file_contents')
+    const read = getFile.parameters.parse({ path: 'src/a.js' })
+    expect(read.limit).toBe(300)
+    expect(read.contextLines).toBe(100)
+    expect(read.centerLine).toBeNull()
+
+    const search = tools.find(t => t.name === 'search_code')
+    expect(search.parameters.parse({ query: 'foo' }).maxResults).toBe(30)
+
+    const find = tools.find(t => t.name === 'find_files')
+    expect(find.parameters.parse({ pattern: '*.js' }).maxResults).toBe(50)
+  })
+
   it('reads through the PR-head checkout when given one', async () => {
     await createReviewerAgent('acme-io/app', { rootPath: '/tmp/wt-pr-7' })
     const tools = MockAgent.mock.calls[0][0].tools
 
     mockGetFileContentsAt.mockResolvedValue({ lines: [] })
     const getFile = tools.find(t => t.name === 'get_file_contents')
-    await getFile.execute({ path: 'src/a.js', offset: 0, limit: 100 })
-    expect(mockGetFileContentsAt).toHaveBeenCalledWith('/tmp/wt-pr-7', 'src/a.js', { offset: 0, limit: 100 })
+    await getFile.execute({ path: 'src/a.js', offset: 0, limit: 100, centerLine: 412, contextLines: 40 })
+    expect(mockGetFileContentsAt).toHaveBeenCalledWith('/tmp/wt-pr-7', 'src/a.js', {
+      offset: 0,
+      limit: 100,
+      centerLine: 412,
+      contextLines: 40,
+    })
     expect(mockGetFileContents).not.toHaveBeenCalled()
 
     mockFindFilesAt.mockResolvedValue({ items: [] })
@@ -263,6 +290,7 @@ describe('createReviewerAgent', () => {
     expect(instructions).toMatch(/no spec/i)
     expect(instructions).toMatch(/sentry/i)
     expect(instructions).toMatch(/database/i)
+    expect(instructions).toContain('centerLine')
   })
 
   it('hardens the reviewer against prompt injection and secret leaks', async () => {

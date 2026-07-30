@@ -149,10 +149,76 @@ describe('getFileContents', () => {
     readFile.mockResolvedValue(big)
     const result = await getFileContents('owner/repo', 'big.js')
     expect(result.totalLines).toBe(2500)
-    expect(result.lineCount).toBe(2000)
+    expect(result.lineCount).toBe(300)
     expect(result.truncated).toBe(true)
-    expect(result.nextOffset).toBe(2000)
+    expect(result.nextOffset).toBe(300)
     expect(result.hint).toMatch(/2500 lines/)
+  })
+
+  it('centers the window on centerLine using contextLines on each side', async () => {
+    const file = Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join('\n')
+    readFile.mockResolvedValue(file)
+
+    const result = await getFileContents('owner/repo', 'big.js', { centerLine: 500, contextLines: 5 })
+
+    expect(result.offset).toBe(494)
+    expect(result.lineCount).toBe(11)
+    expect(result.content).toBe(
+      'line495\nline496\nline497\nline498\nline499\nline500\nline501\nline502\nline503\nline504\nline505'
+    )
+    expect(result.nextOffset).toBe(505)
+  })
+
+  it('ignores offset and limit when centerLine is given', async () => {
+    const file = Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join('\n')
+    readFile.mockResolvedValue(file)
+
+    const result = await getFileContents('owner/repo', 'big.js', { offset: 900, limit: 50, centerLine: 100 })
+
+    expect(result.offset).toBe(0)
+    expect(result.lineCount).toBe(201)
+  })
+
+  it('clamps a window near the start of the file to offset 0', async () => {
+    const file = Array.from({ length: 1000 }, (_, i) => `line${i + 1}`).join('\n')
+    readFile.mockResolvedValue(file)
+
+    const result = await getFileContents('owner/repo', 'big.js', { centerLine: 3, contextLines: 10 })
+
+    expect(result.offset).toBe(0)
+    expect(result.content.startsWith('line1\nline2\nline3')).toBe(true)
+    expect(result.lineCount).toBe(21)
+  })
+
+  it('clamps a centerLine past the end of the file so content is still returned', async () => {
+    const file = Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join('\n')
+    readFile.mockResolvedValue(file)
+
+    const result = await getFileContents('owner/repo', 'small.js', { centerLine: 5000, contextLines: 5 })
+
+    expect(result.offset).toBe(9)
+    expect(result.lineCount).toBe(11)
+    expect(result.content.endsWith('line20')).toBe(true)
+    expect(result.truncated).toBe(false)
+  })
+
+  it('returns the whole file when the centered window is larger than it', async () => {
+    readFile.mockResolvedValue('a\nb\nc')
+
+    const result = await getFileContents('owner/repo', 'tiny.js', { centerLine: 2 })
+
+    expect(result.offset).toBe(0)
+    expect(result.content).toBe('a\nb\nc')
+    expect(result.truncated).toBe(false)
+  })
+
+  it('caps contextLines so a centered window never exceeds the max file lines', async () => {
+    const file = Array.from({ length: 20_000 }, (_, i) => `line${i + 1}`).join('\n')
+    readFile.mockResolvedValue(file)
+
+    const result = await getFileContents('owner/repo', 'huge.js', { centerLine: 10_000, contextLines: 9000 })
+
+    expect(result.lineCount).toBe(5000)
   })
 
   it('respects offset and limit', async () => {
@@ -237,6 +303,26 @@ describe('searchCode', () => {
     expect(result.items).toHaveLength(5)
     expect(result.truncated).toBe(true)
     expect(result.totalCount).toBe(20)
+  })
+
+  it('caps results at the default when maxResults is not given', async () => {
+    const matches = Array.from({ length: 50 }, (_, i) => `/tmp/repos/owner--repo/src/f${i}.js:1:hit`).join('\n')
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))
+
+    const result = await searchCode('owner/repo', 'hit')
+
+    expect(result.items).toHaveLength(30)
+    expect(result.totalCount).toBe(50)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('never returns more than the hard cap even when asked for more', async () => {
+    const matches = Array.from({ length: 200 }, (_, i) => `/tmp/repos/owner--repo/src/f${i}.js:1:hit`).join('\n')
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))
+
+    const result = await searchCode('owner/repo', 'hit', { maxResults: 500 })
+
+    expect(result.items).toHaveLength(100)
   })
 
   it('returns empty results when grep finds no matches', async () => {
@@ -336,6 +422,17 @@ describe('findFiles', () => {
     const result = await findFiles('owner/repo', '*.js', { maxResults: 3 })
     expect(result.items).toHaveLength(3)
     expect(result.totalCount).toBe(10)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('caps results at the default when maxResults is not given', async () => {
+    const matches = Array.from({ length: 80 }, (_, i) => `/tmp/repos/owner--repo/f${i}.js`).join('\n')
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))
+
+    const result = await findFiles('owner/repo', '*.js')
+
+    expect(result.items).toHaveLength(50)
+    expect(result.totalCount).toBe(80)
     expect(result.truncated).toBe(true)
   })
 })

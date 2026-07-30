@@ -17,6 +17,15 @@ import * as betterstack from '../betterstack/client.js'
 import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
+import {
+  DEFAULT_CONTEXT_LINES,
+  DEFAULT_FILE_LINES,
+  DEFAULT_FIND_RESULTS,
+  DEFAULT_SEARCH_RESULTS,
+  MAX_FILE_LINES,
+  MAX_FIND_RESULTS,
+  MAX_SEARCH_RESULTS,
+} from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
 
 export const listReposTool = tool({
@@ -54,21 +63,51 @@ export function buildRepoTools(allowedRepos = null) {
     }),
     tool({
       name: 'get_file_contents',
-      description:
-        'Read the contents of a specific file in a repository. By default returns the first 2000 lines. Use offset and limit to paginate through larger files. Response includes totalLines, truncated, and nextOffset to read more.',
+      description: `Read the contents of a specific file in a repository. Prefer a targeted window over a whole file: whenever you already know the relevant line — from a search_code match, a stacktrace, or git_blame — pass centerLine and you get that line with contextLines on each side. Without centerLine it reads limit lines from offset, starting with the first ${DEFAULT_FILE_LINES}. The response includes totalLines, truncated and nextOffset, so page with nextOffset when a file genuinely has to be read in full rather than answering from a partial read.`,
       parameters: z.object({
         repo: z.string().describe('Full repository name "owner/repo".'),
         path: z.string().describe('File path inside the repo.'),
+        centerLine: z
+          .number()
+          .int()
+          .min(1)
+          .nullable()
+          .default(null)
+          .describe(
+            '1-based line to read around. When set, offset and limit are ignored. Use it whenever you know it.'
+          ),
+        contextLines: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAX_FILE_LINES)
+          .default(DEFAULT_CONTEXT_LINES)
+          .describe(
+            `Lines to return on each side of centerLine. Default ${DEFAULT_CONTEXT_LINES}. Ignored without centerLine.`
+          ),
         offset: z
           .number()
           .int()
           .min(0)
           .default(0)
           .describe('0-based line number to start reading from. Default 0 (start of file).'),
-        limit: z.number().int().min(1).max(5000).default(2000).describe('Max lines to return. Default 2000, max 5000.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_FILE_LINES)
+          .default(DEFAULT_FILE_LINES)
+          .describe(
+            `Max lines to return. Default ${DEFAULT_FILE_LINES}, max ${MAX_FILE_LINES}. Only raise it when a targeted window is not enough.`
+          ),
       }),
       execute: guard(async input => {
-        const result = await getFileContents(input.repo, input.path, { offset: input.offset, limit: input.limit })
+        const result = await getFileContents(input.repo, input.path, {
+          offset: input.offset,
+          limit: input.limit,
+          centerLine: input.centerLine,
+          contextLines: input.contextLines,
+        })
         return JSON.stringify(result)
       }),
     }),
@@ -88,7 +127,15 @@ export function buildRepoTools(allowedRepos = null) {
           .boolean()
           .default(false)
           .describe('If true, treat query as a POSIX extended regex; otherwise as a literal string.'),
-        maxResults: z.number().int().min(1).max(100).default(100).describe('Max number of matches to return.'),
+        maxResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_SEARCH_RESULTS)
+          .default(DEFAULT_SEARCH_RESULTS)
+          .describe(
+            `Max number of matches to return. Default ${DEFAULT_SEARCH_RESULTS}. Narrow the query or the path glob before raising it; the response reports totalCount and truncated so you know whether matches were left out.`
+          ),
       }),
       execute: guard(async input => {
         const result = await searchCode(input.repo, input.query, {
@@ -107,7 +154,15 @@ export function buildRepoTools(allowedRepos = null) {
       parameters: z.object({
         repo: z.string().describe('Full repository name "owner/repo".'),
         pattern: z.string().describe('Filename or path pattern (e.g. "auth.js", "*.test.js", "src/*/index.ts").'),
-        maxResults: z.number().int().min(1).max(200).default(200).describe('Max number of files to return.'),
+        maxResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_FIND_RESULTS)
+          .default(DEFAULT_FIND_RESULTS)
+          .describe(
+            `Max number of files to return. Default ${DEFAULT_FIND_RESULTS}. Tighten the pattern before raising it; the response reports totalCount and truncated.`
+          ),
       }),
       execute: guard(async input => {
         const result = await findFiles(input.repo, input.pattern, { maxResults: input.maxResults })

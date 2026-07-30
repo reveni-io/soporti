@@ -51,6 +51,14 @@ describe('buildBasePrompt', () => {
     }
   })
 
+  it('tells the agent to read a window around a known line and to page when truncated', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED })
+
+    expect(prompt).toContain('centerLine')
+    expect(prompt).toContain('nextOffset')
+    expect(prompt).toMatch(/targeted window, not the whole file/i)
+  })
+
   it('treats yolo and an empty selection as unrestricted', () => {
     const noPolicy = buildBasePrompt(null, { configured: ALL_CONFIGURED })
 
