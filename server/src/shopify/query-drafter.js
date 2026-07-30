@@ -31,7 +31,7 @@ function stripFences(text) {
 }
 
 export async function draftShopifyTokenQuery() {
-  const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })
+  const { model, modelSettings } = await resolveModelForAgent()
 
   const agent = new Agent({
     name: 'Soporti',

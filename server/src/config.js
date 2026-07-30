@@ -78,7 +78,6 @@ const config = {
     reviewerLogin: process.env.REVIEW_REVIEWER_LOGIN || '',
     maxChangedLines: parseInt(process.env.REVIEW_MAX_CHANGED_LINES || '4000', 10) || 4000,
     concurrency: parseInt(process.env.REVIEW_CONCURRENCY || '1', 10) || 1,
-    reasoningEffort: process.env.REVIEW_REASONING_EFFORT ?? 'high',
   },
 }
 

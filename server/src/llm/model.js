@@ -1,11 +1,17 @@
 import { setTracingDisabled } from '@openai/agents'
 import { getProvider } from './registry.js'
-import { getLlmProvider } from './settings.js'
+import { getLlmProvider, getReasoningEffort } from './settings.js'
+import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_LEVELS } from '../constants.js'
 
 setTracingDisabled(true)
 
 async function resolveProvider() {
   return getProvider(await getLlmProvider())
+}
+
+async function resolveEffort() {
+  const stored = await getReasoningEffort()
+  return REASONING_EFFORT_LEVELS.includes(stored) ? stored : DEFAULT_REASONING_EFFORT
 }
 
 export async function describeProvider() {
@@ -18,11 +24,11 @@ export async function isConfigured() {
   return provider.isConfigured()
 }
 
-export async function resolveModelForAgent({ intent = 'chat' } = {}) {
+export async function resolveModelForAgent() {
   const provider = await resolveProvider()
-  const { modelId, model } = await provider.buildModel()
+  const [{ modelId, model }, effort] = await Promise.all([provider.buildModel(), resolveEffort()])
 
-  return { model, modelSettings: provider.modelSettings(modelId, { intent }) }
+  return { model, modelSettings: provider.modelSettings(modelId, { effort }) }
 }
 
 export async function wrapSession(underlyingSession) {

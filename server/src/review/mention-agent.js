@@ -11,7 +11,7 @@ const MAX_COMMENT_CHARS = 2000
 const MAX_THREAD_COMMENTS = 30
 
 export async function createMentionAgent(repoFullName, { rootPath = null } = {}) {
-  const { model, modelSettings } = await resolveModelForAgent({ intent: 'review' })
+  const { model, modelSettings } = await resolveModelForAgent()
 
   return new Agent({
     name: 'Soporti Mention Responder',

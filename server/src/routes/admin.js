@@ -62,8 +62,11 @@ import {
   setAnthropicApiKey,
   getAnthropicModel,
   setAnthropicModel,
+  getReasoningEffort,
+  setReasoningEffort,
 } from '../llm/settings.js'
 import { DEFAULT_PROVIDER, isKnownProvider, listProviders } from '../llm/registry.js'
+import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_LEVELS } from '../constants.js'
 import {
   getOwnApiKey,
   getKnowledgeApiKey,
@@ -380,12 +383,13 @@ router.put('/config/github/catalog', async (req, res) => {
 
 router.get('/config/llm', async (_req, res) => {
   try {
-    const [provider, openaiApiKey, openaiModel, anthropicApiKey, anthropicModel] = await Promise.all([
+    const [provider, openaiApiKey, openaiModel, anthropicApiKey, anthropicModel, reasoningEffort] = await Promise.all([
       getLlmProvider(),
       getOpenAIApiKey(),
       getOpenAIModel(),
       getAnthropicApiKey(),
       getAnthropicModel(),
+      getReasoningEffort(),
     ])
 
     res.json({
@@ -395,6 +399,8 @@ router.get('/config/llm', async (_req, res) => {
       openaiModel: openaiModel ?? '',
       anthropicApiKeyConfigured: Boolean(anthropicApiKey),
       anthropicModel: anthropicModel ?? '',
+      reasoningEffort: REASONING_EFFORT_LEVELS.includes(reasoningEffort) ? reasoningEffort : DEFAULT_REASONING_EFFORT,
+      reasoningEffortLevels: REASONING_EFFORT_LEVELS,
     })
   } catch (err) {
     console.error('Admin get llm config error:', err)
@@ -415,6 +421,22 @@ router.put('/config/llm/provider', async (req, res) => {
   } catch (err) {
     console.error('Admin set llm provider error:', err)
     res.status(500).json({ error: 'Failed to save the LLM provider.' })
+  }
+})
+
+router.put('/config/llm/reasoning-effort', async (req, res) => {
+  const { effort } = req.body ?? {}
+
+  if (typeof effort !== 'string' || !REASONING_EFFORT_LEVELS.includes(effort)) {
+    return res.status(400).json({ error: 'That is not a supported reasoning effort.' })
+  }
+
+  try {
+    await setReasoningEffort(effort)
+    res.json({ effort })
+  } catch (err) {
+    console.error('Admin set reasoning effort error:', err)
+    res.status(500).json({ error: 'Failed to save the reasoning effort.' })
   }
 })
 

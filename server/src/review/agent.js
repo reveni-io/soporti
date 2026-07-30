@@ -178,7 +178,7 @@ export async function buildDataTools() {
 }
 
 export async function createReviewerAgent(repoFullName, { rootPath = null } = {}) {
-  const { model, modelSettings } = await resolveModelForAgent({ intent: 'review' })
+  const { model, modelSettings } = await resolveModelForAgent()
 
   return new Agent({
     name: 'Soporti Reviewer',

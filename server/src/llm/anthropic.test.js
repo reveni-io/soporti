@@ -14,10 +14,7 @@ const getAnthropicApiKey = vi.fn()
 const getAnthropicModel = vi.fn()
 vi.mock('./settings.js', () => ({ getAnthropicApiKey, getAnthropicModel }))
 
-vi.mock('../config.js', () => ({ default: { review: { reasoningEffort: 'high' } } }))
-
 const provider = await import('./anthropic.js')
-const config = (await import('../config.js')).default
 
 beforeEach(() => {
   anthropicFactory.mockReset()
@@ -25,7 +22,6 @@ beforeEach(() => {
   aisdk.mockClear()
   getAnthropicApiKey.mockReset()
   getAnthropicModel.mockReset()
-  config.review.reasoningEffort = 'high'
 })
 
 describe('the anthropic provider descriptor', () => {
@@ -113,27 +109,30 @@ describe('modelSettings', () => {
     expect(anthropic.thinking).not.toHaveProperty('budgetTokens')
   })
 
-  it('adds the configured effort on a review turn', () => {
-    const { anthropic } = provider.modelSettings('claude-opus-5', { intent: 'review' }).providerData.providerOptions
+  it('sends the effort it was given as the anthropic effort option', () => {
+    for (const effort of ['low', 'medium', 'high']) {
+      const { anthropic } = provider.modelSettings('claude-opus-5', { effort }).providerData.providerOptions
 
-    expect(anthropic).toEqual({
-      thinking: { type: 'adaptive' },
-      cacheControl: { type: 'ephemeral' },
-      effort: 'high',
-    })
+      expect(anthropic).toEqual({
+        thinking: { type: 'adaptive' },
+        cacheControl: { type: 'ephemeral' },
+        effort,
+      })
+    }
   })
 
-  it('drops an effort the anthropic api does not accept', () => {
-    config.review.reasoningEffort = 'minimal'
-    const { anthropic } = provider.modelSettings('claude-opus-5', { intent: 'review' }).providerData.providerOptions
+  it('drops an effort the anthropic api does not accept instead of forwarding it', () => {
+    for (const effort of ['minimal', 'none', '', undefined]) {
+      const { anthropic } = provider.modelSettings('claude-opus-5', { effort }).providerData.providerOptions
+
+      expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } })
+    }
+  })
+
+  it('still returns the thinking and caching options when called with no effort at all', () => {
+    const { anthropic } = provider.modelSettings('claude-opus-5').providerData.providerOptions
 
     expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } })
-  })
-
-  it('never sends an effort on a chat turn', () => {
-    const { anthropic } = provider.modelSettings('claude-opus-5', { intent: 'chat' }).providerData.providerOptions
-
-    expect(anthropic).not.toHaveProperty('effort')
   })
 
   it('asks the runner to retry, because the adapter has no retries of its own', () => {

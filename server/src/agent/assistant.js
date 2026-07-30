@@ -81,7 +81,7 @@ export async function createAgent(
 
   const tools = buildAgentTools(policy, configured)
 
-  const { model, modelSettings } = await resolveModelForAgent({ intent: 'chat' })
+  const { model, modelSettings } = await resolveModelForAgent()
 
   return new Agent({
     name: 'Soporti',

@@ -272,6 +272,15 @@ export function saveAnthropicApiKey(token, apiKey) {
   })
 }
 
+export function saveReasoningEffort(token, effort) {
+  return request('/api/admin/config/llm/reasoning-effort', {
+    method: 'PUT',
+    token,
+    body: { effort },
+    errorMessage: 'Failed to save the reasoning effort',
+  })
+}
+
 export function saveAnthropicModel(token, model) {
   return request('/api/admin/config/anthropic/model', {
     method: 'PUT',
