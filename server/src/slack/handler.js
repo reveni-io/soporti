@@ -34,11 +34,12 @@ export async function processMessage({
   profile,
   slackUserId,
   slackUserName,
+  isNewConversation,
 }) {
   log('👤', `Slack user ID: ${slackUserId || 'unknown'}`)
 
   const [similarCases, customInstructions] = await Promise.all([
-    searchSimilarCases(message),
+    isNewConversation ? searchSimilarCases(message) : [],
     loadCustomInstructionsForSlack(slackUserId, slackUserName),
   ])
   if (similarCases.length > 0) {

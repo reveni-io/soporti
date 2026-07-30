@@ -243,7 +243,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
 
   try {
     const user = slackUserId ? await upsertSlackUser({ slackId: slackUserId, name: null }) : null
-    const { conversationId, session, previousResponseId } = await conversationStore.resolveSlack(
+    const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveSlack(
       channelId,
       threadTs,
       user?.id ?? null
@@ -255,6 +255,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       previousResponseId,
       profile,
       slackUserId,
+      isNewConversation,
     })
 
     await conversationStore.saveTurn(conversationId, {

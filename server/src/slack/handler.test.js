@@ -30,6 +30,8 @@ vi.mock('../db/agent-runs.js', () => ({
 }))
 
 import { run } from '@openai/agents'
+import { createAgent } from '../agent/assistant.js'
+import { searchSimilarCases } from '../knowledge/client.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { processMessage } from './handler.js'
 
@@ -199,6 +201,38 @@ describe('processMessage', () => {
     ).rejects.toThrow('model unavailable')
 
     expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error' })
+  })
+
+  it('searches similar cases on the message that opens the thread', async () => {
+    searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+    run.mockResolvedValue(createStreamMock([]))
+
+    await processMessage({
+      message: 'why 500?',
+      selectedSources: [],
+      session: {},
+      profile: 'tech',
+      isNewConversation: true,
+    })
+
+    expect(searchSimilarCases).toHaveBeenCalledTimes(1)
+    expect(searchSimilarCases).toHaveBeenCalledWith('why 500?')
+    expect(createAgent.mock.calls[0][2]).toEqual([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
+  })
+
+  it('skips the similar cases search on a reply to an existing thread', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await processMessage({
+      message: 'and the retries?',
+      selectedSources: [],
+      session: {},
+      profile: 'tech',
+      isNewConversation: false,
+    })
+
+    expect(searchSimilarCases).not.toHaveBeenCalled()
+    expect(createAgent.mock.calls[0][2]).toEqual([])
   })
 
   it('retries without the context token when the first turn fails before sending text', async () => {

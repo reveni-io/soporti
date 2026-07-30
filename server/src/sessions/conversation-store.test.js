@@ -203,10 +203,11 @@ describe('ConversationStore', () => {
   })
 
   it('resolveWeb creates a new conversation when no id is given', async () => {
-    const { conversationId, session, previousResponseId } = await store.resolveWeb(null, 5)
+    const { conversationId, session, previousResponseId, isNewConversation } = await store.resolveWeb(null, 5)
     expect(conversationId).toBeTruthy()
     expect(session.underlyingSession.conversationId).toBe(conversationId)
     expect(previousResponseId).toBeUndefined()
+    expect(isNewConversation).toBe(true)
 
     const [row] = db._tables.get(conversations)
     expect(row).toMatchObject({ id: conversationId, source: 'web', userId: 5 })
@@ -223,6 +224,7 @@ describe('ConversationStore', () => {
     const result = await store.resolveWeb('sess-1', 5)
     expect(result.conversationId).toBe('sess-1')
     expect(result.previousResponseId).toBe('resp_42')
+    expect(result.isNewConversation).toBe(false)
     expect(db._tables.get(conversations)).toHaveLength(1)
   })
 
@@ -258,6 +260,7 @@ describe('ConversationStore', () => {
 
     const result = await store.resolveWeb('sess-1', 5)
     expect(result.conversationId).not.toBe('sess-1')
+    expect(result.isNewConversation).toBe(true)
     expect(db._tables.get(conversations).find(c => c.id === result.conversationId).userId).toBe(5)
   })
 
@@ -271,6 +274,7 @@ describe('ConversationStore', () => {
   it('resolveSlack creates and then reuses the conversation for a thread', async () => {
     const first = await store.resolveSlack('C1', '123.45', 7)
     expect(first.conversationId).toBeTruthy()
+    expect(first.isNewConversation).toBe(true)
     expect(db._tables.get(conversations)).toHaveLength(1)
 
     db._tables.get(conversations)[0].lastResponseId = 'resp_slack'
@@ -278,6 +282,7 @@ describe('ConversationStore', () => {
     const second = await store.resolveSlack('C1', '123.45', 7)
     expect(second.conversationId).toBe(first.conversationId)
     expect(second.previousResponseId).toBe('resp_slack')
+    expect(second.isNewConversation).toBe(false)
     expect(db._tables.get(conversations)).toHaveLength(1)
   })
 

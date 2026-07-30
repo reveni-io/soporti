@@ -51,6 +51,7 @@ export class ConversationStore {
             conversationId,
             session: await this.buildSession(conversationId),
             previousResponseId: await this.carriedResponseId(existing.lastResponseId),
+            isNewConversation: false,
           }
         }
       }
@@ -63,7 +64,12 @@ export class ConversationStore {
       .values({ id: conversationId, source: 'web', userId: userId ?? null })
       .onConflictDoNothing({ target: conversations.id })
 
-    return { conversationId, session: await this.buildSession(conversationId), previousResponseId: undefined }
+    return {
+      conversationId,
+      session: await this.buildSession(conversationId),
+      previousResponseId: undefined,
+      isNewConversation: true,
+    }
   }
 
   async createScheduled(userId, scheduleId) {
@@ -81,6 +87,7 @@ export class ConversationStore {
         conversationId: existing.id,
         session: await this.buildSession(existing.id),
         previousResponseId: await this.carriedResponseId(existing.lastResponseId),
+        isNewConversation: false,
       }
     }
 
@@ -101,6 +108,7 @@ export class ConversationStore {
       conversationId,
       session: await this.buildSession(conversationId),
       previousResponseId: await this.carriedResponseId(row.lastResponseId),
+      isNewConversation: true,
     }
   }
 

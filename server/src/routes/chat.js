@@ -82,7 +82,10 @@ export default function chatRoute(conversationStore) {
       })
     }
 
-    const { conversationId, session, previousResponseId } = await conversationStore.resolveWeb(sessionId, req.user.id)
+    const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveWeb(
+      sessionId,
+      req.user.id
+    )
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -94,7 +97,7 @@ export default function chatRoute(conversationStore) {
     sendEvent(res, { type: 'session_id', sessionId: conversationId })
 
     const [similarCases, customInstructions, carriedSkillIds] = await Promise.all([
-      searchSimilarCases(trimmedMessage),
+      isNewConversation ? searchSimilarCases(trimmedMessage) : [],
       getCustomInstructions(req.user.id).catch(err => {
         console.error('Failed to load custom instructions:', err)
         return null
