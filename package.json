@@ -1,6 +1,6 @@
 {
   "name": "soporti",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "private": true,
   "description": "AI-powered code assistant that helps support and engineering teams understand and navigate code repositories.",
   "repository": {

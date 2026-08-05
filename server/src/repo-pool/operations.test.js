@@ -295,6 +295,22 @@ describe('searchCode', () => {
     expect(capturedArgs).toContain('--include=*.js')
   })
 
+  it('orders --include ahead of the .env excludes so the path glob still filters', async () => {
+    let capturedArgs
+    execFile.mockImplementation((cmd, args, opts, cb) => {
+      capturedArgs = args
+      cb(null, { stdout: '', stderr: '' })
+    })
+
+    await searchCode('owner/repo', 'foo', { pathGlob: '*.py' })
+
+    const includeIndex = capturedArgs.indexOf('--include=*.py')
+    const firstExcludeIndex = capturedArgs.findIndex(arg => arg.startsWith('--exclude='))
+    expect(includeIndex).toBeGreaterThan(-1)
+    expect(firstExcludeIndex).toBeGreaterThan(-1)
+    expect(includeIndex).toBeLessThan(firstExcludeIndex)
+  })
+
   it('caps results to maxResults and signals truncation', async () => {
     const matches = Array.from({ length: 20 }, (_, i) => `/tmp/repos/owner--repo/src/f${i}.js:1:hit`).join('\n')
     execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: matches, stderr: '' }))
