@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:25-alpine
 # The repo tools shell out to real GNU utilities. BusyBox's applets are not
 # supersets: its grep has no --exclude-dir/--include and exits 2 on them, which
 # made every search_code call fail in the deployed image.
