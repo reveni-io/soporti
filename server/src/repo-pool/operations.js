@@ -146,12 +146,13 @@ export async function searchCodeAt(
   const safeQuery = query.trim().slice(0, 256)
   const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS)
 
-  const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs(), ...excludeEnvArgs()]
+  const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs()]
   if (caseInsensitive) args.push('-i')
   args.push(regex ? '-E' : '-F')
   if (pathGlob && typeof pathGlob === 'string') {
     args.push(`--include=${pathGlob.slice(0, 128)}`)
   }
+  args.push(...excludeEnvArgs())
   args.push('-e', safeQuery, localPath)
 
   let stdout
