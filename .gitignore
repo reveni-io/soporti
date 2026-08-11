@@ -148,3 +148,4 @@ repo-catalog.md
 .claude/
 .agents/
 skills-lock.json
+.playwright-mcp/
