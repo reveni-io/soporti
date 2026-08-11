@@ -1,3 +1,4 @@
+import { createServer } from 'node:http'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import request from 'supertest'
@@ -30,13 +31,34 @@ function makeApp({ user = USER, apiKey } = {}) {
   return app
 }
 
-function legacyCall(args, meta = {}) {
+function legacyCall(args, meta = {}, id = 1) {
   return {
     jsonrpc: '2.0',
-    id: 1,
+    id,
     method: 'tools/call',
     params: { name: 'ask_soporti', arguments: args, _meta: meta },
   }
+}
+
+function listenOn(app) {
+  const server = createServer(app)
+  return new Promise(resolve => {
+    server.listen(0, () => resolve(server))
+  })
+}
+
+function closeServer(server) {
+  server.closeAllConnections?.()
+  return new Promise(resolve => server.close(resolve))
+}
+
+function fetchCall(port, body, signal) {
+  return fetch(`http://127.0.0.1:${port}/api/mcp`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify(body),
+    signal,
+  })
 }
 
 function sseData(text) {
@@ -74,6 +96,7 @@ describe('mcp server', () => {
       skillIds: [],
       userId: 7,
       onProgress: expect.any(Function),
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -98,6 +121,7 @@ describe('mcp server', () => {
       skillIds: [3],
       userId: 7,
       onProgress: expect.any(Function),
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -200,6 +224,79 @@ describe('mcp server', () => {
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toBe('An internal error occurred while answering the question.')
     expect(res.text).not.toContain('10.0.0.3')
+  })
+
+  it('answers a retried request with a fresh id after the stream was cut mid-run', async () => {
+    const app = makeApp()
+    const server = await listenOn(app)
+
+    try {
+      let sawProgress
+      const progressSeen = new Promise(resolve => {
+        sawProgress = resolve
+      })
+      let release
+      executeAskSoporti.mockImplementationOnce(async ({ onProgress, signal }) => {
+        await onProgress('Consulting search_code...')
+        sawProgress(signal)
+        await new Promise(resolve => {
+          release = resolve
+        })
+        return 'Never delivered.'
+      })
+
+      const abort = new AbortController()
+      const cutRequest = fetchCall(
+        server.address().port,
+        legacyCall({ question: 'Why?' }, { progressToken: 'p1' }),
+        abort.signal
+      ).catch(() => null)
+
+      const runSignal = await progressSeen
+      abort.abort()
+      await cutRequest
+      await vi.waitFor(() => expect(runSignal.aborted).toBe(true))
+      release()
+
+      const res = await postCall(app, legacyCall({ question: 'Why?' }, {}, 2))
+
+      const result = sseData(res.text).find(msg => msg.id === 2).result
+      expect(result.content).toEqual([{ type: 'text', text: 'The answer.' }])
+      expect(result.isError).toBeUndefined()
+    } finally {
+      await closeServer(server)
+    }
+  })
+
+  it('keeps emitting heartbeat progress while the agent stays silent', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const app = makeApp()
+    const server = await listenOn(app)
+
+    try {
+      let finish
+      executeAskSoporti.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            finish = resolve
+          })
+      )
+
+      const pending = fetchCall(server.address().port, legacyCall({ question: 'Why?' }, { progressToken: 'p1' }))
+
+      await vi.waitFor(() => expect(executeAskSoporti).toHaveBeenCalled())
+      await vi.advanceTimersByTimeAsync(15_000)
+      finish('Done.')
+
+      const res = await pending
+      const text = await res.text()
+      const progress = sseData(text).filter(msg => msg.method === 'notifications/progress')
+      expect(progress.map(msg => msg.params.message)).toContain('Still working...')
+      expect(sseData(text).find(msg => msg.id === 1).result.content[0].text).toBe('Done.')
+    } finally {
+      vi.useRealTimers()
+      await closeServer(server)
+    }
   })
 
   it('rejects invalid tool arguments without running the agent', async () => {

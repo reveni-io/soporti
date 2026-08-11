@@ -8,9 +8,7 @@ import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { trackAgentRun } from '../agent/run-tracking.js'
 import { UNKNOWN_TOOL } from '../agent/run-items.js'
-import { AGENT_CHANNEL_MCP } from '../constants.js'
-
-const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
+import { AGENT_CHANNEL_MCP, EMPTY_ANSWER_ERROR } from '../constants.js'
 
 export function resolveScopedSources(requested, scope) {
   const requestedList = Array.isArray(requested) ? requested : []
@@ -25,11 +23,11 @@ export function resolveScopedSources(requested, scope) {
   return { sources: requestedList }
 }
 
-export async function executeAskSoporti({ question, sources, profile, skillIds, userId, onProgress }) {
+export async function executeAskSoporti({ question, sources, profile, skillIds, userId, onProgress, signal }) {
   function report(message) {
     Promise.resolve()
       .then(() => onProgress?.(message))
-      .catch(() => {})
+      .catch(err => console.error('Failed to report MCP progress:', err))
   }
 
   const [similarCases, customInstructions, skills] = await Promise.all([
@@ -63,7 +61,7 @@ export async function executeAskSoporti({ question, sources, profile, skillIds, 
       failureReason: () => (textParts.join('').trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
     },
     async () => {
-      const stream = await run(agent, agentInput, { stream: true, maxTurns: config.agent.maxIterations })
+      const stream = await run(agent, agentInput, { stream: true, maxTurns: config.agent.maxIterations, signal })
 
       for await (const event of stream.toStream()) {
         if (event.type === 'raw_model_stream_event') {

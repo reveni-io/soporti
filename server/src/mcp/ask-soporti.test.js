@@ -143,6 +143,18 @@ describe('executeAskSoporti', () => {
     })
   })
 
+  it('passes the abort signal to the agent run', async () => {
+    const signal = new AbortController().signal
+
+    await executeAskSoporti({ question: 'Why?', sources: [], skillIds: [], userId: 7, signal })
+
+    expect(run).toHaveBeenCalledWith({ name: 'agent' }, expect.any(String), {
+      stream: true,
+      maxTurns: expect.any(Number),
+      signal,
+    })
+  })
+
   it('reports progress when tools start and finish', async () => {
     run.mockResolvedValue(
       makeStream([toolCall('search_code', '{"repo":"x"}', 'c1'), toolOutput('c1'), textDelta('Found it.')])

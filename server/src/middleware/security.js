@@ -12,7 +12,7 @@ function parseTrustProxy(value) {
 }
 
 function isAllowedOrigin(origin, allowedOrigins) {
-  if (allowedOrigins.includes(origin)) return true
+  if (allowedOrigins.length > 0) return allowedOrigins.includes(origin)
 
   try {
     return LOCAL_HOSTNAMES.has(new URL(origin).hostname)

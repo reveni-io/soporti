@@ -5,6 +5,7 @@ const CHANNEL_LABELS = {
   pr_review: 'PR reviews',
   pr_mention: 'PR mentions',
   auto_diagnose: 'Ticket auto-diagnose',
+  mcp: 'MCP',
 }
 
 const SOURCE_LABELS = {

@@ -2,12 +2,11 @@ import { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { isConfigured } from '../llm/model.js'
 import { VALID_PROFILES } from '../agent/system-prompt.js'
-import { MAX_SOURCES, MAX_SOURCE_LENGTH } from '../constants.js'
+import { MAX_SOURCES, MAX_SOURCE_LENGTH, MAX_SKILLS_PER_REQUEST } from '../constants.js'
 import { executeAskSoporti, resolveScopedSources } from './ask-soporti.js'
 
 const SERVER_INFO = { name: 'soporti', version: '1.0.0' }
 const MAX_QUESTION_LENGTH = 10_000
-const MAX_SKILLS = 10
 const PROGRESS_HEARTBEAT_MS = 15_000
 
 const ASK_SOPORTI_CONFIG = {
@@ -32,7 +31,7 @@ const ASK_SOPORTI_CONFIG = {
       .describe('Answer profile: "tech" for engineers, "support" for support agents (the default).'),
     skillIds: z
       .array(z.number().int().positive())
-      .max(MAX_SKILLS)
+      .max(MAX_SKILLS_PER_REQUEST)
       .optional()
       .describe('IDs of stored skills to apply to this question.'),
   },
@@ -51,17 +50,26 @@ function startProgress(ctx) {
   }
 
   let step = 0
+  let streamGone = false
 
   async function send(message) {
+    if (streamGone) return
+
     step += 1
-    await ctx.mcpReq.notify({
-      method: 'notifications/progress',
-      params: { progressToken, progress: step, message },
-    })
+    try {
+      await ctx.mcpReq.notify({
+        method: 'notifications/progress',
+        params: { progressToken, progress: step, message },
+      })
+    } catch (err) {
+      streamGone = true
+      clearInterval(heartbeat)
+      console.error('Failed to send MCP progress, stopping notifications:', err.message)
+    }
   }
 
   const heartbeat = setInterval(() => {
-    send('Still working...').catch(() => {})
+    send('Still working...')
   }, PROGRESS_HEARTBEAT_MS)
 
   return { report: send, stop: () => clearInterval(heartbeat) }
@@ -91,6 +99,7 @@ export function createSoportiMcpServer({ user, apiKey } = {}) {
         skillIds: args.skillIds ?? [],
         userId: user.id,
         onProgress: progress.report,
+        signal: ctx.mcpReq.signal,
       })
 
       return { content: [{ type: 'text', text: answer }] }

@@ -201,6 +201,17 @@ describe('mcpOriginGuard', () => {
     expect(next).not.toHaveBeenCalled()
   })
 
+  it('rejects a localhost origin once a list is configured', () => {
+    mockConfig.security.corsOrigins = ['https://app.example.com']
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'http://localhost:5173' } }, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(next).not.toHaveBeenCalled()
+  })
+
   it('rejects a malformed origin', () => {
     const res = makeRes()
     const next = vi.fn()

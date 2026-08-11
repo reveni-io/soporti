@@ -6,7 +6,7 @@ import { createSoportiMcpServer } from './server.js'
 const KEEP_ALIVE_MS = 15_000
 const SSE_CONTENT_TYPE = 'text/event-stream'
 
-function toWebRequest(req) {
+function toWebRequest(req, signal) {
   const url = new URL(req.originalUrl, `${req.protocol}://${req.get('host')}`)
   const headers = new Headers()
 
@@ -18,7 +18,7 @@ function toWebRequest(req) {
     }
   }
 
-  return new Request(url, { method: req.method, headers })
+  return new Request(url, { method: req.method, headers, signal })
 }
 
 function toAuthInfo(req) {
@@ -41,8 +41,13 @@ export default function mcpRoute() {
   const router = Router()
 
   router.all('/', async (req, res) => {
+    const abort = new AbortController()
+    res.on('close', () => {
+      if (!res.writableFinished) abort.abort()
+    })
+
     try {
-      const response = await handler.fetch(toWebRequest(req), {
+      const response = await handler.fetch(toWebRequest(req, abort.signal), {
         authInfo: toAuthInfo(req),
         parsedBody: req.method === 'POST' ? req.body : undefined,
       })
