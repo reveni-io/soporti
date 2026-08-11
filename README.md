@@ -38,6 +38,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 - **Custom instructions** — your role, your language, your preferred level of detail, applied to every chat automatically
 - **Skills (`/commands`)** — save reusable instruction snippets (a triage checklist, a review rubric, a tone of voice) and run one by starting a message with `/skill-name`, with autocomplete as you type `/`. The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` slot in what you typed after the command. Create and edit them in **Settings → Skills**
 - **API keys** — issue a `sop_…` key in **Settings → API keys** so a headless agent can call the API without a browser session. The key runs as you, so its conversations land in your sidebar and your `/admin` stats; it can be scoped to the sources you have selected in the sidebar, its plaintext is shown exactly once at creation, and you can revoke it at any time
+- **MCP server** — point any MCP client (Claude Code, an external agent) at `POST /api/mcp` with a `sop_…` key as the bearer token and it gets the `ask_soporti` tool: one question in, a synthesized answer with the consulted sources out, with progress streamed while long investigations run. Both the 2026-07-28 revision and legacy-era clients are served on the same endpoint, and a scoped key restricts which sources the tool may consult
 
 | Choose your sources | Switch response profiles |
 | --- | --- |

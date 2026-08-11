@@ -7,9 +7,7 @@ import { getCustomInstructions } from '../db/users.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { toolCallsFromResult } from '../agent/run-items.js'
 import { trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_SCHEDULE } from '../constants.js'
-
-const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
+import { AGENT_CHANNEL_SCHEDULE, EMPTY_ANSWER_ERROR } from '../constants.js'
 
 function extractText(result) {
   const output = result?.finalOutput

@@ -20,6 +20,7 @@ import userRouter from './routes/user.js'
 import skillsRouter from './routes/skills.js'
 import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
+import mcpRoute from './mcp/route.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { startSchedulePoller, stopSchedulePoller } from './schedules/poller.js'
 import { setupReviewWebhook } from './review/index.js'
@@ -57,6 +58,7 @@ app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
+app.use('/api/mcp', mcpRoute())
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })

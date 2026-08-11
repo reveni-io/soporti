@@ -14,6 +14,7 @@ export const MAX_SCHEDULES_PER_USER = 20
 
 export const MAX_SOURCES = 50
 export const MAX_SOURCE_LENGTH = 200
+export const MAX_SKILLS_PER_REQUEST = 10
 export const MAX_API_KEY_NAME_LENGTH = 80
 export const MAX_API_KEYS_PER_USER = 20
 
@@ -33,8 +34,10 @@ export const AGENT_CHANNEL_SCHEDULE = 'schedule'
 export const AGENT_CHANNEL_PR_REVIEW = 'pr_review'
 export const AGENT_CHANNEL_PR_MENTION = 'pr_mention'
 export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
+export const AGENT_CHANNEL_MCP = 'mcp'
 export const RUN_STATUS_OK = 'ok'
 export const RUN_STATUS_ERROR = 'error'
+export const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
 export const STATS_RANGE_ALL = 'all'
 export const STATS_RANGE_HOURS = [1, 3, 24, 168, 720, 2160]
 export const TOP_TOOLS_LIMIT = 10

@@ -10,7 +10,7 @@ vi.mock('cors', () => ({ default: mockCors }))
 vi.mock('express-rate-limit', () => ({ default: mockRateLimit }))
 vi.mock('../config.js', () => ({ default: mockConfig }))
 
-const { setupSecurity } = await import('./security.js')
+const { setupSecurity, mcpOriginGuard } = await import('./security.js')
 
 describe('setupSecurity', () => {
   let app
@@ -53,7 +53,7 @@ describe('setupSecurity', () => {
     expect(mockCors).toHaveBeenCalledWith({
       origin: '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version', 'Mcp-Method', 'Mcp-Name'],
       maxAge: 3600,
     })
     expect(app.use).toHaveBeenCalledWith('cors-middleware')
@@ -116,6 +116,21 @@ describe('setupSecurity', () => {
     expect(app.use).toHaveBeenCalledWith('/api/', 'rate-limiter')
   })
 
+  it('creates an mcp rate limiter with 30 req/min', () => {
+    setupSecurity(app)
+    const mcpCall = mockRateLimit.mock.calls[3][0]
+    expect(mcpCall.windowMs).toBe(60_000)
+    expect(mcpCall.limit).toBe(30)
+    expect(mcpCall.standardHeaders).toBe(true)
+    expect(mcpCall.legacyHeaders).toBe(false)
+    expect(mcpCall.message).toEqual({ error: 'Too many requests. Please wait a moment.' })
+  })
+
+  it('guards /api/mcp with the origin check ahead of its rate limiter', () => {
+    setupSecurity(app)
+    expect(app.use).toHaveBeenCalledWith('/api/mcp', mcpOriginGuard, 'rate-limiter')
+  })
+
   it('disables x-powered-by header', () => {
     setupSecurity(app)
     expect(app.disable).toHaveBeenCalledWith('x-powered-by')
@@ -123,6 +138,87 @@ describe('setupSecurity', () => {
 
   it('calls app.use the expected number of times', () => {
     setupSecurity(app)
-    expect(app.use).toHaveBeenCalledTimes(6)
+    expect(app.use).toHaveBeenCalledTimes(7)
+  })
+})
+
+describe('mcpOriginGuard', () => {
+  function makeRes() {
+    return { status: vi.fn().mockReturnThis(), json: vi.fn() }
+  }
+
+  beforeEach(() => {
+    mockConfig.security = { corsOrigins: [], trustProxy: '1' }
+  })
+
+  it('lets requests without an Origin header through', () => {
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: {} }, res, next)
+
+    expect(next).toHaveBeenCalled()
+    expect(res.status).not.toHaveBeenCalled()
+  })
+
+  it('accepts an origin from the configured list', () => {
+    mockConfig.security.corsOrigins = ['https://app.example.com']
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'https://app.example.com' } }, makeRes(), next)
+
+    expect(next).toHaveBeenCalled()
+  })
+
+  it('accepts localhost origins when no list is configured', () => {
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'http://localhost:5173' } }, makeRes(), next)
+    mcpOriginGuard({ headers: { origin: 'http://127.0.0.1:3001' } }, makeRes(), next)
+
+    expect(next).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects a foreign origin with 403', () => {
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'https://evil.example.com' } }, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(res.json).toHaveBeenCalledWith({ error: 'Origin not allowed.' })
+  })
+
+  it('rejects an origin outside the configured list', () => {
+    mockConfig.security.corsOrigins = ['https://app.example.com']
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'https://other.example.com' } }, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('rejects a localhost origin once a list is configured', () => {
+    mockConfig.security.corsOrigins = ['https://app.example.com']
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'http://localhost:5173' } }, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(next).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed origin', () => {
+    const res = makeRes()
+    const next = vi.fn()
+
+    mcpOriginGuard({ headers: { origin: 'not a url' } }, res, next)
+
+    expect(res.status).toHaveBeenCalledWith(403)
+    expect(next).not.toHaveBeenCalled()
   })
 })

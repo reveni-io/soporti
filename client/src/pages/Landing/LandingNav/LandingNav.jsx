@@ -9,6 +9,7 @@ const LINKS = [
   { href: '#providers', label: 'Models' },
   { href: '#skills', label: 'Skills' },
   { href: '#automations', label: 'Automations' },
+  { href: '#mcp', label: 'MCP' },
 ]
 
 const GITHUB_ICON_SIZE = 18

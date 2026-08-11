@@ -12,7 +12,7 @@ import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
-import { AGENT_CHANNEL_WEB, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
+import { AGENT_CHANNEL_WEB, MAX_SKILLS_PER_REQUEST, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 
 const router = Router()
 
@@ -75,7 +75,7 @@ export default function chatRoute(conversationStore) {
 
     const cleanSkillIds = (Array.isArray(skillIds) ? skillIds : [])
       .filter(id => Number.isInteger(id) && id > 0)
-      .slice(0, 10)
+      .slice(0, MAX_SKILLS_PER_REQUEST)
 
     if (!(await isConfigured())) {
       return res.status(503).json({
@@ -109,7 +109,7 @@ export default function chatRoute(conversationStore) {
       }),
     ])
 
-    const activeSkillIds = [...new Set([...carriedSkillIds, ...cleanSkillIds])].slice(0, 10)
+    const activeSkillIds = [...new Set([...carriedSkillIds, ...cleanSkillIds])].slice(0, MAX_SKILLS_PER_REQUEST)
     const invokedSkills =
       activeSkillIds.length > 0
         ? await getSkillsByIds(activeSkillIds, req.user.id).catch(err => {
