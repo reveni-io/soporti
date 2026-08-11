@@ -370,6 +370,27 @@
   font-family: var(--font-body);
 }
 
+.chat__input-area--dropping .chat__input-wrapper {
+  border-style: dashed;
+  border-color: var(--green-bright);
+  box-shadow: var(--focus-ring);
+}
+
+.chat__drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  pointer-events: none;
+}
+
 .chat__btn--stop {
   background-color: var(--btn-danger-bg);
   color: var(--btn-danger-color);

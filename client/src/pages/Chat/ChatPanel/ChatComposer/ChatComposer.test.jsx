@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatComposer from './ChatComposer.jsx'
+
+const DROP_HINT = 'Drop your files to attach them'
 
 const BASE_PROPS = {
   input: '',
@@ -30,6 +32,10 @@ const BASE_PROPS = {
 
 function pdfFile(name = 'spec.pdf') {
   return new File(['%PDF-1.4'], name, { type: 'application/pdf' })
+}
+
+function fileDrag(files = []) {
+  return { types: ['Files'], files, dropEffect: '' }
 }
 
 describe('ChatComposer', () => {
@@ -104,6 +110,55 @@ describe('ChatComposer', () => {
 
     expect(onAttachFiles).toHaveBeenCalledTimes(1)
     expect([...onAttachFiles.mock.calls[0][0]].map(file => file.name)).toEqual(['spec.pdf'])
+  })
+
+  it('attaches the files dropped on the composer', () => {
+    const onAttachFiles = vi.fn()
+    const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = fileDrag([pdfFile()])
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    expect(screen.getByText(DROP_HINT)).toBeInTheDocument()
+
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(onAttachFiles).toHaveBeenCalledTimes(1)
+    expect([...onAttachFiles.mock.calls[0][0]].map(file => file.name)).toEqual(['spec.pdf'])
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+  })
+
+  it('ignores a drop once the attachment limit is reached', () => {
+    const onAttachFiles = vi.fn()
+    const attachments = [
+      { name: 'a.pdf', truncated: false },
+      { name: 'b.pdf', truncated: false },
+      { name: 'c.pdf', truncated: false },
+    ]
+    const { container } = render(
+      <ChatComposer {...BASE_PROPS} attachments={attachments} onAttachFiles={onAttachFiles} />
+    )
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = fileDrag([pdfFile('d.pdf')])
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('leaves a text drag to the textarea', () => {
+    const onAttachFiles = vi.fn()
+    const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = { types: ['text/plain'], files: [] }
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    expect(onAttachFiles).not.toHaveBeenCalled()
   })
 
   it('accepts only the supported document types', () => {
