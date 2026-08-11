@@ -1,7 +1,9 @@
 import { Router } from 'express'
+import { isSourceList } from '../agent/sources.js'
 import { VALID_PROFILES } from '../agent/system-prompt.js'
 import {
   MAX_SCHEDULES_PER_USER,
+  MAX_SOURCES,
   SCHEDULE_FREQUENCIES,
   SCHEDULE_HOURLY,
   SCHEDULE_MONTHLY,
@@ -15,19 +17,12 @@ import { computeNextRun, isValidTimezone } from '../schedules/next-run.js'
 const router = Router()
 
 const ID_RE = /^\d{1,9}$/
-const MAX_SOURCES = 50
-const MAX_SOURCE_LENGTH = 200
 const MINUTE_MAX = 59
 const HOUR_MAX = 23
 const WEEKDAY_MAX = 6
 
 function isIntegerInRange(value, min, max) {
   return Number.isInteger(value) && value >= min && value <= max
-}
-
-function isSourceList(sources) {
-  if (!Array.isArray(sources) || sources.length > MAX_SOURCES) return false
-  return sources.every(source => typeof source === 'string' && source.length > 0 && source.length <= MAX_SOURCE_LENGTH)
 }
 
 function parseScheduleInput(body) {

@@ -127,6 +127,24 @@ export const agentRuns = pgTable(
   table => [index('agent_runs_created_idx').on(table.createdAt), index('agent_runs_channel_idx').on(table.channel)]
 )
 
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    prefix: text('prefix').notNull(),
+    keyHash: text('key_hash').notNull().unique(),
+    sources: jsonb('sources').notNull().default([]),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('api_keys_user_idx').on(table.userId)]
+)
+
 export const skills = pgTable(
   'skills',
   {

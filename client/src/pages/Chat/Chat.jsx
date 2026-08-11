@@ -133,7 +133,13 @@ export default function Chat() {
       />
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
       {settingsOpen && (
-        <SettingsModal token={token} onClose={() => setSettingsOpen(false)} onLogout={logout} skills={skills} />
+        <SettingsModal
+          token={token}
+          onClose={() => setSettingsOpen(false)}
+          onLogout={logout}
+          skills={skills}
+          selectedSources={selectedSources}
+        />
       )}
       {schedulesOpen && (
         <SchedulesModal

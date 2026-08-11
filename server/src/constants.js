@@ -12,6 +12,11 @@ export const SCHEDULE_STATUS_OK = 'ok'
 export const SCHEDULE_STATUS_ERROR = 'error'
 export const MAX_SCHEDULES_PER_USER = 20
 
+export const MAX_SOURCES = 50
+export const MAX_SOURCE_LENGTH = 200
+export const MAX_API_KEY_NAME_LENGTH = 80
+export const MAX_API_KEYS_PER_USER = 20
+
 export const DEFAULT_FILE_LINES = 300
 export const MAX_FILE_LINES = 5000
 export const DEFAULT_CONTEXT_LINES = 100

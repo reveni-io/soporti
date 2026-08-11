@@ -1,6 +1,12 @@
+import { MAX_SOURCES, MAX_SOURCE_LENGTH } from '../constants.js'
 import { INTEGRATIONS } from './integrations.js'
 
 export const YOLO_SOURCE = 'yolo'
+
+export function isSourceList(sources) {
+  if (!Array.isArray(sources) || sources.length > MAX_SOURCES) return false
+  return sources.every(source => typeof source === 'string' && source.length > 0 && source.length <= MAX_SOURCE_LENGTH)
+}
 
 export function isYoloMode(selectedSources) {
   return Array.isArray(selectedSources) && selectedSources.includes(YOLO_SOURCE)

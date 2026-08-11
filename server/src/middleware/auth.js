@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken'
 import config from '../config.js'
+import { hashApiKey, isApiKeyToken } from '../auth/api-key.js'
+import { findActiveApiKeyByHash, touchApiKeyLastUsed } from '../db/api-keys.js'
 import { findUserById } from '../db/users.js'
 
 export function createSession(user) {
@@ -26,7 +28,19 @@ const PUBLIC_ROUTES = [
   { method: 'POST', path: '/api/admin/bootstrap' },
 ]
 
-export function requireAuth(req, res, next) {
+async function resolveApiKey(token) {
+  const row = await findActiveApiKeyByHash(hashApiKey(token))
+  if (!row) return null
+
+  await touchApiKeyLastUsed(row.id)
+
+  return {
+    user: { id: row.userId, email: row.email, name: row.name, role: row.role ?? 'user' },
+    apiKey: { id: row.id, sources: Array.isArray(row.sources) ? row.sources : [] },
+  }
+}
+
+export async function requireAuth(req, res, next) {
   if (PUBLIC_ROUTES.some(route => route.method === req.method && route.path === req.path)) {
     return next()
   }
@@ -40,6 +54,20 @@ export function requireAuth(req, res, next) {
   }
 
   const token = authHeader.slice(7)
+
+  if (isApiKeyToken(token)) {
+    try {
+      const resolved = await resolveApiKey(token)
+      if (!resolved) return res.status(401).json({ error: 'Invalid or revoked API key.' })
+
+      req.user = resolved.user
+      req.apiKey = resolved.apiKey
+      return next()
+    } catch (err) {
+      return next(err)
+    }
+  }
+
   const user = getSessionUser(token)
 
   if (!user) {
