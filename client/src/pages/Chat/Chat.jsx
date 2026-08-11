@@ -79,8 +79,8 @@ export default function Chat() {
     localStorage.setItem('selectedProfile', profile)
   }
 
-  function handleSend(text, skills = []) {
-    sendMessage(text, selectedSources, selectedProfile, skills)
+  function handleSend(text, skills = [], attachments = []) {
+    sendMessage(text, selectedSources, selectedProfile, skills, attachments)
   }
 
   async function handleLoadConversation(id) {
@@ -127,6 +127,7 @@ export default function Chat() {
         hasSourcesSelected={selectedSources.length > 0}
         onOpenSidebar={() => setSidebarOpen(true)}
         onShare={handleShare}
+        onLogout={logout}
         integrations={integrations}
         token={token}
         skills={skills.skills}

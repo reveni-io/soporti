@@ -9,6 +9,7 @@ import { ConversationStore } from './sessions/conversation-store.js'
 import authRouter from './routes/auth.js'
 import adminRouter from './routes/admin.js'
 import reposRouter from './routes/repos.js'
+import attachmentsRouter from './routes/attachments.js'
 import chatRoute from './routes/chat.js'
 import conversationsRoute from './routes/conversations.js'
 import mermaidRouter from './routes/mermaid.js'
@@ -47,6 +48,7 @@ const conversationStore = new ConversationStore()
 app.use('/api/auth', authRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/repos', reposRouter)
+app.use('/api/attachments', attachmentsRouter)
 app.use('/api/chat', chatRoute(conversationStore))
 app.use('/api/conversations', conversationsRoute(conversationStore))
 app.use('/api/mermaid', mermaidRouter)

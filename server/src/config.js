@@ -26,12 +26,17 @@ function parseCsvList(value) {
 const config = {
   port: parseInt(process.env.PORT || '3001', 10),
 
+  documents: {
+    parseConcurrency:
+      parseInt(process.env.DOCUMENT_PARSE_CONCURRENCY || process.env.GOOGLE_DRIVE_PARSE_CONCURRENCY || '2', 10) || 2,
+    parseTimeoutMs: parseInt(process.env.DOCUMENT_PARSE_TIMEOUT_MS || '60000', 10) || 60000,
+  },
+
   google: {
     drive: {
       maxBytes: parseInt(process.env.GOOGLE_DRIVE_MAX_BYTES || String(25 * 1024 * 1024), 10) || 25 * 1024 * 1024,
       maxChars: parseInt(process.env.GOOGLE_DRIVE_MAX_CHARS || '50000', 10) || 50000,
       downloadTimeoutMs: parseInt(process.env.GOOGLE_DRIVE_DOWNLOAD_TIMEOUT_MS || '60000', 10) || 60000,
-      parseConcurrency: parseInt(process.env.GOOGLE_DRIVE_PARSE_CONCURRENCY || '2', 10) || 2,
     },
   },
 

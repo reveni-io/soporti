@@ -3,7 +3,7 @@ import { SKILL_COMMAND_RE } from '../../../../constants.js'
 
 const MAX_TEXTAREA_HEIGHT = 200
 
-export function useComposer({ skills, isLoading, hasSourcesSelected, onSend }) {
+export function useComposer({ skills, isLoading, hasSourcesSelected, isUploading, onSend }) {
   const [input, setInput] = useState('')
   const [menuDismissed, setMenuDismissed] = useState(false)
   const [menuIndex, setMenuIndex] = useState(0)
@@ -32,7 +32,7 @@ export function useComposer({ skills, isLoading, hasSourcesSelected, onSend }) {
 
   const commandPrefix = invokedSkill ? `/${invokedSkill.name}` : ''
   const messageText = invokedSkill ? input.slice(commandPrefix.length).trim() : input.trim()
-  const canSend = Boolean(messageText) && hasSourcesSelected
+  const canSend = Boolean(messageText) && hasSourcesSelected && !isUploading
 
   function fill(text) {
     setInput(text)
@@ -51,7 +51,7 @@ export function useComposer({ skills, isLoading, hasSourcesSelected, onSend }) {
 
   function handleSubmit(event) {
     event.preventDefault()
-    if (!messageText || isLoading || !hasSourcesSelected) return
+    if (!messageText || isLoading || !hasSourcesSelected || isUploading) return
 
     onSend(messageText, invokedSkill ? [{ id: invokedSkill.id, name: invokedSkill.name }] : [])
     setInput('')

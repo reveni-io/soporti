@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {
+    documents: { parseConcurrency: 2, parseTimeoutMs: 60000 },
     google: {
       drive: {
         maxBytes: 25 * 1024 * 1024,
         maxChars: 50000,
         downloadTimeoutMs: 60000,
-        parseConcurrency: 2,
       },
     },
   },
@@ -84,7 +84,7 @@ const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 
-const DEFAULTS = { maxBytes: 25 * 1024 * 1024, maxChars: 50000, downloadTimeoutMs: 60000, parseConcurrency: 2 }
+const DEFAULTS = { maxBytes: 25 * 1024 * 1024, maxChars: 50000, downloadTimeoutMs: 60000 }
 
 function jsonResp(data) {
   return { ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) }

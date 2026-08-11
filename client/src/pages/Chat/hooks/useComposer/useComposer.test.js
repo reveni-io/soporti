@@ -160,4 +160,18 @@ describe('useComposer', () => {
 
     expect(result.current.input).toBe('Show a chart of signups')
   })
+
+  it('cannot send while an attachment is still uploading', () => {
+    const onSend = vi.fn()
+    const { result } = renderHook(() =>
+      useComposer({ skills: [], isLoading: false, hasSourcesSelected: true, isUploading: true, onSend })
+    )
+
+    act(() => result.current.onChange({ target: { value: 'summarize it' } }))
+    expect(result.current.canSend).toBe(false)
+
+    act(() => result.current.onSubmit({ preventDefault: () => {} }))
+
+    expect(onSend).not.toHaveBeenCalled()
+  })
 })

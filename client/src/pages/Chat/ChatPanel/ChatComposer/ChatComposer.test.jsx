@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatComposer from './ChatComposer.jsx'
+
+const DROP_HINT = 'Drop your files to attach them'
 
 const BASE_PROPS = {
   input: '',
@@ -21,6 +23,19 @@ const BASE_PROPS = {
   isLoading: false,
   hasSourcesSelected: true,
   onStop: vi.fn(),
+  attachments: [],
+  attachmentError: '',
+  isUploadingAttachment: false,
+  onAttachFiles: vi.fn(),
+  onRemoveAttachment: vi.fn(),
+}
+
+function pdfFile(name = 'spec.pdf') {
+  return new File(['%PDF-1.4'], name, { type: 'application/pdf' })
+}
+
+function fileDrag(files = []) {
+  return { types: ['Files'], files, dropEffect: '' }
 }
 
 describe('ChatComposer', () => {
@@ -84,6 +99,124 @@ describe('ChatComposer', () => {
     expect(container.querySelector('.chat__input-command').textContent).toBe('/trace-order')
     expect(container.querySelector('.chat__input-highlight').textContent).toBe('/trace-order 1024')
     expect(screen.getByPlaceholderText('Ask Soporti anything...')).toHaveClass('chat__input--overlaid')
+  })
+
+  it('hands the picked files to the attachment handler', async () => {
+    const onAttachFiles = vi.fn()
+    const user = userEvent.setup()
+    render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+
+    await user.upload(screen.getByLabelText('Attach files'), pdfFile())
+
+    expect(onAttachFiles).toHaveBeenCalledTimes(1)
+    expect([...onAttachFiles.mock.calls[0][0]].map(file => file.name)).toEqual(['spec.pdf'])
+  })
+
+  it('attaches the files dropped on the composer', () => {
+    const onAttachFiles = vi.fn()
+    const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = fileDrag([pdfFile()])
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    expect(screen.getByText(DROP_HINT)).toBeInTheDocument()
+
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(onAttachFiles).toHaveBeenCalledTimes(1)
+    expect([...onAttachFiles.mock.calls[0][0]].map(file => file.name)).toEqual(['spec.pdf'])
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+  })
+
+  it('ignores a drop once the attachment limit is reached', () => {
+    const onAttachFiles = vi.fn()
+    const attachments = [
+      { name: 'a.pdf', truncated: false },
+      { name: 'b.pdf', truncated: false },
+      { name: 'c.pdf', truncated: false },
+    ]
+    const { container } = render(
+      <ChatComposer {...BASE_PROPS} attachments={attachments} onAttachFiles={onAttachFiles} />
+    )
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = fileDrag([pdfFile('d.pdf')])
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('leaves a text drag to the textarea', () => {
+    const onAttachFiles = vi.fn()
+    const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+    const area = container.querySelector('.chat__input-area')
+    const dataTransfer = { types: ['text/plain'], files: [] }
+
+    fireEvent.dragEnter(area, { dataTransfer })
+    fireEvent.drop(area, { dataTransfer })
+
+    expect(screen.queryByText(DROP_HINT)).not.toBeInTheDocument()
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('accepts only the supported document types', () => {
+    render(<ChatComposer {...BASE_PROPS} />)
+
+    expect(screen.getByLabelText('Attach files')).toHaveAttribute('accept', '.pdf,.docx,.xlsx')
+  })
+
+  it('lists the attached files and removes the one the user picks', async () => {
+    const onRemoveAttachment = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ChatComposer
+        {...BASE_PROPS}
+        attachments={[
+          { name: 'spec.pdf', truncated: false },
+          { name: 'sales.xlsx', truncated: true },
+        ]}
+        onRemoveAttachment={onRemoveAttachment}
+      />
+    )
+
+    expect(screen.getByText(/spec\.pdf/)).toBeInTheDocument()
+    expect(screen.getByText(/sales\.xlsx/)).toBeInTheDocument()
+    expect(screen.getByText('truncated')).toBeInTheDocument()
+
+    await user.click(screen.getByTitle('Remove sales.xlsx'))
+
+    expect(onRemoveAttachment).toHaveBeenCalledWith(1)
+  })
+
+  it('disables attaching once the limit is reached', () => {
+    const attachments = [
+      { name: 'a.pdf', truncated: false },
+      { name: 'b.pdf', truncated: false },
+      { name: 'c.pdf', truncated: false },
+    ]
+    const { rerender } = render(<ChatComposer {...BASE_PROPS} attachments={attachments.slice(0, 2)} />)
+    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeEnabled()
+
+    rerender(<ChatComposer {...BASE_PROPS} attachments={attachments} />)
+
+    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+  })
+
+  it('disables attaching while a file is uploading or no source is selected', () => {
+    const { rerender } = render(<ChatComposer {...BASE_PROPS} isUploadingAttachment />)
+    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+
+    rerender(<ChatComposer {...BASE_PROPS} hasSourcesSelected={false} />)
+
+    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+  })
+
+  it('shows the attachment error', () => {
+    render(<ChatComposer {...BASE_PROPS} attachmentError='"huge.pdf" is too large (max 10 MB).' />)
+
+    expect(screen.getByText('"huge.pdf" is too large (max 10 MB).')).toBeInTheDocument()
   })
 
   it('shows the skill menu only while it is open', () => {

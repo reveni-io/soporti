@@ -208,7 +208,7 @@ describe('Chat', () => {
     await user.click(screen.getByText('Toggle Source'))
     await user.click(screen.getByText('Send'))
 
-    expect(sendMessage).toHaveBeenCalledWith('hello', ['org/app'], 'support', [])
+    expect(sendMessage).toHaveBeenCalledWith('hello', ['org/app'], 'support', [], [])
   })
 
   it('clears chat on New Chat', async () => {
@@ -312,7 +312,7 @@ describe('Chat', () => {
     render(<Chat />)
     await user.click(screen.getByText('Set Tech'))
     await user.click(screen.getByText('Send'))
-    expect(sendMessage).toHaveBeenCalledWith('hello', ['yolo'], 'tech', [])
+    expect(sendMessage).toHaveBeenCalledWith('hello', ['yolo'], 'tech', [], [])
   })
 
   it('posts the conversationId on every share', async () => {

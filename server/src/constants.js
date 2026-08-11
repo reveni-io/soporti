@@ -12,6 +12,12 @@ export const SCHEDULE_STATUS_OK = 'ok'
 export const SCHEDULE_STATUS_ERROR = 'error'
 export const MAX_SCHEDULES_PER_USER = 20
 
+export const MAX_ATTACHMENTS_PER_MESSAGE = 3
+export const MAX_ATTACHMENT_MB = 10
+export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024
+export const MAX_ATTACHMENT_CHARS = 50_000
+export const MAX_ATTACHMENT_NAME_LENGTH = 200
+
 export const MAX_SOURCES = 50
 export const MAX_SOURCE_LENGTH = 200
 export const MAX_SKILLS_PER_REQUEST = 10

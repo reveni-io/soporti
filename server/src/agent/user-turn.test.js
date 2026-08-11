@@ -46,4 +46,38 @@ describe('buildUserTurn', () => {
     expect(buildUserTurn('hello', { similarCases: null })).toBe('hello')
     expect(buildUserTurn('hello', { similarCases: undefined })).toBe('hello')
   })
+
+  it('includes the attached documents before the question', () => {
+    const result = buildUserTurn('summarize the API section', {
+      attachments: [{ name: 'spec.pdf', text: 'The API returns 402 on expired tokens.', truncated: false }],
+    })
+
+    expect(result).toContain('## Attached documents')
+    expect(result).toContain('### spec.pdf')
+    expect(result).toContain('The API returns 402 on expired tokens.')
+    expect(result.endsWith('\n\n---\n\nsummarize the API section')).toBe(true)
+  })
+
+  it('marks a truncated document', () => {
+    const result = buildUserTurn('summarize it', {
+      attachments: [{ name: 'huge.xlsx', text: 'rows...', truncated: true }],
+    })
+
+    expect(result).toContain('### huge.xlsx (truncated)')
+  })
+
+  it('keeps the cases first, the documents next and the question last', () => {
+    const result = buildUserTurn('why does it 500?', {
+      similarCases: [CASE],
+      attachments: [{ name: 'spec.pdf', text: 'body', truncated: false }],
+    })
+
+    expect(result.indexOf('## Similar resolved cases')).toBeLessThan(result.indexOf('## Attached documents'))
+    expect(result.indexOf('## Attached documents')).toBeLessThan(result.indexOf('why does it 500?'))
+  })
+
+  it('ignores an empty attachments list', () => {
+    expect(buildUserTurn('hello', { attachments: [] })).toBe('hello')
+    expect(buildUserTurn('hello', { attachments: null })).toBe('hello')
+  })
 })

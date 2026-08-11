@@ -77,6 +77,33 @@ describe('Message', () => {
     expect(screen.queryByRole('button', { name: '/bug-triage' })).not.toBeInTheDocument()
   })
 
+  it('lists the attached documents under the user message, flagging the truncated ones', () => {
+    render(
+      <Message
+        message={{
+          role: 'user',
+          content: 'Summarize these',
+          attachments: [
+            { name: 'spec.pdf', truncated: false },
+            { name: 'sales.xlsx', truncated: true },
+          ],
+        }}
+        isStreaming={false}
+        token="tok"
+      />
+    )
+    expect(screen.getByText(/spec\.pdf/)).toBeInTheDocument()
+    expect(screen.getByText(/sales\.xlsx/)).toBeInTheDocument()
+    expect(screen.getAllByText('truncated')).toHaveLength(1)
+  })
+
+  it('renders no attachment list when the message has none', () => {
+    const { container } = render(
+      <Message message={{ role: 'user', content: 'Hello' }} isStreaming={false} token="tok" />
+    )
+    expect(container.querySelector('.message__attachments')).toBeNull()
+  })
+
   it('renders assistant text parts', () => {
     const message = {
       role: 'assistant',

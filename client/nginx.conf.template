@@ -22,7 +22,8 @@ server {
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 3600s;
-        # GitHub webhook deliveries can carry large PR payloads.
+        # GitHub webhook deliveries carry large PR payloads, and chat
+        # attachments are uploaded raw (up to 10 MB per file).
         client_max_body_size 25m;
     }
 
