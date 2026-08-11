@@ -8,6 +8,7 @@ export const SKILL_COMMAND_RE = new RegExp(`^/(${SKILL_NAME_CHARS}*)(\\s[\\s\\S]
 
 export const MAX_DESCRIPTION_LENGTH = 200
 export const MAX_INSTRUCTIONS_LENGTH = 50_000
+export const MAX_API_KEY_NAME_LENGTH = 80
 
 export const SCHEDULE_HOURLY = 'hourly'
 export const SCHEDULE_DAILY = 'daily'

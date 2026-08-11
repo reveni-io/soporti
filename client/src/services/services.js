@@ -167,6 +167,27 @@ export function deleteSkill(token, id) {
   return request(`/api/skills/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete skill' })
 }
 
+export function getApiKeys(token) {
+  return request('/api/api-keys', { token, errorMessage: 'Failed to load the API keys' })
+}
+
+export function createApiKey(token, apiKey) {
+  return request('/api/api-keys', {
+    method: 'POST',
+    token,
+    body: apiKey,
+    errorMessage: 'Failed to create the API key',
+  })
+}
+
+export function revokeApiKey(token, id) {
+  return request(`/api/api-keys/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to revoke the API key',
+  })
+}
+
 export function getSchedules(token) {
   return request('/api/schedules', { token, errorMessage: 'Failed to load the scheduled queries' })
 }

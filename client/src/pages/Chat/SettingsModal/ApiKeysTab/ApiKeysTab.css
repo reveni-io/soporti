@@ -1,0 +1,111 @@
+.api-keys-tab__status,
+.api-keys-tab__empty {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.api-keys-tab__created {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.api-keys-tab__created-title {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.api-keys-tab__created-row {
+  display: flex;
+  gap: var(--sp2);
+  align-items: center;
+}
+
+.api-keys-tab__secret {
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-sm);
+}
+
+.api-keys-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  list-style: none;
+}
+
+.api-keys-tab__item {
+  display: flex;
+  gap: var(--sp3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp2) var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.api-keys-tab__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.api-keys-tab__item-name {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+
+.api-keys-tab__item-prefix {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.api-keys-tab__item-meta {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.api-keys-tab__item-actions {
+  display: flex;
+  gap: var(--sp2);
+  flex-shrink: 0;
+}
+
+.api-keys-tab__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding-top: var(--sp3);
+  border-top: 1px solid var(--border-default);
+}
+
+.api-keys-tab__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.api-keys-tab__checkbox {
+  display: flex;
+  gap: var(--sp2);
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.api-keys-tab__scope-hint {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}

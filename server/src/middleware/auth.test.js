@@ -4,7 +4,12 @@ import jwt from 'jsonwebtoken'
 const findUserById = vi.fn()
 vi.mock('../db/users.js', () => ({ findUserById }))
 
+const findActiveApiKeyByHash = vi.fn()
+const touchApiKeyLastUsed = vi.fn()
+vi.mock('../db/api-keys.js', () => ({ findActiveApiKeyByHash, touchApiKeyLastUsed }))
+
 const { createSession, getSessionUser, requireAuth, requireAdmin } = await import('./auth.js')
+const { hashApiKey } = await import('../auth/api-key.js')
 
 function mockReq(overrides = {}) {
   return {
@@ -35,6 +40,9 @@ const sampleUser = { id: 1, email: 'jane@example.com', name: 'Jane', role: 'user
 
 beforeEach(() => {
   findUserById.mockReset()
+  findActiveApiKeyByHash.mockReset()
+  touchApiKeyLastUsed.mockReset()
+  touchApiKeyLastUsed.mockResolvedValue(undefined)
 })
 
 describe('createSession / getSessionUser', () => {
@@ -82,74 +90,157 @@ describe('requireAuth', () => {
     ['GET', '/api/health'],
     ['GET', '/api/admin/status'],
     ['POST', '/api/admin/bootstrap'],
-  ])('skips auth for %s %s', (method, path) => {
+  ])('skips auth for %s %s', async (method, path) => {
     const req = mockReq({ path, method })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(next).toHaveBeenCalled()
   })
 
-  it('skips auth for GET /api/share/:id', () => {
+  it('skips auth for GET /api/share/:id', async () => {
     const req = mockReq({ path: '/api/share/abc123', method: 'GET' })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(next).toHaveBeenCalled()
   })
 
-  it('requires auth for POST /api/share', () => {
+  it('requires auth for POST /api/share', async () => {
     const req = mockReq({ path: '/api/share', method: 'POST' })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(next).not.toHaveBeenCalled()
     expect(res.statusCode).toBe(401)
   })
 
-  it('requires auth for public paths hit with the wrong method', () => {
+  it('requires auth for public paths hit with the wrong method', async () => {
     const req = mockReq({ path: '/api/admin/status', method: 'POST' })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(next).not.toHaveBeenCalled()
     expect(res.statusCode).toBe(401)
   })
 
-  it('returns 401 when no Authorization header', () => {
+  it('returns 401 when no Authorization header', async () => {
     const req = mockReq()
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(res.statusCode).toBe(401)
     expect(res._json.error).toContain('Authentication required')
   })
 
-  it('returns 401 for invalid token', () => {
+  it('returns 401 for invalid token', async () => {
     const req = mockReq({ headers: { authorization: 'Bearer invalid-token' } })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(res.statusCode).toBe(401)
     expect(res._json.error).toContain('Invalid or expired')
   })
 
-  it('allows a valid token and attaches req.user', () => {
+  it('allows a valid token and attaches req.user', async () => {
     const token = createSession(sampleUser)
     const req = mockReq({ headers: { authorization: `Bearer ${token}` } })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(next).toHaveBeenCalled()
     expect(req.user).toEqual(sampleUser)
+    expect(req.apiKey).toBeUndefined()
+    expect(findActiveApiKeyByHash).not.toHaveBeenCalled()
   })
 
-  it('returns 401 for malformed auth header', () => {
+  it('returns 401 for malformed auth header', async () => {
     const req = mockReq({ headers: { authorization: 'Basic abc123' } })
     const res = mockRes()
     const next = vi.fn()
-    requireAuth(req, res, next)
+    await requireAuth(req, res, next)
     expect(res.statusCode).toBe(401)
+  })
+})
+
+describe('requireAuth with an API key', () => {
+  const activeKey = {
+    id: 9,
+    sources: ['integration:notion'],
+    userId: 1,
+    email: 'jane@example.com',
+    name: 'Jane',
+    role: 'user',
+  }
+
+  it('resolves the key to its owner and exposes the source scope', async () => {
+    findActiveApiKeyByHash.mockResolvedValue(activeKey)
+    const req = mockReq({ headers: { authorization: 'Bearer sop_abcd1234secret' } })
+    const res = mockRes()
+    const next = vi.fn()
+
+    await requireAuth(req, res, next)
+
+    expect(next).toHaveBeenCalled()
+    expect(req.user).toEqual(sampleUser)
+    expect(req.apiKey).toEqual({ id: 9, sources: ['integration:notion'] })
+  })
+
+  it('looks the key up by its SHA-256 hash, never by the plaintext', async () => {
+    findActiveApiKeyByHash.mockResolvedValue(activeKey)
+    const req = mockReq({ headers: { authorization: 'Bearer sop_abcd1234secret' } })
+
+    await requireAuth(req, mockRes(), vi.fn())
+
+    expect(findActiveApiKeyByHash).toHaveBeenCalledWith(hashApiKey('sop_abcd1234secret'))
+    expect(findActiveApiKeyByHash).not.toHaveBeenCalledWith('sop_abcd1234secret')
+  })
+
+  it('records the usage on every request', async () => {
+    findActiveApiKeyByHash.mockResolvedValue(activeKey)
+
+    await requireAuth(mockReq({ headers: { authorization: 'Bearer sop_a' } }), mockRes(), vi.fn())
+    await requireAuth(mockReq({ headers: { authorization: 'Bearer sop_a' } }), mockRes(), vi.fn())
+
+    expect(touchApiKeyLastUsed).toHaveBeenCalledTimes(2)
+    expect(touchApiKeyLastUsed).toHaveBeenCalledWith(9)
+  })
+
+  it('defaults the role to user and the scope to an empty list', async () => {
+    findActiveApiKeyByHash.mockResolvedValue({ ...activeKey, role: null, sources: null })
+    const req = mockReq({ headers: { authorization: 'Bearer sop_abcd1234secret' } })
+
+    await requireAuth(req, mockRes(), vi.fn())
+
+    expect(req.user.role).toBe('user')
+    expect(req.apiKey.sources).toEqual([])
+  })
+
+  it('returns 401 for an unknown or revoked key', async () => {
+    findActiveApiKeyByHash.mockResolvedValue(null)
+    const req = mockReq({ headers: { authorization: 'Bearer sop_revoked' } })
+    const res = mockRes()
+    const next = vi.fn()
+
+    await requireAuth(req, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(401)
+    expect(res._json.error).toContain('Invalid or revoked API key')
+    expect(touchApiKeyLastUsed).not.toHaveBeenCalled()
+  })
+
+  it('forwards DB errors to next instead of authenticating', async () => {
+    const dbErr = new Error('db down')
+    findActiveApiKeyByHash.mockRejectedValue(dbErr)
+    const req = mockReq({ headers: { authorization: 'Bearer sop_abcd1234secret' } })
+    const res = mockRes()
+    const next = vi.fn()
+
+    await requireAuth(req, res, next)
+
+    expect(next).toHaveBeenCalledWith(dbErr)
+    expect(req.user).toBeUndefined()
   })
 })
 

@@ -18,6 +18,7 @@ import shareRouter from './routes/share.js'
 import feedbackRouter from './routes/feedback.js'
 import userRouter from './routes/user.js'
 import skillsRouter from './routes/skills.js'
+import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { startSchedulePoller, stopSchedulePoller } from './schedules/poller.js'
@@ -54,6 +55,7 @@ app.use('/api/share', shareRouter)
 app.use('/api/feedback', feedbackRouter)
 app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
+app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
 
 app.get('/api/health', (_req, res) => {

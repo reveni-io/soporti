@@ -37,6 +37,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 - **Response profiles** — *support* (plain language, behavior-focused) or *tech* (detailed, code-heavy) for the same question
 - **Custom instructions** — your role, your language, your preferred level of detail, applied to every chat automatically
 - **Skills (`/commands`)** — save reusable instruction snippets (a triage checklist, a review rubric, a tone of voice) and run one by starting a message with `/skill-name`, with autocomplete as you type `/`. The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` slot in what you typed after the command. Create and edit them in **Settings → Skills**
+- **API keys** — issue a `sop_…` key in **Settings → API keys** so a headless agent can call the API without a browser session. The key runs as you, so its conversations land in your sidebar and your `/admin` stats; it can be scoped to the sources you have selected in the sidebar, its plaintext is shown exactly once at creation, and you can revoke it at any time
 
 | Choose your sources | Switch response profiles |
 | --- | --- |

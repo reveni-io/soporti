@@ -71,6 +71,13 @@
       "when": 1785274677096,
       "tag": "0009_majestic_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786445272818,
+      "tag": "0010_cuddly_iceman",
+      "breakpoints": true
     }
   ]
 }
