@@ -2,6 +2,7 @@ import { readStoredToken } from '../../context/AuthContext.jsx'
 import { ROUTES } from '../../router/constants.js'
 import AskSection from './AskSection/AskSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
+import McpSection from './McpSection/McpSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
 import InstructionsSection from './InstructionsSection/InstructionsSection.jsx'
 import LandingCta from './LandingCta/LandingCta.jsx'
@@ -36,6 +37,7 @@ export default function Landing({ hideCta = false }) {
       <InstructionsSection />
       <SkillsSection />
       <AutomationsSection />
+      <McpSection />
       <SafetySection />
       <LandingCta cta={visibleCta} />
       <LandingFooter />

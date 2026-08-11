@@ -117,7 +117,7 @@ const buildTooLongMessage = (field, limit) =>
 
 **DO WHAT WAS ASKED**: no speculative abstractions, no error handling for impossible cases, no extra config knobs. If a change needs a new env var, update `.env.example` in the same change.
 
-**A NEW FEATURE UPDATES THE DOCS**: when a change adds or meaningfully changes user-facing functionality, update `README.md` (the `## Features` section, and `## Scripts` or the setup steps if they changed) and the landing page (`client/src/pages/Landing/`) in the same change, whenever the feature belongs there. A new landing section is a folder under `Landing/` like any other component, with its `.jsx`, `.test.jsx` and `.css`. Bug fixes, refactors, tests and internal plumbing NEVER touch either — only user-visible capabilities do. If it is unclear whether a feature is worth surfacing on the landing, ask instead of guessing.
+**A NEW FEATURE UPDATES THE DOCS**: when a change adds or meaningfully changes user-facing functionality, update `README.md` (the `## Features` section, and `## Scripts` or the setup steps if they changed) and the landing page (`client/src/pages/Landing/`) in the same PR — always both, no exceptions. A separate documentation story or ticket in the epic does NOT defer the landing section, and a note in the PR description is not a substitute for shipping it. A new landing section is a folder under `Landing/` like any other component, with its `.jsx`, `.test.jsx` and `.css`. Bug fixes, refactors, tests and internal plumbing NEVER touch either — only user-visible capabilities do. If it is unclear how to present the feature on the landing, ask before opening the PR instead of guessing.
 
 ## Client Rules
 

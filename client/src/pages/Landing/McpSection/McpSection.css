@@ -1,0 +1,13 @@
+.lp-mcp__command {
+  margin: var(--sp6) auto 0;
+  max-width: 42rem;
+  padding: var(--sp3) var(--sp4);
+  background: rgba(var(--green-deep-rgb), 0.06);
+  border: 1px solid rgba(var(--green-deep-rgb), 0.12);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  overflow-x: auto;
+  white-space: pre;
+}
