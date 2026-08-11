@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "~3.0.103",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@octokit/rest": "^22.0.1",
     "@openai/agents": "^0.13.5",
     "@openai/agents-extensions": "^0.13.5",

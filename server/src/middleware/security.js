@@ -3,10 +3,31 @@ import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import config from '../config.js'
 
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+
 function parseTrustProxy(value) {
   if (value === 'false') return false
   if (/^\d+$/.test(value)) return parseInt(value, 10)
   return value
+}
+
+function isAllowedOrigin(origin, allowedOrigins) {
+  if (allowedOrigins.includes(origin)) return true
+
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(origin).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function mcpOriginGuard(req, res, next) {
+  const origin = req.headers.origin
+
+  if (!origin) return next()
+  if (isAllowedOrigin(origin, config.security.corsOrigins)) return next()
+
+  res.status(403).json({ error: 'Origin not allowed.' })
 }
 
 export function setupSecurity(app) {
@@ -26,7 +47,7 @@ export function setupSecurity(app) {
     cors({
       origin: config.security.corsOrigins.length > 0 ? config.security.corsOrigins : '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'MCP-Protocol-Version', 'Mcp-Method', 'Mcp-Name'],
       maxAge: 3600,
     })
   )
@@ -55,9 +76,18 @@ export function setupSecurity(app) {
     message: { error: 'Too many attempts. Please try again later.' },
   })
 
+  const mcpLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please wait a moment.' },
+  })
+
   app.use('/api/chat', chatLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/admin/bootstrap', authLimiter)
+  app.use('/api/mcp', mcpOriginGuard, mcpLimiter)
   app.use('/api/', generalLimiter)
 
   app.disable('x-powered-by')
