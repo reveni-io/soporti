@@ -338,6 +338,38 @@
   cursor: not-allowed;
 }
 
+.chat__file-input {
+  display: none;
+}
+
+.chat__btn--attach {
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--fs-lg);
+}
+
+.chat__btn--attach:hover:not(:disabled) {
+  background-color: var(--bg-cool);
+}
+
+.chat__btn--attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  margin-bottom: var(--sp2);
+  list-style: none;
+}
+
+.chat__attachment-error {
+  margin-bottom: var(--sp2);
+  font-family: var(--font-body);
+}
+
 .chat__btn--stop {
   background-color: var(--btn-danger-bg);
   color: var(--btn-danger-color);

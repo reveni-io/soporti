@@ -95,6 +95,49 @@ describe('useChat', () => {
     expect(JSON.parse(options.body).skillIds).toEqual([])
   })
 
+  it('sends the extracted attachment text and tags the UI message with the metadata only', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage(
+        'summarize it',
+        ['org/repo'],
+        'support',
+        [],
+        [{ name: 'spec.pdf', text: 'The API returns 402.', truncated: true }]
+      )
+    })
+
+    expect(result.current.messages[0]).toEqual({
+      role: 'user',
+      content: 'summarize it',
+      attachments: [{ name: 'spec.pdf', truncated: true }],
+    })
+    const [, options] = global.fetch.mock.calls[0]
+    expect(JSON.parse(options.body).attachments).toEqual([
+      { name: 'spec.pdf', text: 'The API returns 402.', truncated: true },
+    ])
+  })
+
+  it('sends an empty attachments list when there is nothing attached', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', ['org/repo'], 'support')
+    })
+
+    expect(result.current.messages[0]).toEqual({ role: 'user', content: 'hi' })
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).attachments).toEqual([])
+  })
+
   it('does not send empty messages', async () => {
     global.fetch = vi.fn()
     const { result } = renderHook(() => useChat('token', vi.fn()))

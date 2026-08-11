@@ -1,0 +1,33 @@
+.attachment-chip {
+  background-color: var(--bg-surface);
+  max-width: 260px;
+}
+
+.attachment-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip__note {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.attachment-chip__remove {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.attachment-chip__remove:hover {
+  color: var(--text-primary);
+}

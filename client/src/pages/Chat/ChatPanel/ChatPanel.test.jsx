@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatPanel from './ChatPanel.jsx'
 
@@ -26,11 +26,14 @@ const defaultProps = {
 }
 
 describe('ChatPanel', () => {
-  function mockApi({ stats } = {}) {
+  function mockApi({ stats, attachment } = {}) {
     global.fetch = vi.fn(url => {
       const u = String(url)
       if (u.includes('/api/stats')) {
-        return Promise.resolve({ ok: true, json: async () => ({ stats: stats ?? null }) })
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ stats: stats ?? null }) })
+      }
+      if (u.includes('/api/attachments')) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ attachment }) })
       }
       return Promise.resolve({
         ok: true,
@@ -154,7 +157,74 @@ describe('ChatPanel', () => {
     await user.type(textarea, 'Hello world')
     await user.keyboard('{Enter}')
 
-    expect(onSend).toHaveBeenCalledWith('Hello world', [])
+    expect(onSend).toHaveBeenCalledWith('Hello world', [], [])
+  })
+
+  it('uploads an attached file, sends it with the message and empties the composer', async () => {
+    const onSend = vi.fn()
+    const user = userEvent.setup()
+    const attachment = { name: 'spec.pdf', text: 'API body', truncated: false }
+    mockApi({ attachment })
+    render(<ChatPanel {...defaultProps} onSend={onSend} />)
+
+    await user.upload(
+      screen.getByLabelText('Attach files'),
+      new File(['%PDF-1.4'], 'spec.pdf', { type: 'application/pdf' })
+    )
+    await screen.findByText(/spec\.pdf/)
+
+    await user.type(screen.getByPlaceholderText(/ask/i), 'summarize it')
+    await user.keyboard('{Enter}')
+
+    expect(onSend).toHaveBeenCalledWith('summarize it', [], [attachment])
+    expect(screen.queryByText(/spec\.pdf/)).not.toBeInTheDocument()
+  })
+
+  it('refuses to send while an attachment is still uploading', async () => {
+    const onSend = vi.fn()
+    const user = userEvent.setup()
+    let resolveUpload
+    global.fetch = vi.fn(url => {
+      if (String(url).includes('/api/attachments')) return new Promise(resolve => (resolveUpload = resolve))
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ stats: null }) })
+    })
+    render(<ChatPanel {...defaultProps} onSend={onSend} />)
+
+    await user.upload(
+      screen.getByLabelText('Attach files'),
+      new File(['%PDF-1.4'], 'spec.pdf', { type: 'application/pdf' })
+    )
+    await user.type(screen.getByPlaceholderText(/ask/i), 'summarize it')
+    await user.keyboard('{Enter}')
+
+    expect(onSend).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveUpload({
+        ok: true,
+        status: 200,
+        json: async () => ({ attachment: { name: 'spec.pdf', text: 'API body', truncated: false } }),
+      })
+    })
+    await user.keyboard('{Enter}')
+
+    expect(onSend).toHaveBeenCalledWith('summarize it', [], [{ name: 'spec.pdf', text: 'API body', truncated: false }])
+  })
+
+  it('drops a staged attachment when the conversation changes', async () => {
+    const user = userEvent.setup()
+    mockApi({ attachment: { name: 'spec.pdf', text: 'API body', truncated: false } })
+    const { rerender } = render(<ChatPanel {...defaultProps} conversationKey={0} />)
+
+    await user.upload(
+      screen.getByLabelText('Attach files'),
+      new File(['%PDF-1.4'], 'spec.pdf', { type: 'application/pdf' })
+    )
+    await screen.findByText(/spec\.pdf/)
+
+    rerender(<ChatPanel {...defaultProps} conversationKey={1} />)
+
+    expect(screen.queryByText(/spec\.pdf/)).not.toBeInTheDocument()
   })
 
   it('does not send empty message', async () => {
@@ -284,7 +354,7 @@ describe('ChatPanel', () => {
 
       await user.keyboard('{Enter}')
 
-      expect(onSend).toHaveBeenCalledWith('/zzz', [])
+      expect(onSend).toHaveBeenCalledWith('/zzz', [], [])
     })
 
     it('closes the menu once the input no longer matches a bare slash command', async () => {
@@ -354,7 +424,7 @@ describe('ChatPanel', () => {
       await user.type(textarea, 'my question')
       await user.keyboard('{Enter}')
 
-      expect(onSend).toHaveBeenCalledWith('my question', [{ id: 1, name: 'bug-triage' }])
+      expect(onSend).toHaveBeenCalledWith('my question', [{ id: 1, name: 'bug-triage' }], [])
       expect(textarea).toHaveValue('')
       expect(container.querySelector('.chat__input-command')).toBeNull()
     })
@@ -372,7 +442,7 @@ describe('ChatPanel', () => {
 
       await user.keyboard('{Enter}')
 
-      expect(onSend).toHaveBeenCalledWith('Alert component', [{ id: 1, name: 'bug-triage' }])
+      expect(onSend).toHaveBeenCalledWith('Alert component', [{ id: 1, name: 'bug-triage' }], [])
     })
 
     it('does not highlight an unknown command', async () => {
@@ -408,7 +478,7 @@ describe('ChatPanel', () => {
       await user.type(textarea, '/zzz hello')
       await user.keyboard('{Enter}')
 
-      expect(onSend).toHaveBeenCalledWith('/zzz hello', [])
+      expect(onSend).toHaveBeenCalledWith('/zzz hello', [], [])
     })
 
     it('picks up skills that arrive after mount', async () => {
@@ -434,7 +504,7 @@ describe('ChatPanel', () => {
       await user.type(textarea, 'just a question')
       await user.keyboard('{Enter}')
 
-      expect(onSend).toHaveBeenCalledWith('just a question', [])
+      expect(onSend).toHaveBeenCalledWith('just a question', [], [])
     })
   })
 

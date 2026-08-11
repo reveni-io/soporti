@@ -67,4 +67,19 @@ describe('useSaveField', () => {
 
     expect(result.current.error).toBeNull()
   })
+
+  it('clears the error on demand', async () => {
+    const { result } = renderHook(() => useSaveField(vi.fn()))
+
+    await act(async () => {
+      await result.current.save(async () => {
+        throw new Error('Too large')
+      })
+    })
+    expect(result.current.error).toBe('Too large')
+
+    act(() => result.current.clearError())
+
+    expect(result.current.error).toBeNull()
+  })
 })

@@ -1,13 +1,12 @@
-import { buildSimilarCasesPrompt } from './system-prompt.js'
+import { buildAttachmentsPrompt, buildSimilarCasesPrompt } from './system-prompt.js'
 
 const SEPARATOR = '\n\n---\n\n'
 
-export function buildUserTurn(message, { similarCases = [], commands = [] } = {}) {
+export function buildUserTurn(message, { similarCases = [], commands = [], attachments = [] } = {}) {
   const casesPrompt = buildSimilarCasesPrompt(similarCases)
+  const attachmentsPrompt = buildAttachmentsPrompt(attachments)
   const prefix = commands.map(name => `/${name}`).join(' ')
   const question = prefix ? `${prefix} ${message}` : message
 
-  if (!casesPrompt) return question
-
-  return `${casesPrompt}${SEPARATOR}${question}`
+  return [casesPrompt, attachmentsPrompt, question].filter(Boolean).join(SEPARATOR)
 }

@@ -34,6 +34,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 ### Make it answer your way
 
 - **Pick the sources per conversation** — scope a chat to the repos and integrations it may use, or go YOLO and give it everything. The selection is enforced when the tools are built, not just requested in the prompt
+- **Attach documents to a message** — attach up to 3 files (`.pdf`, `.docx`, `.xlsx`, max 10 MB each) from the composer and their text is extracted and given to the assistant as context for that conversation. A document longer than 50,000 characters is truncated and the message says so. Attachments belong to their conversation only: they are not indexed into the knowledge base, are not visible from other chats, and their file names are hidden from read-only share links
 - **Response profiles** — *support* (plain language, behavior-focused) or *tech* (detailed, code-heavy) for the same question
 - **Custom instructions** — your role, your language, your preferred level of detail, applied to every chat automatically
 - **Skills (`/commands`)** — save reusable instruction snippets (a triage checklist, a review rubric, a tone of voice) and run one by starting a message with `/skill-name`, with autocomplete as you type `/`. The skill stays active for the rest of that conversation, its instructions take precedence over the default style rules, and `$ARGUMENTS` / `$1…$9` slot in what you typed after the command. Create and edit them in **Settings → Skills**

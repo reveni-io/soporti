@@ -30,15 +30,18 @@ async function readJson(response) {
   }
 }
 
-function send(path, { method = 'GET', token, body, signal } = {}) {
+function send(path, { method = 'GET', token, body, file, contentType, signal } = {}) {
   const headers = {}
   if (token) headers.Authorization = `Bearer ${token}`
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (file) headers['Content-Type'] = contentType
+  else if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+  const payload = file ?? (body === undefined ? undefined : JSON.stringify(body))
 
   return fetch(apiUrl(path), {
     method,
     headers,
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(payload === undefined ? {} : { body: payload }),
     ...(signal ? { signal } : {}),
   })
 }
@@ -99,6 +102,16 @@ export async function streamChat(token, body, signal) {
   const response = await send('/api/chat', { method: 'POST', token, body, signal })
   await assertOk(response, 'Server error')
   return response
+}
+
+export function uploadAttachment(token, file, contentType) {
+  return request(`/api/attachments?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST',
+    token,
+    file,
+    contentType,
+    errorMessage: 'Failed to read the file',
+  })
 }
 
 export function getConversations(token) {

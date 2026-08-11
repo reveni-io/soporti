@@ -1,3 +1,4 @@
+import AttachmentChip from '../../AttachmentChip/AttachmentChip.jsx'
 import SkillBadge from '../../SkillBadge/SkillBadge.jsx'
 
 export default function UserMessage({ message, token }) {
@@ -11,6 +12,14 @@ export default function UserMessage({ message, token }) {
         ))}
         {message.content}
       </div>
+
+      {message.attachments?.length > 0 && (
+        <ul className="message__attachments">
+          {message.attachments.map((attachment, index) => (
+            <AttachmentChip key={`${attachment.name}-${index}`} attachment={attachment} />
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

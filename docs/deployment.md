@@ -157,6 +157,9 @@ Two interchangeable options:
 - `/api/chat` streams Server-Sent Events. Any proxy you put in front of the
   server must not buffer responses (the bundled nginx config already sets
   `proxy_buffering off` and a long read timeout).
+- `/api/attachments` receives the raw document a user attaches to a chat, up to
+  10 MB. A proxy in front of the server must allow a request body that big (the
+  bundled nginx config already allows 25 MB).
 
 ## One-click deploys
 

@@ -6,6 +6,18 @@ export const SKILL_NAME_MAX_LENGTH = 50
 export const SKILL_NAME_RE = new RegExp(`^${SKILL_NAME_CHARS}{1,${SKILL_NAME_MAX_LENGTH}}$`)
 export const SKILL_COMMAND_RE = new RegExp(`^/(${SKILL_NAME_CHARS}*)(\\s[\\s\\S]*)?$`)
 
+export const MAX_ATTACHMENTS = 3
+export const MAX_ATTACHMENT_MB = 10
+export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024
+
+export const ATTACHMENT_MIME_TYPES = {
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_MIME_TYPES).join(',')
+
 export const MAX_DESCRIPTION_LENGTH = 200
 export const MAX_INSTRUCTIONS_LENGTH = 50_000
 export const MAX_API_KEY_NAME_LENGTH = 80

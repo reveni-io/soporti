@@ -12,7 +12,15 @@ import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
-import { AGENT_CHANNEL_WEB, MAX_SKILLS_PER_REQUEST, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
+import { isValidAttachmentName } from '../documents/attachments.js'
+import {
+  AGENT_CHANNEL_WEB,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_ATTACHMENT_CHARS,
+  MAX_SKILLS_PER_REQUEST,
+  RUN_STATUS_ERROR,
+  RUN_STATUS_OK,
+} from '../constants.js'
 
 const router = Router()
 
@@ -41,6 +49,30 @@ function sanitizeInput(rawArgs) {
   }
 }
 
+function parseAttachments(value) {
+  if (value === undefined || value === null) return { value: [] }
+  if (!Array.isArray(value)) return { error: 'Attachments must be an array.' }
+  if (value.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+    return { error: `Too many attachments (max ${MAX_ATTACHMENTS_PER_MESSAGE} per message).` }
+  }
+
+  const parsed = []
+  for (const item of value) {
+    const name = typeof item?.name === 'string' ? item.name.trim() : ''
+    const text = typeof item?.text === 'string' ? item.text.trim() : ''
+
+    if (!name || !text) return { error: 'Each attachment needs a "name" and its extracted "text".' }
+    if (!isValidAttachmentName(name)) return { error: `Attachment "${name}" has an invalid file name.` }
+    if (text.length > MAX_ATTACHMENT_CHARS) {
+      return { error: `Attachment "${name}" is too long (max ${MAX_ATTACHMENT_CHARS} characters).` }
+    }
+
+    parsed.push({ name, text, truncated: Boolean(item.truncated) })
+  }
+
+  return { value: parsed }
+}
+
 function appendText(parts, text) {
   const last = parts[parts.length - 1]
   if (last && last.type === 'text') {
@@ -52,7 +84,7 @@ function appendText(parts, text) {
 
 export default function chatRoute(conversationStore) {
   router.post('/', async (req, res) => {
-    const { sessionId, message, selectedSources, selectedRepos, profile, skillIds } = req.body
+    const { sessionId, message, selectedSources, selectedRepos, profile, skillIds, attachments } = req.body
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'A "message" string is required.' })
@@ -69,6 +101,9 @@ export default function chatRoute(conversationStore) {
     if (sessionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid session ID.' })
     }
+
+    const { error: attachmentsError, value: cleanAttachments } = parseAttachments(attachments)
+    if (attachmentsError) return res.status(400).json({ error: attachmentsError })
 
     const rawSources = Array.isArray(selectedSources) ? selectedSources : selectedRepos
     const sources = Array.isArray(rawSources) ? rawSources : []
@@ -127,6 +162,12 @@ export default function chatRoute(conversationStore) {
     if (customInstructions) {
       log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
     }
+    if (cleanAttachments.length > 0) {
+      const described = cleanAttachments.map(
+        a => `${a.name} (${a.text.length} chars${a.truncated ? ', truncated' : ''})`
+      )
+      log('📎', `Attachment(s): ${described.join(', ')}`)
+    }
     const newlyInvokedSkills = invokedSkills.filter(s => cleanSkillIds.includes(s.id))
     if (invokedSkills.length > 0) {
       const described = invokedSkills.map(s => (newlyInvokedSkills.includes(s) ? s.name : `${s.name} (carried over)`))
@@ -136,6 +177,7 @@ export default function chatRoute(conversationStore) {
     const agentInput = buildUserTurn(trimmedMessage, {
       similarCases,
       commands: newlyInvokedSkills.map(s => s.name),
+      attachments: cleanAttachments,
     })
 
     const assistantParts = []
@@ -263,6 +305,7 @@ export default function chatRoute(conversationStore) {
 
       const userParts = [
         ...newlyInvokedSkills.map(s => ({ type: 'skill', skillId: s.id, name: s.name })),
+        ...cleanAttachments.map(a => ({ type: 'attachment', name: a.name, truncated: a.truncated })),
         { type: 'text', content: trimmedMessage },
       ]
 

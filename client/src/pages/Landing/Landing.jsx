@@ -1,6 +1,7 @@
 import { readStoredToken } from '../../context/AuthContext.jsx'
 import { ROUTES } from '../../router/constants.js'
 import AskSection from './AskSection/AskSection.jsx'
+import AttachmentsSection from './AttachmentsSection/AttachmentsSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
 import McpSection from './McpSection/McpSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
@@ -32,6 +33,7 @@ export default function Landing({ hideCta = false }) {
       <AskSection />
       <RendersSection />
       <IntegrationsSection />
+      <AttachmentsSection />
       <ProvidersSection />
       <ProfilesSection />
       <InstructionsSection />

@@ -9,14 +9,16 @@ export function useChat(token, onAuthError) {
   const abortRef = useRef(null)
 
   const sendMessage = useCallback(
-    async (text, selectedSources, profile, skills = []) => {
+    async (text, selectedSources, profile, skills = [], attachments = []) => {
       if (!text.trim() || isLoading) return
 
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: text, ...(skills.length > 0 ? { skills } : {}) },
-        { role: 'assistant', parts: [] },
-      ])
+      const userMessage = { role: 'user', content: text }
+      if (skills.length > 0) userMessage.skills = skills
+      if (attachments.length > 0) {
+        userMessage.attachments = attachments.map(({ name, truncated }) => ({ name, truncated }))
+      }
+
+      setMessages(prev => [...prev, userMessage, { role: 'assistant', parts: [] }])
       setIsLoading(true)
 
       const abortController = new AbortController()
@@ -31,6 +33,7 @@ export function useChat(token, onAuthError) {
             selectedSources,
             profile,
             skillIds: skills.map(s => s.id),
+            attachments,
           },
           abortController.signal
         )

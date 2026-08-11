@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { isUnauthorized } from '../../services/services.js'
 
 export function useSaveField(onLogout) {
@@ -25,5 +25,9 @@ export function useSaveField(onLogout) {
     }
   }
 
-  return { saving, error, savedAt, save }
+  const clearError = useCallback(() => {
+    setError(null)
+  }, [])
+
+  return { saving, error, savedAt, save, clearError }
 }

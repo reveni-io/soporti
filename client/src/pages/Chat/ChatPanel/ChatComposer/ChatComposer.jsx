@@ -1,4 +1,7 @@
+import { useRef } from 'react'
+import AttachmentChip from '../../../../common/AttachmentChip/AttachmentChip.jsx'
 import SkillMenu from '../SkillMenu/SkillMenu.jsx'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
 
 export default function ChatComposer({
   input,
@@ -18,11 +21,56 @@ export default function ChatComposer({
   isLoading,
   hasSourcesSelected,
   onStop,
+  attachments,
+  attachmentError,
+  isUploadingAttachment,
+  onAttachFiles,
+  onRemoveAttachment,
 }) {
+  const fileInputRef = useRef(null)
+
+  function handleFilesSelected(event) {
+    onAttachFiles(event.target.files)
+    event.target.value = ''
+  }
+
   return (
     <form className="chat__input-area" onSubmit={onSubmit}>
+      {attachments.length > 0 && (
+        <ul className="chat__attachments">
+          {attachments.map((attachment, index) => (
+            <AttachmentChip
+              key={`${attachment.name}-${index}`}
+              attachment={attachment}
+              onRemove={() => onRemoveAttachment(index)}
+            />
+          ))}
+        </ul>
+      )}
+
+      {attachmentError && <p className="alert alert--error chat__attachment-error">{attachmentError}</p>}
+
       <div className="chat__input-wrapper">
         {menuOpen && <SkillMenu skills={matchingSkills} activeIndex={menuIndex} onSelect={onSelectSkill} />}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="chat__file-input"
+          accept={ATTACHMENT_ACCEPT}
+          multiple
+          aria-label="Attach files"
+          onChange={handleFilesSelected}
+        />
+        <button
+          type="button"
+          className="chat__btn chat__btn--attach"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading || isUploadingAttachment || !hasSourcesSelected || attachments.length >= MAX_ATTACHMENTS}
+          title="Attach a PDF, Word or Excel file"
+        >
+          &#128206;
+        </button>
 
         <div className="chat__input-field">
           {commandPrefix && (

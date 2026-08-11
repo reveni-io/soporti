@@ -1,6 +1,8 @@
 import { JWT } from 'google-auth-library'
 import config from '../config.js'
 import { redactSecrets } from '../review/output-guard.js'
+import { parseDocx, parsePdf, parsePptx, parseXlsx } from '../documents/parsers.js'
+import { acquireParseSlot } from '../documents/semaphore.js'
 import { getDriveCredentials } from './settings.js'
 
 const BASE_URL = 'https://www.googleapis.com/drive/v3'
@@ -155,117 +157,6 @@ async function downloadCapped(fileId, maxBytes) {
   } finally {
     clearTimeout(timer)
   }
-}
-
-function createSemaphore(max) {
-  let active = 0
-  const queue = []
-  const next = () => {
-    if (active >= max || queue.length === 0) return
-    active++
-    const resolve = queue.shift()
-    resolve(() => {
-      active--
-      next()
-    })
-  }
-  return {
-    acquire() {
-      return new Promise(resolve => {
-        queue.push(resolve)
-        next()
-      })
-    },
-  }
-}
-
-const blobSemaphore = createSemaphore(Math.max(1, config.google?.drive?.parseConcurrency || 1))
-
-async function parsePdf(buffer) {
-  const { getDocumentProxy, extractText } = await import('unpdf')
-  const pdf = await getDocumentProxy(new Uint8Array(buffer))
-  const { text } = await extractText(pdf, { mergePages: true })
-  return text
-}
-
-async function parseDocx(buffer) {
-  const mammoth = (await import('mammoth')).default
-  const { value } = await mammoth.extractRawText({ buffer: Buffer.from(buffer) })
-  return value
-}
-
-function formatCell(v) {
-  if (v == null) return ''
-  if (v instanceof Date) return v.toISOString()
-  if (typeof v === 'object') {
-    if (Array.isArray(v.richText)) return v.richText.map(t => t.text || '').join('')
-    if (v.error != null) return String(v.error)
-    if (v.result != null) return formatCell(v.result)
-    if (v.text != null) return formatCell(v.text)
-    if (v.hyperlink) return String(v.hyperlink)
-    return JSON.stringify(v)
-  }
-  return String(v)
-}
-
-async function parseXlsx(buffer) {
-  const ExcelJS = (await import('exceljs')).default
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(Buffer.from(buffer))
-  const parts = []
-  wb.eachSheet(ws => {
-    parts.push(`# ${ws.name}`)
-    ws.eachRow(row => {
-      const cells = (row.values || []).slice(1).map(formatCell)
-      parts.push(cells.join('\t'))
-    })
-  })
-  return parts.join('\n')
-}
-
-function collectPptxText(node, acc) {
-  if (node == null || typeof node !== 'object') return
-  for (const [key, value] of Object.entries(node)) {
-    if (key === 'a:t') {
-      const runs = Array.isArray(value) ? value : [value]
-      for (const r of runs) acc.push(typeof r === 'string' ? r : String(r))
-    } else if (Array.isArray(value)) {
-      for (const child of value) collectPptxText(child, acc)
-    } else if (typeof value === 'object') {
-      collectPptxText(value, acc)
-    }
-  }
-}
-
-async function parsePptx(buffer) {
-  const JSZip = (await import('jszip')).default
-  const { XMLParser } = await import('fast-xml-parser')
-  const zip = await JSZip.loadAsync(buffer)
-  const parser = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: false })
-  const slideNum = p => Number((p.match(/(\d+)\.xml$/) || [])[1] || 0)
-  const slidePaths = Object.keys(zip.files)
-    .filter(p => /^ppt\/slides\/slide\d+\.xml$/.test(p))
-    .sort((a, b) => slideNum(a) - slideNum(b))
-
-  const out = []
-  for (const path of slidePaths) {
-    const n = slideNum(path)
-    const runs = []
-    collectPptxText(parser.parse(await zip.file(path).async('string')), runs)
-    out.push(`# Slide ${n}`)
-    if (runs.length) out.push(runs.join('\n'))
-
-    const notesFile = zip.file(`ppt/notesSlides/notesSlide${n}.xml`)
-    if (notesFile) {
-      const notesRuns = []
-      collectPptxText(parser.parse(await notesFile.async('string')), notesRuns)
-      if (notesRuns.length) {
-        out.push('## Notes')
-        out.push(notesRuns.join('\n'))
-      }
-    }
-  }
-  return out.join('\n')
 }
 
 function decodeUtf8(buffer) {
@@ -429,12 +320,12 @@ async function readBlobParsed(meta, base, parse, { scanned = false } = {}) {
     }
   }
 
-  const release = await blobSemaphore.acquire()
+  const release = await acquireParseSlot()
   let text
   try {
     const buffer = await downloadCapped(meta.id, config.google.drive.maxBytes)
     try {
-      text = await parse(buffer)
+      text = await parse(buffer, config.google.drive.maxChars * 2)
     } catch {
       console.log(`[google-drive] getFile(${meta.id}) "${meta.name}" mime=${meta.mimeType} → parse_failed`)
       return {

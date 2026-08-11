@@ -10,7 +10,19 @@
 }
 
 .message--user {
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
+}
+
+.message__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp2);
+  max-width: 80%;
+  margin-top: var(--sp2);
+  list-style: none;
 }
 
 .message--assistant {

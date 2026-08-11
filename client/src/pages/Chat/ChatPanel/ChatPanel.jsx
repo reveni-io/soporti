@@ -3,6 +3,7 @@ import Message from '../../../common/Message/Message.jsx'
 import TourModal from '../TourModal/TourModal.jsx'
 import { useAuthedResource } from '../../../hooks/useAuthedResource/useAuthedResource.js'
 import { getStats } from '../../../services/services.js'
+import { useAttachments } from '../hooks/useAttachments/useAttachments.js'
 import { useAutoScroll } from '../hooks/useAutoScroll/useAutoScroll.js'
 import { useComposer } from '../hooks/useComposer/useComposer.js'
 import ChatComposer from './ChatComposer/ChatComposer.jsx'
@@ -21,6 +22,7 @@ export default function ChatPanel({
   hasSourcesSelected,
   onOpenSidebar,
   onShare,
+  onLogout,
   integrations = [],
   token,
   skills = [],
@@ -29,11 +31,26 @@ export default function ChatPanel({
 
   const stats = useAuthedResource(getStats, 'stats', token, null)
   const { scrollRef, contentRef, pinToBottom } = useAutoScroll(conversationKey)
-  const { fill, ...composer } = useComposer({ skills, isLoading, hasSourcesSelected, onSend: handleSend })
+  const {
+    attachments,
+    error: attachmentError,
+    isUploading,
+    addFiles,
+    removeAttachment,
+    clearAttachments,
+  } = useAttachments(token, onLogout, conversationKey)
+  const { fill, ...composer } = useComposer({
+    skills,
+    isLoading,
+    hasSourcesSelected,
+    isUploading,
+    onSend: handleSend,
+  })
 
   function handleSend(text, invokedSkills) {
     pinToBottom()
-    onSend(text, invokedSkills)
+    onSend(text, invokedSkills, attachments)
+    clearAttachments()
   }
 
   function closeTour() {
@@ -78,7 +95,17 @@ export default function ChatPanel({
         </div>
       </div>
 
-      <ChatComposer {...composer} isLoading={isLoading} hasSourcesSelected={hasSourcesSelected} onStop={onStop} />
+      <ChatComposer
+        {...composer}
+        isLoading={isLoading}
+        hasSourcesSelected={hasSourcesSelected}
+        onStop={onStop}
+        attachments={attachments}
+        attachmentError={attachmentError}
+        isUploadingAttachment={isUploading}
+        onAttachFiles={addFiles}
+        onRemoveAttachment={removeAttachment}
+      />
 
       {tourOpen && <TourModal integrations={integrations} onClose={closeTour} onTryExample={handleTourExample} />}
     </div>

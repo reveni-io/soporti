@@ -53,5 +53,5 @@ export async function getShare(shareId) {
     )
     .orderBy(conversationMessages.createdAt, conversationMessages.id)
 
-  return { messages: rows.map(toRenderMessage) }
+  return { messages: rows.map(row => toRenderMessage(row, { includeAttachments: false })) }
 }

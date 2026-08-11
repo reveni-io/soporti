@@ -1,4 +1,4 @@
-export function toRenderMessage({ role, parts }) {
+export function toRenderMessage({ role, parts }, { includeAttachments = true } = {}) {
   const allParts = parts || []
   if (role !== 'user') return { role, parts: allParts }
 
@@ -7,5 +7,15 @@ export function toRenderMessage({ role, parts }) {
     .map(part => part.content)
     .join('')
   const skills = allParts.filter(part => part.type === 'skill').map(part => ({ id: part.skillId, name: part.name }))
-  return skills.length > 0 ? { role, content, skills } : { role, content }
+  const attachments = includeAttachments
+    ? allParts
+        .filter(part => part.type === 'attachment')
+        .map(part => ({ name: part.name, truncated: Boolean(part.truncated) }))
+    : []
+
+  const message = { role, content }
+  if (skills.length > 0) message.skills = skills
+  if (attachments.length > 0) message.attachments = attachments
+
+  return message
 }
