@@ -41,6 +41,12 @@ export const INTEGRATIONS = [
     desc: 'Searches and reads Helpjuice knowledge-base articles to answer questions the way customers see them.',
   },
   {
+    id: 'granola',
+    name: 'Granola',
+    icon: 'meeting-notes',
+    desc: 'Reads your own meeting notes so a decision made on a call is an answer, not something you retype. Each person connects their own account — nobody reads anyone else’s.',
+  },
+  {
     id: 'shortcut',
     name: 'Shortcut',
     desc: 'Fetches stories, epics, status and acceptance criteria so you can track ongoing work from the chat.',

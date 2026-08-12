@@ -16,7 +16,7 @@ One-click deploys for DigitalOcean App Platform and Render — see the [deployme
 
 ### Ask across your stack
 
-Every integration is optional and configured from the `/admin` panel — the assistant only gets tools for what you connect ([setup details](#optional-integrations)).
+Every integration is optional and configured from the `/admin` panel — the assistant only gets tools for what you connect ([setup details](#optional-integrations)). Granola is the exception: each user connects their own account from **Settings → Connections**.
 
 | Source | What the assistant can do |
 |---|---|
@@ -28,6 +28,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 | **Notion** | Search and read the pages shared with the integration |
 | **Google Drive** | Search, list and read shared folders — Docs, Sheets, Slides, PDFs and Office files |
 | **Helpjuice** | Search and read your help center articles |
+| **Granola** | Search and read **your own** meeting notes — connected per user, so nobody reaches anyone else's (web and MCP only, not Slack) |
 | **Shopify** | Look up orders, products and webhooks store by store, or run read-only Admin GraphQL queries |
 | **Slack** | Ask the assistant from Slack, in a thread, with an @mention — the reply is a live card showing each source it opens as it happens, with the answer streaming in underneath |
 
@@ -160,6 +161,10 @@ All integrations are conditionally loaded — tools are only registered with the
 - **Sentry** — auth token + organization slug (`/admin` → Sentry). Create a token at [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/). Fetches issue details with stacktraces and searches issues by error message.
 - **Better Stack** — Telemetry API token plus the connect host, username and password of a ClickHouse HTTP client connection (`/admin` → Better Stack). Get the token under **API tokens → Team-based tokens**, and the other three from **Integrations → SQL API → Connect** on *ClickHouse HTTP client* (the password is only shown once, in the creation banner). Searches log lines and runs read-only SQL over them.
 - **Slack bot** — bot token, app token and signing secret (`/admin` → Slack); the bot (re)connects in place when they are saved. Uses Socket Mode (no public URL required). Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) with scopes: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`, `im:read`. The live progress card streams over `chat:write` and needs no extra scope, but it is a Slack AI feature and some of those require a paid plan — a free [Developer Program](https://api.slack.com/developer-program) sandbox has them all if you only need to try it.
+
+### Connected per user
+
+- **Granola** — a **personal** API key, connected by each user from **Settings → Connections** (not `/admin`). Create it in Granola under **Settings → Connectors → API keys** with the *Notes (read)* scope. Meeting notes are private, so the credential is the boundary: the key is stored per user and the agent only ever reads the notes of the person asking. A user with no key connected simply has no Granola tools, and a run with no user behind it (the Slack auto-diagnose poller) never gets them. An API key runs as its owner, so both a scoped key and the `ask_soporti` MCP tool inherit that owner's notes. **Granola is not available from Slack**: a Slack identity is a separate account from the web one, and the key can only be pasted in the web app, so a Slack user never has one.
 
 ### Configured via env vars
 

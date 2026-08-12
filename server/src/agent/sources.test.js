@@ -77,6 +77,14 @@ describe('collectConsultedSources', () => {
     expect(integrations).toEqual(['Notion', 'Database', 'Shopify', 'Helpjuice', 'Sentry', 'Shortcut'])
   })
 
+  it('credits Granola for either of its note tools', () => {
+    const calls = [
+      { name: 'search_granola_notes', arguments: '{}' },
+      { name: 'get_granola_note', arguments: '{"noteId":"not_1"}' },
+    ]
+    expect(collectConsultedSources(calls).integrations).toEqual(['Granola'])
+  })
+
   it('credits Better Stack once for any of the log tools', () => {
     const calls = [
       { name: 'list_log_sources', arguments: '{}' },

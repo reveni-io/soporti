@@ -145,6 +145,15 @@ export const apiKeys = pgTable(
   table => [index('api_keys_user_idx').on(table.userId)]
 )
 
+export const granolaCredentials = pgTable('granola_credentials', {
+  userId: integer('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  apiKey: text('api_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const skills = pgTable(
   'skills',
   {

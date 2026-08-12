@@ -160,6 +160,19 @@ export function saveUserInstructions(token, instructions) {
   })
 }
 
+export function getGranolaConnection(token) {
+  return request('/api/user/granola', { token, errorMessage: 'Failed to load the Granola connection' })
+}
+
+export function saveGranolaApiKey(token, apiKey) {
+  return request('/api/user/granola', {
+    method: 'PUT',
+    token,
+    body: { apiKey },
+    errorMessage: 'Failed to save the Granola API key',
+  })
+}
+
 export function getSkills(token) {
   return request('/api/skills', { token, errorMessage: 'Failed to load skills' })
 }

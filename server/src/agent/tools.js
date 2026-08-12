@@ -17,6 +17,7 @@ import * as betterstack from '../betterstack/client.js'
 import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
+import * as granola from '../granola/client.js'
 import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
@@ -544,6 +545,60 @@ export const shopifyGraphqlQueryTool = tool({
   },
 })
 
+export function buildGranolaTools(userId) {
+  return [
+    tool({
+      name: 'search_granola_notes',
+      description: `Find the user's own Granola meeting notes. Granola has no full-text search, so this scans the most recent notes and matches the query against the **note title and the owner's name/email only** — never against the body or the transcript. Keep queries short (a company name, a person, a project) and read the promising notes with get_granola_note to see what was actually discussed. Use createdAfter/createdBefore when the user places the meeting in time ("last week's call"). With an empty query it simply returns the most recent notes, which is the right way to answer "what meetings did I have?". Returns up to ${granola.MAX_SEARCH_RESULTS} notes plus how many were scanned; when \`truncated\` is true the scan stopped before the end of the account, so narrow the query or the date range instead of treating the list as complete.`,
+      parameters: z.object({
+        query: z
+          .string()
+          .default('')
+          .describe('Words to match in the note title or owner. Empty string returns the most recent notes.'),
+        createdAfter: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe('Only notes created after this ISO 8601 date or datetime.'),
+        createdBefore: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe('Only notes created before this ISO 8601 date or datetime.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(granola.MAX_SEARCH_RESULTS)
+          .default(granola.DEFAULT_SEARCH_RESULTS)
+          .describe(
+            `Maximum notes to return. Default ${granola.DEFAULT_SEARCH_RESULTS}, maximum ${granola.MAX_SEARCH_RESULTS}.`
+          ),
+      }),
+      execute: async input => {
+        const result = await granola.searchNotes(userId, input)
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'get_granola_note',
+      description:
+        'Read one of the user\'s Granola meeting notes by ID. Returns the AI summary, attendees, the calendar event and the note url — cite that url in your answer. Set includeTranscript only when the user needs literal quotes or a level of detail the summary does not carry: transcripts are long, and a "notice" field in the response means it was too large to return, so answer from the summary instead of inventing quotes. Notes still being processed by Granola have no summary yet and cannot be read.',
+      parameters: z.object({
+        noteId: z.string().describe('Granola note ID as returned by search_granola_notes (e.g. "not_1d3tmYTlCICgjy").'),
+        includeTranscript: z
+          .boolean()
+          .default(false)
+          .describe('Include the full transcript. Only set it when the summary is not enough.'),
+      }),
+      execute: async input => {
+        const note = await granola.getNote(userId, input.noteId, { includeTranscript: input.includeTranscript })
+        return JSON.stringify(note)
+      },
+    }),
+  ]
+}
+
 const SHORTCUT_TOOLS = [getShortcutStoryTool, searchShortcutStoriesTool]
 const SENTRY_TOOLS = [getSentryIssueTool, searchSentryIssuesTool]
 export const BETTERSTACK_TOOLS = [listLogSourcesTool, describeLogSourceTool, searchLogsTool, queryLogsTool]
@@ -578,10 +633,16 @@ const INTEGRATION_TOOLS = {
   betterstack: BETTERSTACK_TOOLS,
   helpjuice: HELPJUICE_TOOLS,
   shopify: SHOPIFY_TOOLS,
+  granola: ({ userId }) => buildGranolaTools(userId),
 }
 
-export function buildAgentTools(policy, configured) {
-  const integrationTools = resolveAvailableIntegrations(policy, configured).flatMap(id => INTEGRATION_TOOLS[id] ?? [])
+export function buildAgentTools(policy, configured, context = {}) {
+  const integrationTools = resolveAvailableIntegrations(policy, configured).flatMap(id => {
+    const entry = INTEGRATION_TOOLS[id]
+    if (!entry) return []
+
+    return typeof entry === 'function' ? entry(context) : entry
+  })
 
   if (!policy || policy.unrestricted) return [...allTools, ...integrationTools]
 

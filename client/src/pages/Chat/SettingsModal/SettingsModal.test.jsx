@@ -12,6 +12,9 @@ function mockApi() {
     if (url.includes('/api/user/instructions')) {
       return { ok: true, status: 200, json: async () => ({ instructions: '' }) }
     }
+    if (url.includes('/api/user/granola')) {
+      return { ok: true, status: 200, json: async () => ({ connected: false }) }
+    }
     if (url.includes('/api/api-keys')) {
       return { ok: true, status: 200, json: async () => ({ apiKeys: [] }) }
     }
@@ -65,6 +68,19 @@ describe('SettingsModal', () => {
     expect(await screen.findByText('No API keys yet.')).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox'))
     expect(screen.getByText('reveni-io/soporti')).toBeInTheDocument()
+  })
+
+  it('switches to the Connections tab', async () => {
+    global.fetch = mockApi()
+    const user = userEvent.setup()
+
+    render(<SettingsModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} skills={skillStore()} />)
+    await screen.findByPlaceholderText(/payments team/)
+
+    await user.click(screen.getByRole('tab', { name: 'Connections' }))
+
+    expect(await screen.findByText('Not connected')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/payments team/)).not.toBeInTheDocument()
   })
 
   it('calls onClose from the Close button and the X button', async () => {

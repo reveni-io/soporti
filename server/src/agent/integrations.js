@@ -7,6 +7,7 @@ export const INTEGRATIONS = {
   betterstack: { label: 'Better Stack', flag: 'betterstackConfigured' },
   helpjuice: { label: 'Helpjuice', flag: 'helpjuiceConfigured' },
   shopify: { label: 'Shopify', flag: 'shopifyConfigured' },
+  granola: { label: 'Granola', flag: 'granolaConfigured' },
 }
 
 export const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])

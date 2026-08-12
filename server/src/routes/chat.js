@@ -190,6 +190,7 @@ export default function chatRoute(conversationStore) {
         customInstructions: customInstructions ?? '',
         skills: invokedSkills,
         skillArguments: trimmedMessage,
+        userId: req.user.id,
       })
       const agentStart = Date.now()
 

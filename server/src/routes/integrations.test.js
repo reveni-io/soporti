@@ -10,6 +10,7 @@ const googleDriveIsConfigured = vi.fn()
 const shortcutIsConfigured = vi.fn()
 const sentryIsConfigured = vi.fn()
 const betterstackIsConfigured = vi.fn()
+const granolaIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({
   isConfigured: (...args) => notionIsConfigured(...args),
@@ -43,9 +44,17 @@ vi.mock('../betterstack/client.js', () => ({
   isConfigured: (...args) => betterstackIsConfigured(...args),
 }))
 
+vi.mock('../granola/client.js', () => ({
+  isConfigured: (...args) => granolaIsConfigured(...args),
+}))
+
 const { default: router } = await import('./integrations.js')
 
 const app = express()
+app.use((req, _res, next) => {
+  req.user = { id: 7 }
+  next()
+})
 app.use('/', router)
 
 function configureAll(value) {
@@ -57,6 +66,7 @@ function configureAll(value) {
   shortcutIsConfigured.mockReturnValue(value)
   sentryIsConfigured.mockReturnValue(value)
   betterstackIsConfigured.mockReturnValue(value)
+  granolaIsConfigured.mockReturnValue(value)
 }
 
 describe('GET /api/integrations', () => {
@@ -76,6 +86,7 @@ describe('GET /api/integrations', () => {
       'google-drive',
       'shortcut',
       'sentry',
+      'granola',
       'betterstack',
     ])
   })
@@ -94,6 +105,17 @@ describe('GET /api/integrations', () => {
     expect(byId.shopify).toBe(true)
     expect(byId['google-drive']).toBe(true)
     expect(byId.betterstack).toBe(true)
+    expect(byId.granola).toBe(true)
+  })
+
+  it('reports Granola per requesting user', async () => {
+    configureAll(false)
+    granolaIsConfigured.mockReturnValue(true)
+
+    const res = await request(app).get('/')
+
+    expect(res.body.integrations.map(i => i.id)).toEqual(['github', 'granola'])
+    expect(granolaIsConfigured).toHaveBeenCalledWith(7)
   })
 
   it('returns GitHub plus Better Stack when only Better Stack is configured', async () => {

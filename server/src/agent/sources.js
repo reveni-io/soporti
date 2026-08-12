@@ -32,6 +32,7 @@ const INTEGRATION_TOOL_NAMES = {
   sentry: ['get_sentry_issue', 'search_sentry_issues'],
   betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
   helpjuice: ['search_helpjuice_articles', 'get_helpjuice_article'],
+  granola: ['search_granola_notes', 'get_granola_note'],
   shopify: [
     'get_shopify_order',
     'search_shopify_orders',
