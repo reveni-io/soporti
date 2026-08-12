@@ -15,6 +15,16 @@ function log(icon, ...args) {
   console.log(`[${timestamp}] [slack] ${icon}`, ...args)
 }
 
+async function notifyProgress(onProgress, event) {
+  if (!onProgress) return
+
+  try {
+    await onProgress(event)
+  } catch (err) {
+    console.error('[slack] Progress update failed:', err.message)
+  }
+}
+
 async function loadCustomInstructionsForSlack(slackUserId, slackUserName) {
   if (!slackUserId) return ''
   try {
@@ -36,6 +46,7 @@ export async function processMessage({
   slackUserId,
   slackUserName,
   isNewConversation,
+  onProgress,
 }) {
   log('👤', `Slack user ID: ${slackUserId || 'unknown'}`)
 
@@ -54,6 +65,7 @@ export async function processMessage({
   const agentInput = buildUserTurn(message, { similarCases })
   const startTime = Date.now()
   const toolCalls = []
+  const callIdToTaskId = new Map()
   let fullText = ''
   let runUsage = null
 
@@ -65,6 +77,7 @@ export async function processMessage({
   async function runTurn(prevResponseId) {
     fullText = ''
     toolCalls.length = 0
+    callIdToTaskId.clear()
     sentText = false
 
     const stream = await run(agent, agentInput, {
@@ -80,14 +93,24 @@ export async function processMessage({
         if (data.type === 'output_text_delta') {
           sentText = true
           fullText += data.delta
+          await notifyProgress(onProgress, { type: 'text_delta', delta: data.delta })
         }
       } else if (event.type === 'run_item_stream_event') {
         const item = event.item
         if (item.type === 'tool_call_item') {
           const toolName = item.rawItem?.name || UNKNOWN_TOOL
           const toolArgs = item.rawItem?.arguments || '{}'
+          const taskId = `task-${toolCalls.length}`
+          const callId = item.rawItem?.callId
+
           log('  →', toolName)
           toolCalls.push({ name: toolName, arguments: toolArgs })
+          if (callId) callIdToTaskId.set(callId, taskId)
+
+          await notifyProgress(onProgress, { type: 'tool_start', taskId, name: toolName, arguments: toolArgs })
+        } else if (item.type === 'tool_call_output_item') {
+          const taskId = callIdToTaskId.get(item.rawItem?.callId)
+          if (taskId) await notifyProgress(onProgress, { type: 'tool_end', taskId })
         }
       }
     }
@@ -132,10 +155,7 @@ export async function processMessage({
     tools: toolNames(toolCalls),
   })
 
-  let finalText = fullText
-  if (isYoloMode(selectedSources)) {
-    finalText += buildSourcesFooter(toolCalls)
-  }
+  const footer = isYoloMode(selectedSources) ? buildSourcesFooter(toolCalls) : ''
 
-  return { text: finalText, toolCalls, durationMs, lastResponseId, unpersistedItems }
+  return { text: fullText + footer, footer, toolCalls, durationMs, lastResponseId, unpersistedItems }
 }
