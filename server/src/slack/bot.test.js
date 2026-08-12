@@ -138,6 +138,29 @@ function buildMockClient(streamer = buildMockStreamer()) {
   }
 }
 
+function buildMockRolloverClient() {
+  const streamers = []
+
+  return {
+    chat: {
+      postMessage: vi.fn().mockResolvedValue({ ts: 'msg-ts' }),
+      update: vi.fn().mockResolvedValue({}),
+      postEphemeral: vi.fn().mockResolvedValue({}),
+    },
+    chatStream: vi.fn(() => {
+      const streamer = buildMockStreamer()
+
+      streamers.push(streamer)
+      return streamer
+    }),
+    streamers,
+    filesUploadV2: vi.fn().mockResolvedValue({}),
+    conversations: {
+      replies: vi.fn().mockResolvedValue({ messages: [] }),
+    },
+  }
+}
+
 function buildMockConversationStore() {
   return {
     resolveSlack: vi.fn(async () => ({
@@ -618,44 +641,9 @@ describe('Slack bot', () => {
       )
     })
 
-    it('uploads as file when the streamed response exceeds the message limit', async () => {
+    it('continues the answer in a second streamed message when it exceeds the message limit', async () => {
       const longText = 'a'.repeat(13_000)
-
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-      processMessage.mockImplementation(async ({ onProgress }) => {
-        await onProgress({ type: 'text_delta', delta: longText })
-        return { text: longText }
-      })
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
-      expect(mockClient.streamer.append).not.toHaveBeenCalled()
-      expect(mockClient.streamer.stop).toHaveBeenCalledWith({
-        markdown_text: '_Response was too long for a message. Uploading as file..._',
-      })
-      expect(mockClient.filesUploadV2).toHaveBeenCalledWith(
-        expect.objectContaining({ content: longText, filename: 'response.md' })
-      )
-    })
-
-    it('uploads as file when the streamed text leaves no room for the closing chunk', async () => {
-      const longText = 'a'.repeat(11_500)
+      const client = buildMockRolloverClient()
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
@@ -665,7 +653,7 @@ describe('Slack bot', () => {
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
-        client: mockClient,
+        client,
         context: { teamId: 'T123' },
       })
 
@@ -677,15 +665,86 @@ describe('Slack bot', () => {
 
       await registeredActionHandlers['confirm_selection']({
         body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
+        client,
         ack: vi.fn(),
       })
 
-      expect(mockClient.streamer.append).not.toHaveBeenCalled()
-      expect(mockClient.streamer.stop).toHaveBeenCalledWith({
-        markdown_text: '_Response was too long for a message. Uploading as file..._',
+      expect(client.chatStream).toHaveBeenCalledTimes(2)
+      expect(client.chatStream).toHaveBeenLastCalledWith(
+        expect.objectContaining({ channel: 'C123', thread_ts: 'ev-ts' })
+      )
+      expect(client.streamers[0].append).toHaveBeenCalledWith({ markdown_text: 'a'.repeat(11_000) })
+      expect(client.streamers[0].stop).toHaveBeenCalledWith(undefined)
+      expect(client.streamers[1].append).toHaveBeenCalledWith({ markdown_text: 'a'.repeat(2_000) })
+      expect(client.filesUploadV2).not.toHaveBeenCalled()
+    })
+
+    it('rolls over at a line break instead of cutting a line in half', async () => {
+      const paragraph = `${'a'.repeat(299)}\n`
+      const client = buildMockRolloverClient()
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockImplementation(async ({ onProgress }) => {
+        await onProgress({ type: 'text_delta', delta: paragraph.repeat(40) })
+        return { text: paragraph.repeat(40), footer: '' }
       })
-      expect(mockClient.filesUploadV2).toHaveBeenCalledWith(expect.objectContaining({ content: longText }))
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client,
+        ack: vi.fn(),
+      })
+
+      expect(client.streamers[0].append).toHaveBeenCalledWith({ markdown_text: paragraph.repeat(36) })
+      expect(client.streamers[1].append).toHaveBeenCalledWith({ markdown_text: paragraph.repeat(4) })
+    })
+
+    it('closes and reopens the code fence when the answer rolls over inside a code block', async () => {
+      const code = 'x'.repeat(11_000)
+      const client = buildMockRolloverClient()
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockImplementation(async ({ onProgress }) => {
+        await onProgress({ type: 'text_delta', delta: '```js\n' })
+        await onProgress({ type: 'text_delta', delta: code })
+        return { text: `\`\`\`js\n${code}`, footer: '' }
+      })
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client,
+        ack: vi.fn(),
+      })
+
+      expect(client.chatStream).toHaveBeenCalledTimes(3)
+      expect(client.streamers[0].stop).toHaveBeenCalledWith({ markdown_text: '\n```' })
+      expect(client.streamers[1].append).toHaveBeenCalledWith({ markdown_text: '```js\n' })
+      expect(client.streamers[1].stop).toHaveBeenCalledWith({ markdown_text: '\n```' })
+      expect(client.streamers[2].append).toHaveBeenCalledWith({ markdown_text: '```js\n' })
     })
 
     it('drops the sources footer when it would push the message over the limit', async () => {
@@ -904,7 +963,7 @@ describe('Slack bot', () => {
       consoleSpy.mockRestore()
     })
 
-    it('uploads the answer as a file when the fallback message would be too long', async () => {
+    it('splits the fallback into several messages when the answer is too long for one', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const longAnswer = 'a'.repeat(4_001)
       const streamer = buildMockStreamer()
@@ -935,7 +994,11 @@ describe('Slack bot', () => {
         ack: vi.fn(),
       })
 
-      expect(client.filesUploadV2).toHaveBeenCalledWith(expect.objectContaining({ content: longAnswer }))
+      expect(client.filesUploadV2).not.toHaveBeenCalled()
+      expect(client.chat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'C123', thread_ts: 'ev-ts', text: 'a'.repeat(4_000) })
+      )
+      expect(client.chat.postMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'a' }))
       consoleSpy.mockRestore()
     })
 

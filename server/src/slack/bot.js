@@ -29,8 +29,10 @@ const SLACK_MAX_STREAM_TEXT = 12_000
 const STREAM_CLOSING_RESERVE = 1_000
 const MAX_STREAM_TEXT = SLACK_MAX_STREAM_TEXT - STREAM_CLOSING_RESERVE
 const SLACK_MAX_MESSAGE_TEXT = 4_000
+const STREAM_SPLIT_WINDOW = 500
+const CODE_FENCE = '```'
+const FENCE_LINE_RE = /^```.*$/gm
 const STREAM_ERROR_TEXT = '⚠️ An error occurred while processing your request.'
-const STREAM_TOO_LONG_TEXT = '_Response was too long for a message. Uploading as file..._'
 
 const SOPORTI_HELP =
   '*Soporti commands*\n' +
@@ -236,10 +238,30 @@ async function fetchThreadContext({ client, channelId, threadTs, eventTs }) {
   return null
 }
 
-function buildProgressHandler(streamer) {
+function splitForBudget(text, budget) {
+  if (budget <= 0) return ''
+  if (text.length <= budget) return text
+
+  const head = text.slice(0, budget)
+  const lastBreak = head.lastIndexOf('\n')
+
+  if (lastBreak >= 0 && head.length - lastBreak <= STREAM_SPLIT_WINDOW) return head.slice(0, lastBreak + 1)
+
+  return head
+}
+
+function findOpenFence(text) {
+  const fences = text.match(FENCE_LINE_RE) ?? []
+
+  if (fences.length % 2 === 0) return ''
+
+  return fences[fences.length - 1].trim()
+}
+
+function buildProgressHandler(openStreamer) {
   const tasks = new Map()
-  let streamedLength = 0
-  let truncated = false
+  let streamer = openStreamer()
+  let messageText = ''
   let failed = false
 
   async function appendTask(taskId, status) {
@@ -249,6 +271,46 @@ function buildProgressHandler(streamer) {
     await streamer.append({
       chunks: [{ type: 'task_update', id: taskId, title: task.title, details: task.details, status }],
     })
+  }
+
+  async function appendText(text) {
+    messageText += text
+    await streamer.append({ markdown_text: text })
+  }
+
+  async function rollOver() {
+    const reopen = findOpenFence(messageText)
+
+    await streamer.stop(reopen ? { markdown_text: `\n${CODE_FENCE}` } : undefined)
+
+    streamer = openStreamer()
+    messageText = ''
+
+    if (reopen) await appendText(`${reopen}\n`)
+  }
+
+  async function appendStreamed(text) {
+    let pending = text
+    let rolled = false
+
+    while (pending) {
+      const room = MAX_STREAM_TEXT - messageText.length
+
+      if (pending.length <= room) {
+        await appendText(pending)
+        return
+      }
+
+      const mustSplit = rolled || messageText.length === 0
+      const head = mustSplit ? splitForBudget(pending, room) : ''
+
+      if (head) await appendText(head)
+
+      await rollOver()
+      rolled = true
+
+      pending = pending.slice(head.length)
+    }
   }
 
   async function append(event) {
@@ -263,15 +325,7 @@ function buildProgressHandler(streamer) {
       return
     }
 
-    if (truncated) return
-
-    if (streamedLength + event.delta.length > MAX_STREAM_TEXT) {
-      truncated = true
-      return
-    }
-
-    streamedLength += event.delta.length
-    await streamer.append({ markdown_text: event.delta })
+    await appendStreamed(event.delta)
   }
 
   async function handleProgress(event) {
@@ -287,43 +341,38 @@ function buildProgressHandler(streamer) {
 
   return {
     handleProgress,
-    isTruncated: () => truncated,
     hasFailed: () => failed,
-    hasRoomFor: text => streamedLength + text.length <= SLACK_MAX_STREAM_TEXT,
+    streamer: () => streamer,
+    hasRoomFor: text => messageText.length + text.length <= SLACK_MAX_STREAM_TEXT,
   }
 }
 
-async function uploadAnswer(client, channelId, threadTs, text) {
-  await client.filesUploadV2({
-    channel_id: channelId,
-    thread_ts: threadTs,
-    content: text,
-    filename: 'response.md',
-    title: 'Agent Response',
-  })
+function splitIntoMessages(text) {
+  const messages = []
+  let pending = text
+
+  while (pending) {
+    const head = splitForBudget(pending, SLACK_MAX_MESSAGE_TEXT)
+
+    messages.push(head)
+    pending = pending.slice(head.length)
+  }
+
+  return messages
 }
 
 async function postAnswer(client, channelId, threadTs, text) {
-  if (text.length > SLACK_MAX_MESSAGE_TEXT) {
-    await uploadAnswer(client, channelId, threadTs, text)
-    return
+  for (const message of splitIntoMessages(text)) {
+    await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: message })
   }
-
-  await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text })
 }
 
-async function deliverAnswer({ client, channelId, threadTs, streamer, progress, result }) {
+async function deliverAnswer({ client, channelId, threadTs, progress, result }) {
   if (!progress.hasFailed()) {
     try {
-      if (progress.isTruncated()) {
-        await streamer.stop({ markdown_text: STREAM_TOO_LONG_TEXT })
-        await uploadAnswer(client, channelId, threadTs, result.text)
-        return
-      }
-
       const footer = result.footer && progress.hasRoomFor(result.footer) ? result.footer : ''
 
-      await streamer.stop(footer ? { markdown_text: footer } : undefined)
+      await progress.streamer().stop(footer ? { markdown_text: footer } : undefined)
       return
     } catch (err) {
       console.error('[slack] Failed to close the stream, posting the answer as a message:', err.message)
@@ -333,8 +382,10 @@ async function deliverAnswer({ client, channelId, threadTs, streamer, progress, 
   await postAnswer(client, channelId, threadTs, result.text)
 }
 
-async function deliverError({ client, channelId, threadTs, streamer, progress }) {
-  if (streamer?.ts && !progress?.hasFailed()) {
+async function deliverError({ client, channelId, threadTs, progress }) {
+  const streamer = progress?.streamer()
+
+  if (streamer?.ts && !progress.hasFailed()) {
     try {
       await streamer.stop({ markdown_text: STREAM_ERROR_TEXT })
       return
@@ -356,20 +407,19 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
     return
   }
 
-  let streamer = null
   let progress = null
 
   try {
-    streamer = client.chatStream({
-      channel: channelId,
-      thread_ts: threadTs,
-      recipient_user_id: slackUserId,
-      recipient_team_id: teamId,
-      task_display_mode: TASK_DISPLAY_MODE,
-      buffer_size: STREAM_BUFFER_SIZE,
-    })
-
-    progress = buildProgressHandler(streamer)
+    progress = buildProgressHandler(() =>
+      client.chatStream({
+        channel: channelId,
+        thread_ts: threadTs,
+        recipient_user_id: slackUserId,
+        recipient_team_id: teamId,
+        task_display_mode: TASK_DISPLAY_MODE,
+        buffer_size: STREAM_BUFFER_SIZE,
+      })
+    )
 
     const user = slackUserId ? await upsertSlackUser({ slackId: slackUserId, name: null }) : null
     const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveSlack(
@@ -394,7 +444,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       unpersistedItems: result.unpersistedItems,
     })
 
-    await deliverAnswer({ client, channelId, threadTs, streamer, progress, result })
+    await deliverAnswer({ client, channelId, threadTs, progress, result })
 
     if (await isKnowledgeBaseConfigured()) {
       const feedbackId = storePendingFeedback(question, result.text)
@@ -427,7 +477,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
   } catch (err) {
     console.error('[slack] Agent error:', err)
 
-    await deliverError({ client, channelId, threadTs, streamer, progress })
+    await deliverError({ client, channelId, threadTs, progress })
   }
 }
 
