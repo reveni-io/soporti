@@ -5,7 +5,9 @@ up front: the only required secrets at boot time are `JWT_SECRET` and a PostgreS
 database for the app itself. Everything else — the LLM provider, its API key and
 model, the GitHub token, Slack, Notion, Google Drive, Helpjuice, the agent's
 read-only query database, sign-in methods — lives in that database and is
-configured from the `/admin` panel after the first boot.
+configured from the `/admin` panel after the first boot. The one exception is
+Granola: its API key is personal, so each user connects their own from
+**Settings → Connections** in the web app instead of `/admin`.
 
 There are two supported deployment shapes:
 
@@ -96,7 +98,8 @@ Environment variables read by the compose file (all from `.env` or the shell):
 Postgres data persists in the `pgdata_prod` volume. The optional server tunables
 (`SLACK_AUTODIAGNOSE_*`, `REVIEW_*`, …) are also picked up
 from `.env` if present. Integration credentials (GitHub, the LLM provider, Sentry, Notion,
-Shortcut, Slack, …) are not env vars — configure them from `/admin` after boot.
+Shortcut, Slack, …) are not env vars — configure them from `/admin` after boot, or from
+**Settings → Connections** for the per-user ones (Granola).
 
 To rebuild after pulling a new version: `npm run docker:prod` again (it
 rebuilds the images; migrations run on boot).
