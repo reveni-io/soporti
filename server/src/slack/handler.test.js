@@ -277,4 +277,114 @@ describe('processMessage', () => {
     expect(run.mock.calls[1][2].previousResponseId).toBeUndefined()
     expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', status: 'ok' }))
   })
+
+  it('reports text deltas and tool progress to onProgress in order', async () => {
+    run.mockResolvedValue(
+      createStreamMock([
+        {
+          type: 'run_item_stream_event',
+          item: {
+            type: 'tool_call_item',
+            rawItem: { name: 'search_code', arguments: '{"query":"login"}', callId: 'c1' },
+          },
+        },
+        { type: 'run_item_stream_event', item: { type: 'tool_call_output_item', rawItem: { callId: 'c1' } } },
+        { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Done' } },
+      ])
+    )
+
+    const events = []
+
+    await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+      onProgress: event => events.push(event),
+    })
+
+    expect(events).toEqual([
+      { type: 'tool_start', taskId: 'task-0', name: 'search_code', arguments: '{"query":"login"}' },
+      { type: 'tool_end', taskId: 'task-0' },
+      { type: 'text_delta', delta: 'Done' },
+    ])
+  })
+
+  it('reuses task ids across a retry so repeated steps update in place', async () => {
+    const toolEvents = [
+      {
+        type: 'run_item_stream_event',
+        item: { type: 'tool_call_item', rawItem: { name: 'list_repos', arguments: '{}', callId: 'c1' } },
+      },
+    ]
+
+    run
+      .mockRejectedValueOnce(new Error('previous response not found'))
+      .mockResolvedValueOnce(
+        createStreamMock([
+          ...toolEvents,
+          { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hi' } },
+        ])
+      )
+
+    const events = []
+
+    await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      previousResponseId: 'resp_previous',
+      profile: 'support',
+      onProgress: event => events.push(event),
+    })
+
+    expect(events.filter(e => e.type === 'tool_start').map(e => e.taskId)).toEqual(['task-0'])
+  })
+
+  it('keeps running when onProgress throws', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Hello' } }])
+    )
+
+    const result = await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+      onProgress: () => {
+        throw new Error('slack down')
+      },
+    })
+
+    expect(result.text).toBe('Hello')
+    expect(consoleSpy).toHaveBeenCalled()
+    consoleSpy.mockRestore()
+  })
+
+  it('returns the sources footer separately so it can close the stream', async () => {
+    run.mockResolvedValue(
+      createStreamMock([
+        {
+          type: 'run_item_stream_event',
+          item: {
+            type: 'tool_call_item',
+            rawItem: { name: 'get_file_contents', arguments: '{"repo":"org/repo","path":"a.js"}', callId: 'c1' },
+          },
+        },
+        { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Answer' } },
+      ])
+    )
+
+    const result = await processMessage({
+      message: 'hi',
+      selectedSources: ['yolo'],
+      session: {},
+      profile: 'support',
+    })
+
+    expect(result.footer).not.toBe('')
+    expect(result.text).toBe(`Answer${result.footer}`)
+  })
 })

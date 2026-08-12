@@ -12,7 +12,7 @@ import { YOLO_SOURCE } from '../agent/sources.js'
 import { processMessage } from './handler.js'
 import { getSlackSettings } from './settings.js'
 import { startAutoDiagnose, stopAutoDiagnose } from './auto-diagnose-poller.js'
-import { markdownToSlack, splitMessage } from './formatter.js'
+import { describeToolCall } from './task-labels.js'
 import { DEFAULT_PROFILE } from '../agent/system-prompt.js'
 import { storePendingFeedback, processFeedback } from '../knowledge/feedback.js'
 import { isKnowledgeBaseConfigured } from '../knowledge/client.js'
@@ -20,6 +20,15 @@ import { isConfigured as isLlmConfigured } from '../llm/model.js'
 import { upsertSlackUser, getCustomInstructions, updateCustomInstructions } from '../db/users.js'
 
 const MAX_INSTRUCTIONS_LENGTH = 50_000
+
+const TASK_DISPLAY_MODE = 'timeline'
+const TASK_IN_PROGRESS = 'in_progress'
+const TASK_COMPLETE = 'complete'
+const STREAM_BUFFER_SIZE = 512
+const MAX_STREAM_TEXT = 12_000
+const SLACK_MAX_MESSAGE_TEXT = 4_000
+const STREAM_ERROR_TEXT = '⚠️ An error occurred while processing your request.'
+const STREAM_TOO_LONG_TEXT = '_Response was too long for a message. Uploading as file..._'
 
 const SOPORTI_HELP =
   '*Soporti commands*\n' +
@@ -225,7 +234,97 @@ async function fetchThreadContext({ client, channelId, threadTs, eventTs }) {
   return null
 }
 
-async function runAndReply({ client, channelId, threadTs, question, sources, profile, slackUserId }) {
+function buildProgressHandler(streamer) {
+  const tasks = new Map()
+  let streamedLength = 0
+  let truncated = false
+  let failed = false
+
+  async function appendTask(taskId, status) {
+    const task = tasks.get(taskId)
+    if (!task) return
+
+    await streamer.append({
+      chunks: [{ type: 'task_update', id: taskId, title: task.title, details: task.details, status }],
+    })
+  }
+
+  async function append(event) {
+    if (event.type === 'tool_start') {
+      tasks.set(event.taskId, describeToolCall(event.name, event.arguments))
+      await appendTask(event.taskId, TASK_IN_PROGRESS)
+      return
+    }
+
+    if (event.type === 'tool_end') {
+      await appendTask(event.taskId, TASK_COMPLETE)
+      return
+    }
+
+    if (truncated) return
+
+    if (streamedLength + event.delta.length > MAX_STREAM_TEXT) {
+      truncated = true
+      return
+    }
+
+    streamedLength += event.delta.length
+    await streamer.append({ markdown_text: event.delta })
+  }
+
+  async function handleProgress(event) {
+    if (failed) return
+
+    try {
+      await append(event)
+    } catch (err) {
+      failed = true
+      console.error('[slack] Streaming unavailable, falling back to a plain message:', err.message)
+    }
+  }
+
+  return { handleProgress, isTruncated: () => truncated, hasFailed: () => failed }
+}
+
+async function uploadAnswer(client, channelId, threadTs, text) {
+  await client.filesUploadV2({
+    channel_id: channelId,
+    thread_ts: threadTs,
+    content: text,
+    filename: 'response.md',
+    title: 'Agent Response',
+  })
+}
+
+async function postAnswer(client, channelId, threadTs, text) {
+  if (text.length > SLACK_MAX_MESSAGE_TEXT) {
+    await uploadAnswer(client, channelId, threadTs, text)
+    return
+  }
+
+  await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text })
+}
+
+async function deliverAnswer({ client, channelId, threadTs, streamer, progress, result }) {
+  if (!progress.hasFailed()) {
+    try {
+      if (progress.isTruncated()) {
+        await streamer.stop({ markdown_text: STREAM_TOO_LONG_TEXT })
+        await uploadAnswer(client, channelId, threadTs, result.text)
+        return
+      }
+
+      await streamer.stop(result.footer ? { markdown_text: result.footer } : undefined)
+      return
+    } catch (err) {
+      console.error('[slack] Failed to close the stream, posting the answer as a message:', err.message)
+    }
+  }
+
+  await postAnswer(client, channelId, threadTs, result.text)
+}
+
+async function runAndReply({ client, channelId, threadTs, question, sources, profile, slackUserId, teamId }) {
   if (!(await isLlmConfigured())) {
     await client.chat.postMessage({
       channel: channelId,
@@ -235,13 +334,20 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
     return
   }
 
-  const thinking = await client.chat.postMessage({
-    channel: channelId,
-    thread_ts: threadTs,
-    text: ':hourglass_flipping_sand: _Thinking..._',
-  })
+  let streamer = null
 
   try {
+    streamer = client.chatStream({
+      channel: channelId,
+      thread_ts: threadTs,
+      recipient_user_id: slackUserId,
+      recipient_team_id: teamId,
+      task_display_mode: TASK_DISPLAY_MODE,
+      buffer_size: STREAM_BUFFER_SIZE,
+    })
+
+    const progress = buildProgressHandler(streamer)
+
     const user = slackUserId ? await upsertSlackUser({ slackId: slackUserId, name: null }) : null
     const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveSlack(
       channelId,
@@ -256,6 +362,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       profile,
       slackUserId,
       isNewConversation,
+      onProgress: progress.handleProgress,
     })
 
     await conversationStore.saveTurn(conversationId, {
@@ -264,38 +371,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       unpersistedItems: result.unpersistedItems,
     })
 
-    const slackText = markdownToSlack(result.text)
-    const chunks = splitMessage(slackText)
-    const SLACK_MAX_TEXT = 4000
-
-    if (chunks.some(c => c.length > SLACK_MAX_TEXT)) {
-      await client.chat.update({
-        channel: channelId,
-        ts: thinking.ts,
-        text: '_Response was too long for a message. Uploading as file..._',
-      })
-      await client.filesUploadV2({
-        channel_id: channelId,
-        thread_ts: threadTs,
-        content: result.text,
-        filename: 'response.md',
-        title: 'Agent Response',
-      })
-    } else {
-      await client.chat.update({
-        channel: channelId,
-        ts: thinking.ts,
-        text: chunks[0],
-      })
-
-      for (let i = 1; i < chunks.length; i++) {
-        await client.chat.postMessage({
-          channel: channelId,
-          thread_ts: threadTs,
-          text: chunks[i],
-        })
-      }
-    }
+    await deliverAnswer({ client, channelId, threadTs, streamer, progress, result })
 
     if (await isKnowledgeBaseConfigured()) {
       const feedbackId = storePendingFeedback(question, result.text)
@@ -327,11 +403,13 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
     }
   } catch (err) {
     console.error('[slack] Agent error:', err)
-    await client.chat.update({
-      channel: channelId,
-      ts: thinking.ts,
-      text: '⚠️ An error occurred while processing your request.',
-    })
+
+    if (streamer?.ts) {
+      await streamer.stop({ markdown_text: STREAM_ERROR_TEXT })
+      return
+    }
+
+    await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: STREAM_ERROR_TEXT })
   }
 }
 
@@ -351,11 +429,12 @@ export async function startSlackBot(store) {
     logLevel: LogLevel.WARN,
   })
 
-  slackApp.event('app_mention', async ({ event, client }) => {
+  slackApp.event('app_mention', async ({ event, client, context }) => {
     const displayQuestion = event.text.replace(/<@[A-Z0-9]+>/g, '').trim()
     const threadTs = event.thread_ts || event.ts
     const channelId = event.channel
     const slackUserId = event.user
+    const teamId = context.teamId
 
     const threadContext = await fetchThreadContext({ client, channelId, threadTs, eventTs: event.ts })
     const question = threadContext
@@ -384,6 +463,7 @@ export async function startSlackBot(store) {
         sources: existingSources,
         profile: existingProfile,
         slackUserId,
+        teamId,
       })
       return
     }
@@ -414,6 +494,7 @@ export async function startSlackBot(store) {
         threadTs,
         selectedProfile: DEFAULT_PROFILE,
         slackUserId,
+        teamId,
         createdAt: Date.now(),
       })
     } catch (err) {
@@ -523,7 +604,7 @@ export async function startSlackBot(store) {
     const selectedSources = rawSelectedSources.includes(YOLO_SOURCE) ? [YOLO_SOURCE] : rawSelectedSources
 
     pendingQuestions.delete(messageTs)
-    const { question, displayQuestion, threadTs, selectedProfile, slackUserId } = pending
+    const { question, displayQuestion, threadTs, selectedProfile, slackUserId, teamId } = pending
     const profile = selectedProfile || DEFAULT_PROFILE
     const profileLabel = profile === 'tech' ? 'Tech' : 'Support'
     const sourceLabels = selectedSources
@@ -561,10 +642,11 @@ export async function startSlackBot(store) {
       sources: selectedSources,
       profile,
       slackUserId: slackUserId || body.user.id,
+      teamId: teamId || body.team?.id,
     })
   })
 
-  slackApp.event('message', async ({ event, client }) => {
+  slackApp.event('message', async ({ event, client, context }) => {
     if (event.channel_type !== 'im') return
     if (event.bot_id || event.subtype) return
 
@@ -572,6 +654,7 @@ export async function startSlackBot(store) {
     const threadTs = event.thread_ts || event.ts
     const channelId = event.channel
     const slackUserId = event.user
+    const teamId = context.teamId
 
     if (!question) return
 
@@ -588,6 +671,7 @@ export async function startSlackBot(store) {
         sources: existingSources,
         profile: existingProfile,
         slackUserId,
+        teamId,
       })
       return
     }
@@ -617,6 +701,7 @@ export async function startSlackBot(store) {
         threadTs,
         selectedProfile: DEFAULT_PROFILE,
         slackUserId,
+        teamId,
         createdAt: Date.now(),
       })
     } catch (err) {

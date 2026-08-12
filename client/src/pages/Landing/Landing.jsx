@@ -15,6 +15,7 @@ import ProvidersSection from './ProvidersSection/ProvidersSection.jsx'
 import RendersSection from './RendersSection/RendersSection.jsx'
 import SafetySection from './SafetySection/SafetySection.jsx'
 import SkillsSection from './SkillsSection/SkillsSection.jsx'
+import SlackSection from './SlackSection/SlackSection.jsx'
 import StatsSection from './StatsSection/StatsSection.jsx'
 import './Landing.css'
 
@@ -33,6 +34,7 @@ export default function Landing({ hideCta = false }) {
       <AskSection />
       <RendersSection />
       <IntegrationsSection />
+      <SlackSection />
       <AttachmentsSection />
       <ProvidersSection />
       <ProfilesSection />
