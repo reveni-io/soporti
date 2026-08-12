@@ -35,6 +35,7 @@ vi.mock('../helpjuice/settings.js', () => ({ isHelpjuiceConfigured: vi.fn(async 
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async () => false) }))
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
+vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
 
 const { isShortcutConfigured } = await import('../shortcut/settings.js')
 const { isSentryConfigured } = await import('../sentry/settings.js')
@@ -44,6 +45,7 @@ const { isHelpjuiceConfigured } = await import('../helpjuice/settings.js')
 const { isPostgresConfigured } = await import('../postgres/settings.js')
 const { isBetterstackConfigured } = await import('../betterstack/settings.js')
 const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js')
+const { isGranolaConfigured } = await import('../granola/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -56,6 +58,7 @@ const CONFIGURATION_CHECKS = [
   isPostgresConfigured,
   isBetterstackConfigured,
   isShopifyConfigured,
+  isGranolaConfigured,
 ]
 
 describe('createAgent', () => {
@@ -305,7 +308,34 @@ describe('createAgent', () => {
 
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
-      expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false })
+      expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false }),
+      { userId: null }
+    )
+  })
+
+  it('resolves Granola for the requesting user and passes the id to the tool builder', async () => {
+    isGranolaConfigured.mockResolvedValue(true)
+
+    await createAgent(['integration:granola'], 'support', { userId: 7 })
+
+    expect(isGranolaConfigured).toHaveBeenCalledWith(7)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ granolaConfigured: true }),
+      { userId: 7 }
+    )
+  })
+
+  it('leaves Granola unconfigured when there is no user, so no notes are reachable', async () => {
+    isGranolaConfigured.mockResolvedValue(false)
+
+    await createAgent(['integration:granola'], 'support')
+
+    expect(isGranolaConfigured).toHaveBeenCalledWith(null)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ granolaConfigured: false }),
+      { userId: null }
     )
   })
 })

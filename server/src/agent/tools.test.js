@@ -78,6 +78,13 @@ vi.mock('../google-drive/client.js', () => ({
   isConfigured: () => true,
 }))
 
+vi.mock('../granola/client.js', () => ({
+  searchNotes: vi.fn(),
+  getNote: vi.fn(),
+  MAX_SEARCH_RESULTS: 30,
+  DEFAULT_SEARCH_RESULTS: 10,
+}))
+
 vi.mock('../config.js', () => ({
   default: {
     postgres: { connection: 'test' },
@@ -121,6 +128,7 @@ const {
   allTools,
   buildRepoTools,
   buildAgentTools,
+  buildGranolaTools,
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
 
@@ -747,5 +755,67 @@ describe('tool execute functions', () => {
     })
     expect(JSON.parse(result)).toEqual({ data: { shop: { name: 'Test' } } })
     expect(shopifyMod.graphqlQuery).toHaveBeenCalledWith('{ shop { name } }', {}, 'mystore')
+  })
+})
+
+describe('buildGranolaTools', () => {
+  it('binds the tools to one user, so each caller only reaches their own notes', async () => {
+    const granolaMod = await import('../granola/client.js')
+    granolaMod.searchNotes.mockResolvedValue({ notes: [], scanned: 0 })
+
+    const [search] = buildGranolaTools(7)
+    await search.execute({ query: 'acme', createdAfter: null, createdBefore: null, limit: 10 })
+
+    expect(granolaMod.searchNotes).toHaveBeenCalledWith(7, {
+      query: 'acme',
+      createdAfter: null,
+      createdBefore: null,
+      limit: 10,
+    })
+  })
+
+  it('reads a note for that same user', async () => {
+    const granolaMod = await import('../granola/client.js')
+    granolaMod.getNote.mockResolvedValue({ id: 'not_1', title: 'Acme call' })
+
+    const [, get] = buildGranolaTools(7)
+    const result = await get.execute({ noteId: 'not_1', includeTranscript: true })
+
+    expect(JSON.parse(result)).toEqual({ id: 'not_1', title: 'Acme call' })
+    expect(granolaMod.getNote).toHaveBeenCalledWith(7, 'not_1', { includeTranscript: true })
+  })
+})
+
+describe('buildAgentTools with Granola', () => {
+  const names = tools => tools.map(t => t.name)
+
+  it('gates the Granola tools on granolaConfigured', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['granola'] }
+    expect(names(buildAgentTools(selection, { granolaConfigured: false }, { userId: 7 }))).not.toContain(
+      'search_granola_notes'
+    )
+    expect(names(buildAgentTools(selection, { granolaConfigured: true }, { userId: 7 }))).toContain(
+      'search_granola_notes'
+    )
+
+    const yolo = { unrestricted: true, repos: [], integrations: [] }
+    expect(names(buildAgentTools(yolo, { granolaConfigured: false }, { userId: 7 }))).not.toContain(
+      'search_granola_notes'
+    )
+    expect(names(buildAgentTools(yolo, { granolaConfigured: true }, { userId: 7 }))).toContain('search_granola_notes')
+  })
+
+  it('builds the Granola tools against the user in the context', async () => {
+    const granolaMod = await import('../granola/client.js')
+    granolaMod.searchNotes.mockResolvedValue({ notes: [], scanned: 0 })
+
+    const tools = buildAgentTools(
+      { unrestricted: false, repos: [], integrations: ['granola'] },
+      { granolaConfigured: true },
+      { userId: 42 }
+    )
+    await tools.find(t => t.name === 'search_granola_notes').execute({ query: '', limit: 5 })
+
+    expect(granolaMod.searchNotes).toHaveBeenCalledWith(42, expect.objectContaining({ limit: 5 }))
   })
 })

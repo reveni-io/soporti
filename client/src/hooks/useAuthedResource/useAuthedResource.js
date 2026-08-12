@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-export function useAuthedResource(fetchResource, key, token, initialValue) {
+export function useAuthedResource(fetchResource, key, token, initialValue, reloadKey = 0) {
   const [value, setValue] = useState(initialValue)
 
   useEffect(() => {
@@ -17,7 +17,7 @@ export function useAuthedResource(fetchResource, key, token, initialValue) {
     return () => {
       cancelled = true
     }
-  }, [fetchResource, key, token])
+  }, [fetchResource, key, token, reloadKey])
 
   return value
 }

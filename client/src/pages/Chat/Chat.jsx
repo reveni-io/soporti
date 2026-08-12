@@ -34,7 +34,8 @@ export default function Chat() {
   } = useAuth()
   const authMethods = useAuthMethods()
   const skills = useSkills(token, logout)
-  const integrations = useAuthedResource(getIntegrations, 'integrations', token, [])
+  const [integrationsReloadKey, setIntegrationsReloadKey] = useState(0)
+  const integrations = useAuthedResource(getIntegrations, 'integrations', token, [], integrationsReloadKey)
   const {
     messages,
     isLoading,
@@ -140,6 +141,7 @@ export default function Chat() {
           onLogout={logout}
           skills={skills}
           selectedSources={selectedSources}
+          onConnectionsChange={() => setIntegrationsReloadKey(key => key + 1)}
         />
       )}
       {schedulesOpen && (

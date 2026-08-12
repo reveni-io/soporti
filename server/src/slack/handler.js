@@ -25,15 +25,15 @@ async function notifyProgress(onProgress, event) {
   }
 }
 
-async function loadCustomInstructionsForSlack(slackUserId, slackUserName) {
-  if (!slackUserId) return ''
+async function loadSlackUserContext(slackUserId, slackUserName) {
+  if (!slackUserId) return { userId: null, customInstructions: '' }
   try {
     const user = await upsertSlackUser({ slackId: slackUserId, name: slackUserName ?? null })
     const text = await getCustomInstructions(user.id)
-    return text ?? ''
+    return { userId: user.id, customInstructions: text ?? '' }
   } catch (err) {
-    console.error('[slack] Failed to load custom instructions:', err.message)
-    return ''
+    console.error('[slack] Failed to load the Slack user:', err.message)
+    return { userId: null, customInstructions: '' }
   }
 }
 
@@ -50,9 +50,9 @@ export async function processMessage({
 }) {
   log('👤', `Slack user ID: ${slackUserId || 'unknown'}`)
 
-  const [similarCases, customInstructions] = await Promise.all([
+  const [similarCases, { userId, customInstructions }] = await Promise.all([
     isNewConversation ? searchSimilarCases(message) : [],
-    loadCustomInstructionsForSlack(slackUserId, slackUserName),
+    loadSlackUserContext(slackUserId, slackUserName),
   ])
   if (similarCases.length > 0) {
     log('📚', `Found ${similarCases.length} similar case(s)`)
@@ -61,7 +61,7 @@ export async function processMessage({
     log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
   }
 
-  const agent = await createAgent(selectedSources, profile, { customInstructions })
+  const agent = await createAgent(selectedSources, profile, { customInstructions, userId })
   const agentInput = buildUserTurn(message, { similarCases })
   const startTime = Date.now()
   const toolCalls = []

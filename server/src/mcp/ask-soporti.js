@@ -48,6 +48,7 @@ export async function executeAskSoporti({ question, sources, profile, skillIds, 
     customInstructions: customInstructions ?? '',
     skills,
     skillArguments: question,
+    userId,
   })
   const agentInput = buildUserTurn(question, { similarCases, commands: skills.map(skill => skill.name) })
 

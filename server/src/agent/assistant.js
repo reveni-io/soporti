@@ -16,12 +16,13 @@ import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
+import { isGranolaConfigured } from '../granola/settings.js'
 import * as shopify from '../shopify/client.js'
 
 export async function createAgent(
   selectedSources,
   profile,
-  { customInstructions = '', skills: invokedSkills = [], skillArguments = '' } = {}
+  { customInstructions = '', skills: invokedSkills = [], skillArguments = '', userId = null } = {}
 ) {
   const policy = buildSourcePolicy(selectedSources)
 
@@ -34,6 +35,7 @@ export async function createAgent(
     postgresConfigured,
     shopifyConfigured,
     betterstackConfigured,
+    granolaConfigured,
     catalogPrompt,
   ] = await Promise.all([
     isShortcutConfigured(),
@@ -44,6 +46,7 @@ export async function createAgent(
     isPostgresConfigured(),
     shopify.isConfigured(),
     isBetterstackConfigured(),
+    isGranolaConfigured(userId),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
   ])
   const configured = {
@@ -55,6 +58,7 @@ export async function createAgent(
     postgresConfigured,
     shopifyConfigured,
     betterstackConfigured,
+    granolaConfigured,
   }
 
   const sourceInstructions = buildSourceInstructions(selectedSources, configured)
@@ -75,7 +79,7 @@ export async function createAgent(
     `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
   )
 
-  const tools = buildAgentTools(policy, configured)
+  const tools = buildAgentTools(policy, configured, { userId })
 
   const { model, modelSettings } = await resolveModelForAgent()
 

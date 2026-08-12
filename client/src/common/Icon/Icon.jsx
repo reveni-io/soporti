@@ -32,6 +32,14 @@ const ICON_SHAPES = {
       <line x1="9.7" y1="14.3" x2="5.6" y2="18.4" />
     </>
   ),
+  'meeting-notes': (
+    <>
+      <path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+      <polyline points="14 3 14 8 19 8" />
+      <line x1="8" y1="13" x2="15" y2="13" />
+      <line x1="8" y1="17" x2="12" y2="17" />
+    </>
+  ),
   chart: (
     <>
       <line x1="3" y1="21" x2="21" y2="21" />

@@ -1,0 +1,38 @@
+.connections-tab__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.connections-tab__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.connections-tab__name {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.connections-tab__help {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.connections-tab__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}
+
+.connections-tab__form .input {
+  flex: 1 1 14rem;
+}

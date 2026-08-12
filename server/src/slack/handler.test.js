@@ -219,7 +219,7 @@ describe('processMessage', () => {
     expect(searchSimilarCases).toHaveBeenCalledWith('why 500?')
     expect(run.mock.calls[0][1]).toContain('Bad token')
     expect(run.mock.calls[0][1].endsWith('why 500?')).toBe(true)
-    expect(createAgent).toHaveBeenCalledWith([], 'tech', { customInstructions: '' })
+    expect(createAgent).toHaveBeenCalledWith([], 'tech', { customInstructions: '', userId: null })
   })
 
   it('skips the similar cases search on a reply to an existing thread', async () => {

@@ -30,6 +30,7 @@ export async function runSchedule(schedule, conversationStore) {
 
     const agent = await createAgent(sources, schedule.profile, {
       customInstructions: customInstructions ?? '',
+      userId: schedule.userId,
     })
     const agentInput = buildUserTurn(schedule.question, { similarCases })
 

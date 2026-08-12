@@ -19,6 +19,7 @@ const ALL_CONFIGURED = {
   postgresConfigured: true,
   shopifyConfigured: true,
   betterstackConfigured: true,
+  granolaConfigured: true,
 }
 
 describe('constants', () => {
@@ -248,6 +249,13 @@ describe('buildSourceInstructions', () => {
     const result = buildSourceInstructions(['integration:postgres'], { postgresConfigured: true })
     expect(result).toContain('Database')
     expect(result).toContain('list_database_schemas')
+  })
+
+  it('tells the agent the Granola notes belong to the user it is talking to', () => {
+    const result = buildSourceInstructions(['integration:granola'], { granolaConfigured: true })
+
+    expect(result).toContain('search_granola_notes')
+    expect(result).toContain('their own meeting notes')
   })
 
   it('handles selections with only integrations', () => {

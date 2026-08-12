@@ -7,11 +7,12 @@ import * as googleDrive from '../google-drive/client.js'
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
+import * as granola from '../granola/client.js'
 import { INTEGRATIONS } from '../agent/integrations.js'
 
 const router = Router()
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   const integrations = [
     {
       id: 'github',
@@ -81,6 +82,15 @@ router.get('/', async (_req, res) => {
       name: INTEGRATIONS.sentry.label,
       description: 'Inspect production errors and issues',
       selectable: false,
+    })
+  }
+
+  if (await granola.isConfigured(req.user.id)) {
+    integrations.push({
+      id: 'granola',
+      name: INTEGRATIONS.granola.label,
+      description: 'Search and read your own meeting notes',
+      selectable: true,
     })
   }
 

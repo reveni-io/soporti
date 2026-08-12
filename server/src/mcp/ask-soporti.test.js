@@ -106,6 +106,7 @@ describe('executeAskSoporti', () => {
       customInstructions: 'Be brief.',
       skills,
       skillArguments: 'Why?',
+      userId: 7,
     })
   })
 
@@ -128,6 +129,7 @@ describe('executeAskSoporti', () => {
       customInstructions: '',
       skills: [],
       skillArguments: 'Why?',
+      userId: 7,
     })
   })
 
@@ -140,6 +142,7 @@ describe('executeAskSoporti', () => {
       customInstructions: 'Be brief.',
       skills: [],
       skillArguments: 'Why?',
+      userId: 7,
     })
   })
 

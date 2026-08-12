@@ -229,6 +229,7 @@ describe('POST /api/chat', () => {
       customInstructions: '',
       skills: [],
       skillArguments: 'why does it 500?',
+      userId: 1,
     })
   })
 
@@ -337,6 +338,7 @@ describe('POST /api/chat', () => {
       customInstructions: '',
       skills: [],
       skillArguments: 'test',
+      userId: 1,
     })
   })
 
@@ -353,6 +355,7 @@ describe('POST /api/chat', () => {
       customInstructions: '',
       skills: [{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }],
       skillArguments: 'hi',
+      userId: 1,
     })
   })
 
@@ -487,6 +490,7 @@ describe('POST /api/chat', () => {
       customInstructions: '',
       skills: [{ id: 5, name: 'grilling', instructions: 'Interview me.' }],
       skillArguments: 'my answer',
+      userId: 1,
     })
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
@@ -565,6 +569,7 @@ describe('POST /api/chat', () => {
       customInstructions: '',
       skills: [],
       skillArguments: 'hi',
+      userId: 1,
     })
   })
 
