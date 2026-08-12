@@ -25,7 +25,9 @@ const TASK_DISPLAY_MODE = 'timeline'
 const TASK_IN_PROGRESS = 'in_progress'
 const TASK_COMPLETE = 'complete'
 const STREAM_BUFFER_SIZE = 512
-const MAX_STREAM_TEXT = 12_000
+const SLACK_MAX_STREAM_TEXT = 12_000
+const STREAM_CLOSING_RESERVE = 1_000
+const MAX_STREAM_TEXT = SLACK_MAX_STREAM_TEXT - STREAM_CLOSING_RESERVE
 const SLACK_MAX_MESSAGE_TEXT = 4_000
 const STREAM_ERROR_TEXT = '⚠️ An error occurred while processing your request.'
 const STREAM_TOO_LONG_TEXT = '_Response was too long for a message. Uploading as file..._'
@@ -283,7 +285,12 @@ function buildProgressHandler(streamer) {
     }
   }
 
-  return { handleProgress, isTruncated: () => truncated, hasFailed: () => failed }
+  return {
+    handleProgress,
+    isTruncated: () => truncated,
+    hasFailed: () => failed,
+    hasRoomFor: text => streamedLength + text.length <= SLACK_MAX_STREAM_TEXT,
+  }
 }
 
 async function uploadAnswer(client, channelId, threadTs, text) {
@@ -314,7 +321,9 @@ async function deliverAnswer({ client, channelId, threadTs, streamer, progress, 
         return
       }
 
-      await streamer.stop(result.footer ? { markdown_text: result.footer } : undefined)
+      const footer = result.footer && progress.hasRoomFor(result.footer) ? result.footer : ''
+
+      await streamer.stop(footer ? { markdown_text: footer } : undefined)
       return
     } catch (err) {
       console.error('[slack] Failed to close the stream, posting the answer as a message:', err.message)
@@ -322,6 +331,19 @@ async function deliverAnswer({ client, channelId, threadTs, streamer, progress, 
   }
 
   await postAnswer(client, channelId, threadTs, result.text)
+}
+
+async function deliverError({ client, channelId, threadTs, streamer, progress }) {
+  if (streamer?.ts && !progress?.hasFailed()) {
+    try {
+      await streamer.stop({ markdown_text: STREAM_ERROR_TEXT })
+      return
+    } catch (err) {
+      console.error('[slack] Failed to close the stream with the error notice:', err.message)
+    }
+  }
+
+  await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: STREAM_ERROR_TEXT })
 }
 
 async function runAndReply({ client, channelId, threadTs, question, sources, profile, slackUserId, teamId }) {
@@ -335,6 +357,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
   }
 
   let streamer = null
+  let progress = null
 
   try {
     streamer = client.chatStream({
@@ -346,7 +369,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
       buffer_size: STREAM_BUFFER_SIZE,
     })
 
-    const progress = buildProgressHandler(streamer)
+    progress = buildProgressHandler(streamer)
 
     const user = slackUserId ? await upsertSlackUser({ slackId: slackUserId, name: null }) : null
     const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveSlack(
@@ -404,12 +427,7 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
   } catch (err) {
     console.error('[slack] Agent error:', err)
 
-    if (streamer?.ts) {
-      await streamer.stop({ markdown_text: STREAM_ERROR_TEXT })
-      return
-    }
-
-    await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: STREAM_ERROR_TEXT })
+    await deliverError({ client, channelId, threadTs, streamer, progress })
   }
 }
 

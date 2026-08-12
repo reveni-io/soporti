@@ -654,6 +654,72 @@ describe('Slack bot', () => {
       )
     })
 
+    it('uploads as file when the streamed text leaves no room for the closing chunk', async () => {
+      const longText = 'a'.repeat(11_500)
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockImplementation(async ({ onProgress }) => {
+        await onProgress({ type: 'text_delta', delta: longText })
+        return { text: longText, footer: '' }
+      })
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client: mockClient,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client: mockClient,
+        ack: vi.fn(),
+      })
+
+      expect(mockClient.streamer.append).not.toHaveBeenCalled()
+      expect(mockClient.streamer.stop).toHaveBeenCalledWith({
+        markdown_text: '_Response was too long for a message. Uploading as file..._',
+      })
+      expect(mockClient.filesUploadV2).toHaveBeenCalledWith(expect.objectContaining({ content: longText }))
+    })
+
+    it('drops the sources footer when it would push the message over the limit', async () => {
+      const streamedText = 'a'.repeat(11_000)
+      const footer = `\n\n_Sources consulted: ${'org/repo, '.repeat(120)}_`
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockImplementation(async ({ onProgress }) => {
+        await onProgress({ type: 'text_delta', delta: streamedText })
+        return { text: streamedText + footer, footer }
+      })
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client: mockClient,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client: mockClient,
+        ack: vi.fn(),
+      })
+
+      expect(mockClient.streamer.append).toHaveBeenCalledWith({ markdown_text: streamedText })
+      expect(mockClient.streamer.stop).toHaveBeenCalledWith(undefined)
+    })
+
     it('streams text deltas and tool steps into the same message', async () => {
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
@@ -946,6 +1012,82 @@ describe('Slack bot', () => {
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockRejectedValue(new Error('agent boom'))
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await registeredActionHandlers['confirm_selection']({
+        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        client,
+        ack: vi.fn(),
+      })
+
+      expect(streamer.stop).not.toHaveBeenCalled()
+      expect(client.chat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text: '⚠️ An error occurred while processing your request.' })
+      )
+      consoleSpy.mockRestore()
+    })
+
+    it('posts the error as a new message when Slack rejects the closing error notice', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const streamer = buildMockStreamer()
+      streamer.stop.mockRejectedValue(new Error('An API error occurred: msg_too_long'))
+      const client = buildMockClient(streamer)
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockRejectedValue(new Error('agent boom'))
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
+        client,
+        context: { teamId: 'T123' },
+      })
+
+      await registeredActionHandlers['select_sources']({
+        action: { selected_options: [{ value: 'org/repo1' }] },
+        body: { message: { ts: 'msg-ts' } },
+        ack: vi.fn(),
+      })
+
+      await expect(
+        registeredActionHandlers['confirm_selection']({
+          body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+          client,
+          ack: vi.fn(),
+        })
+      ).resolves.not.toThrow()
+
+      expect(client.chat.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: 'C123',
+          thread_ts: 'ev-ts',
+          text: '⚠️ An error occurred while processing your request.',
+        })
+      )
+      consoleSpy.mockRestore()
+    })
+
+    it('skips the stream and posts the error when streaming already failed', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const streamer = buildMockStreamer()
+      streamer.append.mockRejectedValue(new Error('An API error occurred: msg_too_long'))
+      const client = buildMockClient(streamer)
+
+      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+      processMessage.mockImplementation(async ({ onProgress }) => {
+        await onProgress({ type: 'text_delta', delta: 'partial answer' })
+        throw new Error('agent boom')
+      })
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
