@@ -28,7 +28,7 @@
     "@octokit/rest": "^22.0.1",
     "@openai/agents": "^0.13.5",
     "@openai/agents-extensions": "^0.13.5",
-    "@slack/bolt": "^4.7.0",
+    "@slack/bolt": "^5.0.0",
     "bcryptjs": "^3.0.3",
     "beautiful-mermaid": "^1.1.3",
     "cors": "^2.8.5",
