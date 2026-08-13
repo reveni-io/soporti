@@ -162,6 +162,55 @@ export const apiKeys = pgTable(
   table => [index('api_keys_user_idx').on(table.userId)]
 )
 
+export const oauthClients = pgTable('oauth_clients', {
+  clientId: text('client_id').primaryKey(),
+  name: text('name').notNull(),
+  redirectUris: jsonb('redirect_uris').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const oauthCodes = pgTable(
+  'oauth_codes',
+  {
+    id: serial('id').primaryKey(),
+    codeHash: text('code_hash').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    redirectUri: text('redirect_uri').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    scope: text('scope').notNull(),
+    resource: text('resource'),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('oauth_codes_expires_idx').on(table.expiresAt)]
+)
+
+export const oauthRefreshTokens = pgTable(
+  'oauth_refresh_tokens',
+  {
+    id: serial('id').primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scope: text('scope').notNull(),
+    rotatedFromId: integer('rotated_from_id'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('oauth_refresh_tokens_user_client_idx').on(table.userId, table.clientId)]
+)
+
 export const granolaCredentials = pgTable('granola_credentials', {
   userId: integer('user_id')
     .primaryKey()

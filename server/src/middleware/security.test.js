@@ -109,6 +109,7 @@ describe('setupSecurity', () => {
     setupSecurity(app)
     expect(app.use).toHaveBeenCalledWith('/api/auth/login', 'rate-limiter')
     expect(app.use).toHaveBeenCalledWith('/api/admin/bootstrap', 'rate-limiter')
+    expect(app.use).toHaveBeenCalledWith('/api/oauth/register', 'rate-limiter')
   })
 
   it('applies general rate limiter to /api/', () => {
@@ -138,7 +139,7 @@ describe('setupSecurity', () => {
 
   it('calls app.use the expected number of times', () => {
     setupSecurity(app)
-    expect(app.use).toHaveBeenCalledTimes(7)
+    expect(app.use).toHaveBeenCalledTimes(8)
   })
 })
 

@@ -6,6 +6,8 @@ import request from 'supertest'
 vi.mock('./config.js', () => ({
   default: {
     port: 3001,
+    publicUrl: 'https://soporti.test',
+    jwt: { secret: 'test-secret', expiresIn: '24h' },
     openai: { model: 'gpt-4o' },
     google: { clientId: 'test-client-id' },
     database: { url: 'postgresql://soporti:soporti@localhost:5432/soporti_test' },
@@ -146,6 +148,17 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
+const { buildAuthorizationServerMetadata, buildProtectedResourceMetadata } = await import('./oauth/metadata.js')
+const { AUTHORIZATION_SERVER_METADATA_PATH, PROTECTED_RESOURCE_METADATA_PATH } = await import('./constants.js')
+
+app.get(PROTECTED_RESOURCE_METADATA_PATH, (_req, res) => {
+  res.json(buildProtectedResourceMetadata())
+})
+
+app.get(AUTHORIZATION_SERVER_METADATA_PATH, (_req, res) => {
+  res.json(buildAuthorizationServerMetadata())
+})
+
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
@@ -166,6 +179,24 @@ describe('index.js app setup', () => {
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({ status: 'ok' })
+    })
+  })
+
+  describe('the OAuth discovery documents', () => {
+    it('serves the protected resource metadata without a token', async () => {
+      const res = await request(app).get('/.well-known/oauth-protected-resource/api/mcp')
+
+      expect(res.status).toBe(200)
+      expect(res.body.resource).toBe('https://soporti.test/api/mcp')
+      expect(res.body.authorization_servers).toEqual(['https://soporti.test'])
+    })
+
+    it('serves the authorization server metadata without a token', async () => {
+      const res = await request(app).get('/.well-known/oauth-authorization-server')
+
+      expect(res.status).toBe(200)
+      expect(res.body.issuer).toBe('https://soporti.test')
+      expect(res.body.code_challenge_methods_supported).toEqual(['S256'])
     })
   })
 

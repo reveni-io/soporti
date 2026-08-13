@@ -4,13 +4,18 @@ import './McpSection.css'
 
 const INSTALL_ROUTES = [
   {
+    label: 'Connect with no key at all',
+    description: 'Add the endpoint and sign in: the browser opens, you approve the connection once and that is it.',
+    command: 'claude mcp add --transport http soporti https://soporti.your.co/api/mcp',
+  },
+  {
     label: 'Install the Claude plugin',
     description: 'Add the marketplace once and the setup command validates your key and registers the connector.',
     command: '/plugin marketplace add reveni-io/soporti\n/plugin install soporti@soporti\n/soporti:setup',
   },
   {
-    label: 'Or register the endpoint yourself',
-    description: 'Any MCP client works: one endpoint, your sop_ key as the bearer token.',
+    label: 'Or bring your own key',
+    description: 'Headless agents that never see a browser keep authenticating with a sop_ key.',
     command:
       'claude mcp add --transport http soporti https://soporti.your.co/api/mcp \\\n  --header "Authorization: Bearer sop_..."',
   },
@@ -40,12 +45,13 @@ const CAPABILITIES = [
   },
   {
     icon: '🔐',
-    title: 'Same keys, same guardrails',
-    description: 'Agents authenticate with your sop_ API key, and a scoped key only reaches the sources it was given.',
+    title: 'Sign in, or bring a key',
+    description:
+      'OAuth 2.1 with your usual login, or a scoped sop_ key. Either way the agent runs as you and reaches nothing you cannot.',
     bullets: [
-      'Origin validation and a dedicated rate limit',
-      'Read-only tools, like everywhere else in Soporti',
-      'Every run lands in your /admin stats',
+      'Mandatory PKCE, and tokens bound to this endpoint alone',
+      'Refresh tokens rotate, so a replayed one kills the grant',
+      'Read-only tools, and every run lands in your /admin stats',
     ],
   },
 ]

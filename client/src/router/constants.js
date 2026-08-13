@@ -4,4 +4,5 @@ export const ROUTES = {
   CHAT: '/chat',
   ADMIN: '/admin',
   SHARE: '/share/:shareId',
+  OAUTH_CONSENT: '/oauth/consent',
 }

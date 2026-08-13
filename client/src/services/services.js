@@ -227,6 +227,15 @@ export function revokeApiKey(token, id) {
   })
 }
 
+export function decideOAuthAuthorization(token, authorization) {
+  return request('/api/oauth/authorize', {
+    method: 'POST',
+    token,
+    body: authorization,
+    errorMessage: 'Failed to authorize the connection',
+  })
+}
+
 export function getSchedules(token) {
   return request('/api/schedules', { token, errorMessage: 'Failed to load the scheduled queries' })
 }

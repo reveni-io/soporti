@@ -18,6 +18,9 @@ vi.mock('../pages/AdminPage/AdminPage.jsx', () => ({
 vi.mock('../pages/SharedView/SharedView.jsx', () => ({
   default: ({ shareId }) => <div data-testid="shared-view">{shareId}</div>,
 }))
+vi.mock('../pages/OAuthConsent/OAuthConsent.jsx', () => ({
+  default: () => <div data-testid="oauth-consent-page" />,
+}))
 
 function renderAt(path) {
   return render(
@@ -41,6 +44,11 @@ describe('Router', () => {
   it('renders the admin page at /admin', () => {
     renderAt('/admin')
     expect(screen.getByTestId('admin-page')).toBeInTheDocument()
+  })
+
+  it('renders the consent page at /oauth/consent', () => {
+    renderAt('/oauth/consent?client_id=cid')
+    expect(screen.getByTestId('oauth-consent-page')).toBeInTheDocument()
   })
 
   it('renders the admin page on admin sub-routes', () => {
