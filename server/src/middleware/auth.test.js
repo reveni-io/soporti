@@ -8,9 +8,18 @@ const findActiveApiKeyByHash = vi.fn()
 const touchApiKeyLastUsed = vi.fn()
 vi.mock('../db/api-keys.js', () => ({ findActiveApiKeyByHash, touchApiKeyLastUsed }))
 
+const RESOURCE = 'https://soporti.test/api/mcp'
+const RESOURCE_METADATA_URL = 'https://soporti.test/.well-known/oauth-protected-resource/api/mcp'
+
+vi.mock('../oauth/metadata.js', () => ({
+  mcpResourceUri: () => RESOURCE,
+  protectedResourceMetadataUrl: () => RESOURCE_METADATA_URL,
+}))
+
 const { createSession, getSessionUser, requireAuth, requireAdmin } = await import('./auth.js')
 const { hashApiKey } = await import('../auth/api-key.js')
 const { issueAccessToken } = await import('../oauth/tokens.js')
+const { default: config } = await import('../config.js')
 
 function mockReq(overrides = {}) {
   return {
@@ -277,7 +286,7 @@ describe('requireAuth with an OAuth access token', () => {
     const foreign = jwt.sign({ scope: 'mcp' }, process.env.JWT_SECRET, {
       subject: '1',
       audience: 'https://evil.test/api/mcp',
-      issuer: 'http://localhost:3001',
+      issuer: config.publicUrl,
       expiresIn: 900,
     })
     const res = mockRes()
@@ -338,9 +347,7 @@ describe('the MCP 401 challenge', () => {
     await requireAuth(mockReq({ path: '/api/mcp', method: 'POST' }), res, vi.fn())
 
     expect(res.statusCode).toBe(401)
-    expect(res._headers['WWW-Authenticate']).toBe(
-      'Bearer resource_metadata="http://localhost:3001/.well-known/oauth-protected-resource/api/mcp"'
-    )
+    expect(res._headers['WWW-Authenticate']).toBe(`Bearer resource_metadata="${RESOURCE_METADATA_URL}"`)
   })
 
   it('is not sent on the other endpoints', async () => {
