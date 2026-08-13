@@ -46,14 +46,15 @@ async function storeImage(res, { userId, name, mimeType, buffer }) {
   if (!looksLikeImage(buffer, mimeType)) {
     return res.status(422).json({ error: `"${name}" is not a valid image. It may be corrupt or renamed.` })
   }
-  if (buffer.length > MAX_IMAGE_BYTES) {
+  const bytes = Buffer.byteLength(buffer)
+  if (bytes > MAX_IMAGE_BYTES) {
     return res.status(413).json({ error: IMAGE_TOO_LARGE_MESSAGE })
   }
 
   const { id, expiresAt } = await createAttachmentImage({ userId, name, mimeType, buffer })
 
   console.log(
-    `[attachments] "${name}" (${mimeType}) → image ${id}, ${buffer.length} bytes, kept until ${expiresAt.toISOString()}`
+    `[attachments] "${name}" (${mimeType}) → image ${id}, ${bytes} bytes, kept until ${expiresAt.toISOString()}`
   )
 
   res.json({ attachment: { name, imageId: id } })
