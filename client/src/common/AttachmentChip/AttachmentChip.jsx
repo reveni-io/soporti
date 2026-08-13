@@ -21,7 +21,7 @@ function Thumbnail({ attachment, token }) {
 }
 
 export default function AttachmentChip({ attachment, token, onRemove }) {
-  const isImage = Boolean(attachment.imageId || attachment.previewUrl)
+  const isImage = Boolean(attachment.imageId)
 
   return (
     <li className="chip chip--pill attachment-chip">

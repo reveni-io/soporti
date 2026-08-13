@@ -45,7 +45,7 @@ beforeEach(() => {
 })
 
 describe('createAttachmentImage', () => {
-  it('stores the base64 payload with its size and an expiry 30 days out', async () => {
+  it('stores the base64 payload with an expiry 30 days out', async () => {
     const before = Date.now()
 
     const { id, expiresAt } = await createAttachmentImage({
@@ -62,7 +62,6 @@ describe('createAttachmentImage', () => {
       name: 'screenshot.png',
       mimeType: 'image/png',
       data: PNG_BYTES.toString('base64'),
-      byteSize: PNG_BYTES.length,
     })
     expect(id).toMatch(/^[0-9a-f-]{36}$/)
     expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + 30 * 24 * 60 * 60 * 1000)
@@ -70,13 +69,10 @@ describe('createAttachmentImage', () => {
 })
 
 describe('getAttachmentImage', () => {
-  it('returns the name and a data URI built from the stored row', async () => {
-    queue = [[{ name: 'screenshot.png', mimeType: 'image/png', data: 'aGk=' }]]
+  it('returns a data URI built from the stored row', async () => {
+    queue = [[{ mimeType: 'image/png', data: 'aGk=' }]]
 
-    expect(await getAttachmentImage('11111111-1111-4111-8111-111111111111', 7)).toEqual({
-      name: 'screenshot.png',
-      image: 'data:image/png;base64,aGk=',
-    })
+    expect(await getAttachmentImage('11111111-1111-4111-8111-111111111111', 7)).toBe('data:image/png;base64,aGk=')
   })
 
   it('returns null when the image is missing, expired or owned by someone else', async () => {

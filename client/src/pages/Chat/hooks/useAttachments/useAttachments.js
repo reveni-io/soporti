@@ -29,7 +29,12 @@ function resolveUpload(file) {
 }
 
 function revokePreview(attachment) {
-  if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+  if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+}
+
+function withPreviewsRevoked(previous) {
+  previous.forEach(revokePreview)
+  return []
 }
 
 export function useAttachments(token, onAuthError, conversationKey) {
@@ -37,10 +42,7 @@ export function useAttachments(token, onAuthError, conversationKey) {
   const { saving: isUploading, error, save, clearError } = useSaveField(onAuthError)
 
   useEffect(() => {
-    setAttachments(previous => {
-      previous.forEach(revokePreview)
-      return []
-    })
+    setAttachments(withPreviewsRevoked)
     clearError()
   }, [conversationKey, clearError])
 
@@ -56,12 +58,15 @@ export function useAttachments(token, onAuthError, conversationKey) {
       const oversized = selected.find(file => file.size > MAX_ATTACHMENT_BYTES)
       if (oversized) throw new Error(`"${oversized.name}" is too large (max ${MAX_ATTACHMENT_MB} MB).`)
 
-      const unsupported = selected.find(file => !resolveUpload(file))
-      if (unsupported) throw new Error(`"${unsupported.name}" is not supported. Attach a ${ATTACHMENT_ACCEPT} file.`)
+      const uploads = selected.map(file => ({ file, upload: resolveUpload(file) }))
 
-      for (const file of selected) {
-        const { name, mimeType } = resolveUpload(file)
-        const data = await uploadAttachment(token, file, mimeType, name)
+      const unsupported = uploads.find(({ upload }) => !upload)
+      if (unsupported) {
+        throw new Error(`"${unsupported.file.name}" is not supported. Attach a ${ATTACHMENT_ACCEPT} file.`)
+      }
+
+      for (const { file, upload } of uploads) {
+        const data = await uploadAttachment(token, file, upload.mimeType, upload.name)
         const previewUrl = data.attachment.imageId ? URL.createObjectURL(file) : undefined
 
         setAttachments(previous => [...previous, { ...data.attachment, previewUrl }])
@@ -72,17 +77,14 @@ export function useAttachments(token, onAuthError, conversationKey) {
   function removeAttachment(index) {
     clearError()
     setAttachments(previous => {
-      previous.filter((_, i) => i === index).forEach(revokePreview)
+      revokePreview(previous[index])
       return previous.filter((_, i) => i !== index)
     })
   }
 
   function clearAttachments() {
     clearError()
-    setAttachments(previous => {
-      previous.forEach(revokePreview)
-      return []
-    })
+    setAttachments(withPreviewsRevoked)
   }
 
   return { attachments, error, isUploading, addFiles, removeAttachment, clearAttachments }

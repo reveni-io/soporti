@@ -33,7 +33,7 @@ export function useChat(token, onAuthError) {
             selectedSources,
             profile,
             skillIds: skills.map(s => s.id),
-            attachments: attachments.map(({ name, text, truncated, imageId }) => ({ name, text, truncated, imageId })),
+            attachments: attachments.map(({ previewUrl: _previewUrl, ...sent }) => sent),
           },
           abortController.signal
         )

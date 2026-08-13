@@ -14,6 +14,8 @@ export const MAX_SCHEDULES_PER_USER = 20
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+export const PROMPT_SECTION_SEPARATOR = '\n\n---\n\n'
+
 export const MAX_ATTACHMENTS_PER_MESSAGE = 3
 export const MAX_ATTACHMENT_MB = 10
 export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024

@@ -12,7 +12,7 @@ import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
-import { isValidAttachmentName } from '../documents/attachments.js'
+import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
 import { buildAgentInput } from '../agent/agent-input.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
 import {
@@ -87,20 +87,23 @@ function parseAttachments(value) {
 }
 
 async function resolveAttachmentImages(attachments, userId) {
-  const ids = attachments.filter(a => a.imageId).map(a => a.imageId)
-  if (ids.length === 0) return { images: [] }
+  const withImage = attachments.filter(carriesImage)
+  if (withImage.length === 0) return { images: [] }
 
-  const stored = await getAttachmentImages(ids, userId)
-  const missing = attachments.find(a => a.imageId && !stored.has(a.imageId))
+  const stored = await getAttachmentImages(
+    withImage.map(a => a.imageId),
+    userId
+  )
+  const missing = withImage.find(a => !stored.has(a.imageId))
   if (missing) {
     return { error: `The image "${missing.name}" is no longer available. Attach it again.` }
   }
 
-  return { images: ids.map(id => stored.get(id)) }
+  return { images: withImage.map(a => stored.get(a.imageId)) }
 }
 
 function describeAttachment(attachment) {
-  if (attachment.imageId) return `${attachment.name} (image)`
+  if (carriesImage(attachment)) return `${attachment.name} (image)`
 
   return `${attachment.name} (${attachment.text.length} chars${attachment.truncated ? ', truncated' : ''})`
 }
@@ -130,7 +133,7 @@ export default function chatRoute(conversationStore) {
       return res.status(400).json({ error: 'Message is too long (max 10,000 characters).' })
     }
 
-    if (sessionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+    if (sessionId && !UUID_RE.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid session ID.' })
     }
 

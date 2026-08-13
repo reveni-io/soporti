@@ -14,13 +14,11 @@ vi.mock('../documents/parsers.js', () => ({
 
 vi.mock('../db/attachment-images.js', () => ({
   createAttachmentImage: vi.fn(),
-  deleteExpiredAttachmentImages: vi.fn(),
   getAttachmentImage: vi.fn(),
 }))
 
 const { parsePdf, parseDocx } = await import('../documents/parsers.js')
-const { createAttachmentImage, deleteExpiredAttachmentImages, getAttachmentImage } =
-  await import('../db/attachment-images.js')
+const { createAttachmentImage, getAttachmentImage } = await import('../db/attachment-images.js')
 const { default: attachmentsRouter } = await import('./attachments.js')
 const { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_CHARS } = await import('../constants.js')
 
@@ -36,7 +34,6 @@ describe('attachments routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     createAttachmentImage.mockResolvedValue({ id: IMAGE_ID, expiresAt: new Date('2026-09-11T00:00:00Z') })
-    deleteExpiredAttachmentImages.mockResolvedValue(0)
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     app = express()
@@ -125,23 +122,6 @@ describe('attachments routes', () => {
     expect(createAttachmentImage).not.toHaveBeenCalled()
   })
 
-  it('purges expired images after storing a new one', async () => {
-    deleteExpiredAttachmentImages.mockResolvedValue(2)
-
-    await request(app).post('/?name=error.png').set('Content-Type', PNG).send(PNG_BYTES)
-
-    expect(deleteExpiredAttachmentImages).toHaveBeenCalledTimes(1)
-  })
-
-  it('still answers when purging expired images fails', async () => {
-    deleteExpiredAttachmentImages.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).post('/?name=error.png').set('Content-Type', PNG).send(PNG_BYTES)
-
-    expect(res.status).toBe(200)
-    expect(res.body.attachment.imageId).toBe(IMAGE_ID)
-  })
-
   it('returns 500 when the image cannot be stored', async () => {
     createAttachmentImage.mockRejectedValue(new Error('db down'))
 
@@ -151,14 +131,23 @@ describe('attachments routes', () => {
     expect(res.body.error).toMatch(/Failed to read the file/)
   })
 
-  it('serves a stored image by id', async () => {
-    getAttachmentImage.mockResolvedValue({ name: 'error.png', image: `data:${PNG};base64,aGk=` })
+  it('serves a stored image by id, cached privately', async () => {
+    getAttachmentImage.mockResolvedValue(`data:${PNG};base64,aGk=`)
 
     const res = await request(app).get(`/images/${IMAGE_ID}`)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ name: 'error.png', image: `data:${PNG};base64,aGk=` })
+    expect(res.body).toEqual({ image: `data:${PNG};base64,aGk=` })
+    expect(res.headers['cache-control']).toBe('private, max-age=86400, immutable')
     expect(getAttachmentImage).toHaveBeenCalledWith(IMAGE_ID, 1)
+  })
+
+  it('never puts the stored file name in the image response', async () => {
+    getAttachmentImage.mockResolvedValue(`data:${PNG};base64,aGk=`)
+
+    const res = await request(app).get(`/images/${IMAGE_ID}`)
+
+    expect(res.body).not.toHaveProperty('name')
   })
 
   it('returns 404 for an image that expired or belongs to someone else', async () => {

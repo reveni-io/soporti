@@ -1,5 +1,5 @@
 import Section from '../Section/Section.jsx'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../constants.js'
+import { ATTACHMENT_ACCEPT, IMAGE_RETENTION_DAYS, MAX_ATTACHMENTS } from '../../../constants.js'
 
 const FORMATS = ATTACHMENT_ACCEPT.split(',')
 
@@ -19,7 +19,9 @@ export default function AttachmentsSection() {
           <li>Up to {MAX_ATTACHMENTS} files per message, read the moment you drop them</li>
           <li>The text stays in that conversation — nothing is indexed or shared with your other chats</li>
           <li>A very long document is cut at a safe size, and the file says so right in the chat</li>
-          <li>Screenshots stay available for 30 days so reopening the conversation still shows them</li>
+          <li>
+            Screenshots stay available for {IMAGE_RETENTION_DAYS} days so reopening the conversation still shows them
+          </li>
         </ul>
         <div className="lp-tags">
           {FORMATS.map(format => (

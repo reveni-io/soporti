@@ -2,11 +2,10 @@ import { useRef } from 'react'
 import AttachmentChip from '../../../../common/AttachmentChip/AttachmentChip.jsx'
 import SkillMenu from '../SkillMenu/SkillMenu.jsx'
 import { useFileDrop } from '../../hooks/useFileDrop/useFileDrop.js'
-import { ATTACHMENT_ACCEPT, IMAGE_MIME_TYPES, MAX_ATTACHMENTS } from '../../../../constants.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
 
 const DROP_HINT = 'Drop your files to attach them'
 const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
-const SUPPORTED_IMAGE_MIME_TYPES = Object.values(IMAGE_MIME_TYPES)
 
 export default function ChatComposer({
   input,
@@ -43,13 +42,11 @@ export default function ChatComposer({
   }
 
   function handlePaste(event) {
-    const images = [...(event.clipboardData?.files ?? [])].filter(file =>
-      SUPPORTED_IMAGE_MIME_TYPES.includes(file.type)
-    )
-    if (images.length === 0) return
+    const files = [...(event.clipboardData?.files ?? [])]
+    if (files.length === 0) return
 
     event.preventDefault()
-    if (canAttach) onAttachFiles(images)
+    if (canAttach) onAttachFiles(files)
   }
 
   return (

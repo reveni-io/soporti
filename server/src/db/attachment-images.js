@@ -16,22 +16,14 @@ export async function createAttachmentImage({ userId, name, mimeType, buffer }) 
 
   await getDb()
     .insert(attachmentImages)
-    .values({
-      id,
-      userId,
-      name,
-      mimeType,
-      data: buffer.toString('base64'),
-      byteSize: buffer.length,
-      expiresAt,
-    })
+    .values({ id, userId, name, mimeType, data: buffer.toString('base64'), expiresAt })
 
   return { id, expiresAt }
 }
 
 export async function getAttachmentImage(id, userId) {
   const [row] = await getDb()
-    .select({ name: attachmentImages.name, mimeType: attachmentImages.mimeType, data: attachmentImages.data })
+    .select({ mimeType: attachmentImages.mimeType, data: attachmentImages.data })
     .from(attachmentImages)
     .where(
       and(eq(attachmentImages.id, id), eq(attachmentImages.userId, userId), gt(attachmentImages.expiresAt, new Date()))
@@ -39,7 +31,7 @@ export async function getAttachmentImage(id, userId) {
     .limit(1)
   if (!row) return null
 
-  return { name: row.name, image: toDataUri(row) }
+  return toDataUri(row)
 }
 
 export async function getAttachmentImages(ids, userId) {

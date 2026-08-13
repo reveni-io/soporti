@@ -8,26 +8,18 @@ import {
   isValidAttachmentName,
   looksLikeImage,
 } from '../documents/attachments.js'
-import { createAttachmentImage, deleteExpiredAttachmentImages, getAttachmentImage } from '../db/attachment-images.js'
+import { createAttachmentImage, getAttachmentImage } from '../db/attachment-images.js'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB, UUID_RE } from '../constants.js'
 
 const router = Router()
 
 const UNSUPPORTED_MESSAGE = `Unsupported file type. Supported formats: ${ATTACHMENT_EXTENSIONS.join(', ')}.`
 const TOO_LARGE_MESSAGE = `The file is too large (max ${MAX_ATTACHMENT_MB} MB).`
+const IMAGE_CACHE_SECONDS = 24 * 60 * 60
 
 function reject(req, res, status, error) {
   req.resume()
   return res.status(status).json({ error })
-}
-
-async function purgeExpiredImages() {
-  try {
-    const deleted = await deleteExpiredAttachmentImages()
-    if (deleted > 0) console.log(`[attachments] purged ${deleted} expired image(s)`)
-  } catch (err) {
-    console.error('Failed to purge expired attachment images:', err)
-  }
 }
 
 async function storeImage(req, res, name, mimeType) {
@@ -47,8 +39,6 @@ async function storeImage(req, res, name, mimeType) {
   )
 
   res.json({ attachment: { name, imageId: id } })
-
-  await purgeExpiredImages()
 }
 
 router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES }), async (req, res) => {
@@ -94,7 +84,7 @@ router.get('/images/:id', async (req, res) => {
     const image = await getAttachmentImage(req.params.id, req.user.id)
     if (!image) return res.status(404).json({ error: 'Image not found.' })
 
-    res.json(image)
+    res.set('Cache-Control', `private, max-age=${IMAGE_CACHE_SECONDS}, immutable`).json({ image })
   } catch (err) {
     console.error('Failed to load the attachment image:', err)
     res.status(500).json({ error: 'Failed to load the image.' })

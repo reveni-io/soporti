@@ -1,4 +1,5 @@
-import { MAX_ATTACHMENT_CHARS } from '../constants.js'
+import { MAX_ATTACHMENT_CHARS, PROMPT_SECTION_SEPARATOR } from '../constants.js'
+import { carriesImage } from '../documents/attachments.js'
 import { isYoloMode, buildSourcePolicy } from './sources.js'
 import {
   INTEGRATIONS,
@@ -6,8 +7,6 @@ import {
   resolveAvailableIntegrations,
   integrationLabels,
 } from './integrations.js'
-
-const SECTION_SEPARATOR = '\n\n---\n\n'
 
 const CORE_INTRO = `You are a code assistant that helps support and engineering teams understand, navigate, and answer questions about code repositories.
 
@@ -378,10 +377,10 @@ Look at them as part of the question — a screenshot of an error, a photo of a 
 export function buildAttachmentsPrompt(attachments) {
   if (!attachments || attachments.length === 0) return ''
 
-  const documents = attachments.filter(a => typeof a.text === 'string')
-  const images = attachments.filter(a => typeof a.text !== 'string')
+  const images = attachments.filter(carriesImage)
+  const documents = attachments.filter(a => !carriesImage(a))
 
-  return [buildDocumentsPrompt(documents), buildImagesPrompt(images)].filter(Boolean).join(SECTION_SEPARATOR)
+  return [buildDocumentsPrompt(documents), buildImagesPrompt(images)].filter(Boolean).join(PROMPT_SECTION_SEPARATOR)
 }
 
 function applySkillArguments(instructions, skillArguments) {

@@ -104,7 +104,7 @@ export async function streamChat(token, body, signal) {
   return response
 }
 
-export function uploadAttachment(token, file, contentType, name = file.name) {
+export function uploadAttachment(token, file, contentType, name) {
   return request(`/api/attachments?name=${encodeURIComponent(name)}`, {
     method: 'POST',
     token,

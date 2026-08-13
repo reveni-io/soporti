@@ -240,7 +240,7 @@ describe('ChatComposer', () => {
     expect(onAttachFiles).not.toHaveBeenCalled()
   })
 
-  it('ignores a pasted file that is not a supported image', () => {
+  it('hands a pasted file of any type to the attachment validation, like a dropped one', () => {
     const onAttachFiles = vi.fn()
     const archive = new File(['bytes'], 'backup.zip', { type: 'application/zip' })
     render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
@@ -249,7 +249,7 @@ describe('ChatComposer', () => {
       clipboardData: { files: [archive], types: ['Files'] },
     })
 
-    expect(onAttachFiles).not.toHaveBeenCalled()
+    expect(onAttachFiles).toHaveBeenCalledWith([archive])
   })
 
   it('does not attach a pasted image once the attachment limit is reached', () => {

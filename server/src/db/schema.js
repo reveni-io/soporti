@@ -164,7 +164,6 @@ export const attachmentImages = pgTable(
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
     data: text('data').notNull(),
-    byteSize: integer('byte_size').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },

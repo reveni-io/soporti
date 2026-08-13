@@ -55,6 +55,10 @@ export function isImageAttachment(mimeType) {
   return mimeType in IMAGE_TYPES
 }
 
+export function carriesImage(attachment) {
+  return Boolean(attachment?.imageId)
+}
+
 export function looksLikeImage(buffer, mimeType) {
   const type = IMAGE_TYPES[mimeType]
   if (!type) return false

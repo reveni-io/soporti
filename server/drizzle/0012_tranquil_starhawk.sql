@@ -4,7 +4,6 @@ CREATE TABLE "attachment_images" (
 	"name" text NOT NULL,
 	"mime_type" text NOT NULL,
 	"data" text NOT NULL,
-	"byte_size" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL
 );
