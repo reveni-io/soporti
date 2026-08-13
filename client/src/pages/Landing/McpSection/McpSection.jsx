@@ -2,8 +2,19 @@ import FeatureCard from '../FeatureCard/FeatureCard.jsx'
 import Section from '../Section/Section.jsx'
 import './McpSection.css'
 
-const MCP_COMMAND =
-  'claude mcp add --transport http soporti https://soporti.your.co/api/mcp \\\n  --header "Authorization: Bearer sop_..."'
+const INSTALL_ROUTES = [
+  {
+    label: 'Install the Claude plugin',
+    description: 'Add the marketplace once and the setup command validates your key and registers the connector.',
+    command: '/plugin marketplace add reveni-io/soporti\n/plugin install soporti@soporti\n/soporti:setup',
+  },
+  {
+    label: 'Or register the endpoint yourself',
+    description: 'Any MCP client works: one endpoint, your sop_ key as the bearer token.',
+    command:
+      'claude mcp add --transport http soporti https://soporti.your.co/api/mcp \\\n  --header "Authorization: Bearer sop_..."',
+  },
+]
 
 const CAPABILITIES = [
   {
@@ -62,9 +73,17 @@ export default function McpSection() {
           />
         ))}
       </div>
-      <pre className="lp-mcp__command">
-        <code>{MCP_COMMAND}</code>
-      </pre>
+      <div className="lp-mcp__routes">
+        {INSTALL_ROUTES.map(route => (
+          <div key={route.label} className="lp-mcp__route">
+            <p className="lp-mcp__route-label">{route.label}</p>
+            <p className="lp-mcp__route-description">{route.description}</p>
+            <pre className="lp-mcp__command">
+              <code>{route.command}</code>
+            </pre>
+          </div>
+        ))}
+      </div>
     </Section>
   )
 }
