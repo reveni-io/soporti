@@ -22,6 +22,9 @@ import skillsRouter from './routes/skills.js'
 import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
 import mcpRoute from './mcp/route.js'
+import oauthRouter from './oauth/route.js'
+import { buildAuthorizationServerMetadata, buildProtectedResourceMetadata } from './oauth/metadata.js'
+import { AUTHORIZATION_SERVER_METADATA_PATH, OAUTH_BASE_PATH, PROTECTED_RESOURCE_METADATA_PATH } from './constants.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { startSchedulePoller, stopSchedulePoller } from './schedules/poller.js'
 import { startImageRetention, stopImageRetention } from './documents/image-retention.js'
@@ -42,6 +45,14 @@ setupSecurity(app)
 
 app.use(express.json({ limit: '2mb' }))
 
+app.get(PROTECTED_RESOURCE_METADATA_PATH, (_req, res) => {
+  res.json(buildProtectedResourceMetadata())
+})
+
+app.get(AUTHORIZATION_SERVER_METADATA_PATH, (_req, res) => {
+  res.json(buildAuthorizationServerMetadata())
+})
+
 app.use(requireAuth)
 
 const conversationStore = new ConversationStore()
@@ -61,6 +72,7 @@ app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
+app.use(OAUTH_BASE_PATH, oauthRouter)
 app.use('/api/mcp', mcpRoute(conversationStore))
 
 app.get('/api/health', (_req, res) => {

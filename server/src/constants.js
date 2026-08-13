@@ -31,6 +31,27 @@ export const MAX_SKILLS_PER_REQUEST = 10
 export const MAX_API_KEY_NAME_LENGTH = 80
 export const MAX_API_KEYS_PER_USER = 20
 
+export const MCP_ENDPOINT_PATH = '/api/mcp'
+export const PROTECTED_RESOURCE_METADATA_PATH = `/.well-known/oauth-protected-resource${MCP_ENDPOINT_PATH}`
+export const AUTHORIZATION_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server'
+
+export const OAUTH_BASE_PATH = '/api/oauth'
+export const OAUTH_AUTHORIZE_PATH = `${OAUTH_BASE_PATH}/authorize`
+export const OAUTH_TOKEN_PATH = `${OAUTH_BASE_PATH}/token`
+export const OAUTH_REGISTER_PATH = `${OAUTH_BASE_PATH}/register`
+export const OAUTH_CONSENT_PATH = '/oauth/consent'
+export const OAUTH_SCOPE = 'mcp'
+export const OAUTH_RESPONSE_TYPE_CODE = 'code'
+export const OAUTH_CODE_CHALLENGE_METHOD = 'S256'
+export const OAUTH_GRANT_AUTHORIZATION_CODE = 'authorization_code'
+export const OAUTH_GRANT_REFRESH_TOKEN = 'refresh_token'
+export const OAUTH_CODE_TTL_MS = 60_000
+export const OAUTH_ACCESS_TOKEN_TTL_SECONDS = 900
+export const OAUTH_REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
+export const MAX_OAUTH_CLIENT_NAME_LENGTH = 100
+export const MAX_OAUTH_REDIRECT_URIS = 10
+export const MAX_OAUTH_REDIRECT_URI_LENGTH = 2000
+
 export const DEFAULT_FILE_LINES = 300
 export const MAX_FILE_LINES = 5000
 export const DEFAULT_CONTEXT_LINES = 100

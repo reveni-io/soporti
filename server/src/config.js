@@ -23,8 +23,16 @@ function parseCsvList(value) {
     .filter(Boolean)
 }
 
+function normalizeBaseUrl(value) {
+  return value.replace(/\/+$/, '')
+}
+
+const port = parseInt(process.env.PORT || '3001', 10)
+
 const config = {
-  port: parseInt(process.env.PORT || '3001', 10),
+  port,
+
+  publicUrl: normalizeBaseUrl(process.env.PUBLIC_URL || `http://localhost:${port}`),
 
   documents: {
     parseConcurrency:
@@ -90,6 +98,12 @@ const config = {
 if (config.jwt.secret === 'change-me-to-a-long-random-string') {
   console.error('JWT_SECRET is still the .env.example placeholder. Set a real secret (e.g. `openssl rand -hex 32`).')
   process.exit(1)
+}
+if (!process.env.PUBLIC_URL && process.env.NODE_ENV === 'production') {
+  console.warn(
+    `[config] PUBLIC_URL is not set: OAuth discovery and MCP access tokens will announce ${config.publicUrl}. ` +
+      'Set it to the URL your MCP clients actually connect to, or they cannot complete the OAuth flow.'
+  )
 }
 if (config.jwt.secret.length < 32) {
   console.warn('[config] JWT_SECRET is shorter than 32 characters — consider a longer secret (`openssl rand -hex 32`).')

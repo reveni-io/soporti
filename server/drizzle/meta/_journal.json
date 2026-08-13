@@ -92,6 +92,13 @@
       "when": 1786615751280,
       "tag": "0012_odd_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786633984730,
+      "tag": "0013_quick_demogoblin",
+      "breakpoints": true
     }
   ]
 }

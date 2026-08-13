@@ -2,6 +2,7 @@ import helmet from 'helmet'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import config from '../config.js'
+import { OAUTH_REGISTER_PATH } from '../constants.js'
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 
@@ -87,6 +88,7 @@ export function setupSecurity(app) {
   app.use('/api/chat', chatLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/admin/bootstrap', authLimiter)
+  app.use(OAUTH_REGISTER_PATH, authLimiter)
   app.use('/api/mcp', mcpOriginGuard, mcpLimiter)
   app.use('/api/', generalLimiter)
 

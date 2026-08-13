@@ -8,8 +8,18 @@ const findActiveApiKeyByHash = vi.fn()
 const touchApiKeyLastUsed = vi.fn()
 vi.mock('../db/api-keys.js', () => ({ findActiveApiKeyByHash, touchApiKeyLastUsed }))
 
+const RESOURCE = 'https://soporti.test/api/mcp'
+const RESOURCE_METADATA_URL = 'https://soporti.test/.well-known/oauth-protected-resource/api/mcp'
+
+vi.mock('../oauth/metadata.js', () => ({
+  mcpResourceUri: () => RESOURCE,
+  protectedResourceMetadataUrl: () => RESOURCE_METADATA_URL,
+}))
+
 const { createSession, getSessionUser, requireAuth, requireAdmin } = await import('./auth.js')
 const { hashApiKey } = await import('../auth/api-key.js')
+const { issueAccessToken } = await import('../oauth/tokens.js')
+const { default: config } = await import('../config.js')
 
 function mockReq(overrides = {}) {
   return {
@@ -24,6 +34,11 @@ function mockRes() {
   const res = {
     statusCode: 200,
     _json: null,
+    _headers: {},
+    set(name, value) {
+      res._headers[name] = value
+      return res
+    },
     status(code) {
       res.statusCode = code
       return res
@@ -90,6 +105,9 @@ describe('requireAuth', () => {
     ['GET', '/api/health'],
     ['GET', '/api/admin/status'],
     ['POST', '/api/admin/bootstrap'],
+    ['GET', '/api/oauth/authorize'],
+    ['POST', '/api/oauth/register'],
+    ['POST', '/api/oauth/token'],
   ])('skips auth for %s %s', async (method, path) => {
     const req = mockReq({ path, method })
     const res = mockRes()
@@ -241,6 +259,104 @@ describe('requireAuth with an API key', () => {
 
     expect(next).toHaveBeenCalledWith(dbErr)
     expect(req.user).toBeUndefined()
+  })
+})
+
+describe('requireAuth with an OAuth access token', () => {
+  const dbUser = { id: 1, email: 'jane@example.com', name: 'Jane', role: 'user' }
+
+  function mcpReq(token) {
+    return mockReq({ path: '/api/mcp', method: 'POST', headers: { authorization: `Bearer ${token}` } })
+  }
+
+  it('resolves the token subject to its owner, refreshed from the database', async () => {
+    findUserById.mockResolvedValue({ ...dbUser, name: 'Renamed' })
+    const req = mcpReq(issueAccessToken({ userId: 1, clientId: 'cid', scope: 'mcp' }))
+    const next = vi.fn()
+
+    await requireAuth(req, mockRes(), next)
+
+    expect(next).toHaveBeenCalledWith()
+    expect(req.user).toEqual({ ...dbUser, name: 'Renamed' })
+    expect(req.apiKey).toBeUndefined()
+    expect(findUserById).toHaveBeenCalledWith(1)
+  })
+
+  it('rejects a token minted for another audience', async () => {
+    const foreign = jwt.sign({ scope: 'mcp' }, process.env.JWT_SECRET, {
+      subject: '1',
+      audience: 'https://evil.test/api/mcp',
+      issuer: config.publicUrl,
+      expiresIn: 900,
+    })
+    const res = mockRes()
+
+    await requireAuth(mcpReq(foreign), res, vi.fn())
+
+    expect(res.statusCode).toBe(401)
+    expect(findUserById).not.toHaveBeenCalled()
+  })
+
+  it('refuses to accept an MCP token anywhere else in the API', async () => {
+    const req = mockReq({
+      path: '/api/skills',
+      method: 'GET',
+      headers: { authorization: `Bearer ${issueAccessToken({ userId: 1, clientId: 'cid', scope: 'mcp' })}` },
+    })
+    const res = mockRes()
+    const next = vi.fn()
+
+    await requireAuth(req, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(401)
+    expect(res._json.error).toContain('only valid for the MCP endpoint')
+  })
+
+  it('returns 401 when the account behind the token is gone', async () => {
+    findUserById.mockResolvedValue(null)
+    const res = mockRes()
+
+    await requireAuth(mcpReq(issueAccessToken({ userId: 1, clientId: 'cid', scope: 'mcp' })), res, vi.fn())
+
+    expect(res.statusCode).toBe(401)
+    expect(res._json.error).toContain('no longer exists')
+  })
+
+  it('forwards DB errors to next instead of authenticating', async () => {
+    const dbErr = new Error('db down')
+    findUserById.mockRejectedValue(dbErr)
+    const req = mcpReq(issueAccessToken({ userId: 1, clientId: 'cid', scope: 'mcp' }))
+    const next = vi.fn()
+
+    await requireAuth(req, mockRes(), next)
+
+    expect(next).toHaveBeenCalledWith(dbErr)
+    expect(req.user).toBeUndefined()
+  })
+
+  it('never lets an MCP access token pass as a web session', async () => {
+    expect(getSessionUser(issueAccessToken({ userId: 1, clientId: 'cid', scope: 'mcp' }))).toBeNull()
+  })
+})
+
+describe('the MCP 401 challenge', () => {
+  it('tells the client where the protected resource metadata lives', async () => {
+    const res = mockRes()
+
+    await requireAuth(mockReq({ path: '/api/mcp', method: 'POST' }), res, vi.fn())
+
+    expect(res.statusCode).toBe(401)
+    expect(res._headers['WWW-Authenticate']).toBe(`Bearer resource_metadata="${RESOURCE_METADATA_URL}"`)
+  })
+
+  it('is not sent on the other endpoints', async () => {
+    const res = mockRes()
+
+    await requireAuth(mockReq({ path: '/api/chat', method: 'POST' }), res, vi.fn())
+
+    expect(res.statusCode).toBe(401)
+    expect(res._headers['WWW-Authenticate']).toBeUndefined()
   })
 })
 

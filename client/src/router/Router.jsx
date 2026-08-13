@@ -4,6 +4,7 @@ import Landing from '../pages/Landing/Landing.jsx'
 import LoginPage from '../pages/LoginPage/LoginPage.jsx'
 import AdminPage from '../pages/AdminPage/AdminPage.jsx'
 import SharedView from '../pages/SharedView/SharedView.jsx'
+import OAuthConsent from '../pages/OAuthConsent/OAuthConsent.jsx'
 import { ROUTES } from './constants.js'
 
 function ShareRoute() {
@@ -21,6 +22,7 @@ export default function Router() {
       <Route path={ROUTES.CHAT} element={<Chat />} />
       <Route path={`${ROUTES.ADMIN}/*`} element={<AdminPage />} />
       <Route path={ROUTES.SHARE} element={<ShareRoute />} />
+      <Route path={ROUTES.OAUTH_CONSENT} element={<OAuthConsent />} />
       <Route path="*" element={<Landing />} />
     </Routes>
   )

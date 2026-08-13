@@ -9,6 +9,7 @@ import {
   deleteConversation,
   deleteSchedule,
   deleteSkill,
+  decideOAuthAuthorization,
   draftShopifyTokenQuery,
   getAdminStatus,
   getAuthConfig,
@@ -274,6 +275,16 @@ describe('endpoints', () => {
     expect(url).toBe('/api/user/instructions')
     expect(options.method).toBe('PUT')
     expect(JSON.parse(options.body)).toEqual({ instructions: 'be brief' })
+  })
+
+  it('decides an OAuth authorization with the session token', async () => {
+    await decideOAuthAuthorization('tok', { decision: 'allow', client_id: 'cid' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/oauth/authorize')
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ decision: 'allow', client_id: 'cid' })
   })
 
   it('reads a single skill', async () => {
