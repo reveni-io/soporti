@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import http from 'node:http'
 import express, { Router } from 'express'
+import rateLimit from 'express-rate-limit'
 import request from 'supertest'
 
 vi.mock('./config.js', () => ({
@@ -142,6 +143,11 @@ const authRouter = (await import('./routes/auth.js')).default
 
 const app = express()
 app.use(express.json())
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+})
+app.use(limiter)
 app.use('/api/auth', authRouter)
 
 app.get('/api/health', (_req, res) => {
