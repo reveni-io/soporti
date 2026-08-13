@@ -101,10 +101,18 @@ test -w ~/.claude.json && echo writable
 
 If it is not writable or does not exist, go to route 3.
 
-Check whether the entry already exists, and **ask before replacing it** if it does:
+Pick the parser you will use for both reading and writing — the first of these that resolves. If none of them does, go to route 3.
 
 ```bash
-node -e 'const c=require("fs").readFileSync(require("os").homedir()+"/.claude.json","utf8");console.log(JSON.stringify(Object.keys(JSON.parse(c).mcpServers||{})))'
+command -v node; command -v python3; command -v jq
+```
+
+With that parser — one line each below, run only the one you picked — list the servers already registered, and **ask before replacing** one named `soporti` if it is there. Reading first also proves the file parses: if it does not, **abort without writing**, report it, and leave the file alone.
+
+```bash
+node -e 'console.log(Object.keys(JSON.parse(require("fs").readFileSync(require("os").homedir()+"/.claude.json","utf8")).mcpServers||{}).join(" "))'
+python3 -c 'import json,pathlib;print(*json.loads((pathlib.Path.home()/".claude.json").read_text()).get("mcpServers",{}))'
+jq -r '.mcpServers // {} | keys | join(" ")' ~/.claude.json
 ```
 
 Back the file up before touching it:
@@ -113,7 +121,7 @@ Back the file up before touching it:
 cp ~/.claude.json ~/.claude.json.soporti-backup
 ```
 
-Then write the entry with a real JSON parser, trying these in order and moving on only when the tool is missing. Pass the key through the environment so it never lands in a file of this repo, and write to a temporary file that is renamed over the original, so an interrupted write cannot truncate the config:
+Then write the entry with that same parser. Pass the key through the environment so it never lands in a file of this repo, and write to a temporary file that is renamed over the original, so an interrupted write cannot truncate the config:
 
 **`node`:**
 
@@ -154,10 +162,10 @@ tmp.replace(file)
 **`jq`:**
 
 ```bash
-jq --arg key '<key>' '.mcpServers.soporti = {
+SOPORTI_KEY='<key>' jq '.mcpServers.soporti = {
   "type": "http",
   "url": "https://soporti.reveni.io/api/mcp",
-  "headers": { "Authorization": ("Bearer " + $key) }
+  "headers": { "Authorization": ("Bearer " + env.SOPORTI_KEY) }
 }' ~/.claude.json > ~/.claude.json.soporti-tmp && mv ~/.claude.json.soporti-tmp ~/.claude.json
 ```
 
