@@ -42,23 +42,18 @@ function parseThumbnail(value) {
   return { value }
 }
 
-async function storeImage(req, res, name, mimeType) {
-  if (!looksLikeImage(req.body, mimeType)) {
+async function storeImage(res, { userId, name, mimeType, buffer }) {
+  if (!looksLikeImage(buffer, mimeType)) {
     return res.status(422).json({ error: `"${name}" is not a valid image. It may be corrupt or renamed.` })
   }
-  if (req.body.length > MAX_IMAGE_BYTES) {
+  if (buffer.length > MAX_IMAGE_BYTES) {
     return res.status(413).json({ error: IMAGE_TOO_LARGE_MESSAGE })
   }
 
-  const { id, expiresAt } = await createAttachmentImage({
-    userId: req.user.id,
-    name,
-    mimeType,
-    buffer: req.body,
-  })
+  const { id, expiresAt } = await createAttachmentImage({ userId, name, mimeType, buffer })
 
   console.log(
-    `[attachments] "${name}" (${mimeType}) → image ${id}, ${req.body.length} bytes, kept until ${expiresAt.toISOString()}`
+    `[attachments] "${name}" (${mimeType}) → image ${id}, ${buffer.length} bytes, kept until ${expiresAt.toISOString()}`
   )
 
   res.json({ attachment: { name, imageId: id } })
@@ -75,7 +70,9 @@ router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES 
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return reject(req, res, 400, 'The file is empty.')
 
   try {
-    if (isImageAttachment(mimeType)) return await storeImage(req, res, name, mimeType)
+    if (isImageAttachment(mimeType)) {
+      return await storeImage(res, { userId: req.user.id, name, mimeType, buffer: req.body })
+    }
 
     const { error, text, truncated } = await extractAttachmentText(req.body, mimeType)
 
