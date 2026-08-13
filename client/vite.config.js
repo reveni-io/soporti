@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_PROXY_TARGET || 'http://localhost:3001',
           changeOrigin: true,
         },
+        '/.well-known/oauth-': {
+          target: env.VITE_PROXY_TARGET || 'http://localhost:3001',
+          changeOrigin: true,
+        },
       },
     },
   }
