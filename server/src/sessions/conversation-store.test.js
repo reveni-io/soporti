@@ -271,6 +271,33 @@ describe('ConversationStore', () => {
     expect(db._tables.get(conversations)).toHaveLength(1)
   })
 
+  it('resolveExistingWeb resolves a conversation the user owns without creating anything', async () => {
+    db._tables.get(conversations).push({ id: 'sess-1', source: 'web', userId: 5, lastResponseId: 'resp_42' })
+
+    const result = await store.resolveExistingWeb('sess-1', 5)
+
+    expect(result.conversationId).toBe('sess-1')
+    expect(result.previousResponseId).toBe('resp_42')
+    expect(result.isNewConversation).toBe(false)
+    expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
+  it('resolveExistingWeb returns nothing for a conversation that does not exist', async () => {
+    const result = await store.resolveExistingWeb('11111111-1111-4111-8111-111111111111', 5)
+
+    expect(result).toBeNull()
+    expect(db._tables.get(conversations)).toHaveLength(0)
+  })
+
+  it('resolveExistingWeb returns nothing for a conversation owned by another user', async () => {
+    db._tables.get(conversations).push({ id: 'sess-1', source: 'web', userId: 99 })
+
+    const result = await store.resolveExistingWeb('sess-1', 5)
+
+    expect(result).toBeNull()
+    expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
   it('resolveSlack creates and then reuses the conversation for a thread', async () => {
     const first = await store.resolveSlack('C1', '123.45', 7)
     expect(first.conversationId).toBeTruthy()

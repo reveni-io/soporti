@@ -30,8 +30,8 @@ function toAuthInfo(req) {
   }
 }
 
-export default function mcpRoute() {
-  const handler = createMcpHandler(ctx => createSoportiMcpServer(ctx.authInfo?.extra), {
+export default function mcpRoute(conversationStore) {
+  const handler = createMcpHandler(ctx => createSoportiMcpServer({ ...ctx.authInfo?.extra, conversationStore }), {
     legacy: 'stateless',
     responseMode: 'sse',
     keepAliveMs: KEEP_ALIVE_MS,

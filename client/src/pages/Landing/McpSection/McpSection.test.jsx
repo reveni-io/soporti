@@ -8,10 +8,10 @@ describe('McpSection', () => {
 
     expect(container.querySelectorAll('.lp-feat--light')).toHaveLength(3)
     expect(container.querySelectorAll('.lp-feat__list')).toHaveLength(3)
-    expect(screen.getByText('One tool, one answer')).toBeInTheDocument()
+    expect(screen.getByText('Four tools, one endpoint')).toBeInTheDocument()
     expect(screen.getByText('Built for long questions')).toBeInTheDocument()
     expect(screen.getByText('Same keys, same guardrails')).toBeInTheDocument()
-    expect(screen.getByText(/answers cite the sources/i)).toBeInTheDocument()
+    expect(screen.getByText(/follow_up: keep the thread/i)).toBeInTheDocument()
     expect(screen.getByText(/heartbeats keep proxies/i)).toBeInTheDocument()
   })
 
