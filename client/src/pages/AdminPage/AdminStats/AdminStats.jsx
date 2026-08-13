@@ -13,7 +13,7 @@ export default function AdminStats({ token, onLogout }) {
   return (
     <AdminSection title="Stats">
       <p className="admin__muted">
-        Everything Soporti has handled: web and Slack conversations, scheduled runs, PR reviews and auto-diagnosed
+        Everything Soporti has handled: web, Slack and MCP conversations, scheduled runs, PR reviews and auto-diagnosed
         tickets. Token counts start when the agent-run tracking was deployed.
       </p>
 
@@ -59,6 +59,7 @@ function StatsContent({ stats, loading, error }) {
         />
         <StatCard label="PRs reviewed" value={formatCount(stats.reviewedPullRequests)} />
         <StatCard label="Tickets diagnosed" value={formatCount(stats.diagnosedTickets)} />
+        <StatCard label="MCP queries" value={formatCount(stats.mcpQueries)} />
         <StatCard label="Active users" value={formatCount(stats.activeUsers)} />
         <StatCard label="Agent runs" value={formatCount(runs?.runs)} hint={describeFailures(runs)} />
         <StatCard label="LLM requests" value={formatCount(runs?.requests)} />

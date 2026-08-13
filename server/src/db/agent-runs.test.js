@@ -48,7 +48,7 @@ const stubDb = {
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
-const { recordAgentRun, getRunTotals, getRunsByChannel, countDistinctSubjects, getTopTools } =
+const { recordAgentRun, getRunTotals, getRunsByChannel, countChannelRuns, countDistinctSubjects, getTopTools } =
   await import('./agent-runs.js')
 
 beforeEach(() => {
@@ -170,6 +170,18 @@ describe('getRunsByChannel', () => {
   })
 })
 
+describe('countChannelRuns', () => {
+  it('returns the run count of the channel', async () => {
+    queue = [[{ total: 9 }]]
+    expect(await countChannelRuns('mcp', null)).toBe(9)
+  })
+
+  it('returns zero when the channel has not run yet', async () => {
+    queue = [[]]
+    expect(await countChannelRuns('mcp', null)).toBe(0)
+  })
+})
+
 describe('countDistinctSubjects', () => {
   it('returns the distinct subject count of the channel', async () => {
     queue = [[{ total: 7 }]]
@@ -240,6 +252,16 @@ describe('the statements Postgres receives', () => {
     expect(executed[0].text).toContain('cross join lateral jsonb_array_elements_text("agent_runs"."tools") as tool')
     expect(executed[0].text).toContain('limit $1')
     expect(executed[0].params).toEqual([5])
+  })
+
+  it('counts every run of one channel, failed ones included', async () => {
+    const since = new Date('2026-01-01T00:00:00Z')
+
+    await countChannelRuns('mcp', since)
+
+    expect(executed[0].text).toContain('count(*)::int')
+    expect(executed[0].text).not.toContain('"status"')
+    expect(executed[0].params).toEqual(['mcp', since.toISOString()])
   })
 
   it('counts the distinct subjects of one channel', async () => {
