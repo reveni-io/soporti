@@ -23,29 +23,9 @@ import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { recordAgentRun } from '../db/agent-runs.js'
-import { diagnoseTicket, buildAgentInput } from './auto-diagnose.js'
+import { diagnoseTicket } from './auto-diagnose.js'
 
 const TICKET = { id: 'Rec01', title: 'Bug', fields: [{ label: 'Details', value: 'roto' }] }
-
-describe('buildAgentInput', () => {
-  it('returns the plain prompt string when there are no images', () => {
-    expect(buildAgentInput('hello', [])).toBe('hello')
-    expect(buildAgentInput('hello')).toBe('hello')
-  })
-
-  it('returns a multimodal user message when images are present', () => {
-    const input = buildAgentInput('hello', ['data:image/png;base64,AQID'])
-    expect(input).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: 'hello' },
-          { type: 'input_image', image: 'data:image/png;base64,AQID' },
-        ],
-      },
-    ])
-  })
-})
 
 describe('diagnoseTicket', () => {
   beforeEach(() => {

@@ -15,7 +15,7 @@ export function useChat(token, onAuthError) {
       const userMessage = { role: 'user', content: text }
       if (skills.length > 0) userMessage.skills = skills
       if (attachments.length > 0) {
-        userMessage.attachments = attachments.map(({ name, truncated }) => ({ name, truncated }))
+        userMessage.attachments = attachments.map(({ name, truncated, imageId }) => ({ name, truncated, imageId }))
       }
 
       setMessages(prev => [...prev, userMessage, { role: 'assistant', parts: [] }])
@@ -33,7 +33,7 @@ export function useChat(token, onAuthError) {
             selectedSources,
             profile,
             skillIds: skills.map(s => s.id),
-            attachments,
+            attachments: attachments.map(({ previewUrl: _previewUrl, ...sent }) => sent),
           },
           abortController.signal
         )

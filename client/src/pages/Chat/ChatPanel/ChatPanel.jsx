@@ -105,6 +105,7 @@ export default function ChatPanel({
         isUploadingAttachment={isUploading}
         onAttachFiles={addFiles}
         onRemoveAttachment={removeAttachment}
+        token={token}
       />
 
       {tourOpen && <TourModal integrations={integrations} onClose={closeTour} onTryExample={handleTourExample} />}

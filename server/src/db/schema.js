@@ -1,4 +1,21 @@
-import { pgTable, serial, text, timestamp, integer, jsonb, uuid, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  integer,
+  jsonb,
+  uuid,
+  index,
+  uniqueIndex,
+  customType,
+} from 'drizzle-orm/pg-core'
+
+const bytea = customType({
+  dataType() {
+    return 'bytea'
+  },
+})
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -153,6 +170,26 @@ export const granolaCredentials = pgTable('granola_credentials', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+export const attachmentImages = pgTable(
+  'attachment_images',
+  {
+    id: uuid('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    data: bytea('data').notNull(),
+    thumbnail: text('thumbnail'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  table => [
+    index('attachment_images_user_idx').on(table.userId),
+    index('attachment_images_expires_idx').on(table.expiresAt),
+  ]
+)
 
 export const skills = pgTable(
   'skills',

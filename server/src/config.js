@@ -30,6 +30,7 @@ const config = {
     parseConcurrency:
       parseInt(process.env.DOCUMENT_PARSE_CONCURRENCY || process.env.GOOGLE_DRIVE_PARSE_CONCURRENCY || '2', 10) || 2,
     parseTimeoutMs: parseInt(process.env.DOCUMENT_PARSE_TIMEOUT_MS || '60000', 10) || 60000,
+    imageRetentionDays: parseInt(process.env.CHAT_IMAGE_RETENTION_DAYS || '30', 10) || 30,
   },
 
   google: {

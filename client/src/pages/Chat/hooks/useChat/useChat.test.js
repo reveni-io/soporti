@@ -123,6 +123,28 @@ describe('useChat', () => {
     ])
   })
 
+  it('sends the image id and never the local preview of an attached image', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+    const imageId = '22222222-2222-4222-8222-222222222222'
+
+    await act(async () => {
+      await result.current.sendMessage(
+        'what is this?',
+        ['org/repo'],
+        'support',
+        [],
+        [{ name: 'error.png', imageId, previewUrl: 'blob:local' }]
+      )
+    })
+
+    expect(result.current.messages[0].attachments).toEqual([{ name: 'error.png', imageId }])
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).attachments).toEqual([{ name: 'error.png', imageId }])
+  })
+
   it('sends an empty attachments list when there is nothing attached', async () => {
     global.fetch = vi
       .fn()

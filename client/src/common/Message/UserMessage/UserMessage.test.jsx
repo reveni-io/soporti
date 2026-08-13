@@ -30,4 +30,24 @@ describe('UserMessage', () => {
 
     expect(screen.queryByTestId('skill-badge')).not.toBeInTheDocument()
   })
+
+  it('loads the image of an attached screenshot with the user token', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ image: 'data:image/png;base64,AQID' }) })
+    const imageId = '22222222-2222-4222-8222-222222222222'
+
+    render(
+      <UserMessage
+        message={{ role: 'user', content: 'what is this?', attachments: [{ name: 'error.png', imageId }] }}
+        token="tok"
+      />
+    )
+
+    expect(await screen.findByAltText('error.png')).toHaveAttribute('src', 'data:image/png;base64,AQID')
+    expect(global.fetch).toHaveBeenCalledWith(
+      `/api/attachments/images/${imageId}`,
+      expect.objectContaining({ headers: { Authorization: 'Bearer tok' } })
+    )
+  })
 })

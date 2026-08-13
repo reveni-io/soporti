@@ -10,13 +10,39 @@ export const MAX_ATTACHMENTS = 3
 export const MAX_ATTACHMENT_MB = 10
 export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024
 
-export const ATTACHMENT_MIME_TYPES = {
+const DOCUMENT_MIME_TYPES = {
   '.pdf': 'application/pdf',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 }
 
+export const IMAGE_MIME_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+}
+
+export const ATTACHMENT_MIME_TYPES = { ...DOCUMENT_MIME_TYPES, ...IMAGE_MIME_TYPES }
+
 export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_MIME_TYPES).join(',')
+
+export const IMAGE_RETENTION_DAYS = 30
+
+export const THUMBNAIL_MAX_PIXELS = 96
+export const THUMBNAIL_MIME_TYPE = 'image/webp'
+export const THUMBNAIL_QUALITY = 0.7
+
+export const MAX_IMAGE_MB = 7
+export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
+export const IMAGE_MAX_PIXELS = 8000
+export const SHRINK_MIME_TYPE = 'image/webp'
+export const SHRINK_QUALITY = 0.85
+export const SHRINK_STEP = 0.75
+export const SHRINK_ATTEMPTS = 6
+
+export const PAPERCLIP_GLYPH = '\u{1F4CE}'
 
 export const MAX_DESCRIPTION_LENGTH = 200
 export const MAX_INSTRUCTIONS_LENGTH = 50_000

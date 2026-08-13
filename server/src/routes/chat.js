@@ -12,7 +12,9 @@ import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
-import { isValidAttachmentName } from '../documents/attachments.js'
+import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
+import { buildAgentInput } from '../agent/agent-input.js'
+import { getAttachmentImages } from '../db/attachment-images.js'
 import {
   AGENT_CHANNEL_WEB,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -20,6 +22,7 @@ import {
   MAX_SKILLS_PER_REQUEST,
   RUN_STATUS_ERROR,
   RUN_STATUS_OK,
+  UUID_RE,
 } from '../constants.js'
 
 const router = Router()
@@ -60,9 +63,19 @@ function parseAttachments(value) {
   for (const item of value) {
     const name = typeof item?.name === 'string' ? item.name.trim() : ''
     const text = typeof item?.text === 'string' ? item.text.trim() : ''
+    const imageId = typeof item?.imageId === 'string' ? item.imageId.trim() : ''
 
-    if (!name || !text) return { error: 'Each attachment needs a "name" and its extracted "text".' }
+    if (!name) return { error: 'Each attachment needs a "name".' }
     if (!isValidAttachmentName(name)) return { error: `Attachment "${name}" has an invalid file name.` }
+    if (!text && !imageId) return { error: `Attachment "${name}" needs its extracted "text" or an "imageId".` }
+
+    if (imageId) {
+      if (!UUID_RE.test(imageId)) return { error: `Attachment "${name}" has an invalid image ID.` }
+
+      parsed.push({ name, imageId })
+      continue
+    }
+
     if (text.length > MAX_ATTACHMENT_CHARS) {
       return { error: `Attachment "${name}" is too long (max ${MAX_ATTACHMENT_CHARS} characters).` }
     }
@@ -71,6 +84,28 @@ function parseAttachments(value) {
   }
 
   return { value: parsed }
+}
+
+async function resolveAttachmentImages(attachments, userId) {
+  const withImage = attachments.filter(carriesImage)
+  if (withImage.length === 0) return { images: [] }
+
+  const stored = await getAttachmentImages(
+    withImage.map(a => a.imageId),
+    userId
+  )
+  const missing = withImage.find(a => !stored.has(a.imageId))
+  if (missing) {
+    return { error: `The image "${missing.name}" is no longer available. Attach it again.` }
+  }
+
+  return { images: withImage.map(a => stored.get(a.imageId)) }
+}
+
+function describeAttachment(attachment) {
+  if (carriesImage(attachment)) return `${attachment.name} (image)`
+
+  return `${attachment.name} (${attachment.text.length} chars${attachment.truncated ? ', truncated' : ''})`
 }
 
 function appendText(parts, text) {
@@ -98,7 +133,7 @@ export default function chatRoute(conversationStore) {
       return res.status(400).json({ error: 'Message is too long (max 10,000 characters).' })
     }
 
-    if (sessionId && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+    if (sessionId && !UUID_RE.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid session ID.' })
     }
 
@@ -112,11 +147,26 @@ export default function chatRoute(conversationStore) {
       .filter(id => Number.isInteger(id) && id > 0)
       .slice(0, MAX_SKILLS_PER_REQUEST)
 
-    if (!(await isConfigured())) {
+    let configured
+    let resolvedImages
+    try {
+      ;[configured, resolvedImages] = await Promise.all([
+        isConfigured(),
+        resolveAttachmentImages(cleanAttachments, req.user.id),
+      ])
+    } catch (err) {
+      console.error('Failed to load the attached images:', err)
+      return res.status(500).json({ error: 'Failed to load the attached images.' })
+    }
+
+    if (!configured) {
       return res.status(503).json({
         error: 'The assistant is not configured. Ask an admin to set the API key and model in the admin panel.',
       })
     }
+    if (resolvedImages.error) return res.status(400).json({ error: resolvedImages.error })
+
+    const attachmentImages = resolvedImages.images
 
     const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveWeb(
       sessionId,
@@ -163,10 +213,7 @@ export default function chatRoute(conversationStore) {
       log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
     }
     if (cleanAttachments.length > 0) {
-      const described = cleanAttachments.map(
-        a => `${a.name} (${a.text.length} chars${a.truncated ? ', truncated' : ''})`
-      )
-      log('📎', `Attachment(s): ${described.join(', ')}`)
+      log('📎', `Attachment(s): ${cleanAttachments.map(describeAttachment).join(', ')}`)
     }
     const newlyInvokedSkills = invokedSkills.filter(s => cleanSkillIds.includes(s.id))
     if (invokedSkills.length > 0) {
@@ -174,11 +221,14 @@ export default function chatRoute(conversationStore) {
       log('⚡', `Skill(s) applied: ${described.join(', ')}`)
     }
 
-    const agentInput = buildUserTurn(trimmedMessage, {
-      similarCases,
-      commands: newlyInvokedSkills.map(s => s.name),
-      attachments: cleanAttachments,
-    })
+    const agentInput = buildAgentInput(
+      buildUserTurn(trimmedMessage, {
+        similarCases,
+        commands: newlyInvokedSkills.map(s => s.name),
+        attachments: cleanAttachments,
+      }),
+      attachmentImages
+    )
 
     const assistantParts = []
     let lastResponseId
@@ -306,7 +356,12 @@ export default function chatRoute(conversationStore) {
 
       const userParts = [
         ...newlyInvokedSkills.map(s => ({ type: 'skill', skillId: s.id, name: s.name })),
-        ...cleanAttachments.map(a => ({ type: 'attachment', name: a.name, truncated: a.truncated })),
+        ...cleanAttachments.map(a => ({
+          type: 'attachment',
+          name: a.name,
+          truncated: Boolean(a.truncated),
+          imageId: a.imageId ?? null,
+        })),
         { type: 'text', content: trimmedMessage },
       ]
 

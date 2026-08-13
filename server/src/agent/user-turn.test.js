@@ -76,6 +76,31 @@ describe('buildUserTurn', () => {
     expect(result.indexOf('## Attached documents')).toBeLessThan(result.indexOf('why does it 500?'))
   })
 
+  it('names an attached image without inlining any bytes', () => {
+    const result = buildUserTurn('what is this error?', {
+      attachments: [{ name: 'error.png', imageId: '22222222-2222-4222-8222-222222222222' }],
+    })
+
+    expect(result).toContain('## Attached images')
+    expect(result).toContain('- error.png')
+    expect(result).not.toContain('## Attached documents')
+    expect(result).not.toContain('22222222-2222-4222-8222-222222222222')
+    expect(result.endsWith('\n\n---\n\nwhat is this error?')).toBe(true)
+  })
+
+  it('describes documents and images in their own sections', () => {
+    const result = buildUserTurn('does the screenshot match the spec?', {
+      attachments: [
+        { name: 'spec.pdf', text: 'The API returns 402.', truncated: false },
+        { name: 'error.png', imageId: '22222222-2222-4222-8222-222222222222' },
+      ],
+    })
+
+    expect(result.indexOf('## Attached documents')).toBeLessThan(result.indexOf('## Attached images'))
+    expect(result).toContain('### spec.pdf')
+    expect(result).toContain('- error.png')
+  })
+
   it('ignores an empty attachments list', () => {
     expect(buildUserTurn('hello', { attachments: [] })).toBe('hello')
     expect(buildUserTurn('hello', { attachments: null })).toBe('hello')

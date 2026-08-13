@@ -10,7 +10,7 @@ export function toRenderMessage({ role, parts }, { includeAttachments = true } =
   const attachments = includeAttachments
     ? allParts
         .filter(part => part.type === 'attachment')
-        .map(part => ({ name: part.name, truncated: Boolean(part.truncated) }))
+        .map(part => ({ name: part.name, truncated: Boolean(part.truncated), imageId: part.imageId ?? null }))
     : []
 
   const message = { role, content }

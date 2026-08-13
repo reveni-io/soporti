@@ -24,6 +24,7 @@ import schedulesRouter from './routes/schedules.js'
 import mcpRoute from './mcp/route.js'
 import { startSlackBot, stopSlackBot } from './slack/bot.js'
 import { startSchedulePoller, stopSchedulePoller } from './schedules/poller.js'
+import { startImageRetention, stopImageRetention } from './documents/image-retention.js'
 import { setupReviewWebhook } from './review/index.js'
 import { pool } from './repo-pool/index.js'
 import { shutdown as shutdownPostgres, isConfigured as isPostgresConfigured } from './postgres/client.js'
@@ -116,10 +117,12 @@ app.listen(config.port, async () => {
   }
 
   startSchedulePoller(conversationStore)
+  startImageRetention()
 })
 
 async function shutdown() {
   stopSchedulePoller()
+  stopImageRetention()
   await stopSlackBot()
   await pool.shutdown()
   await shutdownPostgres()

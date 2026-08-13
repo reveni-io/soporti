@@ -160,9 +160,21 @@ Two interchangeable options:
 - `/api/chat` streams Server-Sent Events. Any proxy you put in front of the
   server must not buffer responses (the bundled nginx config already sets
   `proxy_buffering off` and a long read timeout).
-- `/api/attachments` receives the raw document a user attaches to a chat, up to
-  10 MB. A proxy in front of the server must allow a request body that big (the
-  bundled nginx config already allows 25 MB).
+- `/api/attachments` receives the raw document or image a user attaches to a
+  chat, up to 10 MB. A proxy in front of the server must allow a request body
+  that big (the bundled nginx config already allows 25 MB). Attached images are
+  stored in Postgres as `bytea` alongside a small thumbnail, and an hourly sweep
+  deletes them once `CHAT_IMAGE_RETENTION_DAYS` (30 by default) has passed —
+  budget database size accordingly if your team attaches large screenshots. Only
+  the thumbnail is ever sent back to the browser; the full image leaves the
+  server just once, to the model.
+- Images are capped at 7 MB and 8000 px on the long edge, which is what the
+  Claude API accepts for a single image (10 MB once base64-encoded). The browser
+  downscales anything larger before upload; the server rejects an oversized
+  image with a `413` so a non-browser client cannot push one through to the
+  provider. On Amazon Bedrock or Google Vertex the vendor limit is 5 MB
+  base64 (≈3.75 MB raw) — lower `MAX_IMAGE_MB` in `server/src/constants.js` and
+  `client/src/constants.js` together if you point the app at either.
 
 ## One-click deploys
 

@@ -11,12 +11,17 @@ vi.mock('./parsers.js', () => ({
 }))
 
 const { parsePdf, parseDocx, parseXlsx } = await import('./parsers.js')
-const { extractAttachmentText, isSupportedAttachment, isValidAttachmentName } = await import('./attachments.js')
+const { extractAttachmentText, isImageAttachment, isSupportedAttachment, isValidAttachmentName, looksLikeImage } =
+  await import('./attachments.js')
 const { MAX_ATTACHMENT_CHARS } = await import('../constants.js')
 
 const PDF = 'application/pdf'
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const PNG = 'image/png'
+const JPEG = 'image/jpeg'
+const WEBP = 'image/webp'
+const GIF = 'image/gif'
 
 describe('attachments', () => {
   beforeEach(() => {
@@ -52,6 +57,44 @@ describe('attachments', () => {
       expect(isSupportedAttachment('deck.pptx', 'application/vnd.ms-powerpoint')).toBe(false)
       expect(isSupportedAttachment('invoice.exe', PDF)).toBe(false)
       expect(isSupportedAttachment('sheet.xlsx', DOCX)).toBe(false)
+    })
+
+    it('accepts the image types, with either extension for a jpeg', () => {
+      expect(isSupportedAttachment('error.png', PNG)).toBe(true)
+      expect(isSupportedAttachment('photo.jpg', JPEG)).toBe(true)
+      expect(isSupportedAttachment('photo.JPEG', JPEG)).toBe(true)
+      expect(isSupportedAttachment('shot.webp', WEBP)).toBe(true)
+      expect(isSupportedAttachment('loop.gif', GIF)).toBe(true)
+      expect(isSupportedAttachment('error.png', JPEG)).toBe(false)
+    })
+  })
+
+  describe('isImageAttachment', () => {
+    it('separates the image types from the document types', () => {
+      expect(isImageAttachment(PNG)).toBe(true)
+      expect(isImageAttachment(GIF)).toBe(true)
+      expect(isImageAttachment(PDF)).toBe(false)
+      expect(isImageAttachment('text/plain')).toBe(false)
+    })
+  })
+
+  describe('looksLikeImage', () => {
+    it('accepts bytes carrying the signature of their declared type', () => {
+      expect(looksLikeImage(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]), PNG)).toBe(true)
+      expect(looksLikeImage(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), JPEG)).toBe(true)
+      expect(looksLikeImage(Buffer.from('GIF89a and more'), GIF)).toBe(true)
+      expect(looksLikeImage(Buffer.from('RIFF\x00\x00\x00\x00WEBPVP8 '), WEBP)).toBe(true)
+    })
+
+    it('rejects bytes that do not match the declared type', () => {
+      expect(looksLikeImage(Buffer.from('<html>hello</html>'), PNG)).toBe(false)
+      expect(looksLikeImage(Buffer.from([0x89, 0x50, 0x4e, 0x47]), JPEG)).toBe(false)
+      expect(looksLikeImage(Buffer.from('RIFF\x00\x00\x00\x00AVI LIST'), WEBP)).toBe(false)
+      expect(looksLikeImage(Buffer.from(''), PNG)).toBe(false)
+    })
+
+    it('rejects a document mime type', () => {
+      expect(looksLikeImage(Buffer.from('%PDF-1.4'), PDF)).toBe(false)
     })
   })
 

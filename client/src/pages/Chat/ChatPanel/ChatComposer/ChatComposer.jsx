@@ -2,9 +2,10 @@ import { useRef } from 'react'
 import AttachmentChip from '../../../../common/AttachmentChip/AttachmentChip.jsx'
 import SkillMenu from '../SkillMenu/SkillMenu.jsx'
 import { useFileDrop } from '../../hooks/useFileDrop/useFileDrop.js'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS, PAPERCLIP_GLYPH } from '../../../../constants.js'
 
 const DROP_HINT = 'Drop your files to attach them'
+const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
 
 export default function ChatComposer({
   input,
@@ -29,6 +30,7 @@ export default function ChatComposer({
   isUploadingAttachment,
   onAttachFiles,
   onRemoveAttachment,
+  token,
 }) {
   const fileInputRef = useRef(null)
   const canAttach = !isLoading && !isUploadingAttachment && hasSourcesSelected && attachments.length < MAX_ATTACHMENTS
@@ -37,6 +39,14 @@ export default function ChatComposer({
   function handleFilesSelected(event) {
     onAttachFiles(event.target.files)
     event.target.value = ''
+  }
+
+  function handlePaste(event) {
+    const files = [...(event.clipboardData?.files ?? [])]
+    if (files.length === 0) return
+
+    event.preventDefault()
+    if (canAttach) onAttachFiles(files)
   }
 
   return (
@@ -51,6 +61,7 @@ export default function ChatComposer({
             <AttachmentChip
               key={`${attachment.name}-${index}`}
               attachment={attachment}
+              token={token}
               onRemove={() => onRemoveAttachment(index)}
             />
           ))}
@@ -77,9 +88,9 @@ export default function ChatComposer({
           className="chat__btn chat__btn--attach"
           onClick={() => fileInputRef.current?.click()}
           disabled={!canAttach}
-          title="Attach a PDF, Word or Excel file"
+          title={ATTACH_HINT}
         >
-          &#128206;
+          {PAPERCLIP_GLYPH}
         </button>
 
         <div className="chat__input-field">
@@ -97,6 +108,7 @@ export default function ChatComposer({
             onKeyDown={onKeyDown}
             onBlur={onBlur}
             onScroll={onScroll}
+            onPaste={handlePaste}
             placeholder={hasSourcesSelected ? 'Ask Soporti anything...' : 'Select a source from the sidebar first...'}
             rows={1}
             disabled={isLoading || !hasSourcesSelected}

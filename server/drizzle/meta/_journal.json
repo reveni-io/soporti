@@ -85,6 +85,13 @@
       "when": 1786452198171,
       "tag": "0011_aspiring_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786615751280,
+      "tag": "0012_odd_manta",
+      "breakpoints": true
     }
   ]
 }

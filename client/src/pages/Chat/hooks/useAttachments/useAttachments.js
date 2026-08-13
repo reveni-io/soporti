@@ -1,27 +1,76 @@
-import { useEffect, useState } from 'react'
-import { uploadAttachment } from '../../../../services/services.js'
+import { useEffect, useRef, useState } from 'react'
+import { saveAttachmentThumbnail, uploadAttachment } from '../../../../services/services.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
+import { buildThumbnail, shrinkImage } from './images.js'
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_MIME_TYPES,
+  IMAGE_MIME_TYPES,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_MB,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_MB,
 } from '../../../../constants.js'
 
-function mimeTypeFor(name) {
-  const extension = name.slice(name.lastIndexOf('.')).toLowerCase()
-  return ATTACHMENT_MIME_TYPES[extension] ?? ''
+const PASTED_IMAGE_NAME = 'pasted-image'
+
+const EXTENSION_FOR_IMAGE_MIME_TYPE = Object.entries(IMAGE_MIME_TYPES).reduce((byMimeType, [extension, mimeType]) => {
+  if (!(mimeType in byMimeType)) byMimeType[mimeType] = extension
+  return byMimeType
+}, {})
+
+function resolveUpload(file) {
+  const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+  const byExtension = ATTACHMENT_MIME_TYPES[extension]
+  if (byExtension) return { name: file.name, mimeType: byExtension }
+
+  const imageExtension = EXTENSION_FOR_IMAGE_MIME_TYPE[file.type]
+  if (!imageExtension) return null
+
+  const base = file.name.replace(/\.[^.]*$/, '') || PASTED_IMAGE_NAME
+  return { name: `${base}${imageExtension}`, mimeType: file.type }
+}
+
+async function prepareUpload(file) {
+  const upload = resolveUpload(file)
+  if (!upload || !EXTENSION_FOR_IMAGE_MIME_TYPE[upload.mimeType]) return { file, upload }
+
+  const shrunk = await shrinkImage(file)
+  if (shrunk === file) return { file, upload }
+
+  return { file: shrunk, upload: resolveUpload(shrunk) }
+}
+
+function revokePreview(attachment) {
+  if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl)
+}
+
+function withPreviewsRevoked(previous) {
+  previous.forEach(revokePreview)
+  return []
+}
+
+async function storeThumbnail(token, file, imageId) {
+  const thumbnail = await buildThumbnail(file)
+  if (!thumbnail) return
+
+  await saveAttachmentThumbnail(token, imageId, thumbnail).catch(() => {})
 }
 
 export function useAttachments(token, onAuthError, conversationKey) {
   const [attachments, setAttachments] = useState([])
   const { saving: isUploading, error, save, clearError } = useSaveField(onAuthError)
+  const staged = useRef([])
+
+  staged.current = attachments
 
   useEffect(() => {
-    setAttachments([])
+    setAttachments(withPreviewsRevoked)
     clearError()
   }, [conversationKey, clearError])
+
+  useEffect(() => () => staged.current.forEach(revokePreview), [])
 
   async function addFiles(files) {
     const selected = [...files]
@@ -35,24 +84,54 @@ export function useAttachments(token, onAuthError, conversationKey) {
       const oversized = selected.find(file => file.size > MAX_ATTACHMENT_BYTES)
       if (oversized) throw new Error(`"${oversized.name}" is too large (max ${MAX_ATTACHMENT_MB} MB).`)
 
-      const unsupported = selected.find(file => !mimeTypeFor(file.name))
+      const unsupported = selected.find(file => !resolveUpload(file))
       if (unsupported) throw new Error(`"${unsupported.name}" is not supported. Attach a ${ATTACHMENT_ACCEPT} file.`)
 
-      for (const file of selected) {
-        const data = await uploadAttachment(token, file, mimeTypeFor(file.name))
-        setAttachments(prev => [...prev, data.attachment])
+      const uploads = await Promise.all(selected.map(prepareUpload))
+
+      const stillTooLarge = uploads.find(
+        ({ file, upload }) => EXTENSION_FOR_IMAGE_MIME_TYPE[upload.mimeType] && file.size > MAX_IMAGE_BYTES
+      )
+      if (stillTooLarge) {
+        throw new Error(
+          `"${stillTooLarge.upload.name}" could not be reduced below ${MAX_IMAGE_MB} MB, the largest image the assistant can read.`
+        )
       }
+
+      const results = await Promise.allSettled(
+        uploads.map(({ file, upload }) => uploadAttachment(token, file, upload.mimeType, upload.name))
+      )
+
+      const uploaded = []
+      for (const [index, result] of results.entries()) {
+        if (result.status !== 'fulfilled') continue
+
+        const { attachment } = result.value
+        const file = uploads[index].file
+        const previewUrl = attachment.imageId ? URL.createObjectURL(file) : undefined
+
+        uploaded.push({ ...attachment, previewUrl })
+        if (attachment.imageId) storeThumbnail(token, file, attachment.imageId)
+      }
+
+      if (uploaded.length > 0) setAttachments(previous => [...previous, ...uploaded])
+
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed) throw failed.reason
     })
   }
 
   function removeAttachment(index) {
     clearError()
-    setAttachments(prev => prev.filter((_, i) => i !== index))
+    setAttachments(previous => {
+      revokePreview(previous[index])
+      return previous.filter((_, i) => i !== index)
+    })
   }
 
   function clearAttachments() {
     clearError()
-    setAttachments([])
+    setAttachments(withPreviewsRevoked)
   }
 
   return { attachments, error, isUploading, addFiles, removeAttachment, clearAttachments }
