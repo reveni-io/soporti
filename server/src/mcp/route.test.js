@@ -10,6 +10,7 @@ const { createSoportiMcpServer } = await import('./server.js')
 const { default: mcpRoute } = await import('./route.js')
 
 const USER = { id: 7, email: 'jose@reveni.io', name: 'Jose', role: 'user' }
+const CONVERSATION_STORE = { resolveWeb: vi.fn(), saveTurn: vi.fn() }
 
 function makeApp({ user = USER, apiKey } = {}) {
   const app = express()
@@ -19,7 +20,7 @@ function makeApp({ user = USER, apiKey } = {}) {
     req.apiKey = apiKey
     next()
   })
-  app.use('/api/mcp', mcpRoute())
+  app.use('/api/mcp', mcpRoute(CONVERSATION_STORE))
   return app
 }
 
@@ -35,14 +36,18 @@ beforeEach(() => {
 
 describe('mcpRoute', () => {
   it('creates a stateless dual-era handler that streams responses', () => {
-    mcpRoute()
+    mcpRoute(CONVERSATION_STORE)
 
     const [factory, options] = createMcpHandler.mock.calls[0]
     expect(options).toMatchObject({ legacy: 'stateless', responseMode: 'sse', keepAliveMs: 15_000 })
     expect(options.onerror).toBeInstanceOf(Function)
 
     factory({ authInfo: { extra: { user: USER, apiKey: undefined } } })
-    expect(createSoportiMcpServer).toHaveBeenCalledWith({ user: USER, apiKey: undefined })
+    expect(createSoportiMcpServer).toHaveBeenCalledWith({
+      user: USER,
+      apiKey: undefined,
+      conversationStore: CONVERSATION_STORE,
+    })
   })
 
   it('forwards the request with the parsed body and the authenticated user', async () => {

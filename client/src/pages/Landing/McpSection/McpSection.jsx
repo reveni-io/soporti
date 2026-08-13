@@ -8,13 +8,13 @@ const MCP_COMMAND =
 const CAPABILITIES = [
   {
     icon: '🔌',
-    title: 'One tool, one answer',
+    title: 'Four tools, one endpoint',
     description:
-      'ask_soporti takes a question and returns the synthesis with every source it consulted — repos, integrations or all of them at once.',
+      'ask_soporti returns the synthesis with every source it consulted, and list_sources, list_skills and follow_up let an agent aim the next question.',
     bullets: [
-      'Pick sources, profile and skills per question',
+      'list_sources: only the repos and the tracker for release notes',
+      'follow_up: keep the thread instead of asking from scratch',
       'Current-revision and legacy MCP clients share the endpoint',
-      'Answers cite the sources they came from',
     ],
   },
   {

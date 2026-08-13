@@ -72,6 +72,23 @@ export class ConversationStore {
     }
   }
 
+  async resolveExistingWeb(conversationId, userId) {
+    const [existing] = await this.db
+      .select({ id: conversations.id, lastResponseId: conversations.lastResponseId })
+      .from(conversations)
+      .where(ownedWebConversation(conversationId, userId))
+      .limit(1)
+
+    if (!existing) return null
+
+    return {
+      conversationId: existing.id,
+      session: await this.buildSession(existing.id),
+      previousResponseId: await this.carriedResponseId(existing.lastResponseId),
+      isNewConversation: false,
+    }
+  }
+
   async createScheduled(userId, scheduleId) {
     const conversationId = randomUUID()
 

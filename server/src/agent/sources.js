@@ -12,7 +12,7 @@ export function isYoloMode(selectedSources) {
   return Array.isArray(selectedSources) && selectedSources.includes(YOLO_SOURCE)
 }
 
-const INTEGRATION_PREFIX = 'integration:'
+export const INTEGRATION_PREFIX = 'integration:'
 
 export function buildSourcePolicy(selectedSources) {
   const list = Array.isArray(selectedSources) ? selectedSources.filter(s => typeof s === 'string') : []

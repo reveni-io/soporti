@@ -60,7 +60,7 @@ app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
-app.use('/api/mcp', mcpRoute())
+app.use('/api/mcp', mcpRoute(conversationStore))
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })

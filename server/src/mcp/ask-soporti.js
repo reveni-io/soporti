@@ -23,7 +23,20 @@ export function resolveScopedSources(requested, scope) {
   return { sources: requestedList }
 }
 
-export async function executeAskSoporti({ question, sources, profile, skillIds, userId, onProgress, signal }) {
+export function appendFollowUpHint(answer, conversationId) {
+  return `${answer}\n\n_Continue this thread by calling \`follow_up\` with conversationId "${conversationId}"._`
+}
+
+export async function executeAskSoporti({
+  question,
+  sources,
+  profile,
+  skillIds,
+  userId,
+  conversation,
+  onProgress,
+  signal,
+}) {
   function report(message) {
     Promise.resolve()
       .then(() => onProgress?.(message))
@@ -31,7 +44,7 @@ export async function executeAskSoporti({ question, sources, profile, skillIds, 
   }
 
   const [similarCases, customInstructions, skills] = await Promise.all([
-    searchSimilarCases(question),
+    conversation.isNewConversation ? searchSimilarCases(question) : [],
     getCustomInstructions(userId).catch(err => {
       console.error('Failed to load custom instructions:', err)
       return null
@@ -55,6 +68,50 @@ export async function executeAskSoporti({ question, sources, profile, skillIds, 
   const textParts = []
   const toolCalls = []
   const callIdToName = new Map()
+  let lastResponseId
+  let unpersistedItems = null
+
+  async function runTurn(previousResponseId) {
+    textParts.length = 0
+    toolCalls.length = 0
+    callIdToName.clear()
+
+    const stream = await run(agent, agentInput, {
+      stream: true,
+      maxTurns: config.agent.maxIterations,
+      signal,
+      session: conversation.session,
+      previousResponseId,
+    })
+
+    for await (const event of stream.toStream()) {
+      if (event.type === 'raw_model_stream_event') {
+        if (event.data?.type === 'output_text_delta') textParts.push(event.data.delta)
+        continue
+      }
+
+      if (event.type !== 'run_item_stream_event') continue
+
+      const item = event.item
+      if (item?.type === 'tool_call_item') {
+        const toolName = item.rawItem?.name || UNKNOWN_TOOL
+        const callId = item.rawItem?.callId || item.rawItem?.id
+
+        if (callId) callIdToName.set(callId, toolName)
+        toolCalls.push({ name: toolName, arguments: item.rawItem?.arguments || '{}' })
+        report(`Consulting ${toolName}...`)
+      } else if (item?.type === 'tool_call_output_item') {
+        const toolName = item.rawItem?.name || callIdToName.get(item.rawItem?.callId) || UNKNOWN_TOOL
+        report(`${toolName} completed`)
+      }
+    }
+
+    await stream.completed
+
+    lastResponseId = stream.lastResponseId
+    unpersistedItems = previousResponseId ? stream.history : null
+    return stream
+  }
 
   await trackAgentRun(
     {
@@ -62,34 +119,21 @@ export async function executeAskSoporti({ question, sources, profile, skillIds, 
       failureReason: () => (textParts.join('').trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
     },
     async () => {
-      const stream = await run(agent, agentInput, { stream: true, maxTurns: config.agent.maxIterations, signal })
+      try {
+        return await runTurn(conversation.previousResponseId)
+      } catch (err) {
+        if (!conversation.previousResponseId || textParts.length > 0) throw err
 
-      for await (const event of stream.toStream()) {
-        if (event.type === 'raw_model_stream_event') {
-          if (event.data?.type === 'output_text_delta') textParts.push(event.data.delta)
-          continue
-        }
-
-        if (event.type !== 'run_item_stream_event') continue
-
-        const item = event.item
-        if (item?.type === 'tool_call_item') {
-          const toolName = item.rawItem?.name || UNKNOWN_TOOL
-          const callId = item.rawItem?.callId || item.rawItem?.id
-
-          if (callId) callIdToName.set(callId, toolName)
-          toolCalls.push({ name: toolName, arguments: item.rawItem?.arguments || '{}' })
-          report(`Consulting ${toolName}...`)
-        } else if (item?.type === 'tool_call_output_item') {
-          const toolName = item.rawItem?.name || callIdToName.get(item.rawItem?.callId) || UNKNOWN_TOOL
-          report(`${toolName} completed`)
-        }
+        console.error('Retrying the MCP turn without previousResponseId:', err.message)
+        return runTurn(undefined)
       }
-
-      await stream.completed
-      return stream
     }
   )
 
-  return `${textParts.join('')}${buildSourcesFooter(toolCalls)}`
+  return {
+    answer: `${textParts.join('')}${buildSourcesFooter(toolCalls)}`,
+    lastResponseId,
+    unpersistedItems,
+    skills,
+  }
 }
