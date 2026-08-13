@@ -7,6 +7,7 @@ const getMessageStats = vi.fn()
 const getRunTotals = vi.fn()
 const getRunsByChannel = vi.fn()
 const getTopTools = vi.fn()
+const countChannelRuns = vi.fn()
 const countDistinctSubjects = vi.fn()
 
 vi.mock('../db/stats.js', () => ({ getConversationStats, getMessageStats }))
@@ -14,6 +15,7 @@ vi.mock('../db/agent-runs.js', () => ({
   getRunTotals,
   getRunsByChannel,
   getTopTools,
+  countChannelRuns,
   countDistinctSubjects,
 }))
 
@@ -48,6 +50,7 @@ beforeEach(() => {
     { channel: 'auto_diagnose', runs: 4, failedRuns: 1 },
   ])
   getTopTools.mockResolvedValue([{ tool: 'search_code', calls: 20 }])
+  countChannelRuns.mockResolvedValue(7)
   countDistinctSubjects.mockImplementation(async channel => (channel === 'pr_review' ? 3 : 5))
 })
 
@@ -65,6 +68,7 @@ describe('GET /api/admin/stats', () => {
       userMessages: 60,
       reviewedPullRequests: 3,
       diagnosedTickets: 5,
+      mcpQueries: 7,
       runs: TOTALS,
       byChannel: [
         { channel: 'web', runs: 8, failedRuns: 1 },
@@ -89,6 +93,7 @@ describe('GET /api/admin/stats', () => {
     expect(getMessageStats).toHaveBeenCalledWith(since)
     expect(getRunsByChannel).toHaveBeenCalledWith(since)
     expect(countDistinctSubjects).toHaveBeenCalledWith('pr_review', since)
+    expect(countChannelRuns).toHaveBeenCalledWith('mcp', since)
   })
 
   it('filters by the hour when the range is sub-daily', async () => {
@@ -122,6 +127,15 @@ describe('GET /api/admin/stats', () => {
 
     expect(res.body.stats.diagnosedTickets).toBe(5)
     expect(countDistinctSubjects).toHaveBeenCalledWith('auto_diagnose', null)
+  })
+
+  it('counts the MCP questions on their own channel instead of as web ones', async () => {
+    countChannelRuns.mockResolvedValue(11)
+
+    const res = await request(app).get('/api/admin/stats')
+
+    expect(res.body.stats.mcpQueries).toBe(11)
+    expect(countChannelRuns.mock.calls).toEqual([['mcp', null]])
   })
 
   it('re-queries every request so a range never serves stale numbers', async () => {
@@ -176,6 +190,7 @@ describe('GET /api/admin/stats', () => {
     getRunTotals.mockImplementation(down)
     getRunsByChannel.mockImplementation(down)
     getTopTools.mockImplementation(down)
+    countChannelRuns.mockImplementation(down)
     countDistinctSubjects.mockImplementation(down)
 
     const res = await request(app).get('/api/admin/stats')
@@ -194,6 +209,7 @@ describe('GET /api/admin/stats', () => {
     getRunTotals.mockImplementation(down)
     getRunsByChannel.mockImplementation(down)
     getTopTools.mockImplementation(down)
+    countChannelRuns.mockImplementation(down)
     countDistinctSubjects.mockImplementation(down)
 
     expect((await request(app).get('/api/admin/stats')).status).toBe(500)

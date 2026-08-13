@@ -15,6 +15,7 @@ const sampleStats = {
   userMessages: 320,
   reviewedPullRequests: 42,
   diagnosedTickets: 17,
+  mcpQueries: 23,
   runs: {
     runs: 500,
     failedRuns: 3,
@@ -44,6 +45,15 @@ const sampleStats = {
       outputTokens: 46_000,
       p50DurationMs: 30_000,
       p95DurationMs: 60_000,
+    },
+    {
+      channel: 'mcp',
+      runs: 23,
+      failedRuns: 1,
+      inputTokens: 400_000,
+      outputTokens: 20_000,
+      p50DurationMs: 8000,
+      p95DurationMs: 20_000,
     },
   ],
   tools: [
@@ -100,6 +110,17 @@ describe('AdminStats', () => {
     expect(screen.getByText('PR reviews')).toBeInTheDocument()
     expect(screen.getByText('get_file_contents')).toBeInTheDocument()
     expect(screen.getByText('900')).toBeInTheDocument()
+  })
+
+  it('counts the MCP questions in their own card and channel row', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse(sampleStats))
+
+    render(<AdminStats token="tok" onLogout={vi.fn()} />)
+
+    const card = await screen.findByText('MCP queries')
+
+    expect(card.parentElement).toHaveTextContent('23')
+    expect(screen.getByRole('row', { name: /MCP 23 1/ })).toBeInTheDocument()
   })
 
   it('reloads with the selected range', async () => {

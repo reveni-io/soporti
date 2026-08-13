@@ -10,6 +10,10 @@ function sinceFilter(since) {
   return since ? gte(agentRuns.createdAt, since) : undefined
 }
 
+function onChannel(channel, since) {
+  return and(eq(agentRuns.channel, channel), sinceFilter(since))
+}
+
 function okDuration(quantile) {
   return sql`coalesce(percentile_cont(${quantile}::double precision) within group (order by case when ${agentRuns.status} = ${RUN_STATUS_OK} then ${agentRuns.durationMs}::double precision end), 0)::int`
 }
@@ -63,11 +67,17 @@ export async function getRunsByChannel(since) {
   return rows.map(row => ({ channel: row.channel, ...normalizeAggregates(row) }))
 }
 
+export async function countChannelRuns(channel, since) {
+  const [row] = await getDb().select({ total: RUN_AGGREGATES.runs }).from(agentRuns).where(onChannel(channel, since))
+
+  return row?.total ?? 0
+}
+
 export async function countDistinctSubjects(channel, since) {
   const [row] = await getDb()
     .select({ total: sql`count(distinct ${agentRuns.subject})::int` })
     .from(agentRuns)
-    .where(and(eq(agentRuns.channel, channel), eq(agentRuns.status, RUN_STATUS_OK), sinceFilter(since)))
+    .where(and(onChannel(channel, since), eq(agentRuns.status, RUN_STATUS_OK)))
 
   return row?.total ?? 0
 }
