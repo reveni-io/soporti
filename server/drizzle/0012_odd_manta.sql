@@ -3,7 +3,8 @@ CREATE TABLE "attachment_images" (
 	"user_id" integer NOT NULL,
 	"name" text NOT NULL,
 	"mime_type" text NOT NULL,
-	"data" text NOT NULL,
+	"data" "bytea" NOT NULL,
+	"thumbnail" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL
 );

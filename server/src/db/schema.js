@@ -1,4 +1,21 @@
-import { pgTable, serial, text, timestamp, integer, jsonb, uuid, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  integer,
+  jsonb,
+  uuid,
+  index,
+  uniqueIndex,
+  customType,
+} from 'drizzle-orm/pg-core'
+
+const bytea = customType({
+  dataType() {
+    return 'bytea'
+  },
+})
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -163,7 +180,8 @@ export const attachmentImages = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     mimeType: text('mime_type').notNull(),
-    data: text('data').notNull(),
+    data: bytea('data').notNull(),
+    thumbnail: text('thumbnail'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },

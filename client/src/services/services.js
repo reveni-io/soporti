@@ -118,6 +118,15 @@ export function getAttachmentImage(token, imageId) {
   return request(`/api/attachments/images/${imageId}`, { token, errorMessage: 'Failed to load the image' })
 }
 
+export function saveAttachmentThumbnail(token, imageId, thumbnail) {
+  return request(`/api/attachments/images/${imageId}/thumbnail`, {
+    method: 'PUT',
+    token,
+    body: { thumbnail },
+    errorMessage: 'Failed to save the thumbnail',
+  })
+}
+
 export function getConversations(token) {
   return request('/api/conversations', { token, errorMessage: 'Failed to load the conversations' })
 }

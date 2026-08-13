@@ -8,18 +8,30 @@ import {
   isValidAttachmentName,
   looksLikeImage,
 } from '../documents/attachments.js'
-import { createAttachmentImage, getAttachmentImage } from '../db/attachment-images.js'
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB, UUID_RE } from '../constants.js'
+import { createAttachmentImage, getAttachmentPreview, setAttachmentImageThumbnail } from '../db/attachment-images.js'
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB, MAX_THUMBNAIL_CHARS, UUID_RE } from '../constants.js'
 
 const router = Router()
 
 const UNSUPPORTED_MESSAGE = `Unsupported file type. Supported formats: ${ATTACHMENT_EXTENSIONS.join(', ')}.`
 const TOO_LARGE_MESSAGE = `The file is too large (max ${MAX_ATTACHMENT_MB} MB).`
 const IMAGE_CACHE_SECONDS = 24 * 60 * 60
+const THUMBNAIL_DATA_URI_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
 function reject(req, res, status, error) {
   req.resume()
   return res.status(status).json({ error })
+}
+
+function parseThumbnail(value) {
+  if (typeof value !== 'string' || !THUMBNAIL_DATA_URI_RE.test(value)) {
+    return { error: 'A "thumbnail" data URI of a png, jpeg or webp image is required.' }
+  }
+  if (value.length > MAX_THUMBNAIL_CHARS) {
+    return { error: `The thumbnail is too large (max ${MAX_THUMBNAIL_CHARS} characters).` }
+  }
+
+  return { value }
 }
 
 async function storeImage(req, res, name, mimeType) {
@@ -77,11 +89,28 @@ router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES 
   }
 })
 
+router.put('/images/:id/thumbnail', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid image ID.' })
+
+  const { error, value } = parseThumbnail(req.body?.thumbnail)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    const saved = await setAttachmentImageThumbnail(req.params.id, req.user.id, value)
+    if (!saved) return res.status(404).json({ error: 'Image not found.' })
+
+    res.json({ saved: true })
+  } catch (err) {
+    console.error('Failed to save the attachment thumbnail:', err)
+    res.status(500).json({ error: 'Failed to save the thumbnail.' })
+  }
+})
+
 router.get('/images/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid image ID.' })
 
   try {
-    const image = await getAttachmentImage(req.params.id, req.user.id)
+    const image = await getAttachmentPreview(req.params.id, req.user.id)
     if (!image) return res.status(404).json({ error: 'Image not found.' })
 
     res.set('Cache-Control', `private, max-age=${IMAGE_CACHE_SECONDS}, immutable`).json({ image })

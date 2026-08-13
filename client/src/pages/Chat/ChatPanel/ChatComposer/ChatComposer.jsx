@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import AttachmentChip from '../../../../common/AttachmentChip/AttachmentChip.jsx'
 import SkillMenu from '../SkillMenu/SkillMenu.jsx'
 import { useFileDrop } from '../../hooks/useFileDrop/useFileDrop.js'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS, PAPERCLIP_GLYPH } from '../../../../constants.js'
 
 const DROP_HINT = 'Drop your files to attach them'
 const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
@@ -90,7 +90,7 @@ export default function ChatComposer({
           disabled={!canAttach}
           title={ATTACH_HINT}
         >
-          &#128206;
+          {PAPERCLIP_GLYPH}
         </button>
 
         <div className="chat__input-field">

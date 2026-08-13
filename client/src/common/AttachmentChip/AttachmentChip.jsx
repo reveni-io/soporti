@@ -1,7 +1,7 @@
 import { useAttachmentImage } from '../../hooks/useAttachmentImage/useAttachmentImage.js'
+import { PAPERCLIP_GLYPH } from '../../constants.js'
 import './AttachmentChip.css'
 
-const PAPERCLIP = '\u{1F4CE}'
 const PICTURE = '\u{1F5BC}'
 
 function Thumbnail({ attachment, token }) {
@@ -28,7 +28,7 @@ export default function AttachmentChip({ attachment, token, onRemove }) {
       {isImage ? (
         <Thumbnail attachment={attachment} token={token} />
       ) : (
-        <span className="attachment-chip__glyph">{PAPERCLIP}</span>
+        <span className="attachment-chip__glyph">{PAPERCLIP_GLYPH}</span>
       )}
       <span className="attachment-chip__name">{attachment.name}</span>
       {attachment.truncated && <span className="attachment-chip__note">truncated</span>}

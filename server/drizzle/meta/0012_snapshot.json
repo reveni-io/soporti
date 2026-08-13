@@ -1,5 +1,5 @@
 {
-  "id": "b6ac9ff9-ffdb-4b08-b597-c76676f1857e",
+  "id": "2033550e-0187-4144-b592-dd8bbb794b93",
   "prevId": "f93e6d84-3077-4121-816a-d8c2737e8b36",
   "version": "7",
   "dialect": "postgresql",
@@ -297,9 +297,15 @@
         },
         "data": {
           "name": "data",
-          "type": "text",
+          "type": "bytea",
           "primaryKey": false,
           "notNull": true
+        },
+        "thumbnail": {
+          "name": "thumbnail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

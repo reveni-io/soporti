@@ -30,6 +30,12 @@ export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_MIME_TYPES).join(',')
 
 export const IMAGE_RETENTION_DAYS = 30
 
+export const THUMBNAIL_MAX_PIXELS = 96
+export const THUMBNAIL_MIME_TYPE = 'image/webp'
+export const THUMBNAIL_QUALITY = 0.7
+
+export const PAPERCLIP_GLYPH = '\u{1F4CE}'
+
 export const MAX_DESCRIPTION_LENGTH = 200
 export const MAX_INSTRUCTIONS_LENGTH = 50_000
 export const MAX_API_KEY_NAME_LENGTH = 80

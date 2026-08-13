@@ -163,9 +163,11 @@ Two interchangeable options:
 - `/api/attachments` receives the raw document or image a user attaches to a
   chat, up to 10 MB. A proxy in front of the server must allow a request body
   that big (the bundled nginx config already allows 25 MB). Attached images are
-  stored in Postgres and deleted after `CHAT_IMAGE_RETENTION_DAYS` (30 by
-  default), purged whenever a new image is uploaded — budget database size
-  accordingly if your team attaches large screenshots.
+  stored in Postgres as `bytea` alongside a small thumbnail, and an hourly sweep
+  deletes them once `CHAT_IMAGE_RETENTION_DAYS` (30 by default) has passed —
+  budget database size accordingly if your team attaches large screenshots. Only
+  the thumbnail is ever sent back to the browser; the full image leaves the
+  server just once, to the model.
 
 ## One-click deploys
 

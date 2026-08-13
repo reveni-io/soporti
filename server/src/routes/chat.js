@@ -140,16 +140,6 @@ export default function chatRoute(conversationStore) {
     const { error: attachmentsError, value: cleanAttachments } = parseAttachments(attachments)
     if (attachmentsError) return res.status(400).json({ error: attachmentsError })
 
-    let attachmentImages
-    try {
-      const resolved = await resolveAttachmentImages(cleanAttachments, req.user.id)
-      if (resolved.error) return res.status(400).json({ error: resolved.error })
-      attachmentImages = resolved.images
-    } catch (err) {
-      console.error('Failed to load the attached images:', err)
-      return res.status(500).json({ error: 'Failed to load the attached images.' })
-    }
-
     const rawSources = Array.isArray(selectedSources) ? selectedSources : selectedRepos
     const sources = Array.isArray(rawSources) ? rawSources : []
 
@@ -157,11 +147,26 @@ export default function chatRoute(conversationStore) {
       .filter(id => Number.isInteger(id) && id > 0)
       .slice(0, MAX_SKILLS_PER_REQUEST)
 
-    if (!(await isConfigured())) {
+    let configured
+    let resolvedImages
+    try {
+      ;[configured, resolvedImages] = await Promise.all([
+        isConfigured(),
+        resolveAttachmentImages(cleanAttachments, req.user.id),
+      ])
+    } catch (err) {
+      console.error('Failed to load the attached images:', err)
+      return res.status(500).json({ error: 'Failed to load the attached images.' })
+    }
+
+    if (!configured) {
       return res.status(503).json({
         error: 'The assistant is not configured. Ask an admin to set the API key and model in the admin panel.',
       })
     }
+    if (resolvedImages.error) return res.status(400).json({ error: resolvedImages.error })
+
+    const attachmentImages = resolvedImages.images
 
     const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveWeb(
       sessionId,

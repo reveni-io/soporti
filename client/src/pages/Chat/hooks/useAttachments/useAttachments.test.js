@@ -19,10 +19,22 @@ function okResponse(attachment) {
 }
 
 const IMAGE_ID = '22222222-2222-4222-8222-222222222222'
+const THUMBNAIL = 'data:image/webp;base64,dGh1bWI='
+
+function enableThumbnails() {
+  global.createImageBitmap = vi.fn(async () => ({ width: 200, height: 100, close: vi.fn() }))
+  const createElement = document.createElement.bind(document)
+  vi.spyOn(document, 'createElement').mockImplementation(tag =>
+    tag === 'canvas'
+      ? { width: 0, height: 0, getContext: () => ({ drawImage: vi.fn() }), toDataURL: () => THUMBNAIL }
+      : createElement(tag)
+  )
+}
 
 describe('useAttachments', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    delete global.createImageBitmap
     URL.createObjectURL = vi.fn(() => 'blob:preview')
     URL.revokeObjectURL = vi.fn()
   })
@@ -285,6 +297,108 @@ describe('useAttachments', () => {
 
     expect(result.current.attachments[0].previewUrl).toBeUndefined()
     expect(URL.createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('stores a downscaled thumbnail for an uploaded image', async () => {
+    enableThumbnails()
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2))
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toBe(`/api/attachments/images/${IMAGE_ID}/thumbnail`)
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ thumbnail: THUMBNAIL })
+  })
+
+  it('never asks for a thumbnail of a document', async () => {
+    enableThumbnails()
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'spec.pdf', text: 'body', truncated: false }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([pdfFile()])
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the attachment usable when the thumbnail cannot be stored', async () => {
+    enableThumbnails()
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'nope' }) })
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+
+    expect(result.current.attachments).toHaveLength(1)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('uploads the selected files concurrently', async () => {
+    const resolvers = []
+    global.fetch = vi.fn(() => new Promise(resolve => resolvers.push(resolve)))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    act(() => {
+      result.current.addFiles([pdfFile('a.pdf'), pdfFile('b.pdf'), pdfFile('c.pdf')])
+    })
+
+    await waitFor(() => expect(resolvers).toHaveLength(3))
+
+    await act(async () => {
+      resolvers.forEach((resolve, i) =>
+        resolve(okResponse({ name: `${'abc'[i]}.pdf`, text: 'body', truncated: false }))
+      )
+    })
+
+    expect(result.current.attachments.map(a => a.name)).toEqual(['a.pdf', 'b.pdf', 'c.pdf'])
+  })
+
+  it('keeps every file that uploaded when another one fails', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 422, json: async () => ({ error: 'Could not read "a.pdf".' }) })
+      .mockResolvedValueOnce(okResponse({ name: 'b.pdf', text: 'body', truncated: false }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([pdfFile('a.pdf'), pdfFile('b.pdf')])
+    })
+
+    expect(result.current.attachments.map(a => a.name)).toEqual(['b.pdf'])
+    expect(result.current.error).toBe('Could not read "a.pdf".')
+  })
+
+  it('releases the local previews when the composer unmounts', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result, unmount } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+    unmount()
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+  })
+
+  it('keeps the .jpg extension for a pasted jpeg', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'pasted-image.jpg', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile('', 'image/jpeg')])
+    })
+
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/attachments?name=pasted-image.jpg')
   })
 
   it('ignores an empty selection', async () => {
