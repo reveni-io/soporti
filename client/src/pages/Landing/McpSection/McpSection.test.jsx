@@ -21,4 +21,13 @@ describe('McpSection', () => {
     expect(screen.getByText(/claude mcp add --transport http soporti/)).toBeInTheDocument()
     expect(screen.getByText(/Bearer sop_/)).toBeInTheDocument()
   })
+
+  it('shows the plugin marketplace as an install route, with its setup command', () => {
+    const { container } = render(<McpSection />)
+
+    expect(container.querySelectorAll('.lp-mcp__route')).toHaveLength(2)
+    expect(screen.getByText(/\/plugin marketplace add reveni-io\/soporti/)).toBeInTheDocument()
+    expect(screen.getByText(/\/soporti:setup/)).toBeInTheDocument()
+    expect(screen.getByText('Install the Claude plugin')).toBeInTheDocument()
+  })
 })

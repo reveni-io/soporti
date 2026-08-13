@@ -1,6 +1,25 @@
-.lp-mcp__command {
+.lp-mcp__routes {
+  display: grid;
+  gap: var(--sp6);
   margin: var(--sp6) auto 0;
   max-width: 42rem;
+}
+
+.lp-mcp__route-label {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lp-mcp__route-description {
+  margin: var(--sp1) 0 0;
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.lp-mcp__command {
+  margin: var(--sp3) 0 0;
   padding: var(--sp3) var(--sp4);
   background: rgba(var(--green-deep-rgb), 0.06);
   border: 1px solid rgba(var(--green-deep-rgb), 0.12);

@@ -1,0 +1,14 @@
+{
+  "name": "soporti",
+  "displayName": "Soporti",
+  "version": "0.1.0",
+  "description": "Connect Claude to Soporti's MCP server so it can investigate across your repos and integrations.",
+  "author": {
+    "name": "Reveni",
+    "url": "https://github.com/reveni-io"
+  },
+  "homepage": "https://github.com/reveni-io/soporti/tree/main/plugin",
+  "repository": "https://github.com/reveni-io/soporti",
+  "license": "Apache-2.0",
+  "keywords": ["mcp", "support", "engineering", "soporti"]
+}
