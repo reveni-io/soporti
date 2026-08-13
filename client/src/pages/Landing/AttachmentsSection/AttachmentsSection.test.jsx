@@ -20,7 +20,7 @@ describe('AttachmentsSection', () => {
 
     expect(screen.getByText(/Show it instead of describing it/)).toBeInTheDocument()
     expect(screen.getByText(/nothing is indexed or shared/)).toBeInTheDocument()
-    expect(container.querySelectorAll('.lp-points li')).toHaveLength(4)
+    expect(container.querySelectorAll('.lp-points li')).toHaveLength(5)
   })
 
   it('mentions pasting a screenshot and how long images are kept', () => {

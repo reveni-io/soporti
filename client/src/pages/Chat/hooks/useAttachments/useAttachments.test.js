@@ -21,14 +21,24 @@ function okResponse(attachment) {
 const IMAGE_ID = '22222222-2222-4222-8222-222222222222'
 const THUMBNAIL = 'data:image/webp;base64,dGh1bWI='
 
-function enableThumbnails() {
-  global.createImageBitmap = vi.fn(async () => ({ width: 200, height: 100, close: vi.fn() }))
+function enableCanvas({ width = 200, height = 100, blobSize = 1000 } = {}) {
+  global.createImageBitmap = vi.fn(async () => ({ width, height, close: vi.fn() }))
   const createElement = document.createElement.bind(document)
   vi.spyOn(document, 'createElement').mockImplementation(tag =>
     tag === 'canvas'
-      ? { width: 0, height: 0, getContext: () => ({ drawImage: vi.fn() }), toDataURL: () => THUMBNAIL }
+      ? {
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage: vi.fn() }),
+          toDataURL: () => THUMBNAIL,
+          toBlob: callback => callback({ size: blobSize, type: 'image/webp' }),
+        }
       : createElement(tag)
   )
+}
+
+function enableThumbnails() {
+  enableCanvas()
 }
 
 describe('useAttachments', () => {
@@ -399,6 +409,47 @@ describe('useAttachments', () => {
     })
 
     expect(global.fetch.mock.calls[0][0]).toBe('/api/attachments?name=pasted-image.jpg')
+  })
+
+  it('shrinks an image above the provider budget before uploading it', async () => {
+    enableCanvas({ width: 5000, height: 4000, blobSize: 900_000 })
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'huge.webp', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile('huge.png', 'image/png', 9 * 1024 * 1024)])
+    })
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/attachments?name=huge.webp')
+    expect(options.headers['Content-Type']).toBe('image/webp')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('uploads an image that already fits without re-encoding it', async () => {
+    enableCanvas({ width: 800, height: 600 })
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/attachments?name=error.png')
+    expect(global.fetch.mock.calls[0][1].headers['Content-Type']).toBe('image/png')
+  })
+
+  it('reports an image that cannot be reduced below the provider budget', async () => {
+    enableCanvas({ width: 6000, height: 6000, blobSize: 8 * 1024 * 1024 })
+    global.fetch = vi.fn()
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile('stubborn.png', 'image/png', 9 * 1024 * 1024)])
+    })
+
+    expect(result.current.error).toMatch(/could not be reduced below 7 MB/)
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('ignores an empty selection', async () => {

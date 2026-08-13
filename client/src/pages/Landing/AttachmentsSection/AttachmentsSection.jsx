@@ -19,6 +19,7 @@ export default function AttachmentsSection() {
           <li>Up to {MAX_ATTACHMENTS} files per message, read the moment you drop them</li>
           <li>The text stays in that conversation — nothing is indexed or shared with your other chats</li>
           <li>A very long document is cut at a safe size, and the file says so right in the chat</li>
+          <li>A photo straight off your phone is resized in the browser — no exporting or cropping first</li>
           <li>
             Screenshots stay available for {IMAGE_RETENTION_DAYS} days so reopening the conversation still shows them
           </li>

@@ -21,6 +21,8 @@ export const MAX_ATTACHMENT_MB = 10
 export const MAX_ATTACHMENT_BYTES = MAX_ATTACHMENT_MB * 1024 * 1024
 export const MAX_ATTACHMENT_CHARS = 50_000
 export const MAX_THUMBNAIL_CHARS = 40_000
+export const MAX_IMAGE_MB = 7
+export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
 export const MAX_ATTACHMENT_NAME_LENGTH = 200
 
 export const MAX_SOURCES = 50

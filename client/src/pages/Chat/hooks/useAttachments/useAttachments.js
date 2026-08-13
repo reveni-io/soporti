@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { saveAttachmentThumbnail, uploadAttachment } from '../../../../services/services.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
-import { buildThumbnail } from './thumbnail.js'
+import { buildThumbnail, shrinkImage } from './images.js'
 import {
   ATTACHMENT_ACCEPT,
   ATTACHMENT_MIME_TYPES,
@@ -9,6 +9,8 @@ import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   MAX_ATTACHMENT_MB,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_MB,
 } from '../../../../constants.js'
 
 const PASTED_IMAGE_NAME = 'pasted-image'
@@ -28,6 +30,16 @@ function resolveUpload(file) {
 
   const base = file.name.replace(/\.[^.]*$/, '') || PASTED_IMAGE_NAME
   return { name: `${base}${imageExtension}`, mimeType: file.type }
+}
+
+async function prepareUpload(file) {
+  const upload = resolveUpload(file)
+  if (!upload || !EXTENSION_FOR_IMAGE_MIME_TYPE[upload.mimeType]) return { file, upload }
+
+  const shrunk = await shrinkImage(file)
+  if (shrunk === file) return { file, upload }
+
+  return { file: shrunk, upload: resolveUpload(shrunk) }
 }
 
 function revokePreview(attachment) {
@@ -72,11 +84,18 @@ export function useAttachments(token, onAuthError, conversationKey) {
       const oversized = selected.find(file => file.size > MAX_ATTACHMENT_BYTES)
       if (oversized) throw new Error(`"${oversized.name}" is too large (max ${MAX_ATTACHMENT_MB} MB).`)
 
-      const uploads = selected.map(file => ({ file, upload: resolveUpload(file) }))
+      const unsupported = selected.find(file => !resolveUpload(file))
+      if (unsupported) throw new Error(`"${unsupported.name}" is not supported. Attach a ${ATTACHMENT_ACCEPT} file.`)
 
-      const unsupported = uploads.find(({ upload }) => !upload)
-      if (unsupported) {
-        throw new Error(`"${unsupported.file.name}" is not supported. Attach a ${ATTACHMENT_ACCEPT} file.`)
+      const uploads = await Promise.all(selected.map(prepareUpload))
+
+      const stillTooLarge = uploads.find(
+        ({ file, upload }) => EXTENSION_FOR_IMAGE_MIME_TYPE[upload.mimeType] && file.size > MAX_IMAGE_BYTES
+      )
+      if (stillTooLarge) {
+        throw new Error(
+          `"${stillTooLarge.upload.name}" could not be reduced below ${MAX_IMAGE_MB} MB, the largest image the assistant can read.`
+        )
       }
 
       const results = await Promise.allSettled(

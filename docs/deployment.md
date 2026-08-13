@@ -168,6 +168,13 @@ Two interchangeable options:
   budget database size accordingly if your team attaches large screenshots. Only
   the thumbnail is ever sent back to the browser; the full image leaves the
   server just once, to the model.
+- Images are capped at 7 MB and 8000 px on the long edge, which is what the
+  Claude API accepts for a single image (10 MB once base64-encoded). The browser
+  downscales anything larger before upload; the server rejects an oversized
+  image with a `413` so a non-browser client cannot push one through to the
+  provider. On Amazon Bedrock or Google Vertex the vendor limit is 5 MB
+  base64 (≈3.75 MB raw) — lower `MAX_IMAGE_MB` in `server/src/constants.js` and
+  `client/src/constants.js` together if you point the app at either.
 
 ## One-click deploys
 

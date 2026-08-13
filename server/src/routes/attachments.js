@@ -9,12 +9,20 @@ import {
   looksLikeImage,
 } from '../documents/attachments.js'
 import { createAttachmentImage, getAttachmentPreview, setAttachmentImageThumbnail } from '../db/attachment-images.js'
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB, MAX_THUMBNAIL_CHARS, UUID_RE } from '../constants.js'
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_ATTACHMENT_MB,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_MB,
+  MAX_THUMBNAIL_CHARS,
+  UUID_RE,
+} from '../constants.js'
 
 const router = Router()
 
 const UNSUPPORTED_MESSAGE = `Unsupported file type. Supported formats: ${ATTACHMENT_EXTENSIONS.join(', ')}.`
 const TOO_LARGE_MESSAGE = `The file is too large (max ${MAX_ATTACHMENT_MB} MB).`
+const IMAGE_TOO_LARGE_MESSAGE = `The image is too large (max ${MAX_IMAGE_MB} MB). Resize it and attach it again.`
 const IMAGE_CACHE_SECONDS = 24 * 60 * 60
 const THUMBNAIL_DATA_URI_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/
 
@@ -37,6 +45,9 @@ function parseThumbnail(value) {
 async function storeImage(req, res, name, mimeType) {
   if (!looksLikeImage(req.body, mimeType)) {
     return res.status(422).json({ error: `"${name}" is not a valid image. It may be corrupt or renamed.` })
+  }
+  if (req.body.length > MAX_IMAGE_BYTES) {
+    return res.status(413).json({ error: IMAGE_TOO_LARGE_MESSAGE })
   }
 
   const { id, expiresAt } = await createAttachmentImage({

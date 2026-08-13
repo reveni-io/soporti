@@ -34,6 +34,14 @@ export const THUMBNAIL_MAX_PIXELS = 96
 export const THUMBNAIL_MIME_TYPE = 'image/webp'
 export const THUMBNAIL_QUALITY = 0.7
 
+export const MAX_IMAGE_MB = 7
+export const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
+export const IMAGE_MAX_PIXELS = 8000
+export const SHRINK_MIME_TYPE = 'image/webp'
+export const SHRINK_QUALITY = 0.85
+export const SHRINK_STEP = 0.75
+export const SHRINK_ATTEMPTS = 6
+
 export const PAPERCLIP_GLYPH = '\u{1F4CE}'
 
 export const MAX_DESCRIPTION_LENGTH = 200

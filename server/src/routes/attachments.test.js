@@ -126,6 +126,16 @@ describe('attachments routes', () => {
     expect(createAttachmentImage).not.toHaveBeenCalled()
   })
 
+  it('returns 413 for an image above what the model can read', async () => {
+    const huge = Buffer.concat([PNG_BYTES, Buffer.alloc(7 * 1024 * 1024)])
+
+    const res = await request(app).post('/?name=huge.png').set('Content-Type', PNG).send(huge)
+
+    expect(res.status).toBe(413)
+    expect(res.body.error).toMatch(/max 7 MB/)
+    expect(createAttachmentImage).not.toHaveBeenCalled()
+  })
+
   it('returns 500 when the image cannot be stored', async () => {
     createAttachmentImage.mockRejectedValue(new Error('db down'))
 
