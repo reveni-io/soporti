@@ -8,13 +8,23 @@ function pdfFile(name = 'spec.pdf', size = 1024) {
   return file
 }
 
+function imageFile(name = 'error.png', type = 'image/png', size = 2048) {
+  const file = new File(['\x89PNG'], name, { type })
+  Object.defineProperty(file, 'size', { value: size })
+  return file
+}
+
 function okResponse(attachment) {
   return { ok: true, status: 200, json: async () => ({ attachment }) }
 }
 
+const IMAGE_ID = '22222222-2222-4222-8222-222222222222'
+
 describe('useAttachments', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
   })
 
   it('uploads a file and keeps the extracted attachment', async () => {
@@ -191,6 +201,90 @@ describe('useAttachments', () => {
     rerender({ key: 1 })
 
     expect(result.current.attachments).toEqual([])
+  })
+
+  it('uploads an image and keeps its id with a local preview', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+
+    expect(result.current.attachments).toEqual([{ name: 'error.png', imageId: IMAGE_ID, previewUrl: 'blob:preview' }])
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/attachments?name=error.png')
+    expect(options.headers['Content-Type']).toBe('image/png')
+  })
+
+  it('names a pasted image from its mime type when the browser gives none', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'pasted-image.png', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile('', 'image/png')])
+    })
+
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/attachments?name=pasted-image.png')
+    expect(result.current.attachments).toHaveLength(1)
+  })
+
+  it('rejects an image type the app does not support', async () => {
+    global.fetch = vi.fn()
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile('diagram.svg', 'image/svg+xml')])
+    })
+
+    expect(result.current.error).toMatch(/is not supported/)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('releases the local preview when the image is removed', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+    act(() => result.current.removeAttachment(0))
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+    expect(result.current.attachments).toEqual([])
+  })
+
+  it('releases the local preview when the message is sent or the conversation changes', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'error.png', imageId: IMAGE_ID }))
+    const { result, rerender } = renderHook(({ key }) => useAttachments('tok', undefined, key), {
+      initialProps: { key: 0 },
+    })
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+    act(() => result.current.clearAttachments())
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+
+    await act(async () => {
+      await result.current.addFiles([imageFile()])
+    })
+    rerender({ key: 1 })
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+    expect(result.current.attachments).toEqual([])
+  })
+
+  it('keeps a document free of any preview', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'spec.pdf', text: 'body', truncated: false }))
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([pdfFile()])
+    })
+
+    expect(result.current.attachments[0].previewUrl).toBeUndefined()
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
   })
 
   it('ignores an empty selection', async () => {

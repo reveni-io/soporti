@@ -9,6 +9,26 @@
   white-space: nowrap;
 }
 
+.attachment-chip__glyph {
+  flex-shrink: 0;
+}
+
+.attachment-chip__thumb {
+  flex-shrink: 0;
+  width: var(--sp5);
+  height: var(--sp5);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.attachment-chip__thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-raised);
+  font-size: var(--fs-sm);
+}
+
 .attachment-chip__note {
   flex-shrink: 0;
   color: var(--text-muted);

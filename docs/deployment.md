@@ -160,9 +160,12 @@ Two interchangeable options:
 - `/api/chat` streams Server-Sent Events. Any proxy you put in front of the
   server must not buffer responses (the bundled nginx config already sets
   `proxy_buffering off` and a long read timeout).
-- `/api/attachments` receives the raw document a user attaches to a chat, up to
-  10 MB. A proxy in front of the server must allow a request body that big (the
-  bundled nginx config already allows 25 MB).
+- `/api/attachments` receives the raw document or image a user attaches to a
+  chat, up to 10 MB. A proxy in front of the server must allow a request body
+  that big (the bundled nginx config already allows 25 MB). Attached images are
+  stored in Postgres and deleted after `CHAT_IMAGE_RETENTION_DAYS` (30 by
+  default), purged whenever a new image is uploaded — budget database size
+  accordingly if your team attaches large screenshots.
 
 ## One-click deploys
 

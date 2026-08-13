@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import ChatComposer from './ChatComposer.jsx'
 
 const DROP_HINT = 'Drop your files to attach them'
+const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
 
 const BASE_PROPS = {
   input: '',
@@ -161,10 +162,13 @@ describe('ChatComposer', () => {
     expect(onAttachFiles).not.toHaveBeenCalled()
   })
 
-  it('accepts only the supported document types', () => {
+  it('accepts the supported document and image types', () => {
     render(<ChatComposer {...BASE_PROPS} />)
 
-    expect(screen.getByLabelText('Attach files')).toHaveAttribute('accept', '.pdf,.docx,.xlsx')
+    expect(screen.getByLabelText('Attach files')).toHaveAttribute(
+      'accept',
+      '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.gif'
+    )
   })
 
   it('lists the attached files and removes the one the user picks', async () => {
@@ -197,20 +201,72 @@ describe('ChatComposer', () => {
       { name: 'c.pdf', truncated: false },
     ]
     const { rerender } = render(<ChatComposer {...BASE_PROPS} attachments={attachments.slice(0, 2)} />)
-    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeEnabled()
+    expect(screen.getByTitle(ATTACH_HINT)).toBeEnabled()
 
     rerender(<ChatComposer {...BASE_PROPS} attachments={attachments} />)
 
-    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+    expect(screen.getByTitle(ATTACH_HINT)).toBeDisabled()
   })
 
   it('disables attaching while a file is uploading or no source is selected', () => {
     const { rerender } = render(<ChatComposer {...BASE_PROPS} isUploadingAttachment />)
-    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+    expect(screen.getByTitle(ATTACH_HINT)).toBeDisabled()
 
     rerender(<ChatComposer {...BASE_PROPS} hasSourcesSelected={false} />)
 
-    expect(screen.getByTitle('Attach a PDF, Word or Excel file')).toBeDisabled()
+    expect(screen.getByTitle(ATTACH_HINT)).toBeDisabled()
+  })
+
+  it('attaches an image pasted from the clipboard', () => {
+    const onAttachFiles = vi.fn()
+    const image = new File(['bytes'], 'image.png', { type: 'image/png' })
+    render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+
+    fireEvent.paste(screen.getByPlaceholderText('Ask Soporti anything...'), {
+      clipboardData: { files: [image], types: ['Files'] },
+    })
+
+    expect(onAttachFiles).toHaveBeenCalledWith([image])
+  })
+
+  it('leaves pasted text alone', () => {
+    const onAttachFiles = vi.fn()
+    render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+
+    fireEvent.paste(screen.getByPlaceholderText('Ask Soporti anything...'), {
+      clipboardData: { files: [], types: ['text/plain'] },
+    })
+
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('ignores a pasted file that is not a supported image', () => {
+    const onAttachFiles = vi.fn()
+    const archive = new File(['bytes'], 'backup.zip', { type: 'application/zip' })
+    render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
+
+    fireEvent.paste(screen.getByPlaceholderText('Ask Soporti anything...'), {
+      clipboardData: { files: [archive], types: ['Files'] },
+    })
+
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('does not attach a pasted image once the attachment limit is reached', () => {
+    const onAttachFiles = vi.fn()
+    const image = new File(['bytes'], 'image.png', { type: 'image/png' })
+    const attachments = [
+      { name: 'a.pdf', truncated: false },
+      { name: 'b.pdf', truncated: false },
+      { name: 'c.pdf', truncated: false },
+    ]
+    render(<ChatComposer {...BASE_PROPS} attachments={attachments} onAttachFiles={onAttachFiles} />)
+
+    fireEvent.paste(screen.getByPlaceholderText('Ask Soporti anything...'), {
+      clipboardData: { files: [image], types: ['Files'] },
+    })
+
+    expect(onAttachFiles).not.toHaveBeenCalled()
   })
 
   it('shows the attachment error', () => {

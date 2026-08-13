@@ -154,6 +154,26 @@ export const granolaCredentials = pgTable('granola_credentials', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const attachmentImages = pgTable(
+  'attachment_images',
+  {
+    id: uuid('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    data: text('data').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  table => [
+    index('attachment_images_user_idx').on(table.userId),
+    index('attachment_images_expires_idx').on(table.expiresAt),
+  ]
+)
+
 export const skills = pgTable(
   'skills',
   {

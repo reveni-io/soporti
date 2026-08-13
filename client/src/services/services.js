@@ -104,14 +104,18 @@ export async function streamChat(token, body, signal) {
   return response
 }
 
-export function uploadAttachment(token, file, contentType) {
-  return request(`/api/attachments?name=${encodeURIComponent(file.name)}`, {
+export function uploadAttachment(token, file, contentType, name = file.name) {
+  return request(`/api/attachments?name=${encodeURIComponent(name)}`, {
     method: 'POST',
     token,
     file,
     contentType,
     errorMessage: 'Failed to read the file',
   })
+}
+
+export function getAttachmentImage(token, imageId) {
+  return request(`/api/attachments/images/${imageId}`, { token, errorMessage: 'Failed to load the image' })
 }
 
 export function getConversations(token) {

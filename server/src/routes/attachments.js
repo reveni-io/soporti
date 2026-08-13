@@ -3,10 +3,13 @@ import {
   ATTACHMENT_EXTENSIONS,
   ATTACHMENT_MIME_TYPES,
   extractAttachmentText,
+  isImageAttachment,
   isSupportedAttachment,
   isValidAttachmentName,
+  looksLikeImage,
 } from '../documents/attachments.js'
-import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB } from '../constants.js'
+import { createAttachmentImage, deleteExpiredAttachmentImages, getAttachmentImage } from '../db/attachment-images.js'
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_MB, UUID_RE } from '../constants.js'
 
 const router = Router()
 
@@ -16,6 +19,36 @@ const TOO_LARGE_MESSAGE = `The file is too large (max ${MAX_ATTACHMENT_MB} MB).`
 function reject(req, res, status, error) {
   req.resume()
   return res.status(status).json({ error })
+}
+
+async function purgeExpiredImages() {
+  try {
+    const deleted = await deleteExpiredAttachmentImages()
+    if (deleted > 0) console.log(`[attachments] purged ${deleted} expired image(s)`)
+  } catch (err) {
+    console.error('Failed to purge expired attachment images:', err)
+  }
+}
+
+async function storeImage(req, res, name, mimeType) {
+  if (!looksLikeImage(req.body, mimeType)) {
+    return res.status(422).json({ error: `"${name}" is not a valid image. It may be corrupt or renamed.` })
+  }
+
+  const { id, expiresAt } = await createAttachmentImage({
+    userId: req.user.id,
+    name,
+    mimeType,
+    buffer: req.body,
+  })
+
+  console.log(
+    `[attachments] "${name}" (${mimeType}) → image ${id}, ${req.body.length} bytes, kept until ${expiresAt.toISOString()}`
+  )
+
+  res.json({ attachment: { name, imageId: id } })
+
+  await purgeExpiredImages()
 }
 
 router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES }), async (req, res) => {
@@ -29,6 +62,8 @@ router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES 
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return reject(req, res, 400, 'The file is empty.')
 
   try {
+    if (isImageAttachment(mimeType)) return await storeImage(req, res, name, mimeType)
+
     const { error, text, truncated } = await extractAttachmentText(req.body, mimeType)
 
     if (error === 'empty') {
@@ -47,8 +82,22 @@ router.post('/', raw({ type: ATTACHMENT_MIME_TYPES, limit: MAX_ATTACHMENT_BYTES 
 
     res.json({ attachment: { name, text, truncated } })
   } catch (err) {
-    console.error('Failed to extract the attachment text:', err)
+    console.error('Failed to read the attachment:', err)
     res.status(500).json({ error: 'Failed to read the file.' })
+  }
+})
+
+router.get('/images/:id', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid image ID.' })
+
+  try {
+    const image = await getAttachmentImage(req.params.id, req.user.id)
+    if (!image) return res.status(404).json({ error: 'Image not found.' })
+
+    res.json(image)
+  } catch (err) {
+    console.error('Failed to load the attachment image:', err)
+    res.status(500).json({ error: 'Failed to load the image.' })
   }
 })
 

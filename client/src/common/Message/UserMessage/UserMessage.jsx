@@ -16,7 +16,7 @@ export default function UserMessage({ message, token }) {
       {message.attachments?.length > 0 && (
         <ul className="message__attachments">
           {message.attachments.map((attachment, index) => (
-            <AttachmentChip key={`${attachment.name}-${index}`} attachment={attachment} />
+            <AttachmentChip key={`${attachment.name}-${index}`} attachment={attachment} token={token} />
           ))}
         </ul>
       )}

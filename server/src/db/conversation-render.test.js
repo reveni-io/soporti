@@ -44,8 +44,37 @@ describe('toRenderMessage', () => {
     expect(message).toEqual({
       role: 'user',
       content: 'summarize it',
-      attachments: [{ name: 'spec.pdf', truncated: true }],
+      attachments: [{ name: 'spec.pdf', truncated: true, imageId: null }],
     })
+  })
+
+  it('exposes the image id of an attached image so the client can load it', () => {
+    const message = toRenderMessage({
+      role: 'user',
+      parts: [
+        { type: 'attachment', name: 'error.png', imageId: '22222222-2222-4222-8222-222222222222' },
+        { type: 'text', content: 'what is this?' },
+      ],
+    })
+
+    expect(message.attachments).toEqual([
+      { name: 'error.png', truncated: false, imageId: '22222222-2222-4222-8222-222222222222' },
+    ])
+  })
+
+  it('drops the image id when the caller asks for a shareable message', () => {
+    const message = toRenderMessage(
+      {
+        role: 'user',
+        parts: [
+          { type: 'attachment', name: 'error.png', imageId: '22222222-2222-4222-8222-222222222222' },
+          { type: 'text', content: 'what is this?' },
+        ],
+      },
+      { includeAttachments: false }
+    )
+
+    expect(message).toEqual({ role: 'user', content: 'what is this?' })
   })
 
   it('drops the attachments when the caller asks for a shareable message', () => {

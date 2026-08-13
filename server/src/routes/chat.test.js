@@ -49,12 +49,17 @@ vi.mock('../db/agent-runs.js', () => ({
   recordAgentRun: vi.fn(),
 }))
 
+vi.mock('../db/attachment-images.js', () => ({
+  getAttachmentImages: vi.fn(async () => new Map()),
+}))
+
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured, searchSimilarCases } from '../knowledge/client.js'
 import { isConfigured } from '../llm/model.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { recordAgentRun } from '../db/agent-runs.js'
+import { getAttachmentImages } from '../db/attachment-images.js'
 import chatRoute from './chat.js'
 
 function createStreamMock(events, { history, lastResponseId, usage } = {}) {
@@ -78,6 +83,7 @@ function createStreamMock(events, { history, lastResponseId, usage } = {}) {
 }
 
 const TEST_CONVERSATION_ID = '11111111-1111-4111-8111-111111111111'
+const TEST_IMAGE_ID = '22222222-2222-4222-8222-222222222222'
 
 function buildSession() {
   return { getItems: vi.fn(async () => []) }
@@ -381,7 +387,7 @@ describe('POST /api/chat', () => {
     expect(run).not.toHaveBeenCalled()
   })
 
-  it('returns 400 when an attachment has no name or no text', async () => {
+  it('returns 400 when an attachment has no name, or neither text nor an image', async () => {
     const missingText = await request(app)
       .post('/')
       .send({ message: 'hi', attachments: [{ name: 'a.pdf', text: '  ' }] })
@@ -390,7 +396,19 @@ describe('POST /api/chat', () => {
       .send({ message: 'hi', attachments: [{ text: 'body' }] })
 
     expect(missingText.status).toBe(400)
+    expect(missingText.body.error).toMatch(/"text" or an "imageId"/)
     expect(missingName.status).toBe(400)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when an attached image has a malformed id', async () => {
+    const res = await request(app)
+      .post('/')
+      .send({ message: 'hi', attachments: [{ name: 'error.png', imageId: 'not-a-uuid' }] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/invalid image ID/i)
+    expect(getAttachmentImages).not.toHaveBeenCalled()
     expect(run).not.toHaveBeenCalled()
   })
 
@@ -441,13 +459,104 @@ describe('POST /api/chat', () => {
           expect.objectContaining({
             role: 'user',
             parts: [
-              { type: 'attachment', name: 'spec.pdf', truncated: true },
+              { type: 'attachment', name: 'spec.pdf', truncated: true, imageId: null },
               { type: 'text', content: 'summarize it' },
             ],
           }),
         ]),
       })
     )
+  })
+
+  it('sends an attached image to the model as a content part, not as prompt text', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'ok' } }])
+    )
+    getAttachmentImages.mockResolvedValueOnce(new Map([[TEST_IMAGE_ID, 'data:image/png;base64,AQID']]))
+
+    await request(app)
+      .post('/')
+      .send({ message: 'what is this error?', attachments: [{ name: 'error.png', imageId: TEST_IMAGE_ID }] })
+
+    expect(getAttachmentImages).toHaveBeenCalledWith([TEST_IMAGE_ID], 1)
+
+    const [message] = run.mock.calls[0][1]
+    expect(message.content[0].text).toContain('- error.png')
+    expect(message.content[0].text).not.toContain('base64')
+    expect(message.content[0].text.endsWith('what is this error?')).toBe(true)
+    expect(message.content[1]).toEqual({ type: 'input_image', image: 'data:image/png;base64,AQID' })
+  })
+
+  it('persists the image id with the user message so a reload can show it again', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'ok' } }])
+    )
+    getAttachmentImages.mockResolvedValueOnce(new Map([[TEST_IMAGE_ID, 'data:image/png;base64,AQID']]))
+
+    await request(app)
+      .post('/')
+      .send({ message: 'look', attachments: [{ name: 'error.png', imageId: TEST_IMAGE_ID }] })
+
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            parts: [
+              { type: 'attachment', name: 'error.png', truncated: false, imageId: TEST_IMAGE_ID },
+              { type: 'text', content: 'look' },
+            ],
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('returns 400 when an attached image expired or belongs to someone else', async () => {
+    getAttachmentImages.mockResolvedValueOnce(new Map())
+
+    const res = await request(app)
+      .post('/')
+      .send({ message: 'look', attachments: [{ name: 'error.png', imageId: TEST_IMAGE_ID }] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/no longer available/i)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the attached images cannot be loaded', async () => {
+    getAttachmentImages.mockRejectedValueOnce(new Error('db down'))
+
+    const res = await request(app)
+      .post('/')
+      .send({ message: 'look', attachments: [{ name: 'error.png', imageId: TEST_IMAGE_ID }] })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toMatch(/Failed to load the attached images/i)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('sends a document and an image in the same message', async () => {
+    run.mockResolvedValue(
+      createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'ok' } }])
+    )
+    getAttachmentImages.mockResolvedValueOnce(new Map([[TEST_IMAGE_ID, 'data:image/png;base64,AQID']]))
+
+    await request(app)
+      .post('/')
+      .send({
+        message: 'does the screenshot match the spec?',
+        attachments: [
+          { name: 'spec.pdf', text: 'The API returns 402.' },
+          { name: 'error.png', imageId: TEST_IMAGE_ID },
+        ],
+      })
+
+    const [message] = run.mock.calls[0][1]
+    expect(message.content[0].text).toContain('The API returns 402.')
+    expect(message.content[0].text).toContain('## Attached images')
+    expect(message.content).toHaveLength(2)
   })
 
   it('persists the invoked command with the user message', async () => {
