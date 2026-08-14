@@ -17,6 +17,8 @@ The plugin lives in the Soporti repository, which doubles as its marketplace. Ad
 
 **Cowork:** **Customize → Plugins → Add → Add marketplace**, with `https://github.com/reveni-io/soporti`. Then install **soporti** from the marketplace.
 
+**Claude web (Chat) does not use plugins**, so this package does not apply there. On a Team or Enterprise plan an Owner adds the MCP endpoint once as a custom connector under **Organization settings → Connectors**, and every member presses Connect. The sign-in that follows is the same OAuth flow, so the identity and the guarantees below are identical.
+
 ## Point it at your Soporti
 
 The connector reads its endpoint from `SOPORTI_MCP_URL`, so the package carries no address of anyone's server. Run:
