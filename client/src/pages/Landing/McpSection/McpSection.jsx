@@ -9,11 +9,6 @@ const INSTALL_ROUTES = [
     command: 'claude mcp add --transport http soporti https://soporti.your.co/api/mcp',
   },
   {
-    label: 'Install the Claude plugin',
-    description: 'Add the marketplace once and the setup command validates your key and registers the connector.',
-    command: '/plugin marketplace add reveni-io/soporti\n/plugin install soporti@soporti\n/soporti:setup',
-  },
-  {
     label: 'Or bring your own key',
     description: 'Headless agents that never see a browser keep authenticating with a sop_ key.',
     command:
