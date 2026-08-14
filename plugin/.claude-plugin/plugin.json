@@ -1,7 +1,7 @@
 {
   "name": "soporti",
   "displayName": "Soporti",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Connect Claude to Soporti's MCP server so it can investigate across your repos and integrations.",
   "author": {
     "name": "Reveni",

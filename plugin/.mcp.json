@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "soporti": {
+      "type": "http",
+      "url": "${SOPORTI_MCP_URL}"
+    }
+  }
+}

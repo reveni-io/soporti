@@ -10,7 +10,7 @@ const INSTALL_ROUTES = [
   },
   {
     label: 'Install the Claude plugin',
-    description: 'Add the marketplace once and the setup command validates your key and registers the connector.',
+    description: 'Add the marketplace once, tell it where your Soporti lives, and the connector is registered.',
     command: '/plugin marketplace add reveni-io/soporti\n/plugin install soporti@soporti\n/soporti:setup',
   },
   {
