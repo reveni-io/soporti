@@ -25,6 +25,10 @@ vi.mock('../repo-pool/index.js', () => ({
 vi.mock('../shortcut/client.js', () => ({
   getStory: vi.fn(),
   searchStories: vi.fn(),
+  listIterations: vi.fn(),
+  getIterationStories: vi.fn(),
+  listEpics: vi.fn(),
+  listMembers: vi.fn(),
   isConfigured: vi.fn(async () => true),
 }))
 
@@ -103,6 +107,10 @@ const {
   gitBlameTool,
   getShortcutStoryTool,
   searchShortcutStoriesTool,
+  listShortcutIterationsTool,
+  getShortcutIterationStoriesTool,
+  listShortcutEpicsTool,
+  listShortcutMembersTool,
   searchNotionPagesTool,
   getNotionPageTool,
   listDatabaseSchemasTool,
@@ -146,6 +154,10 @@ describe('tool definitions', () => {
   it('exports shortcut tools', () => {
     expect(getShortcutStoryTool).toBeDefined()
     expect(searchShortcutStoriesTool).toBeDefined()
+    expect(listShortcutIterationsTool).toBeDefined()
+    expect(getShortcutIterationStoriesTool).toBeDefined()
+    expect(listShortcutEpicsTool).toBeDefined()
+    expect(listShortcutMembersTool).toBeDefined()
   })
 
   it('exports notion tools', () => {
@@ -324,6 +336,10 @@ describe('buildAgentTools', () => {
       'git_blame',
       'get_shortcut_story',
       'search_shortcut_stories',
+      'list_shortcut_iterations',
+      'get_shortcut_iteration_stories',
+      'list_shortcut_epics',
+      'list_shortcut_members',
       'get_sentry_issue',
       'search_sentry_issues',
     ])
@@ -346,6 +362,10 @@ describe('buildAgentTools', () => {
       'get_notion_page',
       'get_shortcut_story',
       'search_shortcut_stories',
+      'list_shortcut_iterations',
+      'get_shortcut_iteration_stories',
+      'list_shortcut_epics',
+      'list_shortcut_members',
       'get_sentry_issue',
       'search_sentry_issues',
     ])
@@ -460,6 +480,10 @@ describe('buildAgentTools', () => {
     expect(names(tools)).toEqual([
       'get_shortcut_story',
       'search_shortcut_stories',
+      'list_shortcut_iterations',
+      'get_shortcut_iteration_stories',
+      'list_shortcut_epics',
+      'list_shortcut_members',
       'get_sentry_issue',
       'search_sentry_issues',
     ])
@@ -570,12 +594,50 @@ describe('tool execute functions', () => {
     expect(shortcut.getStory).toHaveBeenCalledWith(1234)
   })
 
-  it('searchShortcutStoriesTool.execute calls searchStories and returns JSON', async () => {
+  it('searchShortcutStoriesTool.execute forwards the query and the limit', async () => {
     const shortcut = await import('../shortcut/client.js')
-    shortcut.searchStories.mockResolvedValue([{ id: 1, name: 'Story 1' }])
-    const result = await searchShortcutStoriesTool.execute({ query: 'bug' })
-    expect(JSON.parse(result)).toEqual([{ id: 1, name: 'Story 1' }])
-    expect(shortcut.searchStories).toHaveBeenCalledWith('bug')
+    shortcut.searchStories.mockResolvedValue({ total: 1, stories: [{ id: 1, name: 'Story 1' }] })
+    const result = await searchShortcutStoriesTool.execute({ query: 'owner:sergio !is:done', limit: 50 })
+    expect(JSON.parse(result)).toEqual({ total: 1, stories: [{ id: 1, name: 'Story 1' }] })
+    expect(shortcut.searchStories).toHaveBeenCalledWith('owner:sergio !is:done', { limit: 50 })
+  })
+
+  it('listShortcutIterationsTool.execute turns a null status into no filter', async () => {
+    const shortcut = await import('../shortcut/client.js')
+    shortcut.listIterations.mockResolvedValue({ total: 0, iterations: [] })
+
+    await listShortcutIterationsTool.execute({ status: null })
+    expect(shortcut.listIterations).toHaveBeenCalledWith({ status: undefined })
+
+    await listShortcutIterationsTool.execute({ status: 'started' })
+    expect(shortcut.listIterations).toHaveBeenCalledWith({ status: 'started' })
+  })
+
+  it('getShortcutIterationStoriesTool.execute calls getIterationStories and returns JSON', async () => {
+    const shortcut = await import('../shortcut/client.js')
+    shortcut.getIterationStories.mockResolvedValue({ total: 2, by_state: { Done: 2 }, stories: [] })
+    const result = await getShortcutIterationStoriesTool.execute({ iterationId: 71 })
+    expect(JSON.parse(result)).toEqual({ total: 2, by_state: { Done: 2 }, stories: [] })
+    expect(shortcut.getIterationStories).toHaveBeenCalledWith(71)
+  })
+
+  it('listShortcutEpicsTool.execute turns a null status into no filter', async () => {
+    const shortcut = await import('../shortcut/client.js')
+    shortcut.listEpics.mockResolvedValue({ total: 0, epics: [] })
+
+    await listShortcutEpicsTool.execute({ status: null })
+    expect(shortcut.listEpics).toHaveBeenCalledWith({ status: undefined })
+
+    await listShortcutEpicsTool.execute({ status: 'in progress' })
+    expect(shortcut.listEpics).toHaveBeenCalledWith({ status: 'in progress' })
+  })
+
+  it('listShortcutMembersTool.execute calls listMembers and returns JSON', async () => {
+    const shortcut = await import('../shortcut/client.js')
+    shortcut.listMembers.mockResolvedValue({ total: 1, members: [{ id: 'user-1', mention_name: 'sergio' }] })
+    const result = await listShortcutMembersTool.execute({})
+    expect(JSON.parse(result)).toEqual({ total: 1, members: [{ id: 'user-1', mention_name: 'sergio' }] })
+    expect(shortcut.listMembers).toHaveBeenCalledWith()
   })
 
   it('searchNotionPagesTool.execute calls searchPages and returns JSON', async () => {

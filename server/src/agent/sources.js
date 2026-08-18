@@ -25,7 +25,14 @@ export function buildSourcePolicy(selectedSources) {
 const REPO_TOOLS = new Set(['get_directory_contents', 'get_file_contents', 'search_code'])
 
 const INTEGRATION_TOOL_NAMES = {
-  shortcut: ['get_shortcut_story', 'search_shortcut_stories'],
+  shortcut: [
+    'get_shortcut_story',
+    'search_shortcut_stories',
+    'list_shortcut_iterations',
+    'get_shortcut_iteration_stories',
+    'list_shortcut_epics',
+    'list_shortcut_members',
+  ],
   notion: ['search_notion_pages', 'get_notion_page'],
   'google-drive': ['search_drive_files', 'get_drive_file', 'list_drive_files'],
   postgres: ['list_database_schemas', 'list_database_tables', 'describe_database_table', 'query_database'],
