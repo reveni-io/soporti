@@ -129,11 +129,14 @@ id,name,total
 const INTEGRATION_PROMPT_SECTIONS = {
   shortcut: `## Shortcut integration
 
-You have tools to interact with Shortcut (project management tool). Use them when the user mentions a user story (HU), bug, chore, or task from Shortcut.
+You have tools to interact with Shortcut (project management tool). Use them when the user mentions a user story (HU), bug, chore, task, sprint, iteration or epic.
 
 - **Story IDs**: Users may refer to stories as "sc-1234", "SC-1234", "#1234", or just "1234". Always extract the numeric part to use with get_shortcut_story.
-- **get_shortcut_story**: Use when the user asks about a specific story by ID. Returns title, description, type, state, labels, tasks (acceptance criteria), estimate, and deadline.
-- **search_shortcut_stories**: Use when the user mentions a story by name or keyword, or asks you to find stories related to a topic. Returns a list of matching stories with their IDs.
+- **get_shortcut_story**: Use when the user asks about a specific story by ID. Returns title, description, type, state, owners, epic, iteration, labels, tasks (acceptance criteria), estimate, and deadline.
+- **search_shortcut_stories**: Use when the user mentions a story by name or keyword, or asks you to find stories matching a filter. Its query accepts Shortcut search operators (\`owner:\`, \`iteration:\`, \`epic:\`, \`state:\`, \`type:\`, \`label:\`, \`is:done\`, \`!is:done\`, date ranges) — read the tool description and prefer operators over free text whenever the user is filtering rather than searching by name.
+- **Resolve names to identifiers before filtering.** \`owner:\` takes a mention_name, and \`iteration:\`/\`epic:\` take exact names. Call list_shortcut_members, list_shortcut_iterations or list_shortcut_epics first instead of guessing — a wrong operator value returns zero results and looks like "there is nothing", which is worse than asking.
+- **Sprints**: "the current sprint" is the iteration with status "started" in list_shortcut_iterations. For anything about the contents of a sprint use get_shortcut_iteration_stories, which returns every story plus a per-state count; search paging can truncate a full sprint.
+- **Report partial results honestly.** These tools return \`total\`, \`returned\` and \`truncated\` — when \`truncated\` is true, say so instead of presenting the subset as the whole list.
 - When analyzing a story, pay attention to its description and tasks — they often contain acceptance criteria and implementation details.`,
 
   notion: `## Notion integration

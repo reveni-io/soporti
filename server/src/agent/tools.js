@@ -230,13 +230,78 @@ export const getShortcutStoryTool = tool({
 
 export const searchShortcutStoriesTool = tool({
   name: 'search_shortcut_stories',
-  description:
-    'Search Shortcut stories by text query. Useful to find a user story when the user mentions it by name or keyword instead of ID.',
+  description: `Search Shortcut stories by text and/or filters. Returns each story with its state, owners, epic, iteration, estimate and labels, plus the total number of matches so you can tell when the result is partial.
+
+The query supports Shortcut search operators, which are far more precise than free text. Combine them freely:
+- \`owner:mention_name\` / \`requester:mention_name\` — by person. Resolve the mention_name with list_shortcut_members first; never guess it.
+- \`iteration:"Sprint 12"\` / \`epic:"Checkout redesign"\` — exact names. Resolve them with list_shortcut_iterations or list_shortcut_epics first. To list a whole sprint prefer get_shortcut_iteration_stories, which is not capped by search paging.
+- \`state:"In Progress"\`, \`type:bug|feature|chore\`, \`label:"frontend"\`, \`estimate:3\`, \`team:"Platform"\`
+- \`is:done\`, \`is:started\`, \`is:unstarted\`, \`is:blocked\`, \`has:owner\`, and their negations with \`!\` (e.g. \`!is:done\`)
+- \`created:2026-01-01..2026-03-01\`, \`updated:\`, \`completed:\`, \`due:\`
+
+Example: \`owner:sergio !is:done type:bug\` for someone's open bugs.`,
   parameters: z.object({
-    query: z.string().describe('Free-text search query.'),
+    query: z.string().describe('Free text, Shortcut search operators, or both.'),
+    limit: z.number().optional().describe('Maximum stories to return (default 25, maximum 100).'),
   }),
   execute: async input => {
-    const result = await shortcut.searchStories(input.query)
+    const result = await shortcut.searchStories(input.query, { limit: input.limit })
+    return JSON.stringify(result)
+  },
+})
+
+export const listShortcutIterationsTool = tool({
+  name: 'list_shortcut_iterations',
+  description:
+    'List Shortcut iterations (sprints), most recent first, with their ID, name, status and dates. Use it to resolve which sprint the user means — "the current sprint" is the one with status "started" — before asking for its stories.',
+  parameters: z.object({
+    status: z
+      .enum(['started', 'unstarted', 'done'])
+      .nullable()
+      .describe('Filter by status: "started" is the current sprint, "unstarted" upcoming. Null for all of them.'),
+  }),
+  execute: async input => {
+    const result = await shortcut.listIterations({ status: input.status ?? undefined })
+    return JSON.stringify(result)
+  },
+})
+
+export const getShortcutIterationStoriesTool = tool({
+  name: 'get_shortcut_iteration_stories',
+  description:
+    'Get every story in a Shortcut iteration (sprint) by its numeric iteration ID, with a count of stories per workflow state. Use this for sprint questions ("what is in this sprint", "what is left", "who is working on what") instead of search. Get the ID from list_shortcut_iterations.',
+  parameters: z.object({
+    iterationId: z.number().describe('Numeric iteration ID from list_shortcut_iterations.'),
+  }),
+  execute: async input => {
+    const result = await shortcut.getIterationStories(input.iterationId)
+    return JSON.stringify(result)
+  },
+})
+
+export const listShortcutEpicsTool = tool({
+  name: 'list_shortcut_epics',
+  description:
+    'List Shortcut epics with their ID, name, status, deadline and story counts per state. Use it to answer questions about epics and to get an exact epic name for the epic: operator in search_shortcut_stories.',
+  parameters: z.object({
+    status: z
+      .enum(['to do', 'in progress', 'done'])
+      .nullable()
+      .describe('Filter by epic status. Null for all of them.'),
+  }),
+  execute: async input => {
+    const result = await shortcut.listEpics({ status: input.status ?? undefined })
+    return JSON.stringify(result)
+  },
+})
+
+export const listShortcutMembersTool = tool({
+  name: 'list_shortcut_members',
+  description:
+    'List the active Shortcut members with their name and mention_name. Use it to turn a person the user names ("Sergio", "Ana") into the mention_name required by the owner: and requester: search operators.',
+  parameters: z.object({}),
+  execute: async () => {
+    const result = await shortcut.listMembers()
     return JSON.stringify(result)
   },
 })
@@ -599,7 +664,14 @@ export function buildGranolaTools(userId) {
   ]
 }
 
-const SHORTCUT_TOOLS = [getShortcutStoryTool, searchShortcutStoriesTool]
+const SHORTCUT_TOOLS = [
+  getShortcutStoryTool,
+  searchShortcutStoriesTool,
+  listShortcutIterationsTool,
+  getShortcutIterationStoriesTool,
+  listShortcutEpicsTool,
+  listShortcutMembersTool,
+]
 const SENTRY_TOOLS = [getSentryIssueTool, searchSentryIssuesTool]
 export const BETTERSTACK_TOOLS = [listLogSourcesTool, describeLogSourceTool, searchLogsTool, queryLogsTool]
 const DRIVE_TOOLS = [searchDriveFilesTool, getDriveFileTool, listDriveFilesTool]
