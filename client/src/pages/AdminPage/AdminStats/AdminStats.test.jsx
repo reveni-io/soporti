@@ -60,6 +60,32 @@ const sampleStats = {
     { tool: 'get_file_contents', calls: 900 },
     { tool: 'query_database', calls: 120 },
   ],
+  topUsers: [
+    {
+      userId: 1,
+      email: 'ana@example.com',
+      name: 'Ana',
+      conversations: 88,
+      userMessages: 210,
+      runs: 61,
+      failedRuns: 1,
+      inputTokens: 900_000,
+      outputTokens: 33_000,
+      lastActiveAt: '2026-08-14T09:00:00.000Z',
+    },
+    {
+      userId: 2,
+      email: 'bob@example.com',
+      name: 'Bob',
+      conversations: 12,
+      userMessages: 31,
+      runs: 44,
+      failedRuns: 0,
+      inputTokens: 500_000,
+      outputTokens: 21_000,
+      lastActiveAt: '2026-08-13T09:00:00.000Z',
+    },
+  ],
 }
 
 function okResponse(stats) {
@@ -110,6 +136,16 @@ describe('AdminStats', () => {
     expect(screen.getByText('PR reviews')).toBeInTheDocument()
     expect(screen.getByText('get_file_contents')).toBeInTheDocument()
     expect(screen.getByText('900')).toBeInTheDocument()
+  })
+
+  it('ranks the users who consumed the most', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse(sampleStats))
+
+    render(<AdminStats token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByText('Top users')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /ana@example\.com 88 210 61 1 900K 33K/ })).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /bob@example\.com 12 31 44/ })).toBeInTheDocument()
   })
 
   it('counts the MCP questions in their own card and channel row', async () => {
@@ -167,6 +203,7 @@ describe('AdminStats', () => {
         conversationsBySource: [],
         byChannel: [],
         tools: [],
+        topUsers: [],
         runs: {
           ...sampleStats.runs,
           runs: 0,
@@ -183,6 +220,7 @@ describe('AdminStats', () => {
 
     expect(await screen.findByText('No agent runs recorded yet.')).toBeInTheDocument()
     expect(screen.getByText('No tool calls recorded yet.')).toBeInTheDocument()
+    expect(screen.getByText('No user activity recorded yet.')).toBeInTheDocument()
     expect(screen.getByText('none failed')).toBeInTheDocument()
     expect(screen.getByText('— of input')).toBeInTheDocument()
     expect(screen.getByText('p95 —')).toBeInTheDocument()
@@ -195,6 +233,7 @@ describe('AdminStats', () => {
         runs: null,
         byChannel: null,
         tools: null,
+        topUsers: null,
       })
     )
 
@@ -203,6 +242,7 @@ describe('AdminStats', () => {
     expect(await screen.findByText('128')).toBeInTheDocument()
     expect(screen.getByText('The channel breakdown is unavailable right now.')).toBeInTheDocument()
     expect(screen.getByText('The tool ranking is unavailable right now.')).toBeInTheDocument()
+    expect(screen.getByText('The user breakdown is unavailable right now.')).toBeInTheDocument()
     expect(screen.getAllByText('—')).toHaveLength(7)
     expect(screen.queryByText('none failed')).not.toBeInTheDocument()
   })

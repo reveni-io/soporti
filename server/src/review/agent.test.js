@@ -500,6 +500,7 @@ describe('runReviewerAgent', () => {
       channel: 'pr_review',
       status: 'ok',
       subject: 'acme-io/app#7',
+      userId: null,
       usage: { requests: 4, inputTokens: 40_000, outputTokens: 1500, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['get_file_contents'],
@@ -514,7 +515,12 @@ describe('runReviewerAgent', () => {
     )
 
     expect(recordAgentRun).toHaveBeenCalledTimes(1)
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'pr_review', status: 'error', subject: 'acme-io/app#7' })
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'error',
+      subject: 'acme-io/app#7',
+      userId: null,
+    })
   })
 
   it('records the tokens a review burnt before it ran out of turns', async () => {
@@ -531,6 +537,7 @@ describe('runReviewerAgent', () => {
       channel: 'pr_review',
       status: 'error',
       subject: 'acme-io/app#7',
+      userId: null,
       usage: { requests: 20, inputTokens: 400_000, outputTokens: 8000, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['search_code'],

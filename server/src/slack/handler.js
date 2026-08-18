@@ -140,7 +140,7 @@ export async function processMessage({
   try {
     lastResponseId = await runWithRetry()
   } catch (err) {
-    await recordAgentRun({ channel: AGENT_CHANNEL_SLACK, status: RUN_STATUS_ERROR })
+    await recordAgentRun({ channel: AGENT_CHANNEL_SLACK, status: RUN_STATUS_ERROR, userId })
     throw err
   }
 
@@ -150,6 +150,7 @@ export async function processMessage({
   await recordAgentRun({
     channel: AGENT_CHANNEL_SLACK,
     status: RUN_STATUS_OK,
+    userId,
     usage: runUsage,
     durationMs,
     tools: toolNames(toolCalls),

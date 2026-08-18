@@ -754,6 +754,7 @@ describe('POST /api/chat', () => {
     expect(recordAgentRun).toHaveBeenCalledWith({
       channel: 'web',
       status: 'ok',
+      userId: 1,
       usage: {
         requests: 2,
         inputTokens: 12_000,
@@ -771,7 +772,7 @@ describe('POST /api/chat', () => {
 
     await request(app).post('/').send({ message: 'hi' })
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error' })
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error', userId: 1 })
   })
 
   it('records a turn once when persisting it fails after the answer streamed', async () => {
@@ -784,7 +785,7 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'search for auth' })
 
     expect(recordAgentRun).toHaveBeenCalledTimes(1)
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error' })
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error', userId: 1 })
     consoleError.mockRestore()
   })
 

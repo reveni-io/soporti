@@ -26,6 +26,7 @@ describe('trackAgentRun', () => {
       channel: 'web',
       status: 'ok',
       subject: 'acme/app#3',
+      userId: null,
       usage: { requests: 2, inputTokens: 900, outputTokens: 30, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['search_code'],
@@ -39,10 +40,17 @@ describe('trackAgentRun', () => {
       channel: 'schedule',
       status: 'ok',
       subject: null,
+      userId: null,
       usage: null,
       durationMs: expect.any(Number),
       tools: [],
     })
+  })
+
+  it('attributes the run to the user it was given', async () => {
+    await trackAgentRun({ channel: 'mcp', userId: 8 }, async () => ({}))
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'mcp', userId: 8 }))
   })
 
   it('passes the result to failureReason and keeps the run ok when it finds nothing wrong', async () => {
@@ -75,6 +83,7 @@ describe('trackAgentRun', () => {
       channel: 'pr_review',
       status: 'error',
       subject: 'acme/app#9',
+      userId: null,
       usage: { requests: 20, inputTokens: 400_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['search_code'],
@@ -93,6 +102,7 @@ describe('trackAgentRun', () => {
       channel: 'pr_review',
       status: 'error',
       subject: 'acme/app#7',
+      userId: null,
     })
   })
 })

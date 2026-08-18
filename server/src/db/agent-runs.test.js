@@ -48,8 +48,15 @@ const stubDb = {
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
-const { recordAgentRun, getRunTotals, getRunsByChannel, countChannelRuns, countDistinctSubjects, getTopTools } =
-  await import('./agent-runs.js')
+const {
+  recordAgentRun,
+  getRunTotals,
+  getRunsByChannel,
+  runCountersByUser,
+  countChannelRuns,
+  countDistinctSubjects,
+  getTopTools,
+} = await import('./agent-runs.js')
 
 beforeEach(() => {
   queue = []
@@ -74,6 +81,7 @@ describe('recordAgentRun', () => {
       channel: 'web',
       status: 'ok',
       subject: null,
+      userId: null,
       requests: 3,
       inputTokens: 1000,
       outputTokens: 200,
@@ -100,6 +108,13 @@ describe('recordAgentRun', () => {
       durationMs: 0,
       tools: [],
     })
+  })
+
+  it('attributes the run to the user who triggered it', async () => {
+    await recordAgentRun({ channel: 'web', status: 'ok', userId: 42 })
+
+    const insert = calls.find(c => c.op === 'insert')
+    expect(insert.steps.values).toMatchObject({ channel: 'web', userId: 42 })
   })
 
   it('swallows a DB failure so recording stats never breaks the answer', async () => {
@@ -167,6 +182,36 @@ describe('getRunsByChannel', () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ channel: 'web', runs: 2, failedRuns: 1, inputTokens: 1000, outputTokens: 0 })
+  })
+})
+
+describe('runCountersByUser', () => {
+  beforeEach(() => {
+    db = recordingDb
+  })
+
+  it('groups every counter by user without computing the duration percentiles', async () => {
+    await recordingDb.execute(runCountersByUser(null))
+
+    const [{ text }] = executed
+
+    expect(text).toContain('group by "userKey"')
+    expect(text).toContain('"user_id" is not null')
+    expect(text).toContain('as "inputTokens"')
+    expect(text).toContain('as "cacheWriteTokens"')
+    expect(text).toContain('max("agent_runs"."created_at") as "lastRunAt"')
+    expect(text).not.toContain('percentile_cont')
+  })
+
+  it('filters by created_at only when a range was given', async () => {
+    const since = new Date('2026-01-01T00:00:00Z')
+
+    await recordingDb.execute(runCountersByUser(since))
+    await recordingDb.execute(runCountersByUser(null))
+
+    expect(executed[0].text).toContain('"created_at" >=')
+    expect(executed[0].params).toContain(since.toISOString())
+    expect(executed[1].text).not.toContain('"created_at" >=')
   })
 })
 
@@ -276,6 +321,6 @@ describe('the statements Postgres receives', () => {
 
     expect(executed).toHaveLength(1)
     expect(executed[0].text).toContain('insert into "agent_runs"')
-    expect(executed[0].params).toEqual(['web', 'ok', null, 0, 0, 0, 0, 0, 12, '["search_code"]'])
+    expect(executed[0].params).toEqual(['web', 'ok', null, null, 0, 0, 0, 0, 0, 12, '["search_code"]'])
   })
 })

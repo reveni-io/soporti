@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { agentRuns } from './schema.js'
 import { RUN_STATUS_ERROR, RUN_STATUS_OK, TOP_TOOLS_LIMIT } from '../constants.js'
@@ -18,7 +18,7 @@ function okDuration(quantile) {
   return sql`coalesce(percentile_cont(${quantile}::double precision) within group (order by case when ${agentRuns.status} = ${RUN_STATUS_OK} then ${agentRuns.durationMs}::double precision end), 0)::int`
 }
 
-const RUN_AGGREGATES = {
+const RUN_COUNTERS = {
   runs: sql`count(*)::int`,
   failedRuns: sql`(count(*) filter (where ${agentRuns.status} = ${RUN_STATUS_ERROR}))::int`,
   requests: sql`coalesce(sum(${agentRuns.requests}), 0)::bigint`,
@@ -26,11 +26,29 @@ const RUN_AGGREGATES = {
   outputTokens: sql`coalesce(sum(${agentRuns.outputTokens}), 0)::bigint`,
   cachedInputTokens: sql`coalesce(sum(${agentRuns.cachedInputTokens}), 0)::bigint`,
   cacheWriteTokens: sql`coalesce(sum(${agentRuns.cacheWriteTokens}), 0)::bigint`,
+}
+
+const RUN_AGGREGATES = {
+  ...RUN_COUNTERS,
   p50DurationMs: okDuration(P50),
   p95DurationMs: okDuration(P95),
 }
 
-export async function recordAgentRun({ channel, status, subject = null, usage = null, durationMs = 0, tools = [] }) {
+function aliasedColumns(aggregates) {
+  const columns = Object.entries(aggregates).map(([name, expression]) => sql`${expression} as ${sql.identifier(name)}`)
+
+  return sql.join(columns, sql`, `)
+}
+
+export async function recordAgentRun({
+  channel,
+  status,
+  subject = null,
+  userId = null,
+  usage = null,
+  durationMs = 0,
+  tools = [],
+}) {
   try {
     await getDb()
       .insert(agentRuns)
@@ -38,6 +56,7 @@ export async function recordAgentRun({ channel, status, subject = null, usage = 
         channel,
         status,
         subject,
+        userId,
         requests: usage?.requests ?? 0,
         inputTokens: usage?.inputTokens ?? 0,
         outputTokens: usage?.outputTokens ?? 0,
@@ -65,6 +84,16 @@ export async function getRunsByChannel(since) {
     .orderBy(desc(sql`count(*)`))
 
   return rows.map(row => ({ channel: row.channel, ...normalizeAggregates(row) }))
+}
+
+export function runCountersByUser(since) {
+  return sql`
+    select ${agentRuns.userId} as "userKey", ${aliasedColumns(RUN_COUNTERS)},
+      max(${agentRuns.createdAt}) as "lastRunAt"
+    from ${agentRuns}
+    where ${and(isNotNull(agentRuns.userId), sinceFilter(since))}
+    group by "userKey"
+  `
 }
 
 export async function countChannelRuns(channel, since) {

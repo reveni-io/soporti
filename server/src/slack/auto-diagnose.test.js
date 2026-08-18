@@ -107,6 +107,7 @@ describe('diagnoseTicket', () => {
       channel: 'auto_diagnose',
       status: 'ok',
       subject: 'Rec01',
+      userId: null,
       usage: { requests: 3, inputTokens: 5000, outputTokens: 300, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['get_sentry_issue'],
@@ -124,6 +125,11 @@ describe('diagnoseTicket', () => {
 
     await expect(diagnoseTicket(TICKET)).rejects.toThrow('model unavailable')
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'auto_diagnose', status: 'error', subject: 'Rec01' })
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'auto_diagnose',
+      status: 'error',
+      subject: 'Rec01',
+      userId: null,
+    })
   })
 })

@@ -174,6 +174,7 @@ describe('processMessage', () => {
     expect(recordAgentRun).toHaveBeenCalledWith({
       channel: 'slack',
       status: 'ok',
+      userId: null,
       usage: { requests: 2, inputTokens: 800, outputTokens: 60, cachedInputTokens: 400, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['search_code'],
@@ -200,7 +201,21 @@ describe('processMessage', () => {
       processMessage({ message: 'hi', selectedSources: [], session: {}, profile: 'support' })
     ).rejects.toThrow('model unavailable')
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error' })
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error', userId: null })
+  })
+
+  it('attributes the run to the Slack user behind the message', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await processMessage({
+      message: 'hi',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+      slackUserId: 'U123',
+    })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', userId: 1 }))
   })
 
   it('searches similar cases on the message that opens the thread and sends them in the user turn', async () => {

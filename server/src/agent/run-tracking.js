@@ -3,14 +3,14 @@ import { extractUsage } from '../llm/usage.js'
 import { RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 import { toolNamesFromResult } from './run-items.js'
 
-export async function trackAgentRun({ channel, subject = null, failureReason = null }, runAgent) {
+export async function trackAgentRun({ channel, subject = null, userId = null, failureReason = null }, runAgent) {
   const startTime = Date.now()
 
   let result
   try {
     result = await runAgent()
   } catch (err) {
-    await recordAgentRun({ channel, status: RUN_STATUS_ERROR, subject })
+    await recordAgentRun({ channel, status: RUN_STATUS_ERROR, subject, userId })
     throw err
   }
 
@@ -21,6 +21,7 @@ export async function trackAgentRun({ channel, subject = null, failureReason = n
     channel,
     status: failure ? RUN_STATUS_ERROR : RUN_STATUS_OK,
     subject,
+    userId,
     usage: extractUsage(result?.state?.usage),
     durationMs,
     tools: toolNamesFromResult(result),

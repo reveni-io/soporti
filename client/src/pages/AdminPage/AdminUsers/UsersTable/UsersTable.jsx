@@ -1,10 +1,5 @@
 import { EMPTY_CELL } from '../../../../constants.js'
-
-function formatDate(value) {
-  if (!value) return EMPTY_CELL
-  const date = new Date(value)
-  return isNaN(date) ? EMPTY_CELL : date.toLocaleDateString()
-}
+import { formatDate } from '../../dates.js'
 
 export default function UsersTable({ users, loading }) {
   if (loading) return <p className="admin__muted">Loading...</p>

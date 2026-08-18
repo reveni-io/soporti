@@ -149,3 +149,6 @@ repo-catalog.md
 .agents/
 skills-lock.json
 .playwright-mcp/
+
+# macOS folder metadata
+.DS_Store

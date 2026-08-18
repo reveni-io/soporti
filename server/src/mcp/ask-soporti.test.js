@@ -294,6 +294,7 @@ describe('executeAskSoporti', () => {
       channel: 'mcp',
       status: 'ok',
       subject: null,
+      userId: 7,
       usage: { requests: 2, inputTokens: 900, outputTokens: 40, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['query_database'],
@@ -305,7 +306,7 @@ describe('executeAskSoporti', () => {
 
     await expect(executeAskSoporti(askArgs())).rejects.toThrow('model unavailable')
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'mcp', status: 'error', subject: null })
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'mcp', status: 'error', subject: null, userId: 7 })
   })
 
   it('throws when the assistant answers with nothing', async () => {
