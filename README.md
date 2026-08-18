@@ -63,7 +63,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 
 ### See what it is doing
 
-- **Usage stats** — `/admin` → **Stats** shows, over a range you pick (the last hour, 3 hours, 24 hours, 7, 30 or 90 days, or all time): conversations and messages, PRs reviewed, tickets auto-diagnosed, questions answered over MCP, token spend (input, output, cache read and write with the hit rate), runs and p50/p95 response time per channel (web, Slack, MCP, schedules, PR reviews, PR mentions, auto-diagnose) and the most called tools. Conversation and message counts cover your whole history; the agent-run counters start filling in from the moment this version is deployed
+- **Usage stats** — `/admin` → **Stats** shows, over a range you pick (the last hour, 3 hours, 24 hours, 7, 30 or 90 days, or all time): conversations and messages, PRs reviewed, tickets auto-diagnosed, questions answered over MCP, token spend (input, output, cache read and write with the hit rate), runs and p50/p95 response time per channel (web, Slack, MCP, schedules, PR reviews, PR mentions, auto-diagnose) and the most called tools. It also ranks the top users by what they consumed — conversations, questions asked, runs, failed runs, input and output tokens and when they were last active; runs no user triggered (PR reviews, PR mentions and auto-diagnose) are left out of that ranking and stay in the per-channel breakdown. Conversation and message counts cover your whole history; the agent-run counters start filling in from the moment this version is deployed, and a run is attributed to a user only from the deployment that added per-user tracking
 
 ## Prerequisites
 

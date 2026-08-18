@@ -4,13 +4,14 @@ import request from 'supertest'
 
 const getConversationStats = vi.fn()
 const getMessageStats = vi.fn()
+const getUserStats = vi.fn()
 const getRunTotals = vi.fn()
 const getRunsByChannel = vi.fn()
 const getTopTools = vi.fn()
 const countChannelRuns = vi.fn()
 const countDistinctSubjects = vi.fn()
 
-vi.mock('../db/stats.js', () => ({ getConversationStats, getMessageStats }))
+vi.mock('../db/stats.js', () => ({ getConversationStats, getMessageStats, getUserStats }))
 vi.mock('../db/agent-runs.js', () => ({
   getRunTotals,
   getRunsByChannel,
@@ -50,6 +51,7 @@ beforeEach(() => {
     { channel: 'auto_diagnose', runs: 4, failedRuns: 1 },
   ])
   getTopTools.mockResolvedValue([{ tool: 'search_code', calls: 20 }])
+  getUserStats.mockResolvedValue([{ userId: 1, email: 'ana@example.com', runs: 8, inputTokens: 90_000 }])
   countChannelRuns.mockResolvedValue(7)
   countDistinctSubjects.mockImplementation(async channel => (channel === 'pr_review' ? 3 : 5))
 })
@@ -75,6 +77,7 @@ describe('GET /api/admin/stats', () => {
         { channel: 'auto_diagnose', runs: 4, failedRuns: 1 },
       ],
       tools: [{ tool: 'search_code', calls: 20 }],
+      topUsers: [{ userId: 1, email: 'ana@example.com', runs: 8, inputTokens: 90_000 }],
     })
     expect(getConversationStats).toHaveBeenCalledWith(null)
     expect(getRunTotals).toHaveBeenCalledWith(null)
@@ -92,6 +95,7 @@ describe('GET /api/admin/stats', () => {
     expect(elapsedHours).toBeCloseTo(168, 1)
     expect(getMessageStats).toHaveBeenCalledWith(since)
     expect(getRunsByChannel).toHaveBeenCalledWith(since)
+    expect(getUserStats).toHaveBeenCalledWith(since)
     expect(countDistinctSubjects).toHaveBeenCalledWith('pr_review', since)
     expect(countChannelRuns).toHaveBeenCalledWith('mcp', since)
   })
@@ -190,6 +194,7 @@ describe('GET /api/admin/stats', () => {
     getRunTotals.mockImplementation(down)
     getRunsByChannel.mockImplementation(down)
     getTopTools.mockImplementation(down)
+    getUserStats.mockImplementation(down)
     countChannelRuns.mockImplementation(down)
     countDistinctSubjects.mockImplementation(down)
 
@@ -209,6 +214,7 @@ describe('GET /api/admin/stats', () => {
     getRunTotals.mockImplementation(down)
     getRunsByChannel.mockImplementation(down)
     getTopTools.mockImplementation(down)
+    getUserStats.mockImplementation(down)
     countChannelRuns.mockImplementation(down)
     countDistinctSubjects.mockImplementation(down)
 

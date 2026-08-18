@@ -224,6 +224,7 @@ describe('runMentionAgent', () => {
       channel: 'pr_mention',
       status: 'ok',
       subject: 'acme-io/app#7',
+      userId: null,
       usage: { requests: 2, inputTokens: 9000, outputTokens: 120, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['get_shortcut_story'],
@@ -237,6 +238,11 @@ describe('runMentionAgent', () => {
       'model unavailable'
     )
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'pr_mention', status: 'error', subject: 'acme-io/app#7' })
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_mention',
+      status: 'error',
+      subject: 'acme-io/app#7',
+      userId: null,
+    })
   })
 })

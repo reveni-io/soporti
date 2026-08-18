@@ -170,6 +170,7 @@ describe('runSchedule', () => {
       channel: 'schedule',
       status: 'ok',
       subject: null,
+      userId: 7,
       usage: { requests: 2, inputTokens: 900, outputTokens: 40, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['query_database'],
@@ -182,7 +183,7 @@ describe('runSchedule', () => {
 
     await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('model unavailable')
 
-    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'schedule', status: 'error', subject: null })
+    expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'schedule', status: 'error', subject: null, userId: 7 })
   })
 
   it('records a failed run with the tokens it burnt when the assistant answers with nothing', async () => {
@@ -196,6 +197,7 @@ describe('runSchedule', () => {
       channel: 'schedule',
       status: 'error',
       subject: null,
+      userId: 7,
       usage: { requests: 20, inputTokens: 400_000, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: [],

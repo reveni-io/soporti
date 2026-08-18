@@ -2,6 +2,7 @@ import { STATS_RANGE_OPTIONS } from '../../../constants.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import ChannelTable from './ChannelTable/ChannelTable.jsx'
 import ToolsTable from './ToolsTable/ToolsTable.jsx'
+import TopUsersTable from './TopUsersTable/TopUsersTable.jsx'
 import { useAdminStats } from './hooks/useAdminStats/useAdminStats.js'
 import { sourceLabel } from './channels.js'
 import { formatCount, formatDuration, formatPercent, formatTokens } from './format.js'
@@ -14,7 +15,7 @@ export default function AdminStats({ token, onLogout }) {
     <AdminSection title="Stats">
       <p className="admin__muted">
         Everything Soporti has handled: web, Slack and MCP conversations, scheduled runs, PR reviews and auto-diagnosed
-        tickets. Token counts start when the agent-run tracking was deployed.
+        tickets, and who consumes the most. Token counts start when the agent-run tracking was deployed.
       </p>
 
       <label className="admin-stats__range">
@@ -77,6 +78,9 @@ function StatsContent({ stats, loading, error }) {
         />
         <StatCard label="Cache write" value={formatTokens(runs?.cacheWriteTokens)} />
       </div>
+
+      <h3 className="admin__subsection-title">Top users</h3>
+      <TopUsersTable rows={stats.topUsers} />
 
       <h3 className="admin__subsection-title">By channel</h3>
       <ChannelTable rows={stats.byChannel} />

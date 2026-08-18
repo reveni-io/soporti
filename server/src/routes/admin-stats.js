@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getConversationStats, getMessageStats } from '../db/stats.js'
+import { getConversationStats, getMessageStats, getUserStats } from '../db/stats.js'
 import {
   countChannelRuns,
   countDistinctSubjects,
@@ -23,6 +23,7 @@ const SOURCES = {
   runs: since => getRunTotals(since),
   byChannel: since => getRunsByChannel(since),
   tools: since => getTopTools(since),
+  topUsers: since => getUserStats(since),
   reviewedPullRequests: since => countDistinctSubjects(AGENT_CHANNEL_PR_REVIEW, since),
   diagnosedTickets: since => countDistinctSubjects(AGENT_CHANNEL_AUTO_DIAGNOSE, since),
   mcpQueries: since => countChannelRuns(AGENT_CHANNEL_MCP, since),
@@ -73,6 +74,7 @@ function buildStats(hours, loaded) {
     runs: loaded.runs,
     byChannel: loaded.byChannel,
     tools: loaded.tools,
+    topUsers: loaded.topUsers,
   }
 }
 

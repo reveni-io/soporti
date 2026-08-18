@@ -116,6 +116,7 @@ export async function executeAskSoporti({
   await trackAgentRun(
     {
       channel: AGENT_CHANNEL_MCP,
+      userId,
       failureReason: () => (textParts.join('').trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
     },
     async () => {

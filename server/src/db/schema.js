@@ -132,6 +132,7 @@ export const agentRuns = pgTable(
     channel: text('channel').notNull(),
     status: text('status').notNull(),
     subject: text('subject'),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
     requests: integer('requests').notNull().default(0),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),

@@ -378,13 +378,14 @@ export default function chatRoute(conversationStore) {
       await recordAgentRun({
         channel: AGENT_CHANNEL_WEB,
         status: RUN_STATUS_OK,
+        userId: req.user.id,
         usage: runUsage,
         durationMs: totalMs,
         tools: toolNames(toolCalls),
       })
     } catch (err) {
       console.error('❌ Error:', err)
-      await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR })
+      await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR, userId: req.user.id })
       sendEvent(res, { type: 'error', message: 'An internal error occurred.' })
     }
 

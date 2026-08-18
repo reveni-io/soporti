@@ -37,6 +37,7 @@ export async function runSchedule(schedule, conversationStore) {
     const { result } = await trackAgentRun(
       {
         channel: AGENT_CHANNEL_SCHEDULE,
+        userId: schedule.userId,
         failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
       },
       () => run(agent, agentInput, { maxTurns: config.agent.maxIterations, session })

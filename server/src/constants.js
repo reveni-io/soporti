@@ -75,3 +75,4 @@ export const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
 export const STATS_RANGE_ALL = 'all'
 export const STATS_RANGE_HOURS = [1, 3, 24, 168, 720, 2160]
 export const TOP_TOOLS_LIMIT = 10
+export const TOP_USERS_LIMIT = 20
