@@ -198,11 +198,41 @@ describe('buildSimilarCasesPrompt', () => {
     expect(buildSimilarCasesPrompt(undefined)).toBe('')
   })
 
-  it('includes the cases with question and answer', () => {
+  it('includes the cases without labelling them as questions', () => {
     const result = buildSimilarCasesPrompt([{ question: 'How do refunds work?', answer: 'Via the refunds service.' }])
+
     expect(result).toContain('## Similar resolved cases')
-    expect(result).toContain('How do refunds work?')
-    expect(result).toContain('Via the refunds service.')
+    expect(result).toContain('Asked: How do refunds work?')
+    expect(result).toContain('Resolved: Via the refunds service.')
+    expect(result).not.toContain('**Question:**')
+    expect(result).not.toContain('**Answer:**')
+  })
+
+  it('tells the agent that a case is never the question to answer', () => {
+    const result = buildSimilarCasesPrompt([{ question: 'How do refunds work?', answer: 'Via the refunds service.' }])
+
+    expect(result).toContain('not part of this conversation')
+    expect(result).toContain('NEVER answer the question of a case')
+    expect(result).toContain("only thing you have to answer is the user's own message")
+  })
+
+  it('labels each case with its relevance score', () => {
+    const result = buildSimilarCasesPrompt([
+      { question: 'q1', answer: 'a1', score: 0.9123 },
+      { question: 'q2', answer: 'a2', score: 0.8 },
+      { question: 'q3', answer: 'a3', score: 0.73 },
+    ])
+
+    expect(result).toContain('### Case 1 (relevance 0.91, high)')
+    expect(result).toContain('### Case 2 (relevance 0.80, medium)')
+    expect(result).toContain('### Case 3 (relevance 0.73, low)')
+  })
+
+  it('omits the relevance when the case carries no score', () => {
+    const result = buildSimilarCasesPrompt([{ question: 'q', answer: 'a' }])
+
+    expect(result).toContain('### Case 1\nAsked: q')
+    expect(result).not.toContain('### Case 1 (')
   })
 
   it('instructs the agent to attribute answers based on unverifiable cases', () => {
