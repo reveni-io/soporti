@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildUserTurn } from './user-turn.js'
 
-const CASE = { question: 'Why does it 500?', answer: 'The token had expired.' }
+const CASE = { question: 'Why does it 500?', answer: 'The token had expired.', score: 0.88 }
 
 describe('buildUserTurn', () => {
   it('returns the message unchanged when there is nothing to prepend', () => {
@@ -10,19 +10,28 @@ describe('buildUserTurn', () => {
     expect(buildUserTurn('why does it 500?', { similarCases: [], commands: [] })).toBe('why does it 500?')
   })
 
-  it('puts the cases section first and the question last', () => {
-    const result = buildUserTurn('why does it 500?', { similarCases: [CASE] })
+  it('puts the cases section first and the labelled question last', () => {
+    const result = buildUserTurn('why is the refund stuck?', { similarCases: [CASE] })
 
     expect(result).toContain('## Similar resolved cases')
     expect(result).toContain('The token had expired.')
-    expect(result.endsWith('why does it 500?')).toBe(true)
-    expect(result.indexOf('## Similar resolved cases')).toBeLessThan(result.indexOf('why does it 500?'))
+    expect(result).toContain("## The user's question")
+    expect(result.endsWith('why is the refund stuck?')).toBe(true)
+    expect(result.indexOf('## Similar resolved cases')).toBeLessThan(result.indexOf("## The user's question"))
+  })
+
+  it('labels the question so the case question cannot be mistaken for it', () => {
+    const result = buildUserTurn('why is the refund stuck?', { similarCases: [CASE] })
+
+    expect(result).toContain('Asked: Why does it 500?')
+    expect(result).toContain('This, and only this, is what the user asked')
+    expect(result.indexOf('Asked: Why does it 500?')).toBeLessThan(result.indexOf('why is the refund stuck?'))
   })
 
   it('separates the cases section from the question', () => {
     const result = buildUserTurn('why does it 500?', { similarCases: [CASE] })
 
-    expect(result).toContain('\n\n---\n\nwhy does it 500?')
+    expect(result).toContain("\n\n---\n\n## The user's question")
   })
 
   it('prepends each invoked command to the question', () => {
@@ -55,7 +64,7 @@ describe('buildUserTurn', () => {
     expect(result).toContain('## Attached documents')
     expect(result).toContain('### spec.pdf')
     expect(result).toContain('The API returns 402 on expired tokens.')
-    expect(result.endsWith('\n\n---\n\nsummarize the API section')).toBe(true)
+    expect(result.endsWith('\n\nsummarize the API section')).toBe(true)
   })
 
   it('marks a truncated document', () => {
@@ -73,7 +82,7 @@ describe('buildUserTurn', () => {
     })
 
     expect(result.indexOf('## Similar resolved cases')).toBeLessThan(result.indexOf('## Attached documents'))
-    expect(result.indexOf('## Attached documents')).toBeLessThan(result.indexOf('why does it 500?'))
+    expect(result.indexOf('## Attached documents')).toBeLessThan(result.indexOf("## The user's question"))
   })
 
   it('names an attached image without inlining any bytes', () => {
@@ -85,7 +94,7 @@ describe('buildUserTurn', () => {
     expect(result).toContain('- error.png')
     expect(result).not.toContain('## Attached documents')
     expect(result).not.toContain('22222222-2222-4222-8222-222222222222')
-    expect(result.endsWith('\n\n---\n\nwhat is this error?')).toBe(true)
+    expect(result.endsWith('\n\nwhat is this error?')).toBe(true)
   })
 
   it('describes documents and images in their own sections', () => {

@@ -222,6 +222,7 @@ describe('POST /api/chat', () => {
     expect(searchSimilarCases).toHaveBeenCalledTimes(1)
     expect(searchSimilarCases).toHaveBeenCalledWith('why does it 500?')
     expect(run.mock.calls[0][1]).toContain('Bad token')
+    expect(run.mock.calls[0][1]).toContain("## The user's question")
     expect(run.mock.calls[0][1].endsWith('why does it 500?')).toBe(true)
   })
 

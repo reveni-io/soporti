@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { getKnowledgeApiKey, getVectorStoreId, isKnowledgeConfigured } from './settings.js'
 
-const MIN_SCORE = 0.6
+const MIN_SCORE = 0.72
 
 let clientInstance = null
 let clientInstanceKey = null

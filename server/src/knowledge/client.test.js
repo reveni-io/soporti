@@ -99,7 +99,7 @@ describe('knowledge client', () => {
     it('skips items with invalid JSON', async () => {
       mockVsSearch.mockResolvedValue({
         data: [
-          { content: [{ text: 'not json' }], score: 0.5 },
+          { content: [{ text: 'not json' }], score: 0.9 },
           {
             content: [{ text: JSON.stringify({ question: 'Q', answer: 'A' }) }],
             score: 0.8,
@@ -111,6 +111,26 @@ describe('knowledge client', () => {
 
       expect(results).toHaveLength(1)
       expect(results[0].question).toBe('Q')
+    })
+
+    it('drops loosely related matches below the relevance threshold', async () => {
+      mockVsSearch.mockResolvedValue({
+        data: [
+          {
+            content: [{ text: JSON.stringify({ question: 'Relevant?', answer: 'Yes.' }) }],
+            score: 0.73,
+          },
+          {
+            content: [{ text: JSON.stringify({ question: 'Coincidence?', answer: 'Also yes.' }) }],
+            score: 0.71,
+          },
+        ],
+      })
+
+      const results = await searchSimilarCases('test')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].question).toBe('Relevant?')
     })
 
     it('returns empty array when data is empty', async () => {
