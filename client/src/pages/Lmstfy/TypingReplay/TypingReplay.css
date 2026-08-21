@@ -1,0 +1,171 @@
+.lmstfy-replay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp5);
+  width: 100%;
+  max-width: 720px;
+}
+
+.lmstfy-replay__lead {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-3xl);
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.lmstfy-replay__window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+  overflow: hidden;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  animation: lmstfy-window-in 0.5s ease both;
+}
+
+@keyframes lmstfy-window-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--sp5)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lmstfy-replay__chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp3) var(--sp4);
+  background-color: var(--bg-cool);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.lmstfy-replay__dots {
+  display: flex;
+  gap: var(--sp1);
+}
+
+.lmstfy-replay__dots span {
+  width: var(--sp2);
+  height: var(--sp2);
+  background-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.lmstfy-replay__address {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  height: var(--sp6);
+  padding: 0 var(--sp3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lmstfy-replay__address--focused {
+  border-color: var(--green-bright);
+  box-shadow: var(--focus-ring);
+}
+
+.lmstfy-replay__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background-color: var(--bg-surface);
+}
+
+.lmstfy-replay__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background-color: var(--green-bright);
+  animation: lmstfy-progress 0.6s ease-out both;
+}
+
+@keyframes lmstfy-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.lmstfy-replay__cursor {
+  position: absolute;
+  top: 58%;
+  left: 52%;
+  z-index: 1;
+  pointer-events: none;
+  transition: top 0.5s ease-in-out, left 0.5s ease-in-out;
+}
+
+.lmstfy-replay__cursor--address {
+  top: 5%;
+  left: 30%;
+}
+
+.lmstfy-replay__cursor--composer {
+  top: 91%;
+  left: 38%;
+}
+
+.lmstfy-replay__cursor--send {
+  top: 91%;
+  left: 95%;
+}
+
+.lmstfy-replay__cursor svg {
+  display: block;
+  fill: var(--text-primary);
+  stroke: var(--white);
+}
+
+.lmstfy-replay__cursor--clicking::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--sp6);
+  height: var(--sp6);
+  margin: calc(-1 * var(--sp3)) 0 0 calc(-1 * var(--sp3));
+  border: 2px solid var(--green-chart);
+  border-radius: var(--radius-pill);
+  animation: lmstfy-click 0.4s ease-out both;
+}
+
+@keyframes lmstfy-click {
+  from {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+.lmstfy-replay__hint {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .lmstfy-replay__window {
+    height: 320px;
+  }
+}

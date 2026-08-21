@@ -1,5 +1,7 @@
 export const YOLO_SOURCE = 'yolo'
 
+export const QUESTION_PARAM = 'q'
+
 const SKILL_NAME_CHARS = '[a-z0-9-]'
 
 export const SKILL_NAME_MAX_LENGTH = 50

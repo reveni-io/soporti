@@ -26,6 +26,7 @@ export default function ChatPanel({
   integrations = [],
   token,
   skills = [],
+  initialQuestion = '',
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -45,6 +46,7 @@ export default function ChatPanel({
     hasSourcesSelected,
     isUploading,
     onSend: handleSend,
+    initialInput: initialQuestion,
   })
 
   function handleSend(text, invokedSkills) {

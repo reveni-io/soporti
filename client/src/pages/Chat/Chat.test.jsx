@@ -47,9 +47,10 @@ vi.mock('./SchedulesModal/SchedulesModal.jsx', () => ({
 }))
 
 vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
-  default: ({ messages, onSend, onShare, onOpenSidebar }) => (
+  default: ({ messages, onSend, onShare, onOpenSidebar, initialQuestion }) => (
     <div data-testid="chat">
       <span data-testid="msg-count">{messages.length}</span>
+      <span data-testid="initial-question">{initialQuestion}</span>
       <button onClick={() => onSend('hello')}>Send</button>
       <button onClick={onShare}>Share</button>
       <button onClick={onOpenSidebar}>Open Sidebar</button>
@@ -129,6 +130,27 @@ describe('Chat', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('chat')).toBeInTheDocument()
     expect(screen.queryByTestId('login')).not.toBeInTheDocument()
+  })
+
+  it('hands the chat panel the question it was opened with', () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+    })
+
+    render(<Chat initialQuestion="why did that refund fail?" />)
+    expect(screen.getByTestId('initial-question')).toHaveTextContent('why did that refund fail?')
   })
 
   it('opens the schedules modal with the selected sources and profile', async () => {

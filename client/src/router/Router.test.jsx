@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import Router from './Router.jsx'
 
 vi.mock('../pages/Chat/Chat.jsx', () => ({
-  default: () => <div data-testid="chat-page" />,
+  default: ({ initialQuestion }) => <div data-testid="chat-page">{initialQuestion}</div>,
 }))
 vi.mock('../pages/Landing/Landing.jsx', () => ({
   default: () => <div data-testid="landing-page" />,
@@ -20,6 +20,9 @@ vi.mock('../pages/SharedView/SharedView.jsx', () => ({
 }))
 vi.mock('../pages/OAuthConsent/OAuthConsent.jsx', () => ({
   default: () => <div data-testid="oauth-consent-page" />,
+}))
+vi.mock('../pages/Lmstfy/Lmstfy.jsx', () => ({
+  default: () => <div data-testid="lmstfy-page" />,
 }))
 
 function renderAt(path) {
@@ -39,6 +42,21 @@ describe('Router', () => {
   it('renders the chat page at /chat', () => {
     renderAt('/chat')
     expect(screen.getByTestId('chat-page')).toBeInTheDocument()
+  })
+
+  it('hands the chat page the question the link carries', () => {
+    renderAt('/chat?q=why%20did%20that%20refund%20fail%3F')
+    expect(screen.getByTestId('chat-page')).toHaveTextContent('why did that refund fail?')
+  })
+
+  it('renders the chat page with no question when the link carries none', () => {
+    renderAt('/chat')
+    expect(screen.getByTestId('chat-page')).toBeEmptyDOMElement()
+  })
+
+  it('renders the public lmstfy page at /lmstfy', () => {
+    renderAt('/lmstfy?q=how%20do%20refunds%20work')
+    expect(screen.getByTestId('lmstfy-page')).toBeInTheDocument()
   })
 
   it('renders the admin page at /admin', () => {
