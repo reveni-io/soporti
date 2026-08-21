@@ -1,8 +1,15 @@
+import CopyButton from '../../CopyButton/CopyButton.jsx'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
 import ToolCall from '../../ToolCall/ToolCall.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
 
+const PART_SEPARATOR = '\n\n'
+
 export default function AssistantMessage({ message, isStreaming, token }) {
+  const answer = answerMarkdown(message.parts)
+  const canCopy = !isStreaming && answer.length > 0
+  const canRate = !isStreaming && Boolean(message.feedbackId)
+
   return (
     <div className="message message--assistant">
       <div className="message__bubble message__bubble--assistant">
@@ -12,10 +19,22 @@ export default function AssistantMessage({ message, isStreaming, token }) {
 
         {message.parts.length === 0 && <TypingIndicator />}
 
-        {!isStreaming && message.feedbackId && <FeedbackButtons feedbackId={message.feedbackId} authToken={token} />}
+        {(canCopy || canRate) && (
+          <div className="message__actions">
+            {canCopy && <CopyButton text={answer} ariaLabel="Copy answer" />}
+            {canRate && <FeedbackButtons feedbackId={message.feedbackId} authToken={token} />}
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function answerMarkdown(parts) {
+  return parts
+    .filter(part => part.type === 'text')
+    .map(part => part.content)
+    .join(PART_SEPARATOR)
 }
 
 function MessagePart({ part, isStreaming, token }) {

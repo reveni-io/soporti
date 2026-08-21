@@ -1,0 +1,39 @@
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+  padding: var(--sp1) var(--sp2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.copy-button--surface {
+  border-color: var(--border-default);
+  color: var(--text-muted);
+}
+
+.copy-button--surface:hover {
+  background-color: var(--bg-cool);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.copy-button--inverse {
+  border-color: rgba(var(--green-inverse-rgb), 0.18);
+  color: rgba(var(--green-inverse-rgb), 0.8);
+}
+
+.copy-button--inverse:hover {
+  background-color: rgba(var(--green-inverse-rgb), 0.12);
+  color: var(--green-inverse);
+}

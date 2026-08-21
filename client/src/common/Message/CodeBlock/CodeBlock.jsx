@@ -2,8 +2,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import ChartBlock from '../../ChartBlock/ChartBlock.jsx'
 import CsvBlock from '../../CsvBlock/CsvBlock.jsx'
+import CopyButton from '../../CopyButton/CopyButton.jsx'
 import MermaidDiagram from '../../MermaidDiagram/MermaidDiagram.jsx'
-import CodeCopyButton from './CodeCopyButton/CodeCopyButton.jsx'
 
 const LANGUAGE_RE = /language-(\w+)/
 const CODE_STYLE = { margin: 0, borderRadius: 0, fontSize: '13px', background: '#042503' }
@@ -37,7 +37,7 @@ export default function CodeBlock({ children, className, isStreaming, token }) {
     <div className="code-block">
       <div className="code-block__header">
         <span className="code-block__lang">{language}</span>
-        {!isStreaming && <CodeCopyButton code={code} />}
+        {!isStreaming && <CopyButton text={code} ariaLabel="Copy code" variant="inverse" />}
       </div>
       <SyntaxHighlighter
         style={oneDark}
