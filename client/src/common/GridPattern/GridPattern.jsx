@@ -61,7 +61,7 @@ export default function GridPattern({ variant = 'dark' }) {
       if (walkers.length > count) walkers.length = count
       if (reducedMotion) {
         drawGrid(ctx, width, height, cfg)
-        walkers.forEach(walker => drawWalker(ctx, walker, performance.now(), cfg))
+        walkers.forEach(walker => drawWalker(ctx, walker, cfg))
       }
     }
 
@@ -100,8 +100,8 @@ export default function GridPattern({ variant = 'dark' }) {
         drawGridHighlight(ctx, mouse, cfg)
       }
       for (const walker of walkers) {
-        updateWalker(walker, dt, now, width, height, walkers)
-        drawWalker(ctx, walker, now, cfg)
+        updateWalker(walker, dt, width, height, walkers)
+        drawWalker(ctx, walker, cfg)
       }
       rafId = requestAnimationFrame(frame)
     }

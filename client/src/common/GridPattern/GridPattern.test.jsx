@@ -18,6 +18,7 @@ function createFakeContext() {
     arc: vi.fn(),
     fill: vi.fn(),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
   }
   ctx.fillRect = vi.fn(() => {
     ctx.fillRectStyles.push(ctx.fillStyle)
@@ -131,13 +132,22 @@ describe('GridPattern', () => {
     expect(fakeCtx.createRadialGradient).not.toHaveBeenCalled()
   })
 
-  it('pauses walkers at intersections and draws the dwell pulse ring', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.1)
+  it('keeps every walker moving on every frame, with no halo around the head', () => {
+    stubRandomSequence([0.42, 0.87, 0.6, 0.31, 0.74, 0.55, 0.9, 0.22, 0.68, 0.35])
     render(<GridPattern />)
-    runFrames(40)
 
-    const pulseArc = fakeCtx.arc.mock.calls.find(call => call[2] >= 7 && call[2] < 10)
-    expect(pulseArc).toBeDefined()
+    let previousHeads = null
+    for (let frame = 0; frame < 40; frame++) {
+      fakeCtx.arc.mockClear()
+      runFrames(1)
+      const heads = fakeCtx.arc.mock.calls.filter(call => call[2] === 5).map(call => `${call[0]},${call[1]}`)
+
+      expect(heads).toHaveLength(4)
+      expect(fakeCtx.arc.mock.calls.some(call => call[2] > 5)).toBe(false)
+      if (previousHeads) expect(heads.every((head, index) => head !== previousHeads[index])).toBe(true)
+
+      previousHeads = heads
+    }
   })
 
   it('keeps crowded walkers moving via the farthest-option fallback', () => {

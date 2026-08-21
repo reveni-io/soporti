@@ -4,7 +4,6 @@ import { createWalker, drawGrid, drawGridHighlight, drawWalker, updateWalker } f
 const CELL = 120
 const OFFSET_X = -24
 const OFFSET_Y = -45
-const TRAIL_LIFE_MS = 2400
 
 const DARK = {
   bg: '#042503',
@@ -26,11 +25,12 @@ function fakeContext() {
     arc: vi.fn(),
     fill: vi.fn(),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
   }
 }
 
 function walkerAt(x, y, overrides = {}) {
-  return { x, y, dir: { dx: 1, dy: 0 }, speed: 120, trail: [], dwellUntil: 0, dwellStart: 0, ...overrides }
+  return { x, y, dir: { dx: 1, dy: 0 }, speed: 100, trail: [{ x, y }], ...overrides }
 }
 
 describe('createWalker', () => {
@@ -41,13 +41,13 @@ describe('createWalker', () => {
     expect((walker.y - OFFSET_Y) % CELL).toBe(0)
   })
 
-  it('gives it an axis-aligned direction, a speed and an empty trail', () => {
+  it('gives it an axis-aligned direction, a speed and a trail seeded at its origin', () => {
     const walker = createWalker(1200, 800, [])
 
     expect(Math.abs(walker.dir.dx) + Math.abs(walker.dir.dy)).toBe(1)
-    expect(walker.speed).toBeGreaterThanOrEqual(90)
-    expect(walker.speed).toBeLessThanOrEqual(150)
-    expect(walker.trail).toEqual([])
+    expect(walker.speed).toBeGreaterThanOrEqual(63)
+    expect(walker.speed).toBeLessThanOrEqual(105)
+    expect(walker.trail).toEqual([{ x: walker.x, y: walker.y }])
   })
 
   it('keeps its distance from an existing walker', () => {
@@ -60,41 +60,72 @@ describe('createWalker', () => {
 })
 
 describe('updateWalker', () => {
-  it('advances along its direction and records the trail', () => {
-    const walker = walkerAt(OFFSET_X, OFFSET_Y)
+  it('advances along its direction', () => {
+    const walker = walkerAt(OFFSET_X, OFFSET_Y, { speed: 120 })
 
-    updateWalker(walker, 0.1, 1000, 1200, 800, [walker])
+    updateWalker(walker, 0.1, 1200, 800, [walker])
 
     expect(walker.x).toBe(OFFSET_X + 12)
-    expect(walker.trail).toEqual([{ x: OFFSET_X, y: OFFSET_Y, t: 1000 }])
+    expect(walker.y).toBe(OFFSET_Y)
   })
 
-  it('drops trail points older than the trail lifetime', () => {
-    const now = 10_000
-    const walker = walkerAt(OFFSET_X, OFFSET_Y, {
+  it('never stops moving, whatever the random roll is', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.1)
+    const walker = walkerAt(OFFSET_X, OFFSET_Y, { speed: 120 })
+
+    const positions = []
+    for (let frame = 0; frame < 40; frame++) {
+      const before = `${walker.x},${walker.y}`
+      updateWalker(walker, 0.05, 1200, 800, [walker])
+      positions.push(before !== `${walker.x},${walker.y}`)
+    }
+
+    expect(positions.every(moved => moved)).toBe(true)
+    vi.restoreAllMocks()
+  })
+
+  it('records a trail vertex only where it turns', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.2)
+    const walker = walkerAt(OFFSET_X + CELL, OFFSET_Y + CELL, { speed: CELL })
+
+    updateWalker(walker, 1, 1200, 800, [walker])
+
+    expect(walker.dir.dx).toBe(1)
+    expect(walker.trail).toEqual([{ x: OFFSET_X + CELL, y: OFFSET_Y + CELL }])
+
+    Math.random.mockReturnValue(0.6)
+    updateWalker(walker, 1, 1200, 800, [walker])
+
+    expect(walker.dir.dy).toBe(1)
+    expect(walker.trail).toEqual([
+      { x: OFFSET_X + CELL, y: OFFSET_Y + CELL },
+      { x: OFFSET_X + 3 * CELL, y: OFFSET_Y + CELL },
+    ])
+    vi.restoreAllMocks()
+  })
+
+  it('drops the vertices that fall behind the trail length', () => {
+    const walker = walkerAt(1000, 0, {
+      speed: 100,
       trail: [
-        { x: 0, y: 0, t: now - TRAIL_LIFE_MS - 1 },
-        { x: 1, y: 1, t: now - 100 },
+        { x: 0, y: 0 },
+        { x: 700, y: 0 },
+        { x: 900, y: 0 },
       ],
     })
 
-    updateWalker(walker, 0.1, now, 1200, 800, [walker])
+    updateWalker(walker, 0, 4000, 800, [walker])
 
-    expect(walker.trail.map(point => point.t)).toEqual([now - 100, now])
-  })
-
-  it('stays put while it is dwelling', () => {
-    const walker = walkerAt(OFFSET_X, OFFSET_Y, { dwellUntil: 5000 })
-
-    updateWalker(walker, 0.1, 1000, 1200, 800, [walker])
-
-    expect(walker.x).toBe(OFFSET_X)
+    expect(walker.trail).toEqual([
+      { x: 700, y: 0 },
+      { x: 900, y: 0 },
+    ])
   })
 
   it('turns at a grid stop instead of leaving the canvas', () => {
     const walker = walkerAt(OFFSET_X + CELL, OFFSET_Y, { dir: { dx: 1, dy: 0 }, speed: 2400 })
 
-    updateWalker(walker, 1, 1000, CELL, CELL, [walker])
+    updateWalker(walker, 1, CELL, CELL, [walker])
 
     expect(Number.isFinite(walker.x)).toBe(true)
     expect(Math.abs(walker.dir.dx) + Math.abs(walker.dir.dy)).toBe(1)
@@ -126,50 +157,69 @@ describe('drawGridHighlight', () => {
 })
 
 describe('drawWalker', () => {
-  it('draws the head of the walker', () => {
+  it('draws the head as a single solid dot, with no halo and no pulse ring', () => {
     const ctx = fakeContext()
 
-    drawWalker(ctx, walkerAt(96, 75), 1000, DARK)
+    drawWalker(ctx, walkerAt(96, 75), DARK)
 
-    expect(ctx.arc).toHaveBeenCalled()
-    expect(ctx.fill).toHaveBeenCalled()
+    expect(ctx.arc).toHaveBeenCalledTimes(1)
+    expect(ctx.arc).toHaveBeenCalledWith(96, 75, 5, 0, Math.PI * 2)
+    expect(ctx.fillStyle).toBe('#F28536')
   })
 
-  it('draws a trail segment per recorded point', () => {
+  it('draws one gradient-stroked line per straight run of the trail', () => {
     const ctx = fakeContext()
-    const walker = walkerAt(96, 75, {
+    const walker = walkerAt(120, 60, {
+      speed: 100,
       trail: [
-        { x: 0, y: 0, t: 900 },
-        { x: 10, y: 0, t: 950 },
+        { x: 0, y: 0 },
+        { x: 120, y: 0 },
       ],
     })
 
-    drawWalker(ctx, walker, 1000, DARK)
+    drawWalker(ctx, walker, DARK)
 
-    expect(ctx.moveTo).toHaveBeenCalledWith(0, 0)
-    expect(ctx.lineTo).toHaveBeenCalledWith(10, 0)
+    expect(ctx.createLinearGradient.mock.calls).toEqual([
+      [120, 60, 120, 0],
+      [120, 0, 0, 0],
+    ])
+    expect(ctx.moveTo.mock.calls).toEqual([
+      [120, 60],
+      [120, 0],
+    ])
+    expect(ctx.lineTo.mock.calls).toEqual([
+      [120, 0],
+      [0, 0],
+    ])
+    expect(ctx.lineCap).toBe('round')
   })
 
-  it('skips trail segments that have already faded out', () => {
+  it('fades the trail from the head down to zero at the trail length', () => {
     const ctx = fakeContext()
-    const walker = walkerAt(96, 75, {
+    const walker = walkerAt(0, 0, { speed: 100, trail: [{ x: -600, y: 0 }] })
+
+    drawWalker(ctx, walker, DARK)
+
+    expect(ctx.lineTo).toHaveBeenCalledWith(-240, 0)
+    const gradient = ctx.createLinearGradient.mock.results[0].value
+    expect(gradient.addColorStop.mock.calls).toEqual([
+      [0, 'rgba(167, 181, 166, 0.8)'],
+      [1, 'rgba(167, 181, 166, 0)'],
+    ])
+  })
+
+  it('skips a vertex that sits on the head', () => {
+    const ctx = fakeContext()
+    const walker = walkerAt(50, 50, {
+      speed: 100,
       trail: [
-        { x: 0, y: 0, t: 0 },
-        { x: 10, y: 0, t: 1 },
+        { x: 50, y: 200 },
+        { x: 50, y: 50 },
       ],
     })
 
-    drawWalker(ctx, walker, 10_000, DARK)
+    drawWalker(ctx, walker, DARK)
 
-    expect(ctx.lineTo).not.toHaveBeenCalled()
-  })
-
-  it('draws the dwell pulse while dwelling', () => {
-    const ctx = fakeContext()
-    const walker = walkerAt(96, 75, { dwellUntil: 2000, dwellStart: 1000 })
-
-    drawWalker(ctx, walker, 1500, DARK)
-
-    expect(ctx.stroke).toHaveBeenCalled()
+    expect(ctx.lineTo.mock.calls).toEqual([[50, 200]])
   })
 })

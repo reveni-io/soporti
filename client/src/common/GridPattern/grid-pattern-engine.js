@@ -2,8 +2,11 @@ const CELL = 120
 const OFFSET_X = -24
 const OFFSET_Y = -45
 const DOT = '#F28536'
+const DOT_RADIUS = 5
 const TRAIL_LIFE = 2.4
-const DWELL_CHANCE = 0.18
+const TRAIL_WIDTH = 1.5
+const MIN_SPEED = 63
+const SPEED_RANGE = 42
 const MIN_SEP = 2.5 * CELL
 const HOVER_RADIUS = 220
 const PLACEMENT_ATTEMPTS = 40
@@ -47,10 +50,8 @@ export function createWalker(width, height, walkers) {
       { dx: 0, dy: 1 },
       { dx: 0, dy: -1 },
     ]),
-    speed: 90 + Math.random() * 60,
-    trail: [],
-    dwellUntil: 0,
-    dwellStart: 0,
+    speed: MIN_SPEED + Math.random() * SPEED_RANGE,
+    trail: [{ x: best.x, y: best.y }],
   }
 }
 
@@ -164,39 +165,51 @@ export function drawGridHighlight(ctx, mouse, cfg) {
   }
 }
 
-export function drawWalker(ctx, walker, now, cfg) {
-  ctx.lineWidth = 1.5
+function trailLength(walker) {
+  return walker.speed * TRAIL_LIFE
+}
+
+function drawTrail(ctx, walker, cfg) {
+  const maxDistance = trailLength(walker)
+
+  ctx.lineWidth = TRAIL_WIDTH
   ctx.lineCap = 'round'
-  for (let i = 1; i < walker.trail.length; i++) {
-    const from = walker.trail[i - 1]
-    const to = walker.trail[i]
-    const age = (now - to.t) / 1000
-    const alpha = Math.max(0, 1 - age / TRAIL_LIFE) * cfg.trailMax
-    if (alpha <= 0) continue
 
-    ctx.strokeStyle = `rgba(${cfg.trail}, ${alpha})`
+  let travelled = 0
+  let fromX = walker.x
+  let fromY = walker.y
+
+  for (let i = walker.trail.length - 1; i >= 0 && travelled < maxDistance; i--) {
+    const vertex = walker.trail[i]
+    const length = Math.hypot(vertex.x - fromX, vertex.y - fromY)
+    if (length === 0) continue
+
+    const visible = Math.min(length, maxDistance - travelled)
+    const toX = fromX + ((vertex.x - fromX) * visible) / length
+    const toY = fromY + ((vertex.y - fromY) * visible) / length
+
+    const gradient = ctx.createLinearGradient(fromX, fromY, toX, toY)
+    gradient.addColorStop(0, `rgba(${cfg.trail}, ${(1 - travelled / maxDistance) * cfg.trailMax})`)
+    gradient.addColorStop(1, `rgba(${cfg.trail}, ${(1 - (travelled + visible) / maxDistance) * cfg.trailMax})`)
+
+    ctx.strokeStyle = gradient
     ctx.beginPath()
-    ctx.moveTo(from.x, from.y)
-    ctx.lineTo(to.x, to.y)
+    ctx.moveTo(fromX, fromY)
+    ctx.lineTo(toX, toY)
     ctx.stroke()
-  }
 
-  if (walker.dwellUntil > now) {
-    const progress = Math.min(1, (now - walker.dwellStart) / 900)
-    ctx.strokeStyle = `rgba(242, 133, 54, ${0.7 * (1 - progress)})`
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.arc(walker.x, walker.y, 7 + progress * 16, 0, Math.PI * 2)
-    ctx.stroke()
+    travelled += visible
+    fromX = vertex.x
+    fromY = vertex.y
   }
+}
 
-  ctx.fillStyle = 'rgba(242, 133, 54, 0.2)'
-  ctx.beginPath()
-  ctx.arc(walker.x, walker.y, 10, 0, Math.PI * 2)
-  ctx.fill()
+export function drawWalker(ctx, walker, cfg) {
+  drawTrail(ctx, walker, cfg)
+
   ctx.fillStyle = DOT
   ctx.beginPath()
-  ctx.arc(walker.x, walker.y, 5, 0, Math.PI * 2)
+  ctx.arc(walker.x, walker.y, DOT_RADIUS, 0, Math.PI * 2)
   ctx.fill()
 }
 
@@ -206,15 +219,27 @@ function nextGridStop(value, sign, offset) {
   return offset + target * CELL
 }
 
-export function updateWalker(walker, dt, now, width, height, walkers) {
-  walker.trail.push({ x: walker.x, y: walker.y, t: now })
-  while (walker.trail.length && now - walker.trail[0].t > TRAIL_LIFE * 1000) {
-    walker.trail.shift()
+function trimTrail(walker) {
+  const maxDistance = trailLength(walker)
+
+  let travelled = 0
+  let fromX = walker.x
+  let fromY = walker.y
+
+  for (let i = walker.trail.length - 1; i >= 0; i--) {
+    travelled += Math.hypot(walker.trail[i].x - fromX, walker.trail[i].y - fromY)
+    fromX = walker.trail[i].x
+    fromY = walker.trail[i].y
+    if (travelled >= maxDistance) {
+      walker.trail.splice(0, i)
+      return
+    }
   }
+}
 
-  if (walker.dwellUntil > now) return
-
+export function updateWalker(walker, dt, width, height, walkers) {
   let step = walker.speed * dt
+
   while (step > 0) {
     const { dx, dy } = walker.dir
     const dist =
@@ -225,18 +250,17 @@ export function updateWalker(walker, dt, now, width, height, walkers) {
     if (step < dist) {
       walker.x += dx * step
       walker.y += dy * step
-      step = 0
-      continue
+      break
     }
 
     walker.x = dx !== 0 ? nextGridStop(walker.x, dx, OFFSET_X) : walker.x
     walker.y = dy !== 0 ? nextGridStop(walker.y, dy, OFFSET_Y) : walker.y
     step -= dist
-    if (Math.random() < DWELL_CHANCE) {
-      walker.dwellStart = now
-      walker.dwellUntil = now + 700 + Math.random() * 900
-      return
-    }
-    walker.dir = pickDirection(walker, width, height, walkers)
+
+    const next = pickDirection(walker, width, height, walkers)
+    if (next.dx !== dx || next.dy !== dy) walker.trail.push({ x: walker.x, y: walker.y })
+    walker.dir = next
   }
+
+  trimTrail(walker)
 }
