@@ -5,4 +5,5 @@ export const ROUTES = {
   ADMIN: '/admin',
   SHARE: '/share/:shareId',
   OAUTH_CONSENT: '/oauth/consent',
+  LMSTFY: '/lmstfy',
 }

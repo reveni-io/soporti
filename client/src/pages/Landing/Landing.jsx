@@ -10,6 +10,7 @@ import LandingCta from './LandingCta/LandingCta.jsx'
 import LandingFooter from './LandingFooter/LandingFooter.jsx'
 import LandingHero from './LandingHero/LandingHero.jsx'
 import LandingNav from './LandingNav/LandingNav.jsx'
+import LmstfySection from './LmstfySection/LmstfySection.jsx'
 import ProfilesSection from './ProfilesSection/ProfilesSection.jsx'
 import ProvidersSection from './ProvidersSection/ProvidersSection.jsx'
 import RendersSection from './RendersSection/RendersSection.jsx'
@@ -42,6 +43,7 @@ export default function Landing({ hideCta = false }) {
       <SkillsSection />
       <AutomationsSection />
       <McpSection />
+      <LmstfySection />
       <SafetySection />
       <LandingCta cta={visibleCta} />
       <LandingFooter />

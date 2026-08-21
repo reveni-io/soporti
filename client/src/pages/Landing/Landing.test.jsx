@@ -81,6 +81,12 @@ describe('Landing', () => {
     expect(screen.getByText(/follows it for the rest of that/i)).toBeInTheDocument()
   })
 
+  it('presents the public "Let Me Soporti That For You" link, with its own section', () => {
+    const { container } = render(<Landing />)
+    expect(container.querySelector('#lmstfy')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /make a link/i })).toHaveAttribute('href', '/lmstfy')
+  })
+
   it('embeds a real (pre-rendered) Mermaid diagram even without a session', () => {
     const { container } = render(<Landing />)
     const diagram = container.querySelector('.mermaid-diagram')

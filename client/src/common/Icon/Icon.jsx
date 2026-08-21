@@ -77,6 +77,7 @@ const ICON_SHAPES = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  cursor: <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51z" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

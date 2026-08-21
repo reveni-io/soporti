@@ -1,0 +1,54 @@
+.lmstfy-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp5);
+  width: 100%;
+  max-width: 640px;
+}
+
+.lmstfy-form__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-3xl);
+  color: var(--text-primary);
+}
+
+.lmstfy-form__lead {
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.lmstfy-form__fields,
+.lmstfy-form__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.lmstfy-form__label {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.lmstfy-form__row {
+  display: flex;
+  gap: var(--sp2);
+}
+
+.lmstfy-form__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lmstfy-form__notice {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .lmstfy-form__row {
+    flex-direction: column;
+  }
+}

@@ -239,6 +239,22 @@ describe('ChatPanel', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('starts with the question it was handed already typed, ready to send', async () => {
+    const onSend = vi.fn()
+    const user = userEvent.setup()
+    render(<ChatPanel {...defaultProps} onSend={onSend} initialQuestion="why did that refund fail?" />)
+
+    expect(screen.getByPlaceholderText(/ask/i)).toHaveValue('why did that refund fail?')
+
+    await user.click(screen.getByTitle('Send'))
+    expect(onSend).toHaveBeenCalledWith('why did that refund fail?', [], [])
+  })
+
+  it('starts with an empty composer when no question was handed over', () => {
+    render(<ChatPanel {...defaultProps} />)
+    expect(screen.getByPlaceholderText(/ask/i)).toHaveValue('')
+  })
+
   it('shows share button when messages exist', () => {
     const messages = [{ role: 'user', content: 'Hi' }]
     render(<ChatPanel {...defaultProps} messages={messages} />)

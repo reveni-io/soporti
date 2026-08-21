@@ -3,8 +3,8 @@ import { SKILL_COMMAND_RE } from '../../../../constants.js'
 
 const MAX_TEXTAREA_HEIGHT = 200
 
-export function useComposer({ skills, isLoading, hasSourcesSelected, isUploading, onSend }) {
-  const [input, setInput] = useState('')
+export function useComposer({ skills, isLoading, hasSourcesSelected, isUploading, onSend, initialInput = '' }) {
+  const [input, setInput] = useState(initialInput)
   const [menuDismissed, setMenuDismissed] = useState(false)
   const [menuIndex, setMenuIndex] = useState(0)
   const textareaRef = useRef(null)

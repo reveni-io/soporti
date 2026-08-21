@@ -8,8 +8,14 @@ const SKILLS = [
   { id: 3, name: 'review-pr' },
 ]
 
-function setup({ skills = SKILLS, isLoading = false, hasSourcesSelected = true, onSend = vi.fn() } = {}) {
-  const view = renderHook(() => useComposer({ skills, isLoading, hasSourcesSelected, onSend }))
+function setup({
+  skills = SKILLS,
+  isLoading = false,
+  hasSourcesSelected = true,
+  onSend = vi.fn(),
+  initialInput = '',
+} = {}) {
+  const view = renderHook(() => useComposer({ skills, isLoading, hasSourcesSelected, onSend, initialInput }))
   const type = value => act(() => view.result.current.onChange({ target: { value } }))
   return { ...view, type, onSend }
 }
@@ -27,6 +33,17 @@ describe('useComposer', () => {
 
     expect(onSend).toHaveBeenCalledWith('how do refunds work?', [])
     expect(result.current.input).toBe('')
+  })
+
+  it('starts from the initial input it is given and sends it untouched', () => {
+    const { result, onSend } = setup({ initialInput: 'why did that refund fail?' })
+
+    expect(result.current.input).toBe('why did that refund fail?')
+    expect(result.current.canSend).toBe(true)
+
+    act(() => result.current.onSubmit({ preventDefault: vi.fn() }))
+
+    expect(onSend).toHaveBeenCalledWith('why did that refund fail?', [])
   })
 
   it('strips the command prefix and attaches the invoked skill', () => {

@@ -14,7 +14,7 @@ import { YOLO_SOURCE } from '../../constants.js'
 import { createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
-export default function Chat() {
+export default function Chat({ initialQuestion = '' }) {
   const [selectedSources, setSelectedSources] = useState([YOLO_SOURCE])
   const [selectedProfile, setSelectedProfile] = useState(() => localStorage.getItem('selectedProfile') || 'support')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -132,6 +132,7 @@ export default function Chat() {
         integrations={integrations}
         token={token}
         skills={skills.skills}
+        initialQuestion={initialQuestion}
       />
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
       {settingsOpen && (
