@@ -1,6 +1,17 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import AssistantMessage from './AssistantMessage.jsx'
+
+const REAL_CLIPBOARD = navigator.clipboard
+
+function useClipboard(clipboard) {
+  Object.defineProperty(navigator, 'clipboard', { value: clipboard, configurable: true })
+}
+
+afterEach(() => {
+  useClipboard(REAL_CLIPBOARD)
+})
 
 vi.mock('../../ToolCall/ToolCall.jsx', () => ({
   default: ({ tool, done }) => (
@@ -69,5 +80,57 @@ describe('AssistantMessage', () => {
     render(<AssistantMessage message={{ parts: [{ type: 'text', content: 'done' }] }} isStreaming={false} />)
 
     expect(screen.queryByTestId('feedback')).not.toBeInTheDocument()
+  })
+
+  it('copies every text part of the answer, in order, as markdown', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    useClipboard({ writeText })
+    const message = {
+      parts: [
+        { type: 'text', content: '## Diagnosis' },
+        { type: 'text', content: '- first\n- second' },
+      ],
+    }
+    render(<AssistantMessage message={message} isStreaming={false} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy answer' }))
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText).toHaveBeenCalledWith('## Diagnosis\n\n- first\n- second')
+  })
+
+  it('leaves tool calls and errors out of the copied answer', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    useClipboard({ writeText })
+    const message = {
+      parts: [
+        { type: 'tool_call', tool: 'search_code', input: {}, done: true },
+        { type: 'text', content: 'The answer.' },
+        { type: 'error', content: 'Something broke.' },
+      ],
+    }
+    render(<AssistantMessage message={message} isStreaming={false} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy answer' }))
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText).toHaveBeenCalledWith('The answer.')
+  })
+
+  it('offers the copy action only once the answer is complete', () => {
+    const message = { parts: [{ type: 'text', content: 'done' }] }
+    const { rerender } = render(<AssistantMessage message={message} isStreaming />)
+    expect(screen.queryByRole('button', { name: 'Copy answer' })).not.toBeInTheDocument()
+
+    rerender(<AssistantMessage message={message} isStreaming={false} />)
+
+    expect(screen.getByRole('button', { name: 'Copy answer' })).toBeInTheDocument()
+  })
+
+  it('offers no copy action when the answer has no text', () => {
+    const message = { parts: [{ type: 'error', content: 'Something broke.' }] }
+    render(<AssistantMessage message={message} isStreaming={false} />)
+
+    expect(screen.queryByRole('button', { name: 'Copy answer' })).not.toBeInTheDocument()
   })
 })
