@@ -4,11 +4,18 @@ import { screen, act } from '@testing-library/react'
 import { render, waitFor } from '@testing-library/react'
 import ArtifactFrame from './ArtifactFrame.jsx'
 import { inlineArtifactCharts } from './inline-artifact-charts.js'
+import { highlightArtifactCode } from './highlight-artifact-code.js'
 import { ARTIFACT_HEIGHT_MESSAGE, ARTIFACT_PRINT_MESSAGE } from './artifact-runtime.js'
 
 vi.mock('./inline-artifact-charts.js', () => ({
   inlineArtifactCharts: vi.fn(async html =>
     html.replace(/<div data-chart=[^>]*><\/div>/, '<div class="chart-block">rendered-chart</div>')
+  ),
+}))
+
+vi.mock('./highlight-artifact-code.js', () => ({
+  highlightArtifactCode: vi.fn(html =>
+    html.replace(/<code class="language-\w+">[\s\S]*?<\/code>/, '<code>highlighted-code</code>')
   ),
 }))
 
@@ -63,6 +70,31 @@ describe('ArtifactFrame', () => {
 
     expect(inlineArtifactCharts).not.toHaveBeenCalled()
     expect(screen.getByTitle('Refund dashboard')).toBeInTheDocument()
+  })
+
+  it('highlights code blocks before the frame loads', async () => {
+    render(<ArtifactFrame html={'<pre><code class="language-python">x = 1</code></pre>'} title="Guide" />)
+
+    await waitFor(() => expect(screen.getByTitle('Guide')).toBeInTheDocument())
+    expect(screen.getByTitle('Guide').getAttribute('srcdoc')).toContain('highlighted-code')
+  })
+
+  it('never touches the highlighter for an artifact without code', () => {
+    highlightArtifactCode.mockClear()
+    render(<ArtifactFrame html="<h1>Refunds</h1>" title="Refund dashboard" />)
+
+    expect(highlightArtifactCode).not.toHaveBeenCalled()
+    expect(screen.getByTitle('Refund dashboard')).toBeInTheDocument()
+  })
+
+  it('inlines charts and highlights code in the same document', async () => {
+    const html = '<div data-chart=\'{"type":"bar"}\'></div><pre><code class="language-js">let a</code></pre>'
+    render(<ArtifactFrame html={html} title="Report" />)
+
+    await waitFor(() => expect(screen.getByTitle('Report')).toBeInTheDocument())
+    const srcdoc = screen.getByTitle('Report').getAttribute('srcdoc')
+    expect(srcdoc).toContain('rendered-chart')
+    expect(srcdoc).toContain('highlighted-code')
   })
 
   it('renders the html through srcdoc rather than a src url', () => {

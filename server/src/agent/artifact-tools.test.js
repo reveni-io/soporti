@@ -4,7 +4,12 @@ vi.mock('../db/artifacts.js', () => ({
   saveArtifactVersion: vi.fn(),
 }))
 
+vi.mock('./artifact-mermaid.js', () => ({
+  inlineArtifactMermaid: vi.fn(async html => html),
+}))
+
 const { saveArtifactVersion } = await import('../db/artifacts.js')
+const { inlineArtifactMermaid } = await import('./artifact-mermaid.js')
 const { buildArtifactTools } = await import('./artifact-tools.js')
 const { MAX_ARTIFACT_HTML_CHARS, MAX_ARTIFACT_TITLE_LENGTH } = await import('../constants.js')
 
@@ -104,6 +109,24 @@ describe('buildArtifactTools', () => {
 
     const { title } = saveArtifactVersion.mock.calls[0][1]
     expect(title).toHaveLength(MAX_ARTIFACT_TITLE_LENGTH)
+  })
+
+  it('saves the html with mermaid diagrams already rendered', async () => {
+    inlineArtifactMermaid.mockResolvedValueOnce('<div class="mermaid-diagram"><svg>diagram</svg></div>')
+
+    await invoke({
+      identifier: 'refund-dashboard',
+      title: 'Refund dashboard',
+      html: '<pre class="mermaid">flowchart TD</pre>',
+    })
+
+    expect(inlineArtifactMermaid).toHaveBeenCalledWith('<pre class="mermaid">flowchart TD</pre>')
+    expect(saveArtifactVersion).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      expect.objectContaining({
+        html: '<div class="mermaid-diagram"><svg>diagram</svg></div>',
+      })
+    )
   })
 
   it('rejects html over the size limit and tells the model to simplify', async () => {

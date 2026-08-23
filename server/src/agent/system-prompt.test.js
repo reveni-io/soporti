@@ -79,6 +79,20 @@ describe('buildBasePrompt', () => {
     expect(prompt).toContain('never draw axes, bars or pie slices yourself')
   })
 
+  it('tells the agent to declare diagrams as mermaid source instead of drawing them', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('<pre class="mermaid">')
+    expect(prompt).toContain('never draw boxes and arrows yourself')
+  })
+
+  it('tells the agent code samples get highlighted by the app', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('Code samples are highlighted by the app')
+    expect(prompt).toContain('language-python')
+  })
+
   it('tells the agent the bare markup is already typeset like a document', () => {
     const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
 

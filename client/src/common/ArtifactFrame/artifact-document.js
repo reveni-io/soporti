@@ -79,8 +79,13 @@ blockquote,
 pre,
 .alert,
 .note,
-[data-chart] {
+[data-chart],
+.mermaid-diagram {
   margin: 0 0 var(--sp4);
+}
+
+.mermaid-diagram {
+  text-align: center;
 }
 
 table,
@@ -277,7 +282,8 @@ figcaption {
   .card,
   table,
   figure,
-  [data-chart] {
+  [data-chart],
+  .mermaid-diagram {
     break-inside: avoid;
   }
 }
