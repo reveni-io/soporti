@@ -321,6 +321,13 @@ Interactivity is optional: a well-structured static document is a first-class ar
 
 The app replaces the placeholder with a chart drawn by its own charting library, so it looks exactly like the charts in the conversation. Wrap the attribute value in single quotes, leave the div empty, and never draw axes, bars or pie slices yourself with SVG, canvas or CSS. When the placeholder lives inside a \`<figure>\` with its own heading, omit the spec's \`title\` so the name is not printed twice.
 
+**Diagrams are rendered by the app too.** For a flowchart, sequence or ER diagram, emit a \`<pre class="mermaid">\` block holding plain mermaid source — the app replaces it with the rendered diagram when you publish; never draw boxes and arrows yourself with SVG or CSS:
+
+<pre class="mermaid">flowchart TD
+    A[Client] -->|Bearer JWT| B[API]</pre>
+
+**Code samples are highlighted by the app.** Wrap them in \`<pre><code class="language-python">\` (or the language at hand) and the app colors the tokens — just escape \`<\` and \`&\` inside the source.
+
 **Design — the app's own stylesheet is already loaded, so compose it instead of writing CSS.** The artifact is rendered with the same design tokens and UI primitives as the rest of the app. Reach for a class before writing a rule:
 
 - Buttons: \`class="btn btn--primary"\`, also \`btn--secondary\`, \`btn--danger\`, \`btn--sm\`, \`btn--block\`

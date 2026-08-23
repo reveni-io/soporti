@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { renderMermaid } from 'beautiful-mermaid'
+import { MERMAID_RENDER_COLORS } from '../constants.js'
 
 const router = Router()
 
@@ -11,10 +12,7 @@ router.post('/render', async (req, res) => {
   }
 
   try {
-    const svg = await renderMermaid(chart, {
-      bg: '#ffffff',
-      fg: '#042503',
-    })
+    const svg = await renderMermaid(chart, MERMAID_RENDER_COLORS)
     res.json({ svg })
   } catch (err) {
     console.error('[mermaid] Render failed:', err.message)

@@ -34,6 +34,7 @@ export const MAX_API_KEYS_PER_USER = 20
 export const ARTIFACT_IDENTIFIER_RE = /^[a-z0-9][a-z0-9-]{0,60}$/
 export const MAX_ARTIFACT_TITLE_LENGTH = 120
 export const MAX_ARTIFACT_HTML_CHARS = 200_000
+export const MERMAID_RENDER_COLORS = { bg: '#ffffff', fg: '#042503' }
 export const SHARE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 export const SHARE_ID_BYTES = 16
 export const SHARE_ID_RE = /^[a-f0-9]{32}$/

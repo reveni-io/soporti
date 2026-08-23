@@ -41,7 +41,7 @@ describe('buildArtifactDocument', () => {
     expect(document).toContain('border-collapse: collapse')
     expect(document).toContain('font-family: var(--font-heading)')
     expect(document).toContain('vertical-align: middle')
-    expect(document).toMatch(/\.alert,\n\.note,\n\[data-chart\] \{\n {2}margin: 0 0 var\(--sp4\);/)
+    expect(document).toMatch(/\.alert,\n\.note,\n\[data-chart\],\n\.mermaid-diagram \{\n {2}margin: 0 0 var\(--sp4\);/)
   })
 
   it('loads the app fonts and nothing else from the network', () => {

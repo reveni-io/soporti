@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { buildArtifactDocument } from './artifact-document.js'
 import { inlineArtifactCharts } from './inline-artifact-charts.js'
+import { highlightArtifactCode } from './highlight-artifact-code.js'
 import { ARTIFACT_HEIGHT_MESSAGE, ARTIFACT_PRINT_MESSAGE } from './artifact-runtime.js'
 import './ArtifactFrame.css'
 
@@ -12,24 +13,25 @@ export default function ArtifactFrame({ html, title, ref }) {
   const frameRef = useRef(null)
   const shellRef = useRef(null)
   const [height, setHeight] = useState(INITIAL_HEIGHT)
-  const [chartDocument, setChartDocument] = useState(null)
+  const [inlinedDocument, setInlinedDocument] = useState(null)
 
   const parentOrigin = window.location.origin
-  const hasCharts = html.includes('data-chart')
+  const needsInlining = html.includes('data-chart') || html.includes('language-')
   const plainDocument = useMemo(
-    () => (hasCharts ? null : buildArtifactDocument(html, parentOrigin)),
-    [hasCharts, html, parentOrigin]
+    () => (needsInlining ? null : buildArtifactDocument(html, parentOrigin)),
+    [needsInlining, html, parentOrigin]
   )
 
   useEffect(() => {
-    setChartDocument(null)
-    if (!hasCharts) return
+    setInlinedDocument(null)
+    if (!needsInlining) return
 
     let active = true
 
     async function build() {
       const withCharts = await inlineArtifactCharts(html, shellRef.current?.clientWidth ?? 0)
-      if (active) setChartDocument(buildArtifactDocument(withCharts, parentOrigin))
+      const highlighted = highlightArtifactCode(withCharts)
+      if (active) setInlinedDocument(buildArtifactDocument(highlighted, parentOrigin))
     }
 
     build()
@@ -37,9 +39,9 @@ export default function ArtifactFrame({ html, title, ref }) {
     return () => {
       active = false
     }
-  }, [hasCharts, html, parentOrigin])
+  }, [needsInlining, html, parentOrigin])
 
-  const srcDocument = plainDocument ?? chartDocument
+  const srcDocument = plainDocument ?? inlinedDocument
 
   useEffect(() => {
     function handleMessage(event) {

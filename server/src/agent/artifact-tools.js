@@ -1,13 +1,14 @@
 import { z } from 'zod'
 import { tool } from '@openai/agents'
 import { saveArtifactVersion } from '../db/artifacts.js'
+import { inlineArtifactMermaid } from './artifact-mermaid.js'
 import { ARTIFACT_IDENTIFIER_RE, MAX_ARTIFACT_HTML_CHARS, MAX_ARTIFACT_TITLE_LENGTH } from '../constants.js'
 
 const IDENTIFIER_DESCRIPTION =
   'Stable slug naming this artifact, lowercase letters, digits and dashes (e.g. "refund-dashboard"). Reuse the SAME identifier to publish a new version of an artifact you already created in this conversation; only pick a new one for a genuinely different artifact.'
 
 const HTML_DESCRIPTION =
-  "The complete document body: HTML, plus any CSS in a <style> tag and any JS in a <script> tag. Do NOT include <!doctype>, <html>, <head> or <body> tags — the app wraps it. Rewrite it in full on every version, never a partial or a diff. It runs sandboxed with no network access, so inline everything and never fetch a remote asset. For charts, emit an empty <div data-chart='{...}'></div> whose attribute holds the same JSON spec as a chart block — the app renders it with its own charting library; never draw a chart yourself."
+  'The complete document body: HTML, plus any CSS in a <style> tag and any JS in a <script> tag. Do NOT include <!doctype>, <html>, <head> or <body> tags — the app wraps it. Rewrite it in full on every version, never a partial or a diff. It runs sandboxed with no network access, so inline everything and never fetch a remote asset. For charts, emit an empty <div data-chart=\'{...}\'></div> whose attribute holds the same JSON spec as a chart block — the app renders it with its own charting library; never draw a chart yourself. For diagrams, emit a <pre class="mermaid"> block holding plain mermaid source — the app replaces it with the rendered diagram; never draw boxes and arrows yourself. Code samples in <pre><code class="language-..."> blocks are syntax-highlighted by the app.'
 
 export function buildArtifactTools(conversationId, onPublished) {
   if (!conversationId) return []
@@ -43,7 +44,8 @@ export function buildArtifactTools(conversationId, onPublished) {
           })
         }
 
-        const saved = await saveArtifactVersion(conversationId, { identifier, title, html: input.html })
+        const html = await inlineArtifactMermaid(input.html)
+        const saved = await saveArtifactVersion(conversationId, { identifier, title, html })
 
         onPublished?.({ artifactId: saved.id, title: saved.title, version: saved.version })
 
