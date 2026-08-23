@@ -67,7 +67,7 @@ vi.mock('../../common/Login/Login.jsx', () => ({
   ),
 }))
 
-vi.mock('./ShareModal/ShareModal.jsx', () => ({
+vi.mock('../../common/ShareModal/ShareModal.jsx', () => ({
   default: ({ url, onClose }) => (
     <div data-testid="share-modal">
       <span>{url}</span>

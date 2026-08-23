@@ -1,0 +1,64 @@
+.artifacts-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  max-width: 640px;
+}
+
+.artifacts-modal__description {
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: 1.25rem;
+}
+
+.artifacts-modal__status,
+.artifacts-modal__empty {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+}
+
+.artifacts-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  max-height: 280px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.artifacts-modal__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp3);
+  border-radius: var(--radius-md);
+}
+
+.artifacts-modal__item-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp1);
+  overflow: hidden;
+}
+
+.artifacts-modal__item-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifacts-modal__item-meta {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.artifacts-modal__item-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sp2);
+}

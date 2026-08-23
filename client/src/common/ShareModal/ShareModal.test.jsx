@@ -22,11 +22,17 @@ describe('ShareModal', () => {
     expect(input).toHaveAttribute('readonly')
   })
 
-  it('renders title and buttons', () => {
-    render(<ShareModal url="https://example.com" onClose={vi.fn()} />)
+  it('renders the title it was given and the buttons', () => {
+    render(<ShareModal url="https://example.com" title="Share conversation" onClose={vi.fn()} />)
     expect(screen.getByText('Share conversation')).toBeInTheDocument()
     expect(screen.getByText('Copy')).toBeInTheDocument()
     expect(screen.getByText('Done')).toBeInTheDocument()
+  })
+
+  it('renders a different title so it serves artifacts too', () => {
+    render(<ShareModal url="https://example.com" title="Share artifact" onClose={vi.fn()} />)
+    expect(screen.getByText('Share artifact')).toBeInTheDocument()
+    expect(screen.queryByText('Share conversation')).not.toBeInTheDocument()
   })
 
   it('shows expiration notice', () => {

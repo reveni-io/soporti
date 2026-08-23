@@ -237,6 +237,8 @@ describe('POST /api/chat', () => {
       skills: [],
       skillArguments: 'why does it 500?',
       userId: 1,
+      conversationId: TEST_CONVERSATION_ID,
+      onArtifactPublished: expect.any(Function),
     })
   })
 
@@ -346,6 +348,8 @@ describe('POST /api/chat', () => {
       skills: [],
       skillArguments: 'test',
       userId: 1,
+      conversationId: TEST_CONVERSATION_ID,
+      onArtifactPublished: expect.any(Function),
     })
   })
 
@@ -363,6 +367,8 @@ describe('POST /api/chat', () => {
       skills: [{ id: 5, name: 'bug-triage', instructions: 'Ask for repro steps.' }],
       skillArguments: 'hi',
       userId: 1,
+      conversationId: TEST_CONVERSATION_ID,
+      onArtifactPublished: expect.any(Function),
     })
   })
 
@@ -601,6 +607,8 @@ describe('POST /api/chat', () => {
       skills: [{ id: 5, name: 'grilling', instructions: 'Interview me.' }],
       skillArguments: 'my answer',
       userId: 1,
+      conversationId: TEST_CONVERSATION_ID,
+      onArtifactPublished: expect.any(Function),
     })
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
@@ -680,6 +688,8 @@ describe('POST /api/chat', () => {
       skills: [],
       skillArguments: 'hi',
       userId: 1,
+      conversationId: TEST_CONVERSATION_ID,
+      onArtifactPublished: expect.any(Function),
     })
   })
 
@@ -712,6 +722,90 @@ describe('POST /api/chat', () => {
 
     expect(events.some(e => e.type === 'tool_start' && e.tool === 'search_code')).toBe(true)
     expect(events.some(e => e.type === 'tool_end' && e.tool === 'search_code')).toBe(true)
+  })
+
+  it('streams an artifact event and persists the part when the agent publishes one', async () => {
+    createAgent.mockImplementationOnce(async (_sources, _profile, { onArtifactPublished }) => {
+      onArtifactPublished({ artifactId: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601', title: 'Refund dashboard', version: 2 })
+      return { name: 'Soporti' }
+    })
+    run.mockResolvedValue(
+      createStreamMock([
+        {
+          type: 'run_item_stream_event',
+          item: {
+            type: 'tool_call_item',
+            rawItem: { name: 'render_artifact', arguments: '{"identifier":"refund-dashboard"}', callId: 'call-1' },
+          },
+        },
+        {
+          type: 'run_item_stream_event',
+          item: { type: 'tool_call_output_item', rawItem: { callId: 'call-1' } },
+        },
+      ])
+    )
+
+    const res = await request(app).post('/').send({ message: 'build me a refunds panel' })
+
+    const events = res.text
+      .split('\n\n')
+      .filter(line => line.startsWith('data: '))
+      .map(line => JSON.parse(line.replace('data: ', '')))
+
+    const artifact = events.find(e => e.type === 'artifact')
+    expect(artifact).toEqual({
+      type: 'artifact',
+      artifactId: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601',
+      title: 'Refund dashboard',
+      version: 2,
+    })
+
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'assistant',
+            parts: expect.arrayContaining([
+              {
+                type: 'artifact',
+                artifactId: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601',
+                title: 'Refund dashboard',
+                version: 2,
+              },
+            ]),
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('streams no artifact event when the tool published nothing, so the chat shows no dead card', async () => {
+    run.mockResolvedValue(
+      createStreamMock([
+        {
+          type: 'run_item_stream_event',
+          item: {
+            type: 'tool_call_item',
+            rawItem: { name: 'render_artifact', arguments: '{"identifier":"bad id"}', callId: 'call-1' },
+          },
+        },
+        {
+          type: 'run_item_stream_event',
+          item: { type: 'tool_call_output_item', rawItem: { callId: 'call-1' } },
+        },
+      ])
+    )
+
+    const res = await request(app).post('/').send({ message: 'build me a panel' })
+
+    const events = res.text
+      .split('\n\n')
+      .filter(line => line.startsWith('data: '))
+      .map(line => JSON.parse(line.replace('data: ', '')))
+
+    expect(events.some(e => e.type === 'artifact')).toBe(false)
+    expect(events.some(e => e.type === 'tool_end' && e.tool === 'render_artifact')).toBe(true)
   })
 
   it('sends error event when agent throws', async () => {

@@ -1,0 +1,9 @@
+.artifact-body__canvas {
+  overflow: hidden;
+}
+
+.artifact-body__muted {
+  padding: var(--sp4);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}

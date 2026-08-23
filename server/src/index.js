@@ -13,6 +13,7 @@ import attachmentsRouter from './routes/attachments.js'
 import chatRoute from './routes/chat.js'
 import conversationsRoute from './routes/conversations.js'
 import mermaidRouter from './routes/mermaid.js'
+import artifactsRouter from './routes/artifacts.js'
 import integrationsRouter from './routes/integrations.js'
 import statsRouter from './routes/stats.js'
 import shareRouter from './routes/share.js'
@@ -64,6 +65,7 @@ app.use('/api/attachments', attachmentsRouter)
 app.use('/api/chat', chatRoute(conversationStore))
 app.use('/api/conversations', conversationsRoute(conversationStore))
 app.use('/api/mermaid', mermaidRouter)
+app.use('/api/artifacts', artifactsRouter)
 app.use('/api/integrations', integrationsRouter)
 app.use('/api/stats', statsRouter)
 app.use('/api/share', shareRouter)

@@ -24,6 +24,12 @@ vi.mock('../pages/OAuthConsent/OAuthConsent.jsx', () => ({
 vi.mock('../pages/Lmstfy/Lmstfy.jsx', () => ({
   default: () => <div data-testid="lmstfy-page" />,
 }))
+vi.mock('../pages/ArtifactView/ArtifactView.jsx', () => ({
+  default: ({ id }) => <div data-testid="artifact-view">{id}</div>,
+}))
+vi.mock('../pages/SharedArtifact/SharedArtifact.jsx', () => ({
+  default: ({ shareId }) => <div data-testid="shared-artifact">{shareId}</div>,
+}))
 
 function renderAt(path) {
   return render(
@@ -83,6 +89,29 @@ describe('Router', () => {
     renderAt('/share/not-hex!')
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     expect(screen.queryByTestId('shared-view')).toBeNull()
+  })
+
+  it('renders the artifact view for a numeric id', () => {
+    renderAt('/artifacts/3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601')
+    expect(screen.getByTestId('artifact-view')).toHaveTextContent('3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601')
+  })
+
+  it('falls back to the landing page for a non-numeric artifact id', () => {
+    renderAt('/artifacts/nope')
+    expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('artifact-view')).toBeNull()
+  })
+
+  it('renders the public shared artifact for a 32-char hex share id', () => {
+    const shareId = 'a'.repeat(32)
+    renderAt(`/a/${shareId}`)
+    expect(screen.getByTestId('shared-artifact')).toHaveTextContent(shareId)
+  })
+
+  it('falls back to the landing page for a malformed artifact share id', () => {
+    renderAt('/a/short')
+    expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('shared-artifact')).toBeNull()
   })
 
   it('renders the landing page at the root', () => {

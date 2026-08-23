@@ -27,6 +27,7 @@ import {
   MAX_SEARCH_RESULTS,
 } from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
+import { buildArtifactTools } from './artifact-tools.js'
 
 export const listReposTool = tool({
   name: 'list_repos',
@@ -716,9 +717,11 @@ export function buildAgentTools(policy, configured, context = {}) {
     return typeof entry === 'function' ? entry(context) : entry
   })
 
-  if (!policy || policy.unrestricted) return [...allTools, ...integrationTools]
+  const artifactTools = buildArtifactTools(context.conversationId, context.onArtifactPublished)
+
+  if (!policy || policy.unrestricted) return [...allTools, ...integrationTools, ...artifactTools]
 
   const repoTools = policy.repos.length > 0 ? buildRepoTools(policy.repos) : []
 
-  return [...repoTools, ...integrationTools]
+  return [...repoTools, ...integrationTools, ...artifactTools]
 }

@@ -84,6 +84,8 @@
   --sp10: 2.5rem;
   --sp16: 4rem;
 
+  --artifact-panel-width: 30rem;
+
   --font-heading: 'Shippori Mincho', Georgia, serif;
   --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
   --font-body-bold: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
@@ -98,6 +100,7 @@
   --fs-xl: 1.125rem;
   --fs-2xl: 1.25rem;
   --fs-3xl: 1.5rem;
+  --fs-4xl: 1.75rem;
 }
 
 *,

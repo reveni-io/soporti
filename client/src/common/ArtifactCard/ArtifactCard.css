@@ -1,0 +1,45 @@
+.artifact-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  width: 100%;
+  margin: var(--sp3) 0;
+  padding: var(--sp3);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.artifact-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.artifact-card--static {
+  cursor: default;
+}
+
+.artifact-card--static:hover {
+  border-color: var(--border-default);
+  box-shadow: none;
+}
+
+.artifact-card__title {
+  flex: 1;
+  overflow: hidden;
+  font-size: var(--fs-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card__meta {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.artifact-card__action {
+  color: var(--link-color);
+  font-size: var(--fs-sm);
+}

@@ -309,7 +309,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
       expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false }),
-      { userId: null }
+      { userId: null, conversationId: null, onArtifactPublished: null }
     )
   })
 
@@ -322,7 +322,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: true }),
-      { userId: 7 }
+      { userId: 7, conversationId: null, onArtifactPublished: null }
     )
   })
 
@@ -335,7 +335,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: false }),
-      { userId: null }
+      { userId: null, conversationId: null, onArtifactPublished: null }
     )
   })
 })

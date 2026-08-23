@@ -10,6 +10,10 @@ export function absoluteApiUrl(path) {
   return `${apiBase() || window.location.origin}${path}`
 }
 
+export function absoluteAppUrl(path) {
+  return `${window.location.origin}${path}`
+}
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message)
@@ -158,6 +162,48 @@ export function sendFeedback(token, feedbackId, useful) {
 
 export function renderMermaid(token, chart) {
   return request('/api/mermaid/render', { method: 'POST', token, body: { chart } })
+}
+
+export function getArtifact(token, id) {
+  return request(`/api/artifacts/${id}`, { token, errorMessage: 'Failed to load the artifact' })
+}
+
+export function getArtifactHtml(token, id, version) {
+  const query = version ? `?version=${version}` : ''
+  return request(`/api/artifacts/${id}/html${query}`, { token, errorMessage: 'Failed to load the artifact' })
+}
+
+export function listArtifacts(token) {
+  return request('/api/artifacts', { token, errorMessage: 'Failed to load your artifacts' })
+}
+
+export function deleteArtifact(token, id) {
+  return request(`/api/artifacts/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the artifact',
+  })
+}
+
+export function deleteArtifactVersion(token, id, version) {
+  return request(`/api/artifacts/${id}/versions/${version}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the artifact version',
+  })
+}
+
+export function shareArtifact(token, id, version) {
+  return request(`/api/artifacts/${id}/share`, {
+    method: 'POST',
+    token,
+    body: { version },
+    errorMessage: 'Failed to share the artifact',
+  })
+}
+
+export function getSharedArtifact(shareId) {
+  return request(`/api/share/artifact/${shareId}`, { errorMessage: 'Failed to load the shared artifact' })
 }
 
 export function getUserInstructions(token) {

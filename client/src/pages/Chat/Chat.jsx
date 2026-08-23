@@ -1,26 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChat } from './hooks/useChat/useChat.js'
+import { useArtifacts } from './hooks/useArtifacts/useArtifacts.js'
+import { useArtifactShare } from '../../hooks/useArtifactShare/useArtifactShare.js'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
 import { useAuthedResource } from '../../hooks/useAuthedResource/useAuthedResource.js'
 import { useSkills } from '../../hooks/useSkills/useSkills.js'
 import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
+import ArtifactPanel from './ArtifactPanel/ArtifactPanel.jsx'
 import Login from '../../common/Login/Login.jsx'
-import ShareModal from './ShareModal/ShareModal.jsx'
+import ShareModal from '../../common/ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import SchedulesModal from './SchedulesModal/SchedulesModal.jsx'
+import ArtifactsModal from './ArtifactsModal/ArtifactsModal.jsx'
 import { YOLO_SOURCE } from '../../constants.js'
-import { createShare, getIntegrations } from '../../services/services.js'
+import { absoluteAppUrl, createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
 export default function Chat({ initialQuestion = '' }) {
   const [selectedSources, setSelectedSources] = useState([YOLO_SOURCE])
   const [selectedProfile, setSelectedProfile] = useState(() => localStorage.getItem('selectedProfile') || 'support')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [shareUrl, setShareUrl] = useState(null)
+  const [conversationShareUrl, setConversationShareUrl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [schedulesOpen, setSchedulesOpen] = useState(false)
+  const [artifactsOpen, setArtifactsOpen] = useState(false)
   const [convReloadKey, setConvReloadKey] = useState(0)
   const wasLoading = useRef(false)
   const {
@@ -36,6 +41,8 @@ export default function Chat({ initialQuestion = '' }) {
   const skills = useSkills(token, logout)
   const [integrationsReloadKey, setIntegrationsReloadKey] = useState(0)
   const integrations = useAuthedResource(getIntegrations, 'integrations', token, [], integrationsReloadKey)
+  const artifacts = useArtifacts(token, logout)
+  const artifactShare = useArtifactShare(token, logout)
   const {
     messages,
     isLoading,
@@ -45,7 +52,7 @@ export default function Chat({ initialQuestion = '' }) {
     clearChat,
     loadConversation,
     currentSessionId,
-  } = useChat(token, logout)
+  } = useChat(token, logout, artifacts.openPublished)
 
   useEffect(() => {
     if (wasLoading.current && !isLoading) {
@@ -89,12 +96,16 @@ export default function Chat({ initialQuestion = '' }) {
     setSidebarOpen(false)
   }
 
+  function handleArtifactDeleted(artifactId) {
+    if (artifactId === artifacts.openId) artifacts.close()
+  }
+
   async function handleShare() {
     const conversationId = currentSessionId.current
     if (!conversationId) return
     try {
       const data = await createShare(token, conversationId)
-      setShareUrl(`${window.location.origin}${data.url}`)
+      setConversationShareUrl(absoluteAppUrl(data.url))
     } catch (err) {
       console.error('Share failed:', err) // eslint-disable-line no-console
     }
@@ -111,6 +122,7 @@ export default function Chat({ initialQuestion = '' }) {
         onClearChat={clearChat}
         onLogout={logout}
         onOpenSchedules={() => setSchedulesOpen(true)}
+        onOpenArtifacts={() => setArtifactsOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={convReloadKey}
@@ -133,8 +145,34 @@ export default function Chat({ initialQuestion = '' }) {
         token={token}
         skills={skills.skills}
         initialQuestion={initialQuestion}
+        onOpenArtifact={artifacts.openArtifact}
       />
-      {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
+      {artifacts.openId && (
+        <ArtifactPanel
+          artifactId={artifacts.openId}
+          artifact={artifacts.artifact}
+          html={artifacts.html}
+          version={artifacts.version}
+          loading={artifacts.loading}
+          error={artifacts.error}
+          onSelectVersion={artifacts.selectVersion}
+          onShare={() => artifactShare.share(artifacts.openId, artifacts.version)}
+          shareError={artifactShare.error}
+          onDeleteVersion={artifacts.removeVersion}
+          deleteError={artifacts.deleteError}
+          onClose={artifacts.close}
+        />
+      )}
+      {conversationShareUrl && (
+        <ShareModal
+          url={conversationShareUrl}
+          title="Share conversation"
+          onClose={() => setConversationShareUrl(null)}
+        />
+      )}
+      {artifactShare.shareUrl && (
+        <ShareModal url={artifactShare.shareUrl} title="Share artifact" onClose={artifactShare.dismiss} />
+      )}
       {settingsOpen && (
         <SettingsModal
           token={token}
@@ -143,6 +181,14 @@ export default function Chat({ initialQuestion = '' }) {
           skills={skills}
           selectedSources={selectedSources}
           onConnectionsChange={() => setIntegrationsReloadKey(key => key + 1)}
+        />
+      )}
+      {artifactsOpen && (
+        <ArtifactsModal
+          token={token}
+          onClose={() => setArtifactsOpen(false)}
+          onLogout={logout}
+          onDeleted={handleArtifactDeleted}
         />
       )}
       {schedulesOpen && (

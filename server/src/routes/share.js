@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { createOrRefreshShare, getShare } from '../db/shares.js'
-import { UUID_RE } from '../constants.js'
+import { getSharedArtifact } from '../db/artifacts.js'
+import { SHARE_ID_RE, UUID_RE } from '../constants.js'
 
 const router = Router()
 
@@ -17,6 +18,22 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Failed to create share:', err)
     res.status(500).json({ error: 'Failed to create share.' })
+  }
+})
+
+router.get('/artifact/:shareId', async (req, res) => {
+  if (!SHARE_ID_RE.test(req.params.shareId)) {
+    return res.status(400).json({ error: 'Invalid share link.' })
+  }
+
+  try {
+    const artifact = await getSharedArtifact(req.params.shareId)
+    if (!artifact) return res.status(404).json({ error: 'Shared artifact not found or expired.' })
+
+    res.json(artifact)
+  } catch (err) {
+    console.error('Failed to load the shared artifact:', err)
+    res.status(500).json({ error: 'Failed to load the shared artifact.' })
   }
 })
 

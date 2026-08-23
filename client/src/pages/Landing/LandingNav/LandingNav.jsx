@@ -5,6 +5,7 @@ import { GITHUB_URL } from '../constants.js'
 const LINKS = [
   { href: '#ask', label: 'Ask' },
   { href: '#renders', label: 'Answers' },
+  { href: '#artifacts', label: 'Artifacts' },
   { href: '#integrations', label: 'Integrations' },
   { href: '#providers', label: 'Models' },
   { href: '#skills', label: 'Skills' },

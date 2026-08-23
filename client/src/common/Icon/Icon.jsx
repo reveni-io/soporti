@@ -91,6 +91,13 @@ const ICON_SHAPES = {
       <line x1="12" y1="15" x2="12" y2="3" />
     </>
   ),
+  artifact: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="8" x2="21" y2="8" />
+      <line x1="9" y1="8" x2="9" y2="21" />
+    </>
+  ),
 }
 
 const ICON_VIEW_BOXES = {

@@ -6,7 +6,9 @@ import AdminPage from '../pages/AdminPage/AdminPage.jsx'
 import SharedView from '../pages/SharedView/SharedView.jsx'
 import OAuthConsent from '../pages/OAuthConsent/OAuthConsent.jsx'
 import Lmstfy from '../pages/Lmstfy/Lmstfy.jsx'
-import { QUESTION_PARAM } from '../constants.js'
+import ArtifactView from '../pages/ArtifactView/ArtifactView.jsx'
+import SharedArtifact from '../pages/SharedArtifact/SharedArtifact.jsx'
+import { QUESTION_PARAM, SHARE_ID_RE, UUID_RE } from '../constants.js'
 import { ROUTES } from './constants.js'
 
 function ChatRoute() {
@@ -23,6 +25,22 @@ function ShareRoute() {
   return <SharedView shareId={shareId} />
 }
 
+function ArtifactRoute() {
+  const { id } = useParams()
+  if (!UUID_RE.test(id)) {
+    return <Landing />
+  }
+  return <ArtifactView id={id} />
+}
+
+function SharedArtifactRoute() {
+  const { shareId } = useParams()
+  if (!SHARE_ID_RE.test(shareId)) {
+    return <Landing />
+  }
+  return <SharedArtifact shareId={shareId} />
+}
+
 export default function Router() {
   return (
     <Routes>
@@ -32,6 +50,8 @@ export default function Router() {
       <Route path={ROUTES.SHARE} element={<ShareRoute />} />
       <Route path={ROUTES.OAUTH_CONSENT} element={<OAuthConsent />} />
       <Route path={ROUTES.LMSTFY} element={<Lmstfy />} />
+      <Route path={ROUTES.ARTIFACT} element={<ArtifactRoute />} />
+      <Route path={ROUTES.ARTIFACT_SHARE} element={<SharedArtifactRoute />} />
       <Route path="*" element={<Landing />} />
     </Routes>
   )

@@ -31,6 +31,13 @@ export const MAX_SKILLS_PER_REQUEST = 10
 export const MAX_API_KEY_NAME_LENGTH = 80
 export const MAX_API_KEYS_PER_USER = 20
 
+export const ARTIFACT_IDENTIFIER_RE = /^[a-z0-9][a-z0-9-]{0,60}$/
+export const MAX_ARTIFACT_TITLE_LENGTH = 120
+export const MAX_ARTIFACT_HTML_CHARS = 200_000
+export const SHARE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+export const SHARE_ID_BYTES = 16
+export const SHARE_ID_RE = /^[a-f0-9]{32}$/
+
 export const MCP_ENDPOINT_PATH = '/api/mcp'
 export const PROTECTED_RESOURCE_METADATA_PATH = `/.well-known/oauth-protected-resource${MCP_ENDPOINT_PATH}`
 export const AUTHORIZATION_SERVER_METADATA_PATH = '/.well-known/oauth-authorization-server'

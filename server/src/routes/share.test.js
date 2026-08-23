@@ -7,7 +7,12 @@ vi.mock('../db/shares.js', () => ({
   getShare: vi.fn(),
 }))
 
+vi.mock('../db/artifacts.js', () => ({
+  getSharedArtifact: vi.fn(),
+}))
+
 const { createOrRefreshShare, getShare } = await import('../db/shares.js')
+const { getSharedArtifact } = await import('../db/artifacts.js')
 const { default: shareRouter } = await import('./share.js')
 
 const CONVERSATION_ID = 'a3bb189e-8bf9-4888-9912-ace4e6543002'
@@ -105,5 +110,59 @@ describe('share routes', () => {
 
       expect(res.status).toBe(500)
     })
+  })
+})
+
+describe('GET /artifact/:shareId', () => {
+  let app
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    app = express()
+    app.use(express.json())
+    app.use('/', shareRouter)
+  })
+
+  it('returns the frozen artifact with no authentication', async () => {
+    getSharedArtifact.mockResolvedValue({ title: 'Refund dashboard', version: 2, html: '<h1>v2</h1>' })
+
+    const res = await request(app).get(`/artifact/${SHARE_ID}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ title: 'Refund dashboard', version: 2, html: '<h1>v2</h1>' })
+    expect(getSharedArtifact).toHaveBeenCalledWith(SHARE_ID)
+  })
+
+  it('rejects a malformed share id without touching the database', async () => {
+    const res = await request(app).get('/artifact/not-a-share-id')
+
+    expect(res.status).toBe(400)
+    expect(getSharedArtifact).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 for an expired or unknown share', async () => {
+    getSharedArtifact.mockResolvedValue(null)
+
+    const res = await request(app).get(`/artifact/${SHARE_ID}`)
+
+    expect(res.status).toBe(404)
+  })
+
+  it('reads the artifact share, never a conversation share', async () => {
+    getSharedArtifact.mockResolvedValue({ title: 'Refund dashboard', version: 1, html: '<h1>v1</h1>' })
+
+    await request(app).get(`/artifact/${SHARE_ID}`)
+
+    expect(getSharedArtifact).toHaveBeenCalledTimes(1)
+    expect(getShare).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the DB fails', async () => {
+    getSharedArtifact.mockRejectedValue(new Error('boom'))
+
+    const res = await request(app).get(`/artifact/${SHARE_ID}`)
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).not.toContain('boom')
   })
 })

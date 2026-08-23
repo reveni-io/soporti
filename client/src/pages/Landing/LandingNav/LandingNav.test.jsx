@@ -10,6 +10,7 @@ describe('LandingNav', () => {
 
     expect(screen.getByRole('link', { name: 'Ask' })).toHaveAttribute('href', '#ask')
     expect(screen.getByRole('link', { name: 'Answers' })).toHaveAttribute('href', '#renders')
+    expect(screen.getByRole('link', { name: 'Artifacts' })).toHaveAttribute('href', '#artifacts')
     expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute('href', '#integrations')
     expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute('href', '#providers')
     expect(screen.getByRole('link', { name: 'Skills' })).toHaveAttribute('href', '#skills')

@@ -6,4 +6,6 @@ export const ROUTES = {
   SHARE: '/share/:shareId',
   OAUTH_CONSENT: '/oauth/consent',
   LMSTFY: '/lmstfy',
+  ARTIFACT: '/artifacts/:id',
+  ARTIFACT_SHARE: '/a/:shareId',
 }

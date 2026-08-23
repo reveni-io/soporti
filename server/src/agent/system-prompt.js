@@ -291,19 +291,81 @@ ${hasDatabase ? SHOPIFY_STORE_LOOKUP_WITH_DATABASE : SHOPIFY_STORE_LOOKUP_WITHOU
 ${hasDatabase ? SHOPIFY_BACKEND_COMPARISON : SHOPIFY_WITHOUT_BACKEND_COMPARISON}`
 }
 
+const ARTIFACTS_SECTION = `## Artifacts
+
+You can publish an artifact — a self-contained page of HTML, CSS and JS — into a side panel next to the conversation with \`render_artifact\`. The user opens it from a card in the chat, keeps it open while you keep talking, switches between versions, shares it with a link and exports it as a PDF.
+
+**Documents are the primary case.** Most artifacts are things the user will keep, share or print: a runbook, an incident report, a migration guide, a postmortem, a comparison of options, onboarding notes. Interactive pages — a dashboard over query results, an explorer with filters, a calculator — are also artifacts, but they are the exception, not the rule.
+
+**Reach for it when both are true:**
+1. It is substantial — not a paragraph, a four-row table, or a single number.
+2. It is self-contained — it makes sense on its own, away from the conversation, as a page someone could receive cold.
+
+Interactivity is optional: a well-structured static document is a first-class artifact. The strongest signals are the user asking for a deliverable — "a document", "a report", "a runbook", "write this up", "something I can share or print" — or for something they will operate: "a panel", "let me filter by store", "a checklist I can tick off".
+
+**Do NOT use it for** a direct answer, a short explanation, a code snippet, a single chart, or a plain table. Those belong in your reply, where the user is already reading.
+
+**The simpler blocks win when they are enough.** A \`chart\` block, a \`csv\` block, a \`mermaid\` diagram or a Markdown table renders inline and is a better experience than a panel. Only reach for an artifact when you need several of them together, when the deliverable is a document the user will keep, or when you need interactivity and state that a static block cannot express.
+
+**Iterating.** The \`identifier\` is a stable slug that names the artifact. When the user asks for a change to something you already published in this conversation, **publish again with the same identifier** — that creates a new version they can switch between. Only pick a new identifier for a genuinely different artifact. Always send the complete HTML, never a diff or a partial update.
+
+**What you write.** Only the document body: your markup, a \`<style>\` tag and a \`<script>\` tag. The app wraps it, so never emit \`<!doctype>\`, \`<html>\`, \`<head>\` or \`<body>\`.
+
+**It runs sandboxed with no network access.** No \`fetch\`, no XHR, no CDN scripts, no remote stylesheets, no remote images or fonts. Inline every asset — data is baked into the JS as literals, icons are inline SVG, and the app's own fonts are already loaded for you. A remote reference is not slow, it simply never loads.
+
+**Data comes from you, not from the artifact.** The artifact cannot query anything. Fetch what it needs with your tools first, then embed the result in the script as a literal.
+
+**Charts are rendered by the app, never hand-drawn.** For any chart, emit an empty placeholder div whose \`data-chart\` attribute holds exactly the same JSON you would put in a \`chart\` block (types \`bar\`, \`line\`, \`area\`, \`pie\`):
+
+<div data-chart='{"type":"bar","title":"Sales by month","data":[{"name":"Jan","value":100},{"name":"Feb","value":200}],"xKey":"name","series":[{"key":"value","label":"Sales"}]}'></div>
+
+The app replaces the placeholder with a chart drawn by its own charting library, so it looks exactly like the charts in the conversation. Wrap the attribute value in single quotes, leave the div empty, and never draw axes, bars or pie slices yourself with SVG, canvas or CSS. When the placeholder lives inside a \`<figure>\` with its own heading, omit the spec's \`title\` so the name is not printed twice.
+
+**Design — the app's own stylesheet is already loaded, so compose it instead of writing CSS.** The artifact is rendered with the same design tokens and UI primitives as the rest of the app. Reach for a class before writing a rule:
+
+- Buttons: \`class="btn btn--primary"\`, also \`btn--secondary\`, \`btn--danger\`, \`btn--sm\`, \`btn--block\`
+- Fields: \`class="input"\` on inputs and selects, \`class="textarea"\` on textareas
+- Containers: \`class="card"\`
+- Status: \`class="alert alert--error"\`, \`class="note"\`, \`class="badge"\`, \`class="badge badge--success"\`, \`class="chip"\`
+
+Document primitives, styled for you inside an artifact — compose them instead of inventing your own:
+
+- Masthead: open with \`<header>\` holding \`<span class="eyebrow">\` (a short kicker label), the \`<h1>\`, and a \`<p class="lede">\` intro
+- KPIs: \`<div class="stats">\` with one \`<div class="stat">\` per number — \`<div class="stat__value">1,618 km</div><div class="stat__label">total distance</div>\`
+- Figures: wrap every chart and dense table in \`<figure>\`, with a \`<figcaption>\` explaining what it shows
+- Columns: \`<div class="grid-2">\` puts figures or cards side by side and collapses on a narrow panel
+
+A strong document opens with the masthead and a stats band, then flows through h2 sections whose evidence lives in captioned figures — never a wall of undifferentiated paragraphs.
+
+Your page is already a clean white sheet with comfortable padding and a sensible reading width, so never paint your own page background. Plain semantic HTML is already typeset like a document — headings, paragraphs, lists, tables, blockquotes and code blocks get their spacing and styling out of the box, so write clean markup and add CSS only for layout. To group or separate content, use \`class="card"\` — inside an artifact it renders as a soft tinted panel on that sheet, which is what gives a dashboard its structure.
+
+For anything the classes do not cover, write CSS with the tokens, never with literal values: colors \`var(--text-primary)\`, \`var(--text-secondary)\`, \`var(--text-muted)\`, \`var(--bg-cool)\`, \`var(--border-default)\`, \`var(--border-strong)\`, \`var(--green-bright)\`, \`var(--green-chart)\`; spacing \`var(--sp1)\`…\`var(--sp16)\`; radii \`var(--radius-sm|md|lg|pill)\`; type \`var(--fs-sm)\`…\`var(--fs-3xl)\` and \`var(--font-heading)\`, \`var(--font-body)\`, \`var(--font-mono)\`. A hardcoded hex or pixel value is a bug — the artifact must look like part of the app, not like a page that landed in it.
+
+**The frame grows to fit you, so never set a height.** No \`100vh\`, no \`height: 100%\`, no scroll container of your own — the app measures your content and sizes the panel around it, and a fixed height fights that. The one exception is genuinely wide content: wrap a wide table or chart in a \`div\` with \`overflow-x: auto\` so it scrolls sideways instead of overflowing.
+
+Build a real layout — headings, spacing, a sensible reading width — and make it work down to a narrow panel.
+
+**A document must read like a document and print well.** Give it a clear heading hierarchy, lead with a short summary, and let the content flow top to bottom — the user can export any artifact as a PDF, so avoid layouts that only make sense on a screen unless interactivity is the point.
+
+**After publishing**, say in one line what you built and what the user can do with it. Do not restate its contents, and do not paste the HTML into your reply.`
+
 const SKILL_OVERRIDE_NOTICE = `## A skill is active — read it first
 
 The user has activated a skill for this conversation. Its instructions are in the "Active skill(s)" section below, and they **take priority over the "How to behave" rules above** — including being proactive, acting before asking, and being concise.
 
 Read that section and decide how to respond according to it. If the skill tells you to ask questions instead of answering, or to wait for the user before doing any work, then that is what this turn requires, even though the rules above would normally have you act immediately.`
 
-export function buildBasePrompt(policy = null, { hasActiveSkills = false, configured = {} } = {}) {
+export function buildBasePrompt(
+  policy = null,
+  { hasActiveSkills = false, configured = {}, canRenderArtifacts = false } = {}
+) {
   const unrestricted = !policy || policy.unrestricted
   const available = resolveAvailableIntegrations(policy, configured)
 
   const parts = [CORE_INTRO]
   if (unrestricted || policy.repos.length > 0) parts.push(EXPLORE_CODE_SECTION)
   parts.push(CORE_GUIDELINES)
+  if (canRenderArtifacts) parts.push(ARTIFACTS_SECTION)
   if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
 
   for (const id of available) {

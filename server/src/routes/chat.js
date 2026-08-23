@@ -235,12 +235,16 @@ export default function chatRoute(conversationStore) {
     let unpersistedItems = null
     let runUsage = null
 
+    const publishedArtifacts = []
+
     try {
       const agent = await createAgent(sources, profile, {
         customInstructions: customInstructions ?? '',
         skills: invokedSkills,
         skillArguments: trimmedMessage,
         userId: req.user.id,
+        conversationId,
+        onArtifactPublished: artifact => publishedArtifacts.push(artifact),
       })
       const agentStart = Date.now()
 
@@ -309,6 +313,12 @@ export default function chatRoute(conversationStore) {
               }
 
               sendEvent(res, { type: 'tool_end', tool: toolName })
+
+              while (publishedArtifacts.length > 0) {
+                const artifact = publishedArtifacts.shift()
+                assistantParts.push({ type: 'artifact', ...artifact })
+                sendEvent(res, { type: 'artifact', ...artifact })
+              }
             }
           }
         }

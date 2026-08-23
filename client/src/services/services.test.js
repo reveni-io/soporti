@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   ApiError,
   absoluteApiUrl,
+  absoluteAppUrl,
   createAdminUser,
   createSchedule,
   createShare,
@@ -79,6 +80,12 @@ describe('base url', () => {
 
     import.meta.env.VITE_API_URL = 'https://api.example.com'
     expect(absoluteApiUrl('/api/webhooks/github')).toBe('https://api.example.com/api/webhooks/github')
+  })
+
+  it('builds a share link on the app origin, never on the API host', () => {
+    import.meta.env.VITE_API_URL = 'https://api.example.com'
+
+    expect(absoluteAppUrl('/a/abc')).toBe(`${window.location.origin}/a/abc`)
   })
 })
 

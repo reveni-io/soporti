@@ -52,6 +52,87 @@ describe('buildBasePrompt', () => {
     }
   })
 
+  it('omits the artifacts section when no panel can render one', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED })
+
+    expect(prompt).not.toContain('## Artifacts')
+  })
+
+  it('explains artifacts only when the tool is registered', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('## Artifacts')
+    expect(prompt).toContain('render_artifact')
+  })
+
+  it('presents documents as the primary artifact case, with interactivity optional', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('Documents are the primary case')
+    expect(prompt).toContain('Interactivity is optional')
+  })
+
+  it('tells the agent to declare charts with placeholders instead of drawing them', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('data-chart')
+    expect(prompt).toContain('never draw axes, bars or pie slices yourself')
+  })
+
+  it('tells the agent the bare markup is already typeset like a document', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('already typeset like a document')
+  })
+
+  it('hands the agent the document primitives, so a report opens like one', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('class="eyebrow"')
+    expect(prompt).toContain('class="stats"')
+    expect(prompt).toContain('stat__value')
+    expect(prompt).toContain('<figcaption>')
+    expect(prompt).toContain('class="grid-2"')
+  })
+
+  it('tells the agent artifacts export as a PDF, so a document must print well', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('export any artifact as a PDF')
+  })
+
+  it('tells the agent to reuse the identifier so a change becomes a new version', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('publish again with the same identifier')
+  })
+
+  it('keeps the inline blocks ahead of an artifact so a single chart is not sent to the panel', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('The simpler blocks win when they are enough')
+  })
+
+  it('tells the agent its page is already a sheet and to group with the card primitive', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('never paint your own page background')
+    expect(prompt).toContain('class="card"')
+  })
+
+  it('tells the agent not to set a height, since the frame sizes itself to the content', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('never set a height')
+    expect(prompt).toContain('overflow-x: auto')
+  })
+
+  it('warns that an artifact has no network access', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, canRenderArtifacts: true })
+
+    expect(prompt).toContain('sandboxed with no network access')
+  })
+
   it('tells the agent to read a window around a known line and to page when truncated', () => {
     const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED })
 
