@@ -9,6 +9,10 @@ vi.mock('zod', async () => {
   return actual
 })
 
+vi.mock('../db/artifacts.js', () => ({
+  saveArtifactVersion: vi.fn(),
+}))
+
 vi.mock('../github/client.js', () => ({
   listRepos: vi.fn(),
 }))
@@ -316,6 +320,29 @@ describe('buildAgentTools', () => {
   it('returns every tool for an unrestricted policy', () => {
     const tools = buildAgentTools({ unrestricted: true, repos: [], integrations: [] })
     expect(names(tools)).toEqual(names(allTools))
+  })
+
+  it('registers render_artifact alongside the restricted repo tools, since a panel is available either way', () => {
+    const tools = buildAgentTools(
+      { unrestricted: false, repos: ['org/app'], integrations: [] },
+      {},
+      { conversationId: 'c-1' }
+    )
+
+    expect(names(tools)).toContain('render_artifact')
+    expect(names(tools)).toContain('get_file_contents')
+  })
+
+  it('registers render_artifact for an unrestricted policy too', () => {
+    const tools = buildAgentTools({ unrestricted: true, repos: [], integrations: [] }, {}, { conversationId: 'c-1' })
+
+    expect(names(tools)).toContain('render_artifact')
+  })
+
+  it('leaves render_artifact out without a conversation, so Slack and schedules cannot publish one', () => {
+    expect(names(buildAgentTools({ unrestricted: true, repos: [], integrations: [] }, {}, {}))).not.toContain(
+      'render_artifact'
+    )
   })
 
   it('defaults to unrestricted when no policy is given', () => {

@@ -1,11 +1,10 @@
-import crypto from 'node:crypto'
 import { and, eq, gt, lte, max } from 'drizzle-orm'
 import { getDb } from './index.js'
+import { newShareId } from './share-id.js'
 import { conversations, conversationMessages, shares } from './schema.js'
 import { ownedWebConversation } from './conversations.js'
 import { toRenderMessage } from './conversation-render.js'
-
-const TTL_MS = 30 * 24 * 60 * 60 * 1000
+import { SHARE_TTL_MS } from '../constants.js'
 
 export async function createOrRefreshShare(conversationId, userId) {
   const db = getDb()
@@ -23,10 +22,10 @@ export async function createOrRefreshShare(conversationId, userId) {
     .where(eq(conversationMessages.conversationId, conversationId))
   if (cutoff == null) return { status: 'empty' }
 
-  const expiresAt = new Date(Date.now() + TTL_MS)
+  const expiresAt = new Date(Date.now() + SHARE_TTL_MS)
   const [share] = await db
     .insert(shares)
-    .values({ id: crypto.randomBytes(16).toString('hex'), conversationId, messageCutoffId: cutoff, expiresAt })
+    .values({ id: newShareId(), conversationId, messageCutoffId: cutoff, expiresAt })
     .onConflictDoUpdate({ target: shares.conversationId, set: { messageCutoffId: cutoff, expiresAt } })
     .returning({ id: shares.id })
   return { status: 'ok', shareId: share.id }

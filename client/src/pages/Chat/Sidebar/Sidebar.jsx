@@ -17,6 +17,7 @@ export default function Sidebar({
   onClearChat,
   onLogout,
   onOpenSchedules,
+  onOpenArtifacts,
   onOpenSettings,
   onLoadConversation,
   conversationsReloadKey,
@@ -72,7 +73,12 @@ export default function Sidebar({
         )}
       </div>
 
-      <SidebarFooter onOpenSchedules={onOpenSchedules} onOpenSettings={onOpenSettings} onLogout={onLogout} />
+      <SidebarFooter
+        onOpenSchedules={onOpenSchedules}
+        onOpenArtifacts={onOpenArtifacts}
+        onOpenSettings={onOpenSettings}
+        onLogout={onLogout}
+      />
     </aside>
   )
 }

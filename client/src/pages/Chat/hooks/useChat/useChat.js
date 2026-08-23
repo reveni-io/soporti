@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
 
-export function useChat(token, onAuthError) {
+export function useChat(token, onAuthError, onArtifactPublished) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [conversationKey, setConversationKey] = useState(0)
@@ -133,6 +133,20 @@ export function useChat(token, onAuthError) {
                 })
                 break
 
+              case 'artifact': {
+                const published = { artifactId: data.artifactId, title: data.title, version: data.version }
+                onArtifactPublished?.(published)
+                setMessages(prev => {
+                  const updated = [...prev]
+                  const last = updated[updated.length - 1]
+                  if (!last || last.role !== 'assistant') return prev
+
+                  updated[updated.length - 1] = { ...last, parts: [...last.parts, { type: 'artifact', ...published }] }
+                  return updated
+                })
+                break
+              }
+
               case 'feedback_id':
                 setMessages(prev => {
                   const updated = [...prev]
@@ -170,7 +184,7 @@ export function useChat(token, onAuthError) {
         abortRef.current = null
       }
     },
-    [isLoading, token, onAuthError]
+    [isLoading, token, onAuthError, onArtifactPublished]
   )
 
   const stopGeneration = useCallback(() => {

@@ -1,0 +1,52 @@
+.artifact-view {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 100vh;
+  background: var(--bg-app);
+}
+
+.artifact-view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  position: relative;
+  z-index: 1;
+  padding: var(--sp3) var(--sp5);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.artifact-view__back {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: var(--fs-lg);
+  text-decoration: none;
+}
+
+.artifact-view__title {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-view__body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--sp5);
+}
+
+.artifact-view__alert {
+  position: relative;
+  z-index: 1;
+  margin: var(--sp4) var(--sp5) 0;
+}

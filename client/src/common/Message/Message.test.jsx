@@ -122,6 +122,46 @@ describe('Message', () => {
     expect(screen.getByText('Searching code')).toBeInTheDocument()
   })
 
+  it('renders an artifact part as a card that opens the panel', async () => {
+    const onOpenArtifact = vi.fn()
+    const message = {
+      role: 'assistant',
+      parts: [
+        {
+          type: 'artifact',
+          artifactId: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601',
+          identifier: 'refund-dashboard',
+          title: 'Refund dashboard',
+          version: 2,
+        },
+      ],
+    }
+    render(<Message message={message} isStreaming={false} token="tok" onOpenArtifact={onOpenArtifact} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /refund dashboard/i }))
+
+    expect(onOpenArtifact).toHaveBeenCalledWith('3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601')
+  })
+
+  it('renders an artifact part without a button where no panel exists', () => {
+    const message = {
+      role: 'assistant',
+      parts: [
+        {
+          type: 'artifact',
+          artifactId: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601',
+          identifier: 'refund-dashboard',
+          title: 'Refund dashboard',
+          version: 2,
+        },
+      ],
+    }
+    render(<Message message={message} isStreaming={false} token="tok" />)
+
+    expect(screen.getByText('Refund dashboard')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /refund dashboard/i })).not.toBeInTheDocument()
+  })
+
   it('renders error parts', () => {
     const message = {
       role: 'assistant',

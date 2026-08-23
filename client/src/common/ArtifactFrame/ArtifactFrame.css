@@ -1,0 +1,10 @@
+.artifact-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: var(--bg-surface);
+}
+
+.artifact-frame__shell {
+  width: 100%;
+}

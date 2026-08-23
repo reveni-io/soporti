@@ -1,11 +1,12 @@
 import CopyButton from '../../CopyButton/CopyButton.jsx'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
 import ToolCall from '../../ToolCall/ToolCall.jsx'
+import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
 
 const PART_SEPARATOR = '\n\n'
 
-export default function AssistantMessage({ message, isStreaming, token }) {
+export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
   const answer = answerMarkdown(message.parts)
   const canCopy = !isStreaming && answer.length > 0
   const canRate = !isStreaming && Boolean(message.feedbackId)
@@ -14,7 +15,13 @@ export default function AssistantMessage({ message, isStreaming, token }) {
     <div className="message message--assistant">
       <div className="message__bubble message__bubble--assistant">
         {message.parts.map((part, index) => (
-          <MessagePart key={index} part={part} isStreaming={isStreaming} token={token} />
+          <MessagePart
+            key={index}
+            part={part}
+            isStreaming={isStreaming}
+            token={token}
+            onOpenArtifact={onOpenArtifact}
+          />
         ))}
 
         {message.parts.length === 0 && <TypingIndicator />}
@@ -37,9 +44,15 @@ function answerMarkdown(parts) {
     .join(PART_SEPARATOR)
 }
 
-function MessagePart({ part, isStreaming, token }) {
+function MessagePart({ part, isStreaming, token, onOpenArtifact }) {
   if (part.type === 'text') {
     return <MarkdownContent content={part.content} isStreaming={isStreaming} token={token} />
+  }
+
+  if (part.type === 'artifact') {
+    return (
+      <ArtifactCard artifactId={part.artifactId} title={part.title} version={part.version} onOpen={onOpenArtifact} />
+    )
   }
 
   if (part.type === 'tool_call') {

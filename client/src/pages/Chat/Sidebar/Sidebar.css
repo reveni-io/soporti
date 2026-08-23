@@ -357,6 +357,7 @@
 }
 
 .sidebar__schedules,
+.sidebar__artifacts,
 .sidebar__settings,
 .sidebar__logout {
   margin-top: var(--sp2);
@@ -373,6 +374,7 @@
 }
 
 .sidebar__schedules:hover,
+.sidebar__artifacts:hover,
 .sidebar__settings:hover,
 .sidebar__logout:hover {
   background-color: var(--sidebar-hover);

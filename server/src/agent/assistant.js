@@ -22,7 +22,14 @@ import * as shopify from '../shopify/client.js'
 export async function createAgent(
   selectedSources,
   profile,
-  { customInstructions = '', skills: invokedSkills = [], skillArguments = '', userId = null } = {}
+  {
+    customInstructions = '',
+    skills: invokedSkills = [],
+    skillArguments = '',
+    userId = null,
+    conversationId = null,
+    onArtifactPublished = null,
+  } = {}
 ) {
   const policy = buildSourcePolicy(selectedSources)
 
@@ -66,7 +73,13 @@ export async function createAgent(
   const userInstructions = typeof customInstructions === 'string' ? customInstructions.trim() : ''
   const skillsPrompt = buildSkillsPrompt(invokedSkills, skillArguments)
 
-  const parts = [buildBasePrompt(policy, { hasActiveSkills: Boolean(skillsPrompt), configured })]
+  const parts = [
+    buildBasePrompt(policy, {
+      hasActiveSkills: Boolean(skillsPrompt),
+      configured,
+      canRenderArtifacts: Boolean(conversationId),
+    }),
+  ]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)
   if (catalogPrompt) parts.push(catalogPrompt)
   if (userInstructions) {
@@ -79,7 +92,7 @@ export async function createAgent(
     `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
   )
 
-  const tools = buildAgentTools(policy, configured, { userId })
+  const tools = buildAgentTools(policy, configured, { userId, conversationId, onArtifactPublished })
 
   const { model, modelSettings } = await resolveModelForAgent()
 

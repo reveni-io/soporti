@@ -27,6 +27,7 @@ export default function ChatPanel({
   token,
   skills = [],
   initialQuestion = '',
+  onOpenArtifact,
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -92,6 +93,7 @@ export default function ChatPanel({
               message={message}
               isStreaming={isLoading && index === messages.length - 1}
               token={token}
+              onOpenArtifact={onOpenArtifact}
             />
           ))}
         </div>

@@ -8,10 +8,10 @@ vi.mock('recharts', () => ({
   LineChart: ({ children }) => <div data-testid="line-chart">{children}</div>,
   AreaChart: ({ children }) => <div data-testid="area-chart">{children}</div>,
   PieChart: ({ children }) => <div data-testid="pie-chart">{children}</div>,
-  Bar: () => <div data-testid="bar" />,
+  Bar: props => <div data-testid="bar" data-animation={String(props.isAnimationActive)} />,
   Line: () => <div data-testid="line" />,
   Area: () => <div data-testid="area" />,
-  Pie: () => <div data-testid="pie" />,
+  Pie: props => <div data-testid="pie" data-animation={String(props.isAnimationActive)} />,
   Cell: () => <div />,
   XAxis: () => <div />,
   YAxis: () => <div />,
@@ -21,6 +21,56 @@ vi.mock('recharts', () => ({
 }))
 
 describe('ChartBlock', () => {
+  it('animates in the chat by default', () => {
+    const config = JSON.stringify({ type: 'bar', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} />)
+
+    expect(screen.getByTestId('bar')).toHaveAttribute('data-animation', 'true')
+  })
+
+  it('draws the data statically when animation is off, so a snapshot is complete', () => {
+    const config = JSON.stringify({ type: 'bar', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} animate={false} />)
+
+    expect(screen.getByTestId('bar')).toHaveAttribute('data-animation', 'false')
+  })
+
+  it('keeps the pie static too when animation is off', () => {
+    const config = JSON.stringify({ type: 'pie', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} animate={false} />)
+
+    expect(screen.getByTestId('pie')).toHaveAttribute('data-animation', 'false')
+  })
+
+  it('renders at a fixed width without the responsive container when one is given', () => {
+    const config = JSON.stringify({ type: 'bar', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} width={500} />)
+
+    expect(screen.queryByTestId('responsive-container')).not.toBeInTheDocument()
+    expect(screen.getByTestId('bar-chart')).toBeInTheDocument()
+  })
+
+  it('renders a fixed pie without the responsive container too', () => {
+    const config = JSON.stringify({ type: 'pie', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} width={500} />)
+
+    expect(screen.queryByTestId('responsive-container')).not.toBeInTheDocument()
+    expect(screen.getByTestId('pie-chart')).toBeInTheDocument()
+  })
+
+  it('keeps the responsive container for the chat, where no width is known', () => {
+    const config = JSON.stringify({ type: 'bar', data: [{ name: 'Jan', value: 100 }] })
+
+    render(<ChartBlock data={config} />)
+
+    expect(screen.getByTestId('responsive-container')).toBeInTheDocument()
+  })
+
   it('renders bar chart', () => {
     const config = JSON.stringify({
       type: 'bar',

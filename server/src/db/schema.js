@@ -256,3 +256,47 @@ export const skills = pgTable(
   },
   table => [uniqueIndex('skills_user_name_idx').on(table.userId, table.name)]
 )
+
+export const artifacts = pgTable(
+  'artifacts',
+  {
+    id: uuid('id').primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    identifier: text('identifier').notNull(),
+    title: text('title').notNull(),
+    latestVersion: integer('latest_version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('artifacts_conversation_identifier_idx').on(table.conversationId, table.identifier)]
+)
+
+export const artifactVersions = pgTable(
+  'artifact_versions',
+  {
+    id: serial('id').primaryKey(),
+    artifactId: uuid('artifact_id')
+      .notNull()
+      .references(() => artifacts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    html: text('html').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('artifact_versions_artifact_version_idx').on(table.artifactId, table.version)]
+)
+
+export const artifactShares = pgTable(
+  'artifact_shares',
+  {
+    id: text('id').primaryKey(),
+    artifactId: uuid('artifact_id')
+      .notNull()
+      .references(() => artifacts.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  table => [uniqueIndex('artifact_shares_artifact_version_idx').on(table.artifactId, table.version)]
+)
