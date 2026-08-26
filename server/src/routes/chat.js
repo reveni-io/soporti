@@ -11,6 +11,7 @@ import { getSkillsByIds } from '../db/skills.js'
 import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
+import { createStopReasonTracker } from '../agent/stop-reason.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
 import { buildAgentInput } from '../agent/agent-input.js'
@@ -253,6 +254,7 @@ export default function chatRoute(conversationStore) {
       const toolStartTimes = new Map()
       const callIdToName = new Map()
       const toolCalls = []
+      const stopTracker = createStopReasonTracker()
       let sentContent = false
 
       async function runTurn(prevResponseId) {
@@ -261,6 +263,7 @@ export default function chatRoute(conversationStore) {
           maxTurns: config.agent.maxIterations,
           session,
           previousResponseId: prevResponseId,
+          errorHandlers: stopTracker.errorHandlers,
         })
 
         for await (const event of stream.toStream()) {
@@ -329,6 +332,13 @@ export default function chatRoute(conversationStore) {
         const usage = formatUsage(stream.state?.usage)
         if (usage) log('📊', usage)
 
+        const notice = stopTracker.notice()
+        if (notice) {
+          log('🛑', `Stopped early: ${stopTracker.stopReason()}`)
+          appendText(assistantParts, notice)
+          sendEvent(res, { type: 'text_delta', text: notice })
+        }
+
         unpersistedItems = prevResponseId ? stream.history : null
         return stream.lastResponseId
       }
@@ -387,7 +397,7 @@ export default function chatRoute(conversationStore) {
 
       await recordAgentRun({
         channel: AGENT_CHANNEL_WEB,
-        status: RUN_STATUS_OK,
+        status: stopTracker.stopReason() ? RUN_STATUS_ERROR : RUN_STATUS_OK,
         userId: req.user.id,
         usage: runUsage,
         durationMs: totalMs,

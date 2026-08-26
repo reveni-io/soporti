@@ -870,6 +870,52 @@ describe('POST /api/chat', () => {
     expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error', userId: 1 })
   })
 
+  it('keeps the partial answer and explains why it stopped when the run hits the turn limit', async () => {
+    run.mockImplementation(async (_agent, _input, options) => {
+      options.errorHandlers.maxTurns()
+      return createStreamMock([
+        { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'I checked the repo' } },
+      ])
+    })
+
+    const res = await request(app).post('/').send({ message: 'why is checkout failing?' })
+
+    const events = streamEvents(res)
+    expect(events.some(e => e.type === 'error')).toBe(false)
+    expect(events.some(e => e.type === 'text_delta' && /ran out of investigation steps/i.test(e.text))).toBe(true)
+    expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+      TEST_CONVERSATION_ID,
+      expect.objectContaining({
+        uiMessages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'assistant',
+            parts: [
+              expect.objectContaining({
+                type: 'text',
+                content: expect.stringContaining('I checked the repo'),
+              }),
+            ],
+          }),
+        ]),
+      })
+    )
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'web', status: 'error' }))
+  })
+
+  it('tells the user the model refused instead of reporting an internal error', async () => {
+    run.mockImplementation(async (_agent, _input, options) => {
+      options.errorHandlers.modelRefusal()
+      return createStreamMock([])
+    })
+
+    const res = await request(app).post('/').send({ message: 'do something forbidden' })
+
+    const events = streamEvents(res)
+    expect(events.some(e => e.type === 'error')).toBe(false)
+    expect(events.some(e => e.type === 'text_delta' && /cannot answer that/i.test(e.text))).toBe(true)
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'web', status: 'error' }))
+  })
+
   it('records a turn once when persisting it fails after the answer streamed', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     run.mockResolvedValue(

@@ -7,6 +7,7 @@ import { searchSimilarCases } from '../knowledge/client.js'
 import { upsertSlackUser, getCustomInstructions } from '../db/users.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
+import { createStopReasonTracker } from '../agent/stop-reason.js'
 import { extractUsage, formatUsage } from '../llm/usage.js'
 import { AGENT_CHANNEL_SLACK, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 
@@ -66,6 +67,7 @@ export async function processMessage({
   const startTime = Date.now()
   const toolCalls = []
   const callIdToTaskId = new Map()
+  const stopTracker = createStopReasonTracker()
   let fullText = ''
   let runUsage = null
 
@@ -85,6 +87,7 @@ export async function processMessage({
       maxTurns: config.agent.maxIterations,
       session,
       previousResponseId: prevResponseId,
+      errorHandlers: stopTracker.errorHandlers,
     })
 
     for await (const event of stream.toStream()) {
@@ -121,6 +124,13 @@ export async function processMessage({
     const usage = formatUsage(stream.state?.usage)
     if (usage) log('📊', usage)
 
+    const notice = stopTracker.notice()
+    if (notice) {
+      log('🛑', `Stopped early: ${stopTracker.stopReason()}`)
+      fullText += notice
+      await notifyProgress(onProgress, { type: 'text_delta', delta: notice })
+    }
+
     unpersistedItems = prevResponseId ? stream.history : null
     return stream.lastResponseId
   }
@@ -149,7 +159,7 @@ export async function processMessage({
 
   await recordAgentRun({
     channel: AGENT_CHANNEL_SLACK,
-    status: RUN_STATUS_OK,
+    status: stopTracker.stopReason() ? RUN_STATUS_ERROR : RUN_STATUS_OK,
     userId,
     usage: runUsage,
     durationMs,
