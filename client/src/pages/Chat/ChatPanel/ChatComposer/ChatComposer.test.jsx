@@ -93,13 +93,13 @@ describe('ChatComposer', () => {
 
   it('overlays the command prefix only when a skill is invoked', () => {
     const { container, rerender } = render(<ChatComposer {...BASE_PROPS} input="/trace-order 1024" />)
-    expect(container.querySelector('.chat__input-highlight')).toBeNull()
+    expect(container.querySelector('.composer__highlight')).toBeNull()
 
     rerender(<ChatComposer {...BASE_PROPS} input="/trace-order 1024" commandPrefix="/trace-order" />)
 
-    expect(container.querySelector('.chat__input-command').textContent).toBe('/trace-order')
-    expect(container.querySelector('.chat__input-highlight').textContent).toBe('/trace-order 1024')
-    expect(screen.getByPlaceholderText('Ask Soporti anything...')).toHaveClass('chat__input--overlaid')
+    expect(container.querySelector('.composer__command').textContent).toBe('/trace-order')
+    expect(container.querySelector('.composer__highlight').textContent).toBe('/trace-order 1024')
+    expect(screen.getByPlaceholderText('Ask Soporti anything...')).toHaveClass('composer__input--overlaid')
   })
 
   it('hands the picked files to the attachment handler', async () => {
@@ -116,7 +116,7 @@ describe('ChatComposer', () => {
   it('attaches the files dropped on the composer', () => {
     const onAttachFiles = vi.fn()
     const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
-    const area = container.querySelector('.chat__input-area')
+    const area = container.querySelector('.composer')
     const dataTransfer = fileDrag([pdfFile()])
 
     fireEvent.dragEnter(area, { dataTransfer })
@@ -139,7 +139,7 @@ describe('ChatComposer', () => {
     const { container } = render(
       <ChatComposer {...BASE_PROPS} attachments={attachments} onAttachFiles={onAttachFiles} />
     )
-    const area = container.querySelector('.chat__input-area')
+    const area = container.querySelector('.composer')
     const dataTransfer = fileDrag([pdfFile('d.pdf')])
 
     fireEvent.dragEnter(area, { dataTransfer })
@@ -152,7 +152,7 @@ describe('ChatComposer', () => {
   it('leaves a text drag to the textarea', () => {
     const onAttachFiles = vi.fn()
     const { container } = render(<ChatComposer {...BASE_PROPS} onAttachFiles={onAttachFiles} />)
-    const area = container.querySelector('.chat__input-area')
+    const area = container.querySelector('.composer')
     const dataTransfer = { types: ['text/plain'], files: [] }
 
     fireEvent.dragEnter(area, { dataTransfer })

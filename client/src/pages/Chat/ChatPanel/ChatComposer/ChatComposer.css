@@ -1,0 +1,197 @@
+.composer {
+  position: relative;
+  padding: 0 var(--sp6) var(--sp4);
+  background-color: var(--bg-app);
+}
+
+.composer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--sp8);
+  background: linear-gradient(to bottom, rgba(var(--bg-warm-rgb), 0), var(--bg-app));
+  pointer-events: none;
+}
+
+.composer__error {
+  margin-bottom: var(--sp2);
+  font-family: var(--font-body);
+}
+
+.composer__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp2);
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card-hover);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.composer__card:focus-within {
+  border-color: var(--green-bright);
+  box-shadow: var(--focus-ring), var(--shadow-card-hover);
+}
+
+.composer__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  padding: var(--sp1) var(--sp1) 0;
+  list-style: none;
+}
+
+.composer__field {
+  position: relative;
+  display: flex;
+  padding: var(--sp2) var(--sp2) var(--sp1);
+}
+
+.composer__input,
+.composer__highlight {
+  padding: 0;
+  border: none;
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 400;
+  line-height: 1.375rem;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  max-height: 200px;
+  color: var(--text-primary);
+}
+
+.composer__input--overlaid {
+  color: transparent;
+  caret-color: var(--text-primary);
+}
+
+.composer__input::placeholder {
+  color: var(--text-muted);
+}
+
+.composer__highlight {
+  position: absolute;
+  inset: var(--sp2) var(--sp2) var(--sp1);
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--text-primary);
+}
+
+.composer__command {
+  color: var(--green-chart);
+}
+
+.composer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp1);
+  min-height: 32px;
+}
+
+.composer__file-input {
+  display: none;
+}
+
+.composer__btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.composer__btn--attach {
+  background: none;
+  color: var(--text-muted);
+}
+
+.composer__btn--attach:hover:not(:disabled) {
+  background-color: var(--bg-cool);
+  color: var(--text-secondary);
+}
+
+.composer__btn--attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.composer__btn--send {
+  margin-left: auto;
+  background-color: var(--btn-primary-bg);
+  color: var(--btn-primary-color);
+}
+
+.composer__btn--send:hover:not(:disabled) {
+  background-color: var(--btn-primary-bg-hover);
+}
+
+.composer__btn--send:disabled {
+  background-color: var(--btn-primary-disabled-bg);
+  color: var(--btn-primary-disabled-color);
+  cursor: not-allowed;
+}
+
+.composer__btn--stop {
+  margin-left: auto;
+  background-color: var(--btn-danger-bg);
+  color: var(--btn-danger-color);
+}
+
+.composer__btn--stop:hover {
+  background-color: var(--btn-danger-bg-hover);
+}
+
+.composer--dropping .composer__card {
+  border-style: dashed;
+  border-color: var(--green-bright);
+  box-shadow: var(--focus-ring), var(--shadow-card-hover);
+}
+
+.composer__drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-xl);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  pointer-events: none;
+}
+
+.composer__disclaimer {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  line-height: 0.75rem;
+  color: var(--text-muted);
+  margin-top: var(--sp2);
+}
+
+@media (max-width: 768px) {
+  .composer {
+    padding: 0 var(--sp3) var(--sp3);
+  }
+}

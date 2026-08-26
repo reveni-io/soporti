@@ -1,11 +1,15 @@
 import { useRef } from 'react'
 import AttachmentChip from '../../../../common/AttachmentChip/AttachmentChip.jsx'
+import Icon from '../../../../common/Icon/Icon.jsx'
 import SkillMenu from '../SkillMenu/SkillMenu.jsx'
 import { useFileDrop } from '../../hooks/useFileDrop/useFileDrop.js'
-import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS, PAPERCLIP_GLYPH } from '../../../../constants.js'
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
+import './ChatComposer.css'
 
 const DROP_HINT = 'Drop your files to attach them'
 const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
+const DISCLAIMER = 'Soporti has read-only access to the connected tools. It does not execute code or make changes.'
+const TEXTAREA_ROWS = 2
 
 export default function ChatComposer({
   input,
@@ -50,59 +54,36 @@ export default function ChatComposer({
   }
 
   return (
-    <form
-      className={`chat__input-area${isDraggingFiles ? ' chat__input-area--dropping' : ''}`}
-      onSubmit={onSubmit}
-      {...dropProps}
-    >
-      {attachments.length > 0 && (
-        <ul className="chat__attachments">
-          {attachments.map((attachment, index) => (
-            <AttachmentChip
-              key={`${attachment.name}-${index}`}
-              attachment={attachment}
-              token={token}
-              onRemove={() => onRemoveAttachment(index)}
-            />
-          ))}
-        </ul>
-      )}
+    <form className={`composer${isDraggingFiles ? ' composer--dropping' : ''}`} onSubmit={onSubmit} {...dropProps}>
+      {attachmentError && <p className="alert alert--error composer__error">{attachmentError}</p>}
 
-      {attachmentError && <p className="alert alert--error chat__attachment-error">{attachmentError}</p>}
-
-      <div className="chat__input-wrapper">
+      <div className="composer__card">
         {menuOpen && <SkillMenu skills={matchingSkills} activeIndex={menuIndex} onSelect={onSelectSkill} />}
-        {isDraggingFiles && <p className="chat__drop-hint">{DROP_HINT}</p>}
+        {isDraggingFiles && <p className="composer__drop-hint">{DROP_HINT}</p>}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="chat__file-input"
-          accept={ATTACHMENT_ACCEPT}
-          multiple
-          aria-label="Attach files"
-          onChange={handleFilesSelected}
-        />
-        <button
-          type="button"
-          className="chat__btn chat__btn--attach"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!canAttach}
-          title={ATTACH_HINT}
-        >
-          {PAPERCLIP_GLYPH}
-        </button>
+        {attachments.length > 0 && (
+          <ul className="composer__attachments">
+            {attachments.map((attachment, index) => (
+              <AttachmentChip
+                key={`${attachment.name}-${index}`}
+                attachment={attachment}
+                token={token}
+                onRemove={() => onRemoveAttachment(index)}
+              />
+            ))}
+          </ul>
+        )}
 
-        <div className="chat__input-field">
+        <div className="composer__field">
           {commandPrefix && (
-            <div className="chat__input-highlight" ref={highlightRef} aria-hidden="true">
-              <span className="chat__input-command">{commandPrefix}</span>
+            <div className="composer__highlight" ref={highlightRef} aria-hidden="true">
+              <span className="composer__command">{commandPrefix}</span>
               {input.slice(commandPrefix.length)}
             </div>
           )}
           <textarea
             ref={textareaRef}
-            className={`chat__input${commandPrefix ? ' chat__input--overlaid' : ''}`}
+            className={`composer__input${commandPrefix ? ' composer__input--overlaid' : ''}`}
             value={input}
             onChange={onChange}
             onKeyDown={onKeyDown}
@@ -110,24 +91,57 @@ export default function ChatComposer({
             onScroll={onScroll}
             onPaste={handlePaste}
             placeholder={hasSourcesSelected ? 'Ask Soporti anything...' : 'Select a source from the sidebar first...'}
-            rows={1}
+            rows={TEXTAREA_ROWS}
             disabled={isLoading || !hasSourcesSelected}
           />
         </div>
 
-        {isLoading ? (
-          <button type="button" className="chat__btn chat__btn--stop" onClick={onStop} title="Stop">
-            &#9632;
+        <div className="composer__toolbar">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="composer__file-input"
+            accept={ATTACHMENT_ACCEPT}
+            multiple
+            aria-label="Attach files"
+            onChange={handleFilesSelected}
+          />
+          <button
+            type="button"
+            className="composer__btn composer__btn--attach"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!canAttach}
+            title={ATTACH_HINT}
+            aria-label={ATTACH_HINT}
+          >
+            <Icon name="paperclip" size={17} strokeWidth={1.7} />
           </button>
-        ) : (
-          <button type="submit" className="chat__btn chat__btn--send" disabled={!canSend} title="Send">
-            &#8593;
-          </button>
-        )}
+
+          {isLoading ? (
+            <button
+              type="button"
+              className="composer__btn composer__btn--stop"
+              onClick={onStop}
+              title="Stop"
+              aria-label="Stop"
+            >
+              <Icon name="square" size={14} strokeWidth={0} />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="composer__btn composer__btn--send"
+              disabled={!canSend}
+              title="Send"
+              aria-label="Send"
+            >
+              <Icon name="arrow-up" size={17} strokeWidth={2.2} />
+            </button>
+          )}
+        </div>
       </div>
-      <p className="chat__disclaimer">
-        Soporti has read-only access to the connected tools. It does not execute code or make changes.
-      </p>
+
+      <p className="composer__disclaimer">{DISCLAIMER}</p>
     </form>
   )
 }
