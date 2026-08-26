@@ -9,7 +9,7 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { isConfigured } from '../llm/model.js'
-import { extractUsage, formatUsage } from '../llm/usage.js'
+import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
@@ -236,6 +236,8 @@ export default function chatRoute(conversationStore) {
     let runUsage = null
 
     const publishedArtifacts = []
+    const toolCalls = []
+    const nestedUsage = []
 
     try {
       const agent = await createAgent(sources, profile, {
@@ -245,6 +247,8 @@ export default function chatRoute(conversationStore) {
         userId: req.user.id,
         conversationId,
         onArtifactPublished: artifact => publishedArtifacts.push(artifact),
+        onNestedToolCall: call => toolCalls.push(call),
+        onNestedUsage: usage => nestedUsage.push(usage),
       })
       const agentStart = Date.now()
 
@@ -252,7 +256,6 @@ export default function chatRoute(conversationStore) {
 
       const toolStartTimes = new Map()
       const callIdToName = new Map()
-      const toolCalls = []
       let sentContent = false
 
       async function runTurn(prevResponseId) {
@@ -325,7 +328,7 @@ export default function chatRoute(conversationStore) {
 
         await stream.completed
 
-        runUsage = extractUsage(stream.state?.usage)
+        runUsage = sumUsage([extractUsage(stream.state?.usage), ...nestedUsage])
         const usage = formatUsage(stream.state?.usage)
         if (usage) log('📊', usage)
 

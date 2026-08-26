@@ -1,4 +1,4 @@
-import { MAX_ATTACHMENT_CHARS, PROMPT_SECTION_SEPARATOR } from '../constants.js'
+import { MAX_ATTACHMENT_CHARS, PROMPT_SECTION_SEPARATOR, SUBAGENT_TOOL_PREFIX } from '../constants.js'
 import { carriesImage } from '../documents/attachments.js'
 import { isYoloMode, buildSourcePolicy } from './sources.js'
 import {
@@ -364,13 +364,13 @@ Read that section and decide how to respond according to it. If the skill tells 
 
 export function buildBasePrompt(
   policy = null,
-  { hasActiveSkills = false, configured = {}, canRenderArtifacts = false } = {}
+  { hasActiveSkills = false, configured = {}, canRenderArtifacts = false, hasRepoTools = true } = {}
 ) {
   const unrestricted = !policy || policy.unrestricted
   const available = resolveAvailableIntegrations(policy, configured)
 
   const parts = [CORE_INTRO]
-  if (unrestricted || policy.repos.length > 0) parts.push(EXPLORE_CODE_SECTION)
+  if (hasRepoTools && (unrestricted || policy.repos.length > 0)) parts.push(EXPLORE_CODE_SECTION)
   parts.push(CORE_GUIDELINES)
   if (canRenderArtifacts) parts.push(ARTIFACTS_SECTION)
   if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
@@ -512,6 +512,18 @@ What they do NOT override are the safety rules: stay read-only, never expose cre
 ${sections}`
 }
 
+export function buildSubagentsPrompt(subagents) {
+  if (!subagents || subagents.length === 0) return ''
+
+  const lines = subagents.map(subagent => `- \`${SUBAGENT_TOOL_PREFIX}${subagent.name}\` — ${subagent.description}`)
+
+  return `## Specialists
+
+Some capabilities are not yours: they belong to specialist agents, and asking one is the only way to reach them. Each runs on its own with its own tools and returns its findings to you. Read what each one owns, send it a self-contained request — it cannot see this conversation — and write your own answer from what comes back. Do not paste a specialist's reply verbatim and do not tell the user you delegated. When a question has two independent parts that belong to different specialists, ask both in the same turn rather than in sequence. Never claim you cannot do something a specialist owns.
+
+${lines.join('\n')}`
+}
+
 export const VALID_PROFILES = ['tech', 'support']
 export const DEFAULT_PROFILE = 'support'
 
@@ -538,7 +550,7 @@ You are talking to a support team member who is not a developer. Adapt your resp
 - When describing errors or issues, explain what the user would see and what it means in practical terms.`
 }
 
-function buildYoloInstructions(configured) {
+function buildYoloInstructions(configured, { hasRepoTools = true } = {}) {
   const labels = integrationLabels(resolveAvailableIntegrations(null, configured))
 
   const integrationLine =
@@ -546,15 +558,22 @@ function buildYoloInstructions(configured) {
       ? `- The integration tools available in this conversation are ${labels.join(', ')} — they are fair game when the question warrants them.`
       : '- No integrations are available in this conversation, so answer from the repositories alone.'
 
+  const lines = []
+  if (hasRepoTools) lines.push('- Start by calling list_repos to see what repositories are available.')
+  lines.push("- Pick only the sources you actually need to answer the question — don't query everything by default.")
+  if (hasRepoTools) {
+    lines.push(
+      '- For repository questions, narrow down to the most likely repo(s) based on the topic before calling other tools.'
+    )
+  }
+  lines.push(integrationLine)
+  lines.push('- Be efficient: prefer one or two well-targeted sources over a broad sweep.')
+
   return `## YOLO mode
 
 The user has not picked specific sources — you decide which repos and integrations to consult based on the question.
 
-- Start by calling list_repos to see what repositories are available.
-- Pick only the sources you actually need to answer the question — don't query everything by default.
-- For repository questions, narrow down to the most likely repo(s) based on the topic before calling other tools.
-${integrationLine}
-- Be efficient: prefer one or two well-targeted sources over a broad sweep.`
+${lines.join('\n')}`
 }
 
 const NO_SOURCES_NOTE = `No source is available in this conversation: no repository is selected and none of the selected integrations is configured in this app. You have no tools at all — do not answer from memory and do not claim to have checked anything. Tell the user that the sources they selected are not available and that an administrator has to configure them.`
@@ -565,7 +584,10 @@ function joinLabels(labels) {
   return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
 }
 
-function buildNoRepoNote(hasSelectedIntegrations, hasAlwaysAvailableIntegrations) {
+const DELEGATED_REPOS_NOTE = `The repository tools are not available to you in this conversation — they belong to a specialist agent. Ask that specialist for anything that needs code read, and do not answer code questions from memory or tell the user the code cannot be checked.`
+
+function buildNoRepoNote(hasSelectedIntegrations, hasAlwaysAvailableIntegrations, hasRepoTools) {
+  if (!hasRepoTools) return DELEGATED_REPOS_NOTE
   if (hasSelectedIntegrations) {
     return 'The user has not selected any repository for this conversation. Repository tools are not available; use the selected integrations below.'
   }
@@ -594,12 +616,12 @@ function buildAlwaysAvailableNote(labels) {
   return `${joinLabels(labels)} are not part of the source selection — their tools are always available, so use them when the question warrants it.`
 }
 
-export function buildSourceInstructions(selectedSources, configured = {}) {
-  if (isYoloMode(selectedSources)) return buildYoloInstructions(configured)
+export function buildSourceInstructions(selectedSources, configured = {}, { hasRepoTools = true } = {}) {
+  if (isYoloMode(selectedSources)) return buildYoloInstructions(configured, { hasRepoTools })
 
   const policy = buildSourcePolicy(selectedSources)
 
-  if (policy.unrestricted) {
+  if (policy.unrestricted && hasRepoTools) {
     return 'The user has not selected specific repos. Use list_repos first to see what is available.'
   }
 
@@ -610,13 +632,13 @@ export function buildSourceInstructions(selectedSources, configured = {}) {
 
   const parts = []
 
-  if (policy.repos.length > 0) {
+  if (hasRepoTools && policy.repos.length > 0) {
     const repoList = policy.repos.map(r => `- ${r}`).join('\n')
     parts.push(
       `The user has selected the following repositories for this conversation:\n${repoList}\nUse these repo names directly — list_repos is not available. Repository tools only accept these repos; any other repository will be rejected. Do not try to consult sources outside this selection.`
     )
   } else {
-    parts.push(buildNoRepoNote(selected.length > 0, alwaysAvailable.length > 0))
+    parts.push(buildNoRepoNote(selected.length > 0, alwaysAvailable.length > 0, hasRepoTools))
   }
 
   for (const id of selected) {

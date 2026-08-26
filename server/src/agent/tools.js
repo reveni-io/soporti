@@ -711,6 +711,18 @@ const INTEGRATION_TOOLS = {
   granola: ({ userId }) => buildGranolaTools(userId),
 }
 
+export function selectToolsByName(tools, names) {
+  const allowed = new Set(Array.isArray(names) ? names : [])
+
+  return tools.filter(candidate => allowed.has(candidate.name))
+}
+
+export function excludeToolsByName(tools, names) {
+  const claimed = new Set(Array.isArray(names) ? names : [])
+
+  return tools.filter(candidate => !claimed.has(candidate.name))
+}
+
 export function buildAgentTools(policy, configured, context = {}) {
   const integrationTools = resolveAvailableIntegrations(policy, configured).flatMap(id => {
     const entry = INTEGRATION_TOOLS[id]

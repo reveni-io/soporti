@@ -57,16 +57,18 @@ export async function executeAskSoporti({
       : [],
   ])
 
+  const toolCalls = []
+
   const agent = await createAgent(sources, profile, {
     customInstructions: customInstructions ?? '',
     skills,
     skillArguments: question,
     userId,
+    onNestedToolCall: call => toolCalls.push(call),
   })
   const agentInput = buildUserTurn(question, { similarCases, commands: skills.map(skill => skill.name) })
 
   const textParts = []
-  const toolCalls = []
   const callIdToName = new Map()
   let lastResponseId
   let unpersistedItems = null

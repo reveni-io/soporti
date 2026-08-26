@@ -6,6 +6,7 @@ import {
   buildProfileInstructions,
   buildSourceInstructions,
   buildSimilarCasesPrompt,
+  buildSubagentsPrompt,
 } from './system-prompt.js'
 import { buildSourcePolicy } from './sources.js'
 import { INTEGRATIONS } from './integrations.js'
@@ -484,5 +485,105 @@ describe('buildSourceInstructions', () => {
 
     expect(result).toContain('No integrations are available in this conversation')
     expect(result).toContain('list_repos')
+  })
+})
+
+describe('buildSubagentsPrompt', () => {
+  const SUBAGENTS = [
+    { name: 'code_investigator', description: 'Owns the codebase and Sentry.' },
+    { name: 'context_gatherer', description: 'Owns Shortcut and Notion.' },
+  ]
+
+  it('is empty when no subagent is active, so the section never appears', () => {
+    expect(buildSubagentsPrompt([])).toBe('')
+    expect(buildSubagentsPrompt(null)).toBe('')
+    expect(buildSubagentsPrompt(undefined)).toBe('')
+  })
+
+  it('lists each specialist under the tool name that reaches it', () => {
+    const prompt = buildSubagentsPrompt(SUBAGENTS)
+
+    expect(prompt).toContain('## Specialists')
+    expect(prompt).toContain('- `ask_code_investigator` — Owns the codebase and Sentry.')
+    expect(prompt).toContain('- `ask_context_gatherer` — Owns Shortcut and Notion.')
+  })
+
+  it('tells the parent the request has to be self-contained and the answer its own', () => {
+    const prompt = buildSubagentsPrompt(SUBAGENTS)
+
+    expect(prompt).toContain('it cannot see this conversation')
+    expect(prompt).toContain('Do not paste')
+    expect(prompt).toContain('do not tell the user you delegated')
+  })
+
+  it('allows two specialists to be asked in the same turn', () => {
+    expect(buildSubagentsPrompt(SUBAGENTS)).toContain('ask both in the same turn')
+  })
+
+  it('forbids claiming a capability a specialist owns is unavailable', () => {
+    expect(buildSubagentsPrompt(SUBAGENTS)).toContain('Never claim you cannot do something a specialist owns')
+  })
+})
+
+describe('the parent-effective prompt when tools are delegated', () => {
+  const REPO_POLICY = buildSourcePolicy(['org/api'])
+
+  it('keeps advertising code exploration by default, so no existing caller changes', () => {
+    expect(buildBasePrompt(REPO_POLICY)).toContain('How to explore code')
+    expect(buildBasePrompt(REPO_POLICY, { configured: {} })).toContain('How to explore code')
+  })
+
+  it('stops advertising code exploration once the repo tools are gone', () => {
+    const prompt = buildBasePrompt(REPO_POLICY, { hasRepoTools: false })
+
+    expect(prompt).not.toContain('How to explore code')
+    expect(prompt).not.toContain('search_code')
+  })
+
+  it('stops advertising code exploration in an unrestricted conversation too', () => {
+    expect(buildBasePrompt(null, { hasRepoTools: false })).not.toContain('How to explore code')
+  })
+
+  it('omits an integration section once its flag is off in the parent view', () => {
+    const configured = { sentryConfigured: true }
+
+    expect(buildBasePrompt(REPO_POLICY, { configured })).toContain(INTEGRATIONS.sentry.label)
+    expect(buildBasePrompt(REPO_POLICY, { configured: { sentryConfigured: false } })).not.toContain('get_sentry_issue')
+  })
+
+  it('lists the selected repositories by default', () => {
+    expect(buildSourceInstructions(['org/api'], {})).toContain('- org/api')
+  })
+
+  it('falls through to the no-repo note when the repo tools are delegated', () => {
+    const instructions = buildSourceInstructions(['org/api'], {}, { hasRepoTools: false })
+
+    expect(instructions).not.toContain('- org/api')
+    expect(instructions).toContain('they belong to a specialist agent')
+    expect(instructions).not.toContain('You have no tools at all')
+  })
+
+  it('stops telling an unscoped conversation to call list_repos when the tool is gone', () => {
+    expect(buildSourceInstructions([], {})).toContain('list_repos')
+    expect(buildSourceInstructions([], { notionConfigured: true }, { hasRepoTools: false })).not.toContain('list_repos')
+  })
+
+  it('drops the repository steps from YOLO mode when the repo tools are delegated', () => {
+    const kept = buildSourceInstructions(['yolo'], { sentryConfigured: true })
+    const stripped = buildSourceInstructions(['yolo'], { sentryConfigured: true }, { hasRepoTools: false })
+
+    expect(kept).toContain('Start by calling list_repos')
+    expect(stripped).not.toContain('list_repos')
+    expect(stripped).not.toContain('narrow down to the most likely repo')
+    expect(stripped).toContain('## YOLO mode')
+    expect(stripped).toContain(INTEGRATIONS.sentry.label)
+  })
+
+  it('leaves the YOLO instructions byte-for-byte unchanged when the option is omitted', () => {
+    const configured = { sentryConfigured: true, notionConfigured: true }
+
+    expect(buildSourceInstructions(['yolo'], configured, { hasRepoTools: true })).toBe(
+      buildSourceInstructions(['yolo'], configured)
+    )
   })
 })

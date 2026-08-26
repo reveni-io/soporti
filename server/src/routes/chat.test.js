@@ -239,6 +239,8 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -350,6 +352,8 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -369,6 +373,8 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -609,6 +615,8 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
@@ -690,6 +698,8 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -898,5 +908,104 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'search for auth' })
 
     expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ tools: ['search_code'] }))
+  })
+
+  function lastAgentOptions() {
+    return createAgent.mock.calls[createAgent.mock.calls.length - 1][2]
+  }
+
+  const DELEGATION_EVENT = {
+    type: 'run_item_stream_event',
+    item: { type: 'tool_call_item', rawItem: { name: 'ask_code_investigator', arguments: '{}' } },
+  }
+
+  function delegatingStream(events, onNested, { usage } = {}) {
+    return {
+      state: usage ? { usage } : undefined,
+      toStream: () => ({
+        async *[Symbol.asyncIterator]() {
+          for (const event of events) {
+            yield event
+            onNested(lastAgentOptions())
+          }
+        },
+      }),
+      completed: Promise.resolve(),
+    }
+  }
+
+  function reportsNestedToolCall() {
+    run.mockResolvedValue(
+      delegatingStream([DELEGATION_EVENT], options =>
+        options.onNestedToolCall({ name: 'search_code', arguments: '{"repo":"org/api"}' })
+      )
+    )
+  }
+
+  it('records what a specialist consulted, not only the tool that reached it', async () => {
+    reportsNestedToolCall()
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: ['ask_code_investigator', 'search_code'] })
+    )
+  })
+
+  it('names the repository a specialist read in the YOLO sources footer', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app)
+      .post('/')
+      .send({ message: 'why does it 500?', selectedSources: ['yolo'] })
+
+    expect(res.text).toContain('Sources consulted: `org/api`')
+  })
+
+  it('does not stream a step for a tool the specialist called on its own', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const started = streamEvents(res).filter(event => event.type === 'tool_start')
+    expect(started.map(event => event.tool)).toEqual(['ask_code_investigator'])
+  })
+
+  it('adds what a specialist spent to the usage of the run', async () => {
+    run.mockResolvedValue(
+      delegatingStream(
+        [DELEGATION_EVENT],
+        options =>
+          options.onNestedUsage({
+            requests: 1,
+            inputTokens: 500,
+            outputTokens: 60,
+            cachedInputTokens: 0,
+            cacheWriteTokens: 20,
+          }),
+        {
+          usage: {
+            requests: 2,
+            inputTokens: 12_000,
+            outputTokens: 400,
+            inputTokensDetails: [{ cached_tokens: 9000, cache_write_tokens: 100 }],
+          },
+        }
+      )
+    )
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          requests: 3,
+          inputTokens: 12_500,
+          outputTokens: 460,
+          cachedInputTokens: 9000,
+          cacheWriteTokens: 120,
+        },
+      })
+    )
   })
 })

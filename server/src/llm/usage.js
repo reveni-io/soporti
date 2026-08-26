@@ -19,6 +19,19 @@ export function extractUsage(usage) {
   }
 }
 
+export function sumUsage(usages) {
+  const present = (usages ?? []).filter(Boolean)
+  if (present.length === 0) return null
+
+  return present.reduce((total, usage) => ({
+    requests: total.requests + usage.requests,
+    inputTokens: total.inputTokens + usage.inputTokens,
+    outputTokens: total.outputTokens + usage.outputTokens,
+    cachedInputTokens: total.cachedInputTokens + usage.cachedInputTokens,
+    cacheWriteTokens: total.cacheWriteTokens + usage.cacheWriteTokens,
+  }))
+}
+
 export function formatUsage(usage) {
   const extracted = extractUsage(usage)
   if (!extracted) return null

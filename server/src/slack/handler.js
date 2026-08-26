@@ -7,7 +7,7 @@ import { searchSimilarCases } from '../knowledge/client.js'
 import { upsertSlackUser, getCustomInstructions } from '../db/users.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
-import { extractUsage, formatUsage } from '../llm/usage.js'
+import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
 import { AGENT_CHANNEL_SLACK, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 
 function log(icon, ...args) {
@@ -61,10 +61,17 @@ export async function processMessage({
     log('🧭', `Custom instructions applied (${customInstructions.length} chars)`)
   }
 
-  const agent = await createAgent(selectedSources, profile, { customInstructions, userId })
+  const toolCalls = []
+  const nestedUsage = []
+
+  const agent = await createAgent(selectedSources, profile, {
+    customInstructions,
+    userId,
+    onNestedToolCall: call => toolCalls.push(call),
+    onNestedUsage: usage => nestedUsage.push(usage),
+  })
   const agentInput = buildUserTurn(message, { similarCases })
   const startTime = Date.now()
-  const toolCalls = []
   const callIdToTaskId = new Map()
   let fullText = ''
   let runUsage = null
@@ -77,6 +84,7 @@ export async function processMessage({
   async function runTurn(prevResponseId) {
     fullText = ''
     toolCalls.length = 0
+    nestedUsage.length = 0
     callIdToTaskId.clear()
     sentText = false
 
@@ -117,7 +125,7 @@ export async function processMessage({
 
     await stream.completed
 
-    runUsage = extractUsage(stream.state?.usage)
+    runUsage = sumUsage([extractUsage(stream.state?.usage), ...nestedUsage])
     const usage = formatUsage(stream.state?.usage)
     if (usage) log('📊', usage)
 
