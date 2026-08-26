@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   jsonb,
+  boolean,
   uuid,
   index,
   uniqueIndex,
@@ -255,6 +256,24 @@ export const skills = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   table => [uniqueIndex('skills_user_name_idx').on(table.userId, table.name)]
+)
+
+export const subagents = pgTable(
+  'subagents',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    instructions: text('instructions').notNull(),
+    provider: text('provider'),
+    model: text('model'),
+    tools: jsonb('tools').notNull().default([]),
+    exclusive: boolean('exclusive').notNull().default(false),
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('subagents_name_idx').on(table.name)]
 )
 
 export const artifacts = pgTable(
