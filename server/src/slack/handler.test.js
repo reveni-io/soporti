@@ -204,6 +204,32 @@ describe('processMessage', () => {
     expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'slack', status: 'error', userId: null })
   })
 
+  it('appends why it stopped to the answer when the run hits the turn limit', async () => {
+    const progress = []
+    run.mockImplementation(async (_agent, _input, options) => {
+      options.errorHandlers.maxTurns()
+      return createStreamMock([
+        { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'I checked the logs' } },
+      ])
+    })
+
+    const result = await processMessage({
+      message: 'why is checkout failing?',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+      onProgress: event => progress.push(event),
+    })
+
+    expect(result.text).toContain('I checked the logs')
+    expect(result.text).toMatch(/ran out of investigation steps/i)
+    expect(progress.filter(e => e.type === 'text_delta').map(e => e.delta)).toEqual([
+      'I checked the logs',
+      expect.stringMatching(/ran out of investigation steps/i),
+    ])
+    expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', status: 'error' }))
+  })
+
   it('attributes the run to the Slack user behind the message', async () => {
     run.mockResolvedValue(createStreamMock([]))
 
