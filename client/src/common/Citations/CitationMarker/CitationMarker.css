@@ -1,0 +1,54 @@
+.citation-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.938rem;
+  margin-left: var(--sp1);
+  padding: 0 var(--sp1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-cool);
+  vertical-align: super;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--text-secondary);
+  animation: citationMarkerIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+@keyframes citationMarkerIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.citation-marker:hover {
+  border-color: rgba(var(--green-chart-rgb), 0.5);
+  background-color: rgba(var(--green-chart-rgb), 0.12);
+  color: var(--green-chart);
+  transform: translateY(-1px);
+}
+
+.citation-marker:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citation-marker {
+    animation: none;
+    transition: none;
+  }
+}

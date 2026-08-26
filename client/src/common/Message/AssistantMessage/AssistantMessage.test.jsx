@@ -150,4 +150,46 @@ describe('AssistantMessage', () => {
 
     expect(screen.queryByRole('button', { name: 'Copy answer' })).not.toBeInTheDocument()
   })
+
+  it('lists the sources cited in the answer', () => {
+    const message = {
+      parts: [
+        { type: 'text', content: 'The refund window is 30 days, see [the policy](https://notion.so/refunds).' },
+        { type: 'text', content: 'It is enforced in [refunds.js](https://github.com/org/app/blob/main/refunds.js).' },
+      ],
+    }
+    render(<AssistantMessage message={message} isStreaming={false} />)
+
+    expect(screen.getByRole('button', { name: /sources/i }).textContent).toContain('2')
+    expect(screen.getByRole('link', { name: 'the policy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Source 2: github.com' })).toBeInTheDocument()
+  })
+
+  it('opens the sources on the row of the clicked marker', async () => {
+    const message = {
+      parts: [
+        {
+          type: 'text',
+          content: 'See [the policy](https://notion.so/refunds) and [the issue](https://sentry.io/issues/1).',
+        },
+      ],
+    }
+    render(<AssistantMessage message={message} isStreaming={false} />)
+    expect(screen.getByRole('button', { name: /sources/i })).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Source 2: sentry.io' }))
+
+    expect(screen.getByRole('button', { name: /sources/i })).toHaveAttribute('aria-expanded', 'true')
+    const rows = screen.getAllByRole('listitem')
+    expect(rows[1]).toHaveAttribute('aria-current', 'true')
+    expect(rows[0]).not.toHaveAttribute('aria-current')
+  })
+
+  it('shows no sources for an answer without links', () => {
+    render(
+      <AssistantMessage message={{ parts: [{ type: 'text', content: 'No sources here.' }] }} isStreaming={false} />
+    )
+
+    expect(screen.queryByRole('button', { name: /sources/i })).not.toBeInTheDocument()
+  })
 })

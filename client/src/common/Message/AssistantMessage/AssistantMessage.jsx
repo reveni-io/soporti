@@ -2,7 +2,9 @@ import CopyButton from '../../CopyButton/CopyButton.jsx'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
 import AgentSteps from '../../AgentSteps/AgentSteps.jsx'
 import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
+import Citations from '../../Citations/Citations.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
+import { useCitations } from '../../../hooks/useCitations/useCitations.js'
 import { groupParts } from './group-parts.js'
 
 const PART_SEPARATOR = '\n\n'
@@ -10,6 +12,7 @@ const PART_SEPARATOR = '\n\n'
 export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
   const groups = groupParts(message.parts)
   const answer = answerMarkdown(message.parts)
+  const { citations, isOpen, selectedUrl, select, toggle } = useCitations(answer)
   const canCopy = !isStreaming && answer.length > 0
   const canRate = !isStreaming && Boolean(message.feedbackId)
 
@@ -24,10 +27,16 @@ export default function AssistantMessage({ message, isStreaming, token, onOpenAr
             isActive={isStreaming && index === groups.length - 1}
             token={token}
             onOpenArtifact={onOpenArtifact}
+            citations={citations}
+            onSelectCitation={select}
           />
         ))}
 
         {message.parts.length === 0 && <TypingIndicator />}
+
+        {citations.length > 0 && (
+          <Citations citations={citations} isOpen={isOpen} selectedUrl={selectedUrl} onToggle={toggle} />
+        )}
 
         {(canCopy || canRate) && (
           <div className="message__actions">
@@ -47,9 +56,17 @@ function answerMarkdown(parts) {
     .join(PART_SEPARATOR)
 }
 
-function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact }) {
+function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citations, onSelectCitation }) {
   if (part.type === 'text') {
-    return <MarkdownContent content={part.content} isStreaming={isStreaming} token={token} />
+    return (
+      <MarkdownContent
+        content={part.content}
+        isStreaming={isStreaming}
+        token={token}
+        citations={citations}
+        onSelectCitation={onSelectCitation}
+      />
+    )
   }
 
   if (part.type === 'artifact') {
