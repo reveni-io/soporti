@@ -31,6 +31,7 @@ export const MAX_SKILLS_PER_REQUEST = 10
 
 export const MAX_ACTIVE_SUBAGENTS = 8
 export const MAX_SUBAGENT_NAME_LENGTH = 40
+export const MAX_SUBAGENT_DESCRIPTION_LENGTH = 1000
 export const MAX_SUBAGENT_TOOLS = 40
 export const SUBAGENT_MAX_TURNS = 12
 export const SUBAGENT_NAME_RE = /^[a-z][a-z0-9_]{1,39}$/

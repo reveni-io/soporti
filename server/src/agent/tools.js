@@ -697,6 +697,8 @@ export const allTools = [
   gitBlameTool,
 ]
 
+export const REPO_TOOL_NAMES = new Set(allTools.map(candidate => candidate.name))
+
 const INTEGRATION_TOOLS = {
   shortcut: SHORTCUT_TOOLS,
   notion: NOTION_TOOLS,
