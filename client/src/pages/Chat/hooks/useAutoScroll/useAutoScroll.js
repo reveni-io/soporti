@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const PIN_THRESHOLD_PX = 64
 
@@ -7,6 +7,7 @@ export function useAutoScroll(conversationKey) {
   const contentRef = useRef(null)
   const isPinnedRef = useRef(true)
   const frameRef = useRef(0)
+  const [isFollowing, setIsFollowing] = useState(true)
 
   const scrollToBottom = useCallback(() => {
     const container = scrollRef.current
@@ -22,6 +23,7 @@ export function useAutoScroll(conversationKey) {
 
   const pinToBottom = useCallback(() => {
     isPinnedRef.current = true
+    setIsFollowing(true)
     scrollToBottom()
   }, [scrollToBottom])
 
@@ -32,7 +34,10 @@ export function useAutoScroll(conversationKey) {
 
     function handleScroll() {
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-      isPinnedRef.current = distanceFromBottom <= PIN_THRESHOLD_PX
+      const pinned = distanceFromBottom <= PIN_THRESHOLD_PX
+
+      isPinnedRef.current = pinned
+      setIsFollowing(pinned)
     }
 
     function handleResize() {
@@ -55,5 +60,5 @@ export function useAutoScroll(conversationKey) {
     pinToBottom()
   }, [conversationKey, pinToBottom])
 
-  return { scrollRef, contentRef, pinToBottom }
+  return { scrollRef, contentRef, pinToBottom, isFollowing }
 }

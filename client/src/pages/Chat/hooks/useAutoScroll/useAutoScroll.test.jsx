@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { useAutoScroll } from './useAutoScroll.js'
 
 function StreamingList({ lines, conversationKey = 0 }) {
-  const { scrollRef, contentRef, pinToBottom } = useAutoScroll(conversationKey)
+  const { scrollRef, contentRef, pinToBottom, isFollowing } = useAutoScroll(conversationKey)
 
   return (
     <div>
@@ -15,6 +15,7 @@ function StreamingList({ lines, conversationKey = 0 }) {
           ))}
         </div>
       </div>
+      <p data-testid="following">{String(isFollowing)}</p>
       <button onClick={pinToBottom}>send</button>
     </div>
   )
@@ -176,6 +177,51 @@ describe('useAutoScroll', () => {
     flushFrames()
 
     expect(tracker.scrollTop).toBe(1000)
+  })
+
+  it('reports that it is following the live edge before the user touches the scrollbar', () => {
+    render(<StreamingList lines={['first']} />)
+
+    expect(screen.getByTestId('following')).toHaveTextContent('true')
+  })
+
+  it('reports that it stopped following once the user scrolls up', () => {
+    render(<StreamingList lines={['first']} />)
+    const viewport = screen.getByTestId('viewport')
+    const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
+
+    tracker.scrollTop = 200
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByTestId('following')).toHaveTextContent('false')
+  })
+
+  it('reports that it follows again once the user scrolls back close to the bottom', () => {
+    render(<StreamingList lines={['first']} />)
+    const viewport = screen.getByTestId('viewport')
+    const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
+
+    tracker.scrollTop = 200
+    fireEvent.scroll(viewport)
+    tracker.scrollTop = 660
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByTestId('following')).toHaveTextContent('true')
+  })
+
+  it('reports that it follows again as soon as the reader is pinned back to the bottom', async () => {
+    const user = userEvent.setup()
+    render(<StreamingList lines={['first']} />)
+    const viewport = screen.getByTestId('viewport')
+    const tracker = trackScrolling(viewport, { scrollHeight: 1000, clientHeight: 300 })
+
+    tracker.scrollTop = 0
+    fireEvent.scroll(viewport)
+    expect(screen.getByTestId('following')).toHaveTextContent('false')
+
+    await user.click(screen.getByRole('button', { name: /send/i }))
+
+    expect(screen.getByTestId('following')).toHaveTextContent('true')
   })
 
   it('does not scroll after unmounting with a frame still pending', () => {

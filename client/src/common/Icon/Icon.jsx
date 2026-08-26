@@ -100,6 +100,12 @@ const ICON_SHAPES = {
       <polyline points="5 12 12 5 19 12" />
     </>
   ),
+  'arrow-down': (
+    <>
+      <line x1="12" y1="5" x2="12" y2="20" />
+      <polyline points="5 13 12 20 19 13" />
+    </>
+  ),
   square: <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />,
   artifact: (
     <>

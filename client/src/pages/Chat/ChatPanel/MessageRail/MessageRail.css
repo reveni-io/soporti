@@ -1,0 +1,103 @@
+.rail {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: var(--sp4) var(--sp3) var(--sp4) 0;
+}
+
+.rail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+}
+
+.rail__btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: var(--sp8);
+  padding: 3px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.rail__tick {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background-color: var(--text-muted);
+  opacity: var(--rail-tick-opacity);
+  transform: scaleX(var(--rail-tick-scale));
+  transform-origin: right center;
+  transition: transform 0.45s cubic-bezier(0.22, 1.2, 0.36, 1), opacity 0.3s ease, background-color 0.2s ease;
+}
+
+.rail__btn--user .rail__tick {
+  background-color: var(--text-secondary);
+}
+
+.rail__btn--active .rail__tick {
+  background-color: var(--text-primary);
+}
+
+.rail__btn:hover .rail__tick {
+  background-color: var(--text-primary);
+  opacity: 1;
+}
+
+.rail__btn:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--focus-ring);
+}
+
+.rail__btn:focus-visible .rail__tick {
+  background-color: var(--text-primary);
+  opacity: 1;
+}
+
+.rail__preview {
+  position: absolute;
+  right: calc(100% + var(--sp2));
+  top: 50%;
+  width: 15rem;
+  transform: translateY(-50%);
+  padding: var(--sp2) var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-card-hover);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1rem;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.rail__preview:empty {
+  display: none;
+}
+
+.rail__btn:hover .rail__preview,
+.rail__btn:focus-visible .rail__preview {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail__tick {
+    transition: opacity 0.3s ease, background-color 0.2s ease;
+  }
+}
+
+@media (max-width: 768px) {
+  .rail {
+    display: none;
+  }
+}
