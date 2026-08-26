@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { isConfigured } from '../llm/model.js'
 import { VALID_PROFILES } from '../agent/system-prompt.js'
 import { listSkills } from '../db/skills.js'
-import { MAX_SOURCES, MAX_SOURCE_LENGTH, MAX_SKILLS_PER_REQUEST } from '../constants.js'
+import { MAX_SOURCES, MAX_SOURCE_LENGTH, MAX_SKILLS_PER_REQUEST, MCP_JOB_DONE, MCP_JOB_FAILED } from '../constants.js'
 import { appendFollowUpHint, executeAskSoporti, resolveScopedSources } from './ask-soporti.js'
 import { executeListSources } from './list-sources.js'
 
@@ -12,13 +12,16 @@ const MAX_QUESTION_LENGTH = 10_000
 const PROGRESS_HEARTBEAT_MS = 15_000
 const NOT_CONFIGURED_ERROR = 'The assistant is not configured. Ask an admin to set the API key and model in /admin.'
 const ANSWER_FAILED_ERROR = 'An internal error occurred while answering the question.'
+const RUN_NOT_FOUND_ERROR = 'Run not found. It may have finished long ago or been started by someone else.'
+const TOO_MANY_RUNS_ERROR = 'Too many questions are already being investigated. Collect them with get_answer first.'
 
 const ASK_SOPORTI_CONFIG = {
   title: 'Ask Soporti',
   description:
     'Ask Soporti, the support engineering assistant, a question. It investigates across the configured sources ' +
     '(GitHub repos, Notion, Sentry, logs, the customer database...) and answers with a synthesis plus the sources ' +
-    'it consulted. Long questions can take minutes; progress notifications are streamed while it works. The answer ' +
+    'it consulted. Long questions can take minutes: the call waits for a while and, if the investigation is still ' +
+    'going, returns a runId instead of the answer — call get_answer with it until the answer arrives. The answer ' +
     'ends with the conversationId of the thread it opened, so pass that to follow_up to keep asking about it.',
   inputSchema: {
     question: z.string().min(1).max(MAX_QUESTION_LENGTH).describe('The question to investigate and answer.'),
@@ -50,10 +53,24 @@ const FOLLOW_UP_CONFIG = {
     'Continue a Soporti thread with a follow-up question, so the assistant keeps everything it already ' +
     'investigated instead of starting over. Pass the conversationId that ask_soporti returned. The skills of the ' +
     'thread stay applied, but the follow-up may consult any source the API key allows, not only the ones the first ' +
-    'question was restricted to.',
+    'question was restricted to. Like ask_soporti, a long investigation comes back as a runId to collect with ' +
+    'get_answer.',
   inputSchema: {
     conversationId: z.uuid().describe('The conversationId of the thread to continue, as returned by ask_soporti.'),
     message: z.string().min(1).max(MAX_QUESTION_LENGTH).describe('The follow-up message for the assistant.'),
+  },
+  annotations: { readOnlyHint: true },
+}
+
+const GET_ANSWER_CONFIG = {
+  title: 'Get the answer of a running investigation',
+  description:
+    'Collect the answer of an ask_soporti or follow_up call that came back still running. Pass the runId it ' +
+    'returned. The call waits for a while and returns either the answer or the step the investigation is on; keep ' +
+    'calling it with the same runId until the answer arrives. The investigation keeps running on the server ' +
+    'between calls, so nothing is lost and nothing is restarted.',
+  inputSchema: {
+    runId: z.uuid().describe('The runId returned by ask_soporti or follow_up.'),
   },
   annotations: { readOnlyHint: true },
 }
@@ -110,6 +127,21 @@ function jsonResult(payload) {
   return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: payload }
 }
 
+function runningResult(runId, progress) {
+  const step = progress ? ` Last step: ${progress}.` : ''
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text:
+          `Soporti is still investigating.${step} Call get_answer with runId "${runId}" to keep waiting, and keep ` +
+          'calling it until it returns the answer.',
+      },
+    ],
+  }
+}
+
 function startProgress(ctx) {
   const progressToken = ctx.mcpReq._meta?.progressToken
 
@@ -143,51 +175,74 @@ function startProgress(ctx) {
   return { report: send, stop: () => clearInterval(heartbeat) }
 }
 
-export function createSoportiMcpServer({ user, apiKey, conversationStore } = {}) {
+export function createSoportiMcpServer({ user, apiKey, conversationStore, jobs } = {}) {
   const server = new McpServer(SERVER_INFO)
+  const runOwner = `${user.id}:${apiKey?.id ?? ''}`
 
-  async function answerTurn(ctx, { question, sources, profile, openThread }) {
-    const progress = startProgress(ctx)
+  async function answerTurn({ thread, question, sources, profile, signal, report }) {
+    const { conversation, skillIds } = thread
 
+    const { answer, lastResponseId, unpersistedItems, skills } = await executeAskSoporti({
+      question,
+      sources,
+      profile,
+      skillIds,
+      userId: user.id,
+      conversation,
+      onProgress: report,
+      signal,
+    })
+
+    await conversationStore.saveTurn(conversation.conversationId, {
+      lastResponseId,
+      session: conversation.session,
+      unpersistedItems,
+      uiMessages: [
+        {
+          role: 'user',
+          parts: [
+            ...skills.map(skill => ({ type: 'skill', skillId: skill.id, name: skill.name })),
+            { type: 'text', content: question },
+          ],
+        },
+        { role: 'assistant', parts: [{ type: 'text', content: answer }] },
+      ],
+    })
+
+    return appendFollowUpHint(answer, conversation.conversationId)
+  }
+
+  async function collectRun(runId, progress) {
     try {
-      const thread = await openThread()
-      if (!thread) return errorResult('Conversation not found.')
+      const run = await jobs.wait(runId, runOwner, progress.report)
+      if (!run) return errorResult(RUN_NOT_FOUND_ERROR)
 
-      const { conversation, skillIds } = thread
-      const { answer, lastResponseId, unpersistedItems, skills } = await executeAskSoporti({
-        question,
-        sources,
-        profile,
-        skillIds,
-        userId: user.id,
-        conversation,
-        onProgress: progress.report,
-        signal: ctx.mcpReq.signal,
-      })
+      if (run.status === MCP_JOB_FAILED) {
+        console.error('Failed to answer an MCP question:', run.error)
+        return errorResult(ANSWER_FAILED_ERROR)
+      }
 
-      await conversationStore.saveTurn(conversation.conversationId, {
-        lastResponseId,
-        session: conversation.session,
-        unpersistedItems,
-        uiMessages: [
-          {
-            role: 'user',
-            parts: [
-              ...skills.map(skill => ({ type: 'skill', skillId: skill.id, name: skill.name })),
-              { type: 'text', content: question },
-            ],
-          },
-          { role: 'assistant', parts: [{ type: 'text', content: answer }] },
-        ],
-      })
+      if (run.status === MCP_JOB_DONE) return { content: [{ type: 'text', text: run.answer }] }
 
-      return { content: [{ type: 'text', text: appendFollowUpHint(answer, conversation.conversationId) }] }
-    } catch (err) {
-      console.error('Failed to answer an MCP question:', err)
-      return errorResult(ANSWER_FAILED_ERROR)
+      return runningResult(runId, run.progress)
     } finally {
       progress.stop()
     }
+  }
+
+  async function startRun(ctx, turn) {
+    const progress = startProgress(ctx)
+
+    let runId
+    try {
+      runId = jobs.start(runOwner, (signal, report) => answerTurn({ ...turn, signal, report }), progress.report)
+    } catch (err) {
+      progress.stop()
+      console.error('Failed to start an MCP question.')
+      return errorResult(TOO_MANY_RUNS_ERROR)
+    }
+
+    return collectRun(runId, progress)
   }
 
   server.registerTool('ask_soporti', ASK_SOPORTI_CONFIG, async (args, ctx) => {
@@ -199,11 +254,15 @@ export function createSoportiMcpServer({ user, apiKey, conversationStore } = {})
     const { sources, denied } = resolveScopedSources(args.sources, apiKey?.sources)
     if (denied) return errorResult(`Sources not allowed for this API key: ${denied.join(', ')}.`)
 
-    async function openThread() {
-      return { conversation: await conversationStore.resolveWeb(null, user.id), skillIds: args.skillIds ?? [] }
-    }
+    try {
+      const conversation = await conversationStore.resolveWeb(null, user.id)
+      const thread = { conversation, skillIds: args.skillIds ?? [] }
 
-    return answerTurn(ctx, { question, sources, profile: args.profile, openThread })
+      return await startRun(ctx, { thread, question, sources, profile: args.profile })
+    } catch (err) {
+      console.error('Failed to answer an MCP question:', err)
+      return errorResult(ANSWER_FAILED_ERROR)
+    }
   })
 
   server.registerTool('follow_up', FOLLOW_UP_CONFIG, async (args, ctx) => {
@@ -214,14 +273,26 @@ export function createSoportiMcpServer({ user, apiKey, conversationStore } = {})
 
     const { sources } = resolveScopedSources(undefined, apiKey?.sources)
 
-    async function openThread() {
+    try {
       const conversation = await conversationStore.resolveExistingWeb(args.conversationId, user.id)
-      if (!conversation) return null
+      if (!conversation) return errorResult('Conversation not found.')
 
-      return { conversation, skillIds: await conversationStore.getInvokedSkillIds(conversation.conversationId) }
+      const skillIds = await conversationStore.getInvokedSkillIds(conversation.conversationId)
+
+      return await startRun(ctx, { thread: { conversation, skillIds }, question: message, sources })
+    } catch (err) {
+      console.error('Failed to answer an MCP question:', err)
+      return errorResult(ANSWER_FAILED_ERROR)
     }
+  })
 
-    return answerTurn(ctx, { question: message, sources, openThread })
+  server.registerTool('get_answer', GET_ANSWER_CONFIG, async (args, ctx) => {
+    try {
+      return await collectRun(args.runId, startProgress(ctx))
+    } catch (err) {
+      console.error('Failed to collect an MCP answer:', err)
+      return errorResult(ANSWER_FAILED_ERROR)
+    }
   })
 
   server.registerTool('list_sources', LIST_SOURCES_CONFIG, async () => {

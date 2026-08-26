@@ -2,6 +2,7 @@ import { Readable, pipeline } from 'node:stream'
 import { Router } from 'express'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import { createSoportiMcpServer } from './server.js'
+import { McpJobStore } from './jobs.js'
 
 const KEEP_ALIVE_MS = 15_000
 const SSE_CONTENT_TYPE = 'text/event-stream'
@@ -30,8 +31,8 @@ function toAuthInfo(req) {
   }
 }
 
-export default function mcpRoute(conversationStore) {
-  const handler = createMcpHandler(ctx => createSoportiMcpServer({ ...ctx.authInfo?.extra, conversationStore }), {
+export default function mcpRoute(conversationStore, jobs = new McpJobStore()) {
+  const handler = createMcpHandler(ctx => createSoportiMcpServer({ ...ctx.authInfo?.extra, conversationStore, jobs }), {
     legacy: 'stateless',
     responseMode: 'sse',
     keepAliveMs: KEEP_ALIVE_MS,

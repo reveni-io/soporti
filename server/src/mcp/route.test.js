@@ -8,6 +8,7 @@ vi.mock('./server.js', () => ({ createSoportiMcpServer: vi.fn(() => 'mcp-server-
 const { createMcpHandler } = await import('@modelcontextprotocol/server')
 const { createSoportiMcpServer } = await import('./server.js')
 const { default: mcpRoute } = await import('./route.js')
+const { McpJobStore } = await import('./jobs.js')
 
 const USER = { id: 7, email: 'jose@reveni.io', name: 'Jose', role: 'user' }
 const CONVERSATION_STORE = { resolveWeb: vi.fn(), saveTurn: vi.fn() }
@@ -36,7 +37,9 @@ beforeEach(() => {
 
 describe('mcpRoute', () => {
   it('creates a stateless dual-era handler that streams responses', () => {
-    mcpRoute(CONVERSATION_STORE)
+    const jobs = new McpJobStore()
+
+    mcpRoute(CONVERSATION_STORE, jobs)
 
     const [factory, options] = createMcpHandler.mock.calls[0]
     expect(options).toMatchObject({ legacy: 'stateless', responseMode: 'sse', keepAliveMs: 15_000 })
@@ -47,6 +50,7 @@ describe('mcpRoute', () => {
       user: USER,
       apiKey: undefined,
       conversationStore: CONVERSATION_STORE,
+      jobs,
     })
   })
 
