@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatPanel from './ChatPanel.jsx'
@@ -52,6 +52,10 @@ describe('ChatPanel', () => {
     vi.restoreAllMocks()
     localStorage.setItem('soportiTourSeen', '1')
     mockApi()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('renders empty state when no messages', () => {
@@ -545,6 +549,113 @@ describe('ChatPanel', () => {
       )
 
       await waitFor(() => expect(viewport.scrollTop).toBe(1000))
+    })
+
+    it('offers no way back to the latest message while the reader is at the live edge', () => {
+      render(<ChatPanel {...defaultProps} messages={[{ role: 'user', content: 'first' }]} />)
+
+      expect(screen.queryByRole('button', { name: /jump to latest/i })).not.toBeInTheDocument()
+    })
+
+    it('offers a way back to the latest message once the reader scrolls up', () => {
+      const { container } = render(<ChatPanel {...defaultProps} messages={[{ role: 'user', content: 'first' }]} />)
+
+      const viewport = container.querySelector('.chat__messages')
+      stubViewportMetrics(viewport)
+      viewport.scrollTop = 0
+      fireEvent.scroll(viewport)
+
+      expect(screen.getByRole('button', { name: /jump to latest/i })).toBeInTheDocument()
+    })
+
+    it('returns to the live edge and hides the control when the reader jumps to the latest message', async () => {
+      const user = userEvent.setup()
+      const { container } = render(<ChatPanel {...defaultProps} messages={[{ role: 'user', content: 'first' }]} />)
+
+      const viewport = container.querySelector('.chat__messages')
+      stubViewportMetrics(viewport)
+      viewport.scrollTop = 0
+      fireEvent.scroll(viewport)
+      await user.click(screen.getByRole('button', { name: /jump to latest/i }))
+
+      await waitFor(() => expect(viewport.scrollTop).toBe(1000))
+      expect(screen.queryByRole('button', { name: /jump to latest/i })).not.toBeInTheDocument()
+    })
+
+    it('keeps the control hidden in an empty conversation', () => {
+      const { container } = render(<ChatPanel {...defaultProps} messages={[]} />)
+
+      const viewport = container.querySelector('.chat__messages')
+      stubViewportMetrics(viewport)
+      viewport.scrollTop = 0
+      fireEvent.scroll(viewport)
+
+      expect(screen.queryByRole('button', { name: /jump to latest/i })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('message rail', () => {
+    let resizeObservers
+
+    beforeEach(() => {
+      resizeObservers = []
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback) {
+            this.callback = callback
+            this.observe = vi.fn()
+            this.disconnect = vi.fn()
+            resizeObservers.push(this)
+          }
+        }
+      )
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function overflowViewport(container) {
+      const viewport = container.querySelector('.chat__messages')
+      Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => 2000 })
+      Object.defineProperty(viewport, 'clientHeight', { configurable: true, get: () => 400 })
+
+      act(() => resizeObservers.forEach(observer => observer.callback([])))
+    }
+
+    const MESSAGES = [
+      { role: 'user', content: 'How do refunds work?' },
+      { role: 'assistant', parts: [{ type: 'text', content: 'Within 14 days.' }] },
+    ]
+
+    it('hides the rail while the transcript fits in the viewport', () => {
+      render(<ChatPanel {...defaultProps} messages={MESSAGES} />)
+
+      expect(screen.queryByRole('navigation', { name: /conversation messages/i })).not.toBeInTheDocument()
+    })
+
+    it('shows one rail control per message once the transcript overflows', () => {
+      const { container } = render(<ChatPanel {...defaultProps} messages={MESSAGES} />)
+
+      overflowViewport(container)
+
+      const rail = screen.getByRole('navigation', { name: /conversation messages/i })
+      expect(within(rail).getByRole('button', { name: 'Question 1: How do refunds work?' })).toBeInTheDocument()
+      expect(within(rail).getByRole('button', { name: 'Answer 2: Within 14 days.' })).toBeInTheDocument()
+    })
+
+    it('scrolls to the picked message when a rail control is used', async () => {
+      const user = userEvent.setup()
+      const { container } = render(<ChatPanel {...defaultProps} messages={MESSAGES} />)
+      Element.prototype.scrollIntoView.mockClear()
+
+      overflowViewport(container)
+      const rail = screen.getByRole('navigation', { name: /conversation messages/i })
+      await user.click(within(rail).getByRole('button', { name: 'Question 1: How do refunds work?' }))
+
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     })
   })
 })

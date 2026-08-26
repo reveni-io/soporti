@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from '../../../common/Icon/Icon.jsx'
 import Message from '../../../common/Message/Message.jsx'
 import TourModal from '../TourModal/TourModal.jsx'
 import { useAuthedResource } from '../../../hooks/useAuthedResource/useAuthedResource.js'
@@ -6,9 +7,11 @@ import { getStats } from '../../../services/services.js'
 import { useAttachments } from '../hooks/useAttachments/useAttachments.js'
 import { useAutoScroll } from '../hooks/useAutoScroll/useAutoScroll.js'
 import { useComposer } from '../hooks/useComposer/useComposer.js'
+import { useMessageRail } from '../hooks/useMessageRail/useMessageRail.js'
 import ChatComposer from './ChatComposer/ChatComposer.jsx'
 import ChatEmptyState from './ChatEmptyState/ChatEmptyState.jsx'
 import ChatTopbar from './ChatTopbar/ChatTopbar.jsx'
+import MessageRail from './MessageRail/MessageRail.jsx'
 import './ChatPanel.css'
 
 const TOUR_SEEN_KEY = 'soportiTourSeen'
@@ -32,7 +35,8 @@ export default function ChatPanel({
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
   const stats = useAuthedResource(getStats, 'stats', token, null)
-  const { scrollRef, contentRef, pinToBottom } = useAutoScroll(conversationKey)
+  const { scrollRef, contentRef, pinToBottom, isFollowing } = useAutoScroll(conversationKey)
+  const rail = useMessageRail(scrollRef, contentRef, messages)
   const {
     attachments,
     error: attachmentError,
@@ -76,27 +80,46 @@ export default function ChatPanel({
         onShare={onShare}
       />
 
-      <div className="chat__messages" ref={scrollRef}>
-        {messages.length === 0 && (
-          <ChatEmptyState
-            hasSourcesSelected={hasSourcesSelected}
-            integrations={integrations}
-            stats={stats}
-            onTryExample={fill}
+      <div className="chat__body">
+        <div className="chat__messages" ref={scrollRef}>
+          {messages.length === 0 && (
+            <ChatEmptyState
+              hasSourcesSelected={hasSourcesSelected}
+              integrations={integrations}
+              stats={stats}
+              onTryExample={fill}
+            />
+          )}
+
+          <div className="chat__messages-list" ref={contentRef}>
+            {messages.map((message, index) => (
+              <div key={index} className="chat__message" data-message-index={index}>
+                <Message
+                  message={message}
+                  isStreaming={isLoading && index === messages.length - 1}
+                  token={token}
+                  onOpenArtifact={onOpenArtifact}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {rail.isOverflowing && (
+          <MessageRail
+            items={rail.items}
+            progress={rail.progress}
+            activeIndex={rail.activeIndex}
+            onSelect={rail.scrollToMessage}
           />
         )}
 
-        <div className="chat__messages-list" ref={contentRef}>
-          {messages.map((message, index) => (
-            <Message
-              key={index}
-              message={message}
-              isStreaming={isLoading && index === messages.length - 1}
-              token={token}
-              onOpenArtifact={onOpenArtifact}
-            />
-          ))}
-        </div>
+        {!isFollowing && messages.length > 0 && (
+          <button type="button" className="chat__jump" onClick={pinToBottom}>
+            <Icon name="arrow-down" size={14} />
+            Jump to latest
+          </button>
+        )}
       </div>
 
       <ChatComposer

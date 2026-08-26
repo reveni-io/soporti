@@ -71,8 +71,16 @@
   cursor: not-allowed;
 }
 
+.chat__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
 .chat__messages {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   overflow-anchor: none;
   padding: var(--sp6) var(--sp6) var(--sp2);
@@ -80,6 +88,44 @@
 
 .chat__messages-list {
   display: flow-root;
+}
+
+.chat__jump {
+  position: absolute;
+  bottom: var(--sp4);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  transform: translateX(-50%);
+  padding: var(--sp2) var(--sp4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-surface);
+  box-shadow: var(--shadow-card-hover);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1rem;
+  cursor: pointer;
+  animation: chatJumpIn 0.2s ease;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.chat__jump:hover {
+  border-color: var(--green-bright);
+  background-color: var(--green-inverse);
+}
+
+@keyframes chatJumpIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--sp2));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .chat__empty {
