@@ -4,6 +4,21 @@ import userEvent from '@testing-library/user-event'
 import MarkdownContent from './MarkdownContent.jsx'
 
 describe('MarkdownContent', () => {
+  it('holds back text appended while it is the active part until the stream ends', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 1)
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+
+    const { rerender } = render(<MarkdownContent content="Hello" isStreaming isActive token="tok" />)
+    rerender(<MarkdownContent content="Hello world" isStreaming isActive token="tok" />)
+
+    expect(screen.getByText('Hello')).toBeInTheDocument()
+
+    rerender(<MarkdownContent content="Hello world" isStreaming={false} isActive={false} token="tok" />)
+
+    expect(screen.getByText('Hello world')).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
   it('renders markdown as html', () => {
     render(<MarkdownContent content={'# Title\n\nSome **bold** text.'} isStreaming={false} />)
 

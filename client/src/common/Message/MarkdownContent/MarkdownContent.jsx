@@ -4,11 +4,21 @@ import remarkGfm from 'remark-gfm'
 import CodeBlock from '../CodeBlock/CodeBlock.jsx'
 import CitationMarker from '../../Citations/CitationMarker/CitationMarker.jsx'
 import { wrapMermaidBlocks } from '../wrap-mermaid-blocks.js'
+import { useSmoothText } from '../../../hooks/useSmoothText/useSmoothText.js'
 
 const REMARK_PLUGINS = [remarkGfm]
 const NO_CITATIONS = []
 
-export default function MarkdownContent({ content, isStreaming, token, citations = NO_CITATIONS, onSelectCitation }) {
+export default function MarkdownContent({
+  content,
+  isStreaming,
+  isActive,
+  token,
+  citations = NO_CITATIONS,
+  onSelectCitation,
+}) {
+  const { text } = useSmoothText(content, isActive)
+
   const code = useMemo(
     () =>
       function MarkdownCode({ children, className }) {
@@ -37,7 +47,7 @@ export default function MarkdownContent({ content, isStreaming, token, citations
   )
 
   const components = useMemo(() => ({ code, a }), [code, a])
-  const markdown = useMemo(() => wrapMermaidBlocks(content), [content])
+  const markdown = useMemo(() => wrapMermaidBlocks(text), [text])
 
   return (
     <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>

@@ -62,6 +62,7 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citat
       <MarkdownContent
         content={part.content}
         isStreaming={isStreaming}
+        isActive={isActive}
         token={token}
         citations={citations}
         onSelectCitation={onSelectCitation}
