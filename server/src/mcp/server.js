@@ -238,7 +238,7 @@ export function createSoportiMcpServer({ user, apiKey, conversationStore, jobs }
       runId = jobs.start(runOwner, (signal, report) => answerTurn({ ...turn, signal, report }), progress.report)
     } catch (err) {
       progress.stop()
-      console.error('Failed to start an MCP question:', err)
+      console.error('Failed to start an MCP question.')
       return errorResult(TOO_MANY_RUNS_ERROR)
     }
 
