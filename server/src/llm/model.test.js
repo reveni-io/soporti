@@ -31,8 +31,14 @@ const getLlmProvider = vi.fn()
 const getReasoningEffort = vi.fn()
 vi.mock('./settings.js', () => ({ getLlmProvider, getReasoningEffort }))
 
-const { describeProvider, isConfigured, resolveModelForAgent, usesContinuationToken, wrapSession } =
-  await import('./model.js')
+const {
+  describeProvider,
+  isConfigured,
+  isProviderConfigured,
+  resolveModelForAgent,
+  usesContinuationToken,
+  wrapSession,
+} = await import('./model.js')
 
 beforeEach(() => {
   getLlmProvider.mockReset().mockResolvedValue('openai')
@@ -133,6 +139,76 @@ describe('resolveModelForAgent', () => {
   it('surfaces the provider error when the credentials are missing', async () => {
     openaiProvider.buildModel.mockRejectedValue(new Error('OpenAI API key not configured.'))
     await expect(resolveModelForAgent()).rejects.toThrow(/API key not configured/i)
+  })
+
+  it('asks the stored provider for its own stored model when called with no options', async () => {
+    openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-4o', model: 'gpt-4o' })
+    openaiProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent()
+
+    expect(openaiProvider.buildModel).toHaveBeenCalledWith({ modelId: null })
+  })
+
+  it('builds the named provider and model when both are overridden', async () => {
+    getReasoningEffort.mockResolvedValue('high')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-sonnet-5', model: 'wrapped-sonnet' })
+    anthropicProvider.modelSettings.mockReturnValue({ retry: { maxRetries: 2 } })
+
+    const resolved = await resolveModelForAgent({ provider: 'anthropic', model: 'claude-sonnet-5' })
+
+    expect(resolved).toEqual({ model: 'wrapped-sonnet', modelSettings: { retry: { maxRetries: 2 } } })
+    expect(anthropicProvider.buildModel).toHaveBeenCalledWith({ modelId: 'claude-sonnet-5' })
+    expect(getLlmProvider).not.toHaveBeenCalled()
+    expect(openaiProvider.buildModel).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the stored provider when the override is null in both fields', async () => {
+    getLlmProvider.mockResolvedValue('anthropic')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-opus-5', model: 'claude-opus-5' })
+    anthropicProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent({ provider: null, model: null })
+
+    expect(anthropicProvider.buildModel).toHaveBeenCalledWith({ modelId: null })
+  })
+
+  it('builds the settings from the model the provider resolved, not the one that was asked for', async () => {
+    getReasoningEffort.mockResolvedValue('low')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-sonnet-5-20260101', model: 'wrapped' })
+    anthropicProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent({ provider: 'anthropic', model: 'claude-sonnet-5' })
+
+    expect(anthropicProvider.modelSettings).toHaveBeenCalledWith('claude-sonnet-5-20260101', { effort: 'low' })
+  })
+
+  it('still resolves the effort once, globally, for an overridden provider', async () => {
+    getReasoningEffort.mockResolvedValue('high')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-sonnet-5', model: 'wrapped' })
+    anthropicProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent({ provider: 'anthropic', model: 'claude-sonnet-5' })
+
+    expect(getReasoningEffort).toHaveBeenCalledTimes(1)
+    expect(anthropicProvider.modelSettings).toHaveBeenCalledWith('claude-sonnet-5', { effort: 'high' })
+  })
+})
+
+describe('isProviderConfigured', () => {
+  it('reports whether the named provider has its credentials, not the stored one', async () => {
+    getLlmProvider.mockResolvedValue('openai')
+    anthropicProvider.isConfigured.mockResolvedValue(true)
+
+    expect(await isProviderConfigured('anthropic')).toBe(true)
+    expect(anthropicProvider.isConfigured).toHaveBeenCalledTimes(1)
+    expect(openaiProvider.isConfigured).not.toHaveBeenCalled()
+  })
+
+  it('returns false when the named provider is missing its credentials', async () => {
+    anthropicProvider.isConfigured.mockResolvedValue(false)
+
+    expect(await isProviderConfigured('anthropic')).toBe(false)
   })
 })
 

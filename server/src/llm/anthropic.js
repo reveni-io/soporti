@@ -15,13 +15,13 @@ export async function isConfigured() {
   return Boolean(key && model)
 }
 
-export async function buildModel() {
+export async function buildModel({ modelId: override = null } = {}) {
   const key = await getAnthropicApiKey()
   if (!key) {
     throw new Error('Anthropic API key not configured. Set it in the admin panel (LLM section).')
   }
 
-  const modelId = await getAnthropicModel()
+  const modelId = override ?? (await getAnthropicModel())
   if (!modelId) {
     throw new Error('Anthropic model not configured. Set it in the admin panel (LLM section).')
   }

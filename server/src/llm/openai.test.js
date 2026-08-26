@@ -124,6 +124,31 @@ describe('buildModel', () => {
     getOpenAIModel.mockResolvedValue(null)
     await expect(provider.buildModel()).rejects.toThrow(/model not configured/i)
   })
+
+  it('uses an overriding model id instead of the stored one', async () => {
+    getOpenAIApiKey.mockResolvedValue('sk-abc')
+    getOpenAIModel.mockResolvedValue('gpt-5.2-codex')
+
+    expect(await provider.buildModel({ modelId: 'gpt-4o-mini' })).toEqual({
+      modelId: 'gpt-4o-mini',
+      model: 'gpt-4o-mini',
+    })
+  })
+
+  it('falls back to the stored model when the override is null', async () => {
+    getOpenAIApiKey.mockResolvedValue('sk-abc')
+    getOpenAIModel.mockResolvedValue('gpt-5.2-codex')
+
+    expect(await provider.buildModel({ modelId: null })).toEqual({
+      modelId: 'gpt-5.2-codex',
+      model: 'gpt-5.2-codex',
+    })
+  })
+
+  it('still refuses an override when no key is configured', async () => {
+    getOpenAIApiKey.mockResolvedValue(null)
+    await expect(provider.buildModel({ modelId: 'gpt-4o-mini' })).rejects.toThrow(/API key not configured/i)
+  })
 })
 
 describe('modelSettings', () => {
