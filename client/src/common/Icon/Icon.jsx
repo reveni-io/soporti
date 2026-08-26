@@ -91,6 +91,16 @@ const ICON_SHAPES = {
       <line x1="12" y1="15" x2="12" y2="3" />
     </>
   ),
+  paperclip: (
+    <path d="M20.4 11.6l-8.5 8.5a5 5 0 0 1-7.1-7.1l8.9-8.9a3.4 3.4 0 0 1 4.8 4.8l-8.9 8.9a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8" />
+  ),
+  'arrow-up': (
+    <>
+      <line x1="12" y1="20" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </>
+  ),
+  square: <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />,
   artifact: (
     <>
       <rect x="3" y="3" width="18" height="18" rx="2" />

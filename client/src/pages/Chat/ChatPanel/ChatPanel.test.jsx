@@ -394,11 +394,11 @@ describe('ChatPanel', () => {
       await user.click(screen.getByText(/bug-triage/))
 
       expect(textarea).toHaveValue('/bug-triage ')
-      expect(container.querySelector('.chat__input-command')).toHaveTextContent('/bug-triage')
+      expect(container.querySelector('.composer__command')).toHaveTextContent('/bug-triage')
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 
       await user.clear(textarea)
-      expect(container.querySelector('.chat__input-command')).toBeNull()
+      expect(container.querySelector('.composer__command')).toBeNull()
     })
 
     it('navigates with arrow keys and selects the highlighted skill with Enter', async () => {
@@ -411,7 +411,7 @@ describe('ChatPanel', () => {
 
       await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
 
-      expect(container.querySelector('.chat__input-command')).toHaveTextContent('/bug-report')
+      expect(container.querySelector('.composer__command')).toHaveTextContent('/bug-report')
       expect(textarea).toHaveValue('/bug-report ')
     })
 
@@ -442,7 +442,7 @@ describe('ChatPanel', () => {
 
       expect(onSend).toHaveBeenCalledWith('my question', [{ id: 1, name: 'bug-triage' }], [])
       expect(textarea).toHaveValue('')
-      expect(container.querySelector('.chat__input-command')).toBeNull()
+      expect(container.querySelector('.composer__command')).toBeNull()
     })
 
     it('invokes a skill typed manually as a full command with a message', async () => {
@@ -453,8 +453,8 @@ describe('ChatPanel', () => {
       const textarea = screen.getByPlaceholderText(/ask/i)
       await user.type(textarea, '/bug-triage Alert component')
 
-      expect(container.querySelector('.chat__input-command')).toHaveTextContent('/bug-triage')
-      expect(container.querySelector('.chat__input-highlight').textContent).toBe('/bug-triage Alert component')
+      expect(container.querySelector('.composer__command')).toHaveTextContent('/bug-triage')
+      expect(container.querySelector('.composer__highlight').textContent).toBe('/bug-triage Alert component')
 
       await user.keyboard('{Enter}')
 
@@ -468,8 +468,8 @@ describe('ChatPanel', () => {
       const textarea = screen.getByPlaceholderText(/ask/i)
       await user.type(textarea, '/zzz hello')
 
-      expect(container.querySelector('.chat__input-highlight')).toBeNull()
-      expect(textarea).not.toHaveClass('chat__input--overlaid')
+      expect(container.querySelector('.composer__highlight')).toBeNull()
+      expect(textarea).not.toHaveClass('composer__input--overlaid')
     })
 
     it('does not send when only the command is typed', async () => {
