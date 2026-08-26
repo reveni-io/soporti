@@ -1,0 +1,41 @@
+.subagents__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subagents__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.subagents__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.subagents__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}
+
+.subagents__description {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.subagents__actions {
+  display: flex;
+  gap: var(--sp2);
+  margin-left: auto;
+}

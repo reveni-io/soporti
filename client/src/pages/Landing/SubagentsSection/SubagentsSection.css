@@ -1,0 +1,34 @@
+.lp-subagents__tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  margin-top: var(--sp6);
+  padding: var(--sp4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+.lp-subagents__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.lp-subagents__row--child {
+  margin-left: var(--sp4);
+  padding-left: var(--sp4);
+  border-left: 1px solid var(--border-default);
+}
+
+.lp-subagents__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}
+
+.lp-subagents__meta {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
