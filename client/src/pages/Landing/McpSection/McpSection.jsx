@@ -19,9 +19,9 @@ const INSTALL_ROUTES = [
 const CAPABILITIES = [
   {
     icon: '🔌',
-    title: 'Four tools, one endpoint',
+    title: 'Five tools, one endpoint',
     description:
-      'ask_soporti returns the synthesis with every source it consulted, and list_sources, list_skills and follow_up let an agent aim the next question.',
+      'ask_soporti returns the synthesis with every source it consulted, and list_sources, list_skills, follow_up and get_answer let an agent aim the next question.',
     bullets: [
       'list_sources: only the repos and the tracker for release notes',
       'follow_up: keep the thread instead of asking from scratch',
@@ -31,11 +31,12 @@ const CAPABILITIES = [
   {
     icon: '⏳',
     title: 'Built for long questions',
-    description: 'Investigations that take minutes stream progress the whole way, so nothing times out mid-answer.',
+    description:
+      'An investigation that runs long hands back a runId and keeps going on the server, so no client timeout can cut it short.',
     bullets: [
+      'get_answer collects it — in Claude Code, the app and the web alike',
       'A progress notification for every tool it runs',
-      'Heartbeats keep proxies from killing the stream',
-      'A cut stream cancels the run — retrying is always safe',
+      'A cut stream loses nothing: the thread keeps the answer',
     ],
   },
   {

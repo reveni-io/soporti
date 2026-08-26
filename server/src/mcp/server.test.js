@@ -16,11 +16,13 @@ const { executeAskSoporti } = await import('./ask-soporti.js')
 const { executeListSources } = await import('./list-sources.js')
 const { listSkills } = await import('../db/skills.js')
 const { default: mcpRoute } = await import('./route.js')
+const { McpJobStore } = await import('./jobs.js')
 
 const USER = { id: 7, email: 'jose@reveni.io', name: 'Jose', role: 'user' }
 const CONVERSATION_ID = '11111111-1111-4111-8111-111111111111'
 const SESSION = { id: 'session' }
 const FOLLOW_UP_HINT = `\n\n_Continue this thread by calling \`follow_up\` with conversationId "${CONVERSATION_ID}"._`
+const RUN_ID_RE = /runId "([0-9a-f-]+)"/
 const ENVELOPE = {
   'io.modelcontextprotocol/protocolVersion': '2026-07-28',
   'io.modelcontextprotocol/clientCapabilities': {},
@@ -51,7 +53,7 @@ function existingThread(previousResponseId = 'resp-0') {
   }
 }
 
-function makeApp({ user = USER, apiKey, store = conversationStore } = {}) {
+function makeApp({ user = USER, apiKey, store = conversationStore, jobs = new McpJobStore() } = {}) {
   const app = express()
   app.use(express.json({ limit: '2mb' }))
   app.use((req, _res, next) => {
@@ -59,8 +61,28 @@ function makeApp({ user = USER, apiKey, store = conversationStore } = {}) {
     req.apiKey = apiKey
     next()
   })
-  app.use('/api/mcp', mcpRoute(store))
+  app.use('/api/mcp', mcpRoute(store, jobs))
   return app
+}
+
+function resultOf(res, id = 1) {
+  return sseData(res.text).find(msg => msg.id === id).result
+}
+
+function runIdOf(result) {
+  return result.content[0].text.match(RUN_ID_RE)[1]
+}
+
+function pendingAnswer() {
+  let finish
+  executeAskSoporti.mockImplementationOnce(
+    ({ onProgress }) =>
+      new Promise(resolve => {
+        finish = answer => resolve({ answer, lastResponseId: 'resp-1', unpersistedItems: null, skills: [] })
+        onProgress('Consulting search_code...')
+      })
+  )
+  return answer => finish(answer)
 }
 
 function toolCall(name, args, meta = {}, id = 1) {
@@ -212,6 +234,18 @@ describe('mcp server', () => {
     expect(res.text).not.toContain('10.0.0.3')
   })
 
+  it('hides a thread that cannot be opened behind a generic tool error', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    conversationStore.resolveWeb.mockRejectedValue(new Error('pg: connection refused at 10.0.0.3'))
+
+    const res = await postCall(makeApp(), legacyCall({ question: 'Why?' }))
+
+    expect(resultOf(res).isError).toBe(true)
+    expect(resultOf(res).content[0].text).toBe('An internal error occurred while answering the question.')
+    expect(res.text).not.toContain('10.0.0.3')
+    expect(executeAskSoporti).not.toHaveBeenCalled()
+  })
+
   it('answers a modern tools/call carrying the 2026-07-28 envelope', async () => {
     const res = await postCall(
       makeApp(),
@@ -253,12 +287,19 @@ describe('mcp server', () => {
     const res = await postCall(makeApp(), { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
 
     const { tools } = sseData(res.text).find(msg => msg.id === 2).result
-    expect(tools.map(tool => tool.name)).toEqual(['ask_soporti', 'follow_up', 'list_sources', 'list_skills'])
+    expect(tools.map(tool => tool.name)).toEqual([
+      'ask_soporti',
+      'follow_up',
+      'get_answer',
+      'list_sources',
+      'list_skills',
+    ])
     expect(tools.every(tool => tool.annotations.readOnlyHint)).toBe(true)
 
     const requiredByName = Object.fromEntries(tools.map(tool => [tool.name, tool.inputSchema.required]))
     expect(requiredByName.ask_soporti).toEqual(['question'])
     expect(requiredByName.follow_up).toEqual(['conversationId', 'message'])
+    expect(requiredByName.get_answer).toEqual(['runId'])
     expect(requiredByName.list_sources).toBeUndefined()
     expect(requiredByName.list_skills).toBeUndefined()
   })
@@ -351,7 +392,7 @@ describe('mcp server', () => {
     expect(res.text).not.toContain('10.0.0.3')
   })
 
-  it('answers a retried request with a fresh id after the stream was cut mid-run', async () => {
+  it('keeps investigating after the client cuts the stream, so the thread still gets its answer', async () => {
     const app = makeApp()
     const server = await listenOn(app)
 
@@ -367,7 +408,7 @@ describe('mcp server', () => {
         await new Promise(resolve => {
           release = resolve
         })
-        return { answer: 'Never delivered.', lastResponseId: 'resp-1', unpersistedItems: null, skills: [] }
+        return { answer: 'Delivered anyway.', lastResponseId: 'resp-1', unpersistedItems: null, skills: [] }
       })
 
       const abort = new AbortController()
@@ -380,14 +421,18 @@ describe('mcp server', () => {
       const runSignal = await progressSeen
       abort.abort()
       await cutRequest
-      await vi.waitFor(() => expect(runSignal.aborted).toBe(true))
       release()
 
-      const res = await postCall(app, legacyCall({ question: 'Why?' }, {}, 2))
-
-      const result = sseData(res.text).find(msg => msg.id === 2).result
-      expect(result.content).toEqual([{ type: 'text', text: `The answer.${FOLLOW_UP_HINT}` }])
-      expect(result.isError).toBeUndefined()
+      await vi.waitFor(() => expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1))
+      expect(runSignal.aborted).toBe(false)
+      expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+        CONVERSATION_ID,
+        expect.objectContaining({
+          uiMessages: expect.arrayContaining([
+            { role: 'assistant', parts: [{ type: 'text', content: 'Delivered anyway.' }] },
+          ]),
+        })
+      )
     } finally {
       await closeServer(server)
     }
@@ -430,6 +475,163 @@ describe('mcp server', () => {
     const message = sseData(res.text).find(msg => msg.id === 1)
     expect(JSON.stringify(message)).toContain('profile')
     expect(executeAskSoporti).not.toHaveBeenCalled()
+  })
+})
+
+describe('get_answer', () => {
+  it('comes back with a runId when the investigation outlives the wait window, and collects it later', async () => {
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5 }) })
+    const finish = pendingAnswer()
+
+    const started = resultOf(await postCall(app, legacyCall({ question: 'Why?' })))
+
+    expect(started.isError).toBeUndefined()
+    expect(started.content[0].text).toContain('still investigating')
+
+    finish('The slow answer.')
+    const collected = resultOf(await postCall(app, toolCall('get_answer', { runId: runIdOf(started) })))
+
+    expect(collected.content).toEqual([{ type: 'text', text: `The slow answer.${FOLLOW_UP_HINT}` }])
+    expect(collected.isError).toBeUndefined()
+    expect(executeAskSoporti).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the step the investigation is on while it keeps running', async () => {
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5 }) })
+    const finish = pendingAnswer()
+
+    const started = resultOf(await postCall(app, legacyCall({ question: 'Why?' })))
+    const polled = resultOf(await postCall(app, toolCall('get_answer', { runId: runIdOf(started) })))
+
+    expect(polled.content[0].text).toContain('Last step: Consulting search_code...')
+    expect(polled.content[0].text).toContain(runIdOf(started))
+
+    finish('The answer.')
+  })
+
+  it('never restarts the investigation between polls', async () => {
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5 }) })
+    const finish = pendingAnswer()
+
+    const started = resultOf(await postCall(app, legacyCall({ question: 'Why?' })))
+    const runId = runIdOf(started)
+    await postCall(app, toolCall('get_answer', { runId }))
+    await postCall(app, toolCall('get_answer', { runId }))
+    finish('The answer.')
+    await postCall(app, toolCall('get_answer', { runId }))
+
+    expect(executeAskSoporti).toHaveBeenCalledTimes(1)
+    expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a run of another user exactly like one that does not exist', async () => {
+    const jobs = new McpJobStore({ waitMs: 5 })
+    const finish = pendingAnswer()
+    const started = resultOf(await postCall(makeApp({ jobs }), legacyCall({ question: 'Why?' })))
+
+    const intruder = makeApp({ jobs, user: { id: 8, email: 'other@reveni.io', name: 'Other', role: 'user' } })
+    const result = resultOf(await postCall(intruder, toolCall('get_answer', { runId: runIdOf(started) })))
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Run not found')
+
+    finish('The answer.')
+  })
+
+  it('reports a run started with another API key exactly like one that does not exist', async () => {
+    const jobs = new McpJobStore({ waitMs: 5 })
+    const finish = pendingAnswer()
+    const opener = makeApp({ jobs, apiKey: { id: 1, sources: [] } })
+    const started = resultOf(await postCall(opener, legacyCall({ question: 'Why?' })))
+
+    const scoped = makeApp({ jobs, apiKey: { id: 2, sources: ['integration:notion'] } })
+    const result = resultOf(await postCall(scoped, toolCall('get_answer', { runId: runIdOf(started) })))
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Run not found')
+
+    finish('The answer.')
+  })
+
+  it('reports an unknown runId as not found', async () => {
+    const result = resultOf(await postCall(makeApp(), toolCall('get_answer', { runId: CONVERSATION_ID })))
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Run not found')
+  })
+
+  it('answers with a generic tool error when the run registry itself fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const jobs = {
+      start: () => 'a-run',
+      wait: () => {
+        throw new Error('pg: connection refused at 10.0.0.3')
+      },
+    }
+
+    const res = await postCall(makeApp({ jobs }), toolCall('get_answer', { runId: CONVERSATION_ID }))
+
+    expect(resultOf(res).isError).toBe(true)
+    expect(resultOf(res).content[0].text).toBe('An internal error occurred while answering the question.')
+    expect(res.text).not.toContain('10.0.0.3')
+  })
+
+  it('rejects a runId that is not a UUID', async () => {
+    const res = await postCall(makeApp(), toolCall('get_answer', { runId: 'not-a-uuid' }))
+
+    expect(JSON.stringify(sseData(res.text).find(msg => msg.id === 1))).toContain('runId')
+  })
+
+  it('hides the failure of a background run behind a generic tool error', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5 }) })
+    let fail
+    executeAskSoporti.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject
+        })
+    )
+
+    const started = resultOf(await postCall(app, legacyCall({ question: 'Why?' })))
+    fail(new Error('pg: connection refused at 10.0.0.3'))
+    const res = await postCall(app, toolCall('get_answer', { runId: runIdOf(started) }))
+
+    expect(resultOf(res).isError).toBe(true)
+    expect(resultOf(res).content[0].text).toBe('An internal error occurred while answering the question.')
+    expect(res.text).not.toContain('10.0.0.3')
+  })
+
+  it('refuses to start more questions than a user can have in flight at once', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5, maxPerUser: 1 }) })
+    const finish = pendingAnswer()
+
+    await postCall(app, legacyCall({ question: 'Why?' }))
+    const result = resultOf(await postCall(app, legacyCall({ question: 'And this?' })))
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('Too many questions')
+    expect(executeAskSoporti).toHaveBeenCalledTimes(1)
+
+    finish('The answer.')
+  })
+
+  it('collects a follow-up that outlived the wait window on the same thread', async () => {
+    conversationStore.resolveExistingWeb.mockResolvedValue(existingThread())
+    const app = makeApp({ jobs: new McpJobStore({ waitMs: 5 }) })
+    const finish = pendingAnswer()
+
+    const started = resultOf(
+      await postCall(app, toolCall('follow_up', { conversationId: CONVERSATION_ID, message: 'And?' }))
+    )
+
+    expect(started.content[0].text).toContain('still investigating')
+
+    finish('The slow follow-up.')
+    const collected = resultOf(await postCall(app, toolCall('get_answer', { runId: runIdOf(started) })))
+
+    expect(collected.content).toEqual([{ type: 'text', text: `The slow follow-up.${FOLLOW_UP_HINT}` }])
   })
 })
 
@@ -480,6 +682,19 @@ describe('follow_up', () => {
     const result = sseData(res.text).find(msg => msg.id === 1).result
     expect(result.isError).toBe(true)
     expect(result.content[0].text).toBe('Conversation not found.')
+    expect(executeAskSoporti).not.toHaveBeenCalled()
+  })
+
+  it('hides a thread that cannot be read behind a generic tool error', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    conversationStore.resolveExistingWeb.mockResolvedValue(existingThread())
+    conversationStore.getInvokedSkillIds.mockRejectedValue(new Error('pg: connection refused at 10.0.0.3'))
+
+    const res = await postCall(makeApp(), toolCall('follow_up', { conversationId: CONVERSATION_ID, message: 'And?' }))
+
+    expect(resultOf(res).isError).toBe(true)
+    expect(resultOf(res).content[0].text).toBe('An internal error occurred while answering the question.')
+    expect(res.text).not.toContain('10.0.0.3')
     expect(executeAskSoporti).not.toHaveBeenCalled()
   })
 

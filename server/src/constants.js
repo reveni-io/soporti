@@ -84,3 +84,11 @@ export const STATS_RANGE_ALL = 'all'
 export const STATS_RANGE_HOURS = [1, 3, 24, 168, 720, 2160]
 export const TOP_TOOLS_LIMIT = 10
 export const TOP_USERS_LIMIT = 20
+
+export const MCP_JOB_RUNNING = 'running'
+export const MCP_JOB_DONE = 'done'
+export const MCP_JOB_FAILED = 'failed'
+export const MCP_JOB_WAIT_MS = 30_000
+export const MCP_JOB_RUN_TIMEOUT_MS = 10 * 60_000
+export const MCP_JOB_RETENTION_MS = 15 * 60_000
+export const MCP_MAX_JOBS_PER_USER = 5
