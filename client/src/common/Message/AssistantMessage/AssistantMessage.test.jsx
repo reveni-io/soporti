@@ -13,14 +13,6 @@ afterEach(() => {
   useClipboard(REAL_CLIPBOARD)
 })
 
-vi.mock('../../ToolCall/ToolCall.jsx', () => ({
-  default: ({ tool, done }) => (
-    <div data-testid="tool-call" data-done={done}>
-      {tool}
-    </div>
-  ),
-}))
-
 vi.mock('../../FeedbackButtons/FeedbackButtons.jsx', () => ({
   default: ({ feedbackId }) => <div data-testid="feedback">{feedbackId}</div>,
 }))
@@ -38,16 +30,41 @@ describe('AssistantMessage', () => {
     expect(screen.getByText('bold')).toBeInTheDocument()
   })
 
-  it('renders tool calls', () => {
+  it('groups tool calls into a single steps block', () => {
     render(
       <AssistantMessage
-        message={{ parts: [{ type: 'tool_call', tool: 'search_code', input: {}, done: true, durationMs: 120 }] }}
-        isStreaming={false}
+        message={{
+          parts: [
+            { type: 'tool_call', tool: 'search_code', input: { query: 'refund' }, done: true, durationMs: 120 },
+            { type: 'tool_call', tool: 'get_file_contents', input: { repo: 'org/app', path: 'a.js' }, done: false },
+          ],
+        }}
+        isStreaming
       />
     )
 
-    expect(screen.getByTestId('tool-call').textContent).toBe('search_code')
-    expect(screen.getByTestId('tool-call')).toHaveAttribute('data-done', 'true')
+    expect(screen.getAllByRole('list')).toHaveLength(1)
+    expect(screen.getByText('1/2 steps')).toBeInTheDocument()
+    expect(screen.getByText('Searching code')).toBeInTheDocument()
+    expect(screen.getByText('"refund"')).toBeInTheDocument()
+    expect(screen.getByText('120ms')).toBeInTheDocument()
+    expect(screen.getByText('org/app/a.js')).toBeInTheDocument()
+  })
+
+  it('collapses a finished step block once the answer follows it', () => {
+    render(
+      <AssistantMessage
+        message={{
+          parts: [
+            { type: 'tool_call', tool: 'search_code', input: {}, done: true, durationMs: 120 },
+            { type: 'text', content: 'Here is the answer.' },
+          ],
+        }}
+        isStreaming
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /done/i })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('renders error parts', () => {

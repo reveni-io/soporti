@@ -1,12 +1,14 @@
 import CopyButton from '../../CopyButton/CopyButton.jsx'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
-import ToolCall from '../../ToolCall/ToolCall.jsx'
+import AgentSteps from '../../AgentSteps/AgentSteps.jsx'
 import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
+import { groupParts } from './group-parts.js'
 
 const PART_SEPARATOR = '\n\n'
 
 export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
+  const groups = groupParts(message.parts)
   const answer = answerMarkdown(message.parts)
   const canCopy = !isStreaming && answer.length > 0
   const canRate = !isStreaming && Boolean(message.feedbackId)
@@ -14,11 +16,12 @@ export default function AssistantMessage({ message, isStreaming, token, onOpenAr
   return (
     <div className="message message--assistant">
       <div className="message__bubble message__bubble--assistant">
-        {message.parts.map((part, index) => (
+        {groups.map((part, index) => (
           <MessagePart
             key={index}
             part={part}
             isStreaming={isStreaming}
+            isActive={isStreaming && index === groups.length - 1}
             token={token}
             onOpenArtifact={onOpenArtifact}
           />
@@ -44,7 +47,7 @@ function answerMarkdown(parts) {
     .join(PART_SEPARATOR)
 }
 
-function MessagePart({ part, isStreaming, token, onOpenArtifact }) {
+function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact }) {
   if (part.type === 'text') {
     return <MarkdownContent content={part.content} isStreaming={isStreaming} token={token} />
   }
@@ -55,8 +58,8 @@ function MessagePart({ part, isStreaming, token, onOpenArtifact }) {
     )
   }
 
-  if (part.type === 'tool_call') {
-    return <ToolCall tool={part.tool} input={part.input} done={part.done} durationMs={part.durationMs} />
+  if (part.type === 'steps') {
+    return <AgentSteps steps={part.steps} active={isActive} />
   }
 
   if (part.type === 'error') {

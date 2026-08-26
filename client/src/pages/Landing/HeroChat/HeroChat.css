@@ -95,15 +95,95 @@
   height: 0;
 }
 
-.hero-chat .tool-call {
-  animation: fadeIn 0.2s ease;
-  min-width: 0;
-}
-.hero-chat .tool-call__detail {
-  min-width: 0;
-}
 .hero-chat .message__bubble--assistant {
   max-width: 92%;
+}
+
+.hero-chat__tool {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  min-width: 0;
+  padding: var(--sp2);
+  margin: var(--sp1) 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-cool);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  line-height: 1rem;
+  color: var(--text-secondary);
+  animation: fadeIn 0.2s ease;
+  transition: all 0.2s ease;
+}
+
+.hero-chat__tool--running {
+  border-color: rgba(var(--green-bright-rgb), 0.6);
+  background-color: var(--green-inverse);
+  color: var(--text-primary);
+}
+
+.hero-chat__tool--done {
+  opacity: 0.6;
+}
+
+.hero-chat__tool-status {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--green-chart);
+}
+
+.hero-chat__tool--running .hero-chat__tool-status {
+  color: transparent;
+}
+
+.hero-chat__tool--running .hero-chat__tool-status::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(var(--green-chart-rgb), 0.25);
+  border-top-color: var(--green-chart);
+  border-radius: 50%;
+  animation: heroChatToolSpin 0.8s linear infinite;
+}
+
+@keyframes heroChatToolSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hero-chat__tool-emoji {
+  flex-shrink: 0;
+}
+
+.hero-chat__tool-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hero-chat__tool-detail {
+  min-width: 0;
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.hero-chat__tool-duration {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
 }
 
 .hero-chat__text {

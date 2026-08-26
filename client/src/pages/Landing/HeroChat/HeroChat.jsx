@@ -70,12 +70,12 @@ function ChatMessage({ message }) {
 
 function ToolPill({ tool }) {
   return (
-    <div className={`tool-call ${tool.done ? 'tool-call--done' : 'tool-call--running'}`}>
-      <span className="tool-call__status-icon">{tool.done ? '✓' : ''}</span>
-      <span className="tool-call__emoji">{tool.emoji}</span>
-      <span className="tool-call__label">{tool.label}</span>
-      <span className="tool-call__detail">{tool.detail}</span>
-      {tool.done && tool.duration && <span className="tool-call__duration">{tool.duration}</span>}
+    <div className={`hero-chat__tool ${tool.done ? 'hero-chat__tool--done' : 'hero-chat__tool--running'}`}>
+      <span className="hero-chat__tool-status">{tool.done ? '✓' : ''}</span>
+      <span className="hero-chat__tool-emoji">{tool.emoji}</span>
+      <span className="hero-chat__tool-label">{tool.label}</span>
+      <span className="hero-chat__tool-detail">{tool.detail}</span>
+      {tool.done && tool.duration && <span className="hero-chat__tool-duration">{tool.duration}</span>}
     </div>
   )
 }
