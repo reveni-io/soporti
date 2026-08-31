@@ -46,6 +46,9 @@ services:
       VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
       # Vite proxies /api to the server container instead of localhost.
       VITE_PROXY_TARGET: http://server:3001
+      # Bind-mount file events do not reach the container on macOS and Windows,
+      # so Vite has to poll or it never rebuilds a changed file.
+      VITE_USE_POLLING: 'true'
     ports:
       - '5173:5173'
     volumes:

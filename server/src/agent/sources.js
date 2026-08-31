@@ -24,7 +24,7 @@ export function buildSourcePolicy(selectedSources) {
 
 const REPO_TOOLS = new Set(['get_directory_contents', 'get_file_contents', 'search_code'])
 
-const INTEGRATION_TOOL_NAMES = {
+export const INTEGRATION_TOOL_NAMES = {
   shortcut: [
     'get_shortcut_story',
     'search_shortcut_stories',

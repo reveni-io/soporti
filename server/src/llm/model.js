@@ -24,11 +24,15 @@ export async function isConfigured() {
   return provider.isConfigured()
 }
 
-export async function resolveModelForAgent() {
-  const provider = await resolveProvider()
-  const [{ modelId, model }, effort] = await Promise.all([provider.buildModel(), resolveEffort()])
+export async function resolveModelForAgent({ provider: providerId = null, model: modelId = null } = {}) {
+  const provider = providerId ? getProvider(providerId) : await resolveProvider()
+  const [{ modelId: resolved, model }, effort] = await Promise.all([provider.buildModel({ modelId }), resolveEffort()])
 
-  return { model, modelSettings: provider.modelSettings(modelId, { effort }) }
+  return { model, modelSettings: provider.modelSettings(resolved, { effort }) }
+}
+
+export async function isProviderConfigured(providerId, { model = null } = {}) {
+  return getProvider(providerId).isConfigured({ modelId: model })
 }
 
 export async function wrapSession(underlyingSession) {

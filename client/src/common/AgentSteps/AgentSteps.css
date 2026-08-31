@@ -242,3 +242,26 @@
     animation: none;
   }
 }
+
+.agent-steps__list .agent-steps__step--nested {
+  position: relative;
+  padding-left: var(--sp6);
+}
+
+.agent-steps__list .agent-steps__step--nested::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--sp3);
+  border-left: 1px solid var(--border-default);
+}
+
+.agent-steps__list .agent-steps__step--nested::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--sp3);
+  width: var(--sp2);
+  border-top: 1px solid var(--border-default);
+}

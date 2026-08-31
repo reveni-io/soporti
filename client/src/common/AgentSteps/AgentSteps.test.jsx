@@ -98,3 +98,18 @@ describe('AgentSteps', () => {
     expect(container.querySelector(`#${CSS.escape(panelId)}`)).toContainElement(screen.getByRole('list'))
   })
 })
+
+describe('AgentSteps nesting', () => {
+  it('indents a step a specialist ran and leaves the others flat', () => {
+    const steps = [
+      { label: 'Ask code reviewer', done: false, nested: false },
+      { label: 'Searching code', done: true, nested: true },
+    ]
+
+    const { container } = render(<AgentSteps steps={steps} active />)
+
+    const rendered = container.querySelectorAll('.agent-steps__step')
+    expect(rendered[0].classList.contains('agent-steps__step--nested')).toBe(false)
+    expect(rendered[1].classList.contains('agent-steps__step--nested')).toBe(true)
+  })
+})

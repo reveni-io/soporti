@@ -9,8 +9,8 @@ import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { isConfigured } from '../llm/model.js'
-import { extractUsage, formatUsage } from '../llm/usage.js'
-import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
+import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
+import { UNKNOWN_TOOL, toolCallFromRawItem, toolNames } from '../agent/run-items.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
 import { buildAgentInput } from '../agent/agent-input.js'
@@ -37,6 +37,11 @@ function log(icon, ...args) {
 }
 
 const SAFE_INPUT_FIELDS = ['repo', 'path', 'query']
+
+const TOOL_START = '  →'
+const TOOL_DONE = '  ✓'
+const NESTED_START = '    ↳'
+const NESTED_DONE = '    ✓'
 
 function sanitizeInput(rawArgs) {
   if (!rawArgs || typeof rawArgs !== 'string') return {}
@@ -236,6 +241,8 @@ export default function chatRoute(conversationStore) {
     let runUsage = null
 
     const publishedArtifacts = []
+    const toolCalls = []
+    const nestedUsage = []
 
     try {
       const agent = await createAgent(sources, profile, {
@@ -245,6 +252,9 @@ export default function chatRoute(conversationStore) {
         userId: req.user.id,
         conversationId,
         onArtifactPublished: artifact => publishedArtifacts.push(artifact),
+        onNestedToolCall: startToolCall,
+        onNestedToolResult: finishToolCall,
+        onNestedUsage: usage => nestedUsage.push(usage),
       })
       const agentStart = Date.now()
 
@@ -252,8 +262,46 @@ export default function chatRoute(conversationStore) {
 
       const toolStartTimes = new Map()
       const callIdToName = new Map()
-      const toolCalls = []
       let sentContent = false
+
+      function startToolCall({ name, arguments: rawArgs, callId, parent = null }) {
+        const toolName = name || UNKNOWN_TOOL
+        const toolArgs = rawArgs || '{}'
+
+        if (callId) {
+          toolStartTimes.set(callId, Date.now())
+          callIdToName.set(callId, toolName)
+        }
+
+        toolCalls.push({ name: toolName, arguments: toolArgs })
+        const input = sanitizeInput(toolArgs)
+        assistantParts.push({ type: 'tool_call', tool: toolName, input, done: false, parent })
+
+        sentContent = true
+        log(parent ? NESTED_START : TOOL_START, `${toolName}(${toolArgs.slice(0, 100)})`)
+        sendEvent(res, { type: 'tool_start', tool: toolName, input, parent })
+      }
+
+      function finishToolCall({ name, callId, parent = null }) {
+        const toolName = name || callIdToName.get(callId) || UNKNOWN_TOOL
+        const startTime = callId ? toolStartTimes.get(callId) : undefined
+        const durationMs = startTime ? Date.now() - startTime : undefined
+
+        for (let i = assistantParts.length - 1; i >= 0; i--) {
+          const part = assistantParts[i]
+          if (part.type === 'tool_call' && part.tool === toolName && part.parent === parent && !part.done) {
+            part.done = true
+            if (durationMs) part.durationMs = durationMs
+            break
+          }
+        }
+
+        log(
+          parent ? NESTED_DONE : TOOL_DONE,
+          durationMs ? `${toolName} completed in ${durationMs}ms` : `${toolName} completed`
+        )
+        sendEvent(res, { type: 'tool_end', tool: toolName, parent })
+      }
 
       async function runTurn(prevResponseId) {
         const stream = await run(agent, agentInput, {
@@ -275,44 +323,9 @@ export default function chatRoute(conversationStore) {
             const item = event.item
 
             if (item.type === 'tool_call_item') {
-              const toolName = item.rawItem?.name || UNKNOWN_TOOL
-              const toolArgs = item.rawItem?.arguments || '{}'
-              const callId = item.rawItem?.callId || item.rawItem?.id
-
-              if (callId) {
-                toolStartTimes.set(callId, Date.now())
-                callIdToName.set(callId, toolName)
-              }
-
-              toolCalls.push({ name: toolName, arguments: toolArgs })
-              const input = sanitizeInput(toolArgs)
-              assistantParts.push({ type: 'tool_call', tool: toolName, input, done: false })
-
-              sentContent = true
-              log('  →', `${toolName}(${toolArgs.slice(0, 100)})`)
-              sendEvent(res, { type: 'tool_start', tool: toolName, input })
+              startToolCall(toolCallFromRawItem(item.rawItem))
             } else if (item.type === 'tool_call_output_item') {
-              const callId = item.rawItem?.callId
-              const toolName = item.rawItem?.name || callIdToName.get(callId) || UNKNOWN_TOOL
-              const startTime = callId ? toolStartTimes.get(callId) : undefined
-              const durationMs = startTime ? Date.now() - startTime : undefined
-
-              for (let i = assistantParts.length - 1; i >= 0; i--) {
-                const p = assistantParts[i]
-                if (p.type === 'tool_call' && p.tool === toolName && !p.done) {
-                  p.done = true
-                  if (durationMs) p.durationMs = durationMs
-                  break
-                }
-              }
-
-              if (durationMs) {
-                log('  ✓', `${toolName} completed in ${durationMs}ms`)
-              } else {
-                log('  ✓', `${toolName} completed`)
-              }
-
-              sendEvent(res, { type: 'tool_end', tool: toolName })
+              finishToolCall(toolCallFromRawItem(item.rawItem))
 
               while (publishedArtifacts.length > 0) {
                 const artifact = publishedArtifacts.shift()
@@ -325,7 +338,7 @@ export default function chatRoute(conversationStore) {
 
         await stream.completed
 
-        runUsage = extractUsage(stream.state?.usage)
+        runUsage = sumUsage([extractUsage(stream.state?.usage), ...nestedUsage])
         const usage = formatUsage(stream.state?.usage)
         if (usage) log('📊', usage)
 

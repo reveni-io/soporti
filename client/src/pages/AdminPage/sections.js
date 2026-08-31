@@ -12,6 +12,7 @@ import AdminShopify from './AdminShopify/AdminShopify.jsx'
 import AdminShortcut from './AdminShortcut/AdminShortcut.jsx'
 import AdminSlack from './AdminSlack/AdminSlack.jsx'
 import AdminStats from './AdminStats/AdminStats.jsx'
+import AdminSubagents from './AdminSubagents/AdminSubagents.jsx'
 import AdminUsers from './AdminUsers/AdminUsers.jsx'
 
 export const SECTIONS = [
@@ -19,6 +20,7 @@ export const SECTIONS = [
   { path: 'users', label: 'Users', icon: 'users', Component: AdminUsers },
   { path: 'authentication', label: 'Authentication', icon: 'shield', Component: AdminAuthentication },
   { path: 'llm', label: 'LLM', icon: 'spark', Component: AdminLlm },
+  { path: 'subagents', label: 'Subagents', icon: 'subagents', Component: AdminSubagents },
   { path: 'knowledge', label: 'Knowledge base', icon: 'help-center', Component: AdminKnowledge },
   { path: 'github', label: 'GitHub', icon: 'github', Component: AdminGithub },
   { path: 'google-drive', label: 'Google Drive', icon: 'google-drive', Component: AdminGoogleDrive },

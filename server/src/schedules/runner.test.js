@@ -65,6 +65,8 @@ describe('runSchedule', () => {
     expect(createAgent).toHaveBeenCalledWith(['reveni-io/soporti'], 'tech', {
       customInstructions: 'Be brief.',
       userId: 7,
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
     expect(run).toHaveBeenCalledWith({ name: 'agent' }, 'Failed payments in the last 24h', {
       maxTurns: expect.any(Number),
@@ -115,7 +117,12 @@ describe('runSchedule', () => {
 
     await runSchedule(SCHEDULE, store)
 
-    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'support', { customInstructions: '', userId: 7 })
+    expect(createAgent).toHaveBeenCalledWith(['yolo'], 'support', {
+      customInstructions: '',
+      userId: 7,
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
+    })
   })
 
   it('serializes an answer that is not a string', async () => {

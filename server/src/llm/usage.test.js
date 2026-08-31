@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractUsage, formatUsage } from './usage.js'
+import { extractUsage, formatUsage, sumUsage } from './usage.js'
 
 describe('extractUsage', () => {
   it('returns the counters the run reported, with the cache details summed', () => {
@@ -100,5 +100,34 @@ describe('formatUsage', () => {
     expect(
       formatUsage({ requests: 1, inputTokens: 100, outputTokens: 5, inputTokensDetails: [null, { other: 7 }] })
     ).toContain('cache read 0 (0%)')
+  })
+})
+
+describe('sumUsage', () => {
+  const MAIN = { requests: 2, inputTokens: 1000, outputTokens: 300, cachedInputTokens: 800, cacheWriteTokens: 100 }
+  const NESTED = { requests: 1, inputTokens: 400, outputTokens: 90, cachedInputTokens: 0, cacheWriteTokens: 50 }
+
+  it('adds what a nested run cost to the main run, counter by counter', () => {
+    expect(sumUsage([MAIN, NESTED])).toEqual({
+      requests: 3,
+      inputTokens: 1400,
+      outputTokens: 390,
+      cachedInputTokens: 800,
+      cacheWriteTokens: 150,
+    })
+  })
+
+  it('returns the only entry unchanged when nothing was nested', () => {
+    expect(sumUsage([MAIN])).toEqual(MAIN)
+  })
+
+  it('skips the runs that reported no usage at all', () => {
+    expect(sumUsage([MAIN, null, undefined])).toEqual(MAIN)
+  })
+
+  it('returns null when there is nothing to report', () => {
+    expect(sumUsage([])).toBeNull()
+    expect(sumUsage([null])).toBeNull()
+    expect(sumUsage(null)).toBeNull()
   })
 })

@@ -94,6 +94,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
                     type: 'tool_call',
                     tool: data.tool,
                     input: data.input,
+                    parent: data.parent ?? null,
                     done: false,
                     startedAt: Date.now(),
                   })
@@ -110,7 +111,13 @@ export function useChat(token, onAuthError, onArtifactPublished) {
 
                   const parts = [...last.parts]
                   for (let i = parts.length - 1; i >= 0; i--) {
-                    if (parts[i].type === 'tool_call' && parts[i].tool === data.tool && !parts[i].done) {
+                    const part = parts[i]
+                    if (
+                      part.type === 'tool_call' &&
+                      part.tool === data.tool &&
+                      (part.parent ?? null) === (data.parent ?? null) &&
+                      !part.done
+                    ) {
                       parts[i] = { ...parts[i], done: true, durationMs: Date.now() - parts[i].startedAt }
                       break
                     }

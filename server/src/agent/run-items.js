@@ -1,5 +1,14 @@
 export const UNKNOWN_TOOL = 'unknown'
 
+export function toolCallFromRawItem(rawItem, parent = null) {
+  return {
+    name: rawItem?.name,
+    arguments: rawItem?.arguments,
+    callId: rawItem?.callId || rawItem?.id,
+    parent,
+  }
+}
+
 export function toolCallsFromResult(result) {
   return (result?.newItems ?? [])
     .filter(item => item?.type === 'tool_call_item')

@@ -7,9 +7,11 @@ import {
   createSchedule,
   createShare,
   createSkill,
+  createSubagent,
   deleteConversation,
   deleteSchedule,
   deleteSkill,
+  deleteSubagent,
   decideOAuthAuthorization,
   draftShopifyTokenQuery,
   getAdminStatus,
@@ -21,6 +23,7 @@ import {
   getSharedConversation,
   getSkill,
   getSkills,
+  getSubagents,
   isUnauthorized,
   renderMermaid,
   saveDatabaseMaxRows,
@@ -32,6 +35,7 @@ import {
   signInWithPassword,
   streamChat,
   updateSkill,
+  updateSubagent,
 } from './services.js'
 
 const ORIGINAL_BASE = import.meta.env.VITE_API_URL
@@ -383,5 +387,50 @@ describe('endpoints', () => {
     expect(url).toBe('/api/admin/config/slack/app-token')
     expect(options.method).toBe('PUT')
     expect(JSON.parse(options.body)).toEqual({ token: 'xapp-1' })
+  })
+
+  it('reads the subagents from the admin endpoint', async () => {
+    await getSubagents('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/subagents')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('creates a subagent with the whole definition in the body', async () => {
+    const subagent = {
+      name: 'code_investigator',
+      description: 'Owns the codebase.',
+      instructions: 'Read code.',
+      provider: 'anthropic',
+      model: 'claude-sonnet-5',
+      tools: ['search_code'],
+      exclusive: true,
+      enabled: true,
+    }
+
+    await createSubagent('tok', subagent)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/subagents')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual(subagent)
+  })
+
+  it('updates a subagent by id', async () => {
+    await updateSubagent('tok', 4, { name: 'context_gatherer', enabled: false })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/subagents/4')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ name: 'context_gatherer', enabled: false })
+  })
+
+  it('deletes a subagent by id', async () => {
+    await deleteSubagent('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/subagents/4')
+    expect(options.method).toBe('DELETE')
   })
 })

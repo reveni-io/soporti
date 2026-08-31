@@ -50,6 +50,11 @@ export const MAX_DESCRIPTION_LENGTH = 200
 export const MAX_INSTRUCTIONS_LENGTH = 50_000
 export const MAX_API_KEY_NAME_LENGTH = 80
 
+export const SUBAGENT_NAME_MAX_LENGTH = 40
+export const SUBAGENT_NAME_RE = new RegExp(`^[a-z][a-z0-9_]{1,${SUBAGENT_NAME_MAX_LENGTH - 1}}$`)
+export const MAX_SUBAGENT_DESCRIPTION_LENGTH = 1000
+export const SUBAGENT_TOOL_PREFIX = 'ask_'
+
 export const SCHEDULE_HOURLY = 'hourly'
 export const SCHEDULE_DAILY = 'daily'
 export const SCHEDULE_WEEKLY = 'weekly'

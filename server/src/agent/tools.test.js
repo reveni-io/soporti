@@ -140,6 +140,11 @@ const {
   allTools,
   buildRepoTools,
   buildAgentTools,
+  selectToolsByName,
+  excludeToolsByName,
+  restrictToolsByName,
+  REPO_TOOL_NAMES,
+  SELECTABLE_TOOL_NAMES,
   buildGranolaTools,
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
@@ -906,5 +911,92 @@ describe('buildAgentTools with Granola', () => {
     await tools.find(t => t.name === 'search_granola_notes').execute({ query: '', limit: 5 })
 
     expect(granolaMod.searchNotes).toHaveBeenCalledWith(42, expect.objectContaining({ limit: 5 }))
+  })
+})
+
+describe('selectToolsByName', () => {
+  const TOOLS = [{ name: 'search_code' }, { name: 'get_file_contents' }, { name: 'get_sentry_issue' }]
+
+  it('keeps only the named tools, in the order the array had them', () => {
+    expect(selectToolsByName(TOOLS, ['get_sentry_issue', 'search_code'])).toEqual([
+      { name: 'search_code' },
+      { name: 'get_sentry_issue' },
+    ])
+  })
+
+  it('ignores a name that is not among the tools', () => {
+    expect(selectToolsByName(TOOLS, ['search_code', 'query_database'])).toEqual([{ name: 'search_code' }])
+  })
+
+  it('selects nothing for an empty or missing list', () => {
+    expect(selectToolsByName(TOOLS, [])).toEqual([])
+    expect(selectToolsByName(TOOLS, null)).toEqual([])
+    expect(selectToolsByName(TOOLS, undefined)).toEqual([])
+  })
+})
+
+describe('excludeToolsByName', () => {
+  const TOOLS = [{ name: 'search_code' }, { name: 'get_file_contents' }, { name: 'get_sentry_issue' }]
+
+  it('drops the named tools and keeps the rest', () => {
+    expect(excludeToolsByName(TOOLS, ['search_code'])).toEqual([
+      { name: 'get_file_contents' },
+      { name: 'get_sentry_issue' },
+    ])
+  })
+
+  it('keeps everything for an empty or missing list', () => {
+    expect(excludeToolsByName(TOOLS, [])).toEqual(TOOLS)
+    expect(excludeToolsByName(TOOLS, null)).toEqual(TOOLS)
+  })
+
+  it('partitions the array with the selection, losing nothing and overlapping nowhere', () => {
+    const names = ['get_file_contents', 'get_sentry_issue']
+    const selected = selectToolsByName(TOOLS, names)
+    const excluded = excludeToolsByName(TOOLS, names)
+
+    expect(selected).toHaveLength(2)
+    expect(excluded).toHaveLength(1)
+    expect([...selected, ...excluded]).toHaveLength(TOOLS.length)
+    expect(selected.filter(tool => excluded.includes(tool))).toEqual([])
+  })
+})
+
+describe('REPO_TOOL_NAMES', () => {
+  it('names every repository tool the main agent starts with', () => {
+    expect([...REPO_TOOL_NAMES]).toEqual([
+      'list_repos',
+      'get_directory_contents',
+      'get_file_contents',
+      'search_code',
+      'find_files',
+      'git_log_file',
+      'git_blame',
+    ])
+  })
+})
+
+describe('restrictToolsByName', () => {
+  const TOOLS = [{ name: 'search_code' }, { name: 'get_sentry_issue' }, { name: 'render_artifact' }]
+
+  it('keeps the named tools and every tool the admin cannot pick', () => {
+    expect(restrictToolsByName(TOOLS, ['search_code'])).toEqual([{ name: 'search_code' }, { name: 'render_artifact' }])
+  })
+
+  it('keeps the tools outside the picker even when nothing was allowed', () => {
+    expect(restrictToolsByName(TOOLS, [])).toEqual([{ name: 'render_artifact' }])
+    expect(restrictToolsByName(TOOLS, null)).toEqual([{ name: 'render_artifact' }])
+  })
+})
+
+describe('SELECTABLE_TOOL_NAMES', () => {
+  it('covers every repository and integration tool', () => {
+    for (const name of REPO_TOOL_NAMES) expect(SELECTABLE_TOOL_NAMES.has(name)).toBe(true)
+    expect(SELECTABLE_TOOL_NAMES.has('get_sentry_issue')).toBe(true)
+    expect(SELECTABLE_TOOL_NAMES.has('query_database')).toBe(true)
+  })
+
+  it('leaves out the artifact tool, which is not the admin to grant', () => {
+    expect(SELECTABLE_TOOL_NAMES.has('render_artifact')).toBe(false)
   })
 })

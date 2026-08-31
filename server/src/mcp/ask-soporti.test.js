@@ -134,6 +134,8 @@ describe('executeAskSoporti', () => {
       skills,
       skillArguments: 'Why?',
       userId: 7,
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -163,6 +165,8 @@ describe('executeAskSoporti', () => {
       skills: [],
       skillArguments: 'Why?',
       userId: 7,
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -176,6 +180,8 @@ describe('executeAskSoporti', () => {
       skills: [],
       skillArguments: 'Why?',
       userId: 7,
+      onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 

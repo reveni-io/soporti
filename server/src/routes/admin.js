@@ -66,7 +66,30 @@ import {
   setReasoningEffort,
 } from '../llm/settings.js'
 import { DEFAULT_PROVIDER, isKnownProvider, listProviders } from '../llm/registry.js'
-import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_LEVELS } from '../constants.js'
+import { getMainAgentTools, setMainAgentTools } from '../agent/settings.js'
+import {
+  DEFAULT_REASONING_EFFORT,
+  MAX_ACTIVE_SUBAGENTS,
+  MAX_INSTRUCTIONS_LENGTH,
+  MAX_SUBAGENT_DESCRIPTION_LENGTH,
+  MAX_SUBAGENT_NAME_LENGTH,
+  MAX_SUBAGENT_TOOLS,
+  REASONING_EFFORT_LEVELS,
+  SUBAGENT_NAME_RE,
+} from '../constants.js'
+import { listSubagents, createSubagent, updateSubagent, deleteSubagent } from '../db/subagents.js'
+import { INTEGRATION_TOOL_NAMES } from '../agent/sources.js'
+import { INTEGRATIONS } from '../agent/integrations.js'
+import { REPO_TOOL_NAMES, SELECTABLE_TOOL_NAMES } from '../agent/tools.js'
+import { isShortcutConfigured } from '../shortcut/settings.js'
+import { isSentryConfigured } from '../sentry/settings.js'
+import { isDriveConfigured } from '../google-drive/settings.js'
+import { isNotionConfigured } from '../notion/settings.js'
+import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
+import { isPostgresConfigured } from '../postgres/settings.js'
+import { isBetterstackConfigured } from '../betterstack/settings.js'
+import { isGranolaConfigured } from '../granola/settings.js'
+import { isConfigured as isShopifyConfigured } from '../shopify/client.js'
 import {
   getOwnApiKey,
   getKnowledgeApiKey,
@@ -82,10 +105,24 @@ const router = Router()
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DOMAIN_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/
 const HOST_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/
+const ID_RE = /^\d{1,9}$/
 const API_KEY_MAX_LENGTH = 300
 const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
 const INVALID_HOST_ERROR = 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").'
+const REPO_TOOL_GROUP = { id: 'repo', label: 'Repositories', tools: [...REPO_TOOL_NAMES] }
+const GLOBAL_MODEL_GETTERS = { openai: getOpenAIModel, anthropic: getAnthropicModel }
+const INTEGRATION_CHECKS = {
+  shortcut: isShortcutConfigured,
+  notion: isNotionConfigured,
+  'google-drive': isDriveConfigured,
+  postgres: isPostgresConfigured,
+  sentry: isSentryConfigured,
+  betterstack: isBetterstackConfigured,
+  helpjuice: isHelpjuiceConfigured,
+  shopify: isShopifyConfigured,
+  granola: isGranolaConfigured,
+}
 
 function validEmail(email) {
   return typeof email === 'string' && email.trim().length <= 254 && EMAIL_REGEX.test(email.trim())
@@ -490,6 +527,254 @@ router.put('/config/anthropic/model', async (req, res) => {
   } catch (err) {
     console.error('Admin set anthropic model error:', err)
     res.status(500).json({ error: 'Failed to save the model.' })
+  }
+})
+
+async function resolveToolGroups(userId) {
+  const ids = Object.keys(INTEGRATION_TOOL_NAMES)
+  const flags = await Promise.all(ids.map(id => INTEGRATION_CHECKS[id](userId)))
+
+  const groups = ids.map((id, index) => ({
+    id,
+    label: INTEGRATIONS[id].label,
+    configured: flags[index],
+    tools: INTEGRATION_TOOL_NAMES[id],
+  }))
+
+  return [{ ...REPO_TOOL_GROUP, configured: true }, ...groups]
+}
+
+async function resolveGlobalSelection() {
+  const stored = await getLlmProvider()
+  const provider = isKnownProvider(stored) ? stored : DEFAULT_PROVIDER
+
+  return { provider, model: (await GLOBAL_MODEL_GETTERS[provider]()) ?? '' }
+}
+
+function parseProviderSelection(provider, model) {
+  if (provider != null && (typeof provider !== 'string' || !isKnownProvider(provider))) {
+    return { error: 'That is not a supported LLM provider.' }
+  }
+
+  const trimmedModel = typeof model === 'string' ? model.trim() : model
+  if (
+    trimmedModel != null &&
+    (typeof trimmedModel !== 'string' || trimmedModel.length === 0 || trimmedModel.length > MODEL_ID_MAX_LENGTH)
+  ) {
+    return { error: 'A model is required when you pick a provider.' }
+  }
+
+  if ((provider == null) !== (trimmedModel == null)) {
+    return { error: 'Pick both a provider and a model, or leave both empty to follow the global selection.' }
+  }
+
+  return { value: { provider: provider ?? null, model: trimmedModel ?? null } }
+}
+
+function parseToolNames(names) {
+  const unique = []
+
+  for (const name of names) {
+    if (typeof name !== 'string' || !SELECTABLE_TOOL_NAMES.has(name)) {
+      return { error: `"${name}" is not a tool the assistant can grant.` }
+    }
+    if (!unique.includes(name)) unique.push(name)
+  }
+
+  return { value: unique }
+}
+
+function parseMainAgentTools(tools) {
+  if (tools === null) return { value: null }
+  if (!Array.isArray(tools)) {
+    return { error: 'Tools must be an array of tool names, or null to allow every tool.' }
+  }
+
+  return parseToolNames(tools)
+}
+
+function parseSubagentTools(tools) {
+  if (tools !== undefined && !Array.isArray(tools)) return { error: 'Tools must be an array of tool names.' }
+
+  const requested = tools ?? []
+  if (requested.length > MAX_SUBAGENT_TOOLS) {
+    return { error: `A subagent can hold at most ${MAX_SUBAGENT_TOOLS} tools.` }
+  }
+
+  return parseToolNames(requested)
+}
+
+function parseSubagentInput(body) {
+  const { name, description, instructions, provider, model, tools, exclusive, enabled } = body ?? {}
+
+  if (typeof name !== 'string' || !SUBAGENT_NAME_RE.test(name)) {
+    return {
+      error: `Name must be 2-${MAX_SUBAGENT_NAME_LENGTH} characters using lowercase letters, numbers and underscores, starting with a letter.`,
+    }
+  }
+
+  const trimmedDescription = typeof description === 'string' ? description.trim() : ''
+  if (trimmedDescription.length === 0) {
+    return { error: 'A description is required — it is what tells the assistant when to use this subagent.' }
+  }
+  if (trimmedDescription.length > MAX_SUBAGENT_DESCRIPTION_LENGTH) {
+    return { error: `Description is too long (max ${MAX_SUBAGENT_DESCRIPTION_LENGTH} characters).` }
+  }
+
+  if (typeof instructions !== 'string' || instructions.trim().length === 0) {
+    return { error: 'Instructions are required.' }
+  }
+  if (instructions.length > MAX_INSTRUCTIONS_LENGTH) {
+    return { error: `Instructions are too long (max ${MAX_INSTRUCTIONS_LENGTH} characters).` }
+  }
+
+  const selection = parseProviderSelection(provider, model)
+  if (selection.error) return { error: selection.error }
+
+  const selectedTools = parseSubagentTools(tools)
+  if (selectedTools.error) return { error: selectedTools.error }
+
+  if (exclusive !== undefined && typeof exclusive !== 'boolean') return { error: 'Exclusive must be true or false.' }
+  if (enabled !== undefined && typeof enabled !== 'boolean') return { error: 'Enabled must be true or false.' }
+
+  return {
+    value: {
+      name,
+      description: trimmedDescription,
+      instructions,
+      provider: selection.value.provider,
+      model: selection.value.model,
+      tools: selectedTools.value,
+      exclusive: exclusive ?? false,
+      enabled: enabled ?? true,
+    },
+  }
+}
+
+function findExclusiveConflict(rows, input, editingId) {
+  if (!input.exclusive || !input.enabled) return null
+
+  for (const row of rows) {
+    if (row.id === editingId || !row.exclusive || !row.enabled) continue
+
+    const claimed = input.tools.find(name => row.tools.includes(name))
+    if (claimed) return { tool: claimed, owner: row.name }
+  }
+
+  return null
+}
+
+function exceedsEnabledCap(rows, input, editingId) {
+  if (!input.enabled) return false
+
+  return rows.filter(row => row.id !== editingId && row.enabled).length >= MAX_ACTIVE_SUBAGENTS
+}
+
+async function rejectSubagentConflicts(res, input, editingId) {
+  const rows = await listSubagents()
+
+  const conflict = findExclusiveConflict(rows, input, editingId)
+  if (conflict) {
+    res.status(409).json({
+      error: `"${conflict.tool}" already belongs to the subagent "${conflict.owner}". A tool can only be taken away from the main agent once.`,
+    })
+    return true
+  }
+
+  if (exceedsEnabledCap(rows, input, editingId)) {
+    res
+      .status(422)
+      .json({ error: `You can have at most ${MAX_ACTIVE_SUBAGENTS} enabled subagents. Disable one first.` })
+    return true
+  }
+
+  return false
+}
+
+router.get('/subagents', async (req, res) => {
+  try {
+    const [subagents, tools, global, mainAgentTools] = await Promise.all([
+      listSubagents(),
+      resolveToolGroups(req.user.id),
+      resolveGlobalSelection(),
+      getMainAgentTools(),
+    ])
+
+    res.json({
+      subagents,
+      providers: listProviders(),
+      tools: { groups: tools },
+      globalProvider: global.provider,
+      globalModel: global.model,
+      mainAgentTools,
+    })
+  } catch (err) {
+    console.error('Admin list subagents error:', err)
+    res.status(500).json({ error: 'Failed to load the subagents.' })
+  }
+})
+
+router.put('/agent/tools', async (req, res) => {
+  const { error, value } = parseMainAgentTools(req.body?.tools)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setMainAgentTools(value)
+    res.json({ tools: value })
+  } catch (err) {
+    console.error('Admin set main agent tools error:', err)
+    res.status(500).json({ error: 'Failed to save the main agent tools.' })
+  }
+})
+
+router.post('/subagents', async (req, res) => {
+  const { error, value } = parseSubagentInput(req.body)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    if (await rejectSubagentConflicts(res, value, null)) return
+
+    res.status(201).json({ subagent: await createSubagent(value) })
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A subagent with this name already exists.' })
+    console.error('Admin create subagent error:', err)
+    res.status(500).json({ error: 'Failed to create the subagent.' })
+  }
+})
+
+router.put('/subagents/:id', async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid subagent ID.' })
+
+  const { error, value } = parseSubagentInput(req.body)
+  if (error) return res.status(400).json({ error })
+
+  const id = Number(req.params.id)
+
+  try {
+    if (await rejectSubagentConflicts(res, value, id)) return
+
+    const subagent = await updateSubagent(id, value)
+    if (!subagent) return res.status(404).json({ error: 'Subagent not found.' })
+
+    res.json({ subagent })
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A subagent with this name already exists.' })
+    console.error('Admin update subagent error:', err)
+    res.status(500).json({ error: 'Failed to update the subagent.' })
+  }
+})
+
+router.delete('/subagents/:id', async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid subagent ID.' })
+
+  try {
+    const removed = await deleteSubagent(Number(req.params.id))
+    if (!removed) return res.status(404).json({ error: 'Subagent not found.' })
+
+    res.json({ deleted: true })
+  } catch (err) {
+    console.error('Admin delete subagent error:', err)
+    res.status(500).json({ error: 'Failed to delete the subagent.' })
   }
 })
 

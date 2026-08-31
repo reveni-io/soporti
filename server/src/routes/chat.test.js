@@ -239,6 +239,9 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedToolResult: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -350,6 +353,9 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedToolResult: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -369,6 +375,9 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedToolResult: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -609,6 +618,9 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedToolResult: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
@@ -690,6 +702,9 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      onNestedToolCall: expect.any(Function),
+      onNestedToolResult: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 
@@ -898,5 +913,186 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'search for auth' })
 
     expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ tools: ['search_code'] }))
+  })
+
+  function lastAgentOptions() {
+    return createAgent.mock.calls[createAgent.mock.calls.length - 1][2]
+  }
+
+  const DELEGATION_EVENT = {
+    type: 'run_item_stream_event',
+    item: { type: 'tool_call_item', rawItem: { name: 'ask_code_investigator', arguments: '{}' } },
+  }
+
+  function delegatingStream(events, onNested, { usage } = {}) {
+    return {
+      state: usage ? { usage } : undefined,
+      toStream: () => ({
+        async *[Symbol.asyncIterator]() {
+          for (const event of events) {
+            yield event
+            onNested(lastAgentOptions())
+          }
+        },
+      }),
+      completed: Promise.resolve(),
+    }
+  }
+
+  function reportsNestedToolCall() {
+    run.mockResolvedValue(
+      delegatingStream([DELEGATION_EVENT], options =>
+        options.onNestedToolCall({
+          name: 'search_code',
+          arguments: '{"repo":"org/api"}',
+          callId: 'nested-1',
+          parent: 'ask_code_investigator',
+        })
+      )
+    )
+  }
+
+  it('records what a specialist consulted, not only the tool that reached it', async () => {
+    reportsNestedToolCall()
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: ['ask_code_investigator', 'search_code'] })
+    )
+  })
+
+  it('names the repository a specialist read in the YOLO sources footer', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app)
+      .post('/')
+      .send({ message: 'why does it 500?', selectedSources: ['yolo'] })
+
+    expect(res.text).toContain('Sources consulted: `org/api`')
+  })
+
+  it('streams a step for a tool the specialist called on its own', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const started = streamEvents(res).filter(event => event.type === 'tool_start')
+    expect(started.map(event => event.tool)).toEqual(['ask_code_investigator', 'search_code'])
+  })
+
+  it('tags a specialist step with the tool that started it so the chat can indent it', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const events = streamEvents(res).filter(event => event.type === 'tool_start')
+    expect(events.find(event => event.tool === 'ask_code_investigator').parent).toBeNull()
+    expect(events.find(event => event.tool === 'search_code').parent).toBe('ask_code_investigator')
+  })
+
+  it('shows the user which repository the specialist opened', async () => {
+    reportsNestedToolCall()
+
+    const res = await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const nested = streamEvents(res).find(event => event.type === 'tool_start' && event.tool === 'search_code')
+    expect(nested.input).toEqual({ repo: 'org/api' })
+  })
+
+  it('closes the specialist step when its tool comes back', async () => {
+    run.mockResolvedValue(
+      delegatingStream([DELEGATION_EVENT], options => {
+        options.onNestedToolCall({
+          name: 'search_code',
+          arguments: '{"repo":"org/api"}',
+          callId: 'nested-1',
+          parent: 'ask_code_investigator',
+        })
+        options.onNestedToolResult({ name: 'search_code', callId: 'nested-1', parent: 'ask_code_investigator' })
+      })
+    )
+
+    const res = await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const ended = streamEvents(res).filter(event => event.type === 'tool_end')
+    expect(ended.map(event => event.tool)).toContain('search_code')
+  })
+
+  it('closes the step of the specialist that answered when two ran the same tool at once', async () => {
+    run.mockResolvedValue(
+      delegatingStream([DELEGATION_EVENT], options => {
+        for (const parent of ['ask_code_investigator', 'ask_log_detective']) {
+          options.onNestedToolCall({ name: 'search_code', arguments: '{}', callId: `${parent}-1`, parent })
+        }
+        options.onNestedToolResult({
+          name: 'search_code',
+          callId: 'ask_code_investigator-1',
+          parent: 'ask_code_investigator',
+        })
+      })
+    )
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const [, saved] = conversationStore.saveTurn.mock.calls.at(-1)
+    const assistant = saved.uiMessages.find(message => message.role === 'assistant')
+    const searches = assistant.parts.filter(part => part.type === 'tool_call' && part.tool === 'search_code')
+
+    expect(searches.map(part => ({ parent: part.parent, done: part.done }))).toEqual([
+      { parent: 'ask_code_investigator', done: true },
+      { parent: 'ask_log_detective', done: false },
+    ])
+  })
+
+  it('saves the specialist steps on the turn so a reload still shows them', async () => {
+    reportsNestedToolCall()
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    const [, saved] = conversationStore.saveTurn.mock.calls.at(-1)
+    const assistant = saved.uiMessages.find(message => message.role === 'assistant')
+    expect(assistant.parts.filter(part => part.type === 'tool_call').map(part => part.tool)).toEqual([
+      'ask_code_investigator',
+      'search_code',
+    ])
+  })
+
+  it('adds what a specialist spent to the usage of the run', async () => {
+    run.mockResolvedValue(
+      delegatingStream(
+        [DELEGATION_EVENT],
+        options =>
+          options.onNestedUsage({
+            requests: 1,
+            inputTokens: 500,
+            outputTokens: 60,
+            cachedInputTokens: 0,
+            cacheWriteTokens: 20,
+          }),
+        {
+          usage: {
+            requests: 2,
+            inputTokens: 12_000,
+            outputTokens: 400,
+            inputTokensDetails: [{ cached_tokens: 9000, cache_write_tokens: 100 }],
+          },
+        }
+      )
+    )
+
+    await request(app).post('/').send({ message: 'why does it 500?' })
+
+    expect(recordAgentRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: {
+          requests: 3,
+          inputTokens: 12_500,
+          outputTokens: 460,
+          cachedInputTokens: 9000,
+          cacheWriteTokens: 120,
+        },
+      })
+    )
   })
 })

@@ -1,0 +1,21 @@
+.subagent-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.subagent-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}
+
+.subagent-form__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}

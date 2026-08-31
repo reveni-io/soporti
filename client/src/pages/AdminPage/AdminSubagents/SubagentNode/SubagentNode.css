@@ -1,0 +1,50 @@
+.subagent-node {
+  display: flex;
+  height: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+}
+
+.subagent-node--disabled {
+  opacity: 0.55;
+}
+
+.subagent-node__name {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subagent-node__description {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.subagent-node__logos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2) var(--sp3);
+}
+
+.subagent-node__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  margin-top: auto;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+}
+
+.subagent-node__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  padding-top: var(--sp1);
+}

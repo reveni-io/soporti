@@ -1,0 +1,12 @@
+.main-agent-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.main-agent-form__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  color: var(--text-primary);
+}

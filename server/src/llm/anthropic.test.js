@@ -33,6 +33,14 @@ describe('the anthropic provider descriptor', () => {
 })
 
 describe('isConfigured', () => {
+  it('accepts a caller own model instead of the globally stored one', async () => {
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue(null)
+
+    expect(await provider.isConfigured({ modelId: 'claude-sonnet-5' })).toBe(true)
+    expect(getAnthropicModel).not.toHaveBeenCalled()
+  })
+
   it('requires both the key and the model', async () => {
     getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
     getAnthropicModel.mockResolvedValue('claude-opus-5')
@@ -81,6 +89,30 @@ describe('buildModel', () => {
     getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
     getAnthropicModel.mockResolvedValue(null)
     await expect(provider.buildModel()).rejects.toThrow(/model not configured/i)
+  })
+
+  it('builds an overriding model id instead of the stored one', async () => {
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
+
+    const { modelId } = await provider.buildModel({ modelId: 'claude-sonnet-5' })
+
+    expect(modelId).toBe('claude-sonnet-5')
+    expect(aisdk).toHaveBeenCalledWith({ provider: 'anthropic', modelId: 'claude-sonnet-5' })
+  })
+
+  it('falls back to the stored model when the override is null', async () => {
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
+
+    const { modelId } = await provider.buildModel({ modelId: null })
+
+    expect(modelId).toBe('claude-opus-5')
+  })
+
+  it('still refuses an override when no key is configured', async () => {
+    getAnthropicApiKey.mockResolvedValue(null)
+    await expect(provider.buildModel({ modelId: 'claude-sonnet-5' })).rejects.toThrow(/API key not configured/i)
   })
 })
 

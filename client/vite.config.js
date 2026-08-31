@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5173,
+      watch: env.VITE_USE_POLLING === 'true' ? { usePolling: true, interval: 300 } : undefined,
       proxy: {
         '/api': {
           target: env.VITE_PROXY_TARGET || 'http://localhost:3001',

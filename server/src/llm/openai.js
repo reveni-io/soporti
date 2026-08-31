@@ -25,18 +25,18 @@ async function getClient() {
   return clientInstance
 }
 
-export async function isConfigured() {
-  const [key, model] = await Promise.all([getOpenAIApiKey(), getOpenAIModel()])
+export async function isConfigured({ modelId = null } = {}) {
+  const [key, model] = await Promise.all([getOpenAIApiKey(), modelId ?? getOpenAIModel()])
   return Boolean(key && model)
 }
 
-export async function buildModel() {
+export async function buildModel({ modelId: override = null } = {}) {
   const client = await getClient()
   if (!client) {
     throw new Error('OpenAI API key not configured. Set it in the admin panel (LLM section).')
   }
 
-  const modelId = await getOpenAIModel()
+  const modelId = override ?? (await getOpenAIModel())
   if (!modelId) {
     throw new Error('OpenAI model not configured. Set it in the admin panel (LLM section).')
   }

@@ -100,15 +100,46 @@ const restartSlackBot = vi.fn(async () => null)
 
 const clearStatsCache = vi.fn()
 
+const listSubagents = vi.fn()
+const createSubagent = vi.fn()
+const updateSubagent = vi.fn()
+const deleteSubagent = vi.fn()
+const isShortcutConfigured = vi.fn()
+const isSentryConfigured = vi.fn()
+const isDriveConfigured = vi.fn()
+const isNotionConfigured = vi.fn()
+const isHelpjuiceConfigured = vi.fn()
+const isPostgresConfigured = vi.fn()
+const isBetterstackConfigured = vi.fn()
+const isGranolaConfigured = vi.fn()
+const isShopifyConfigured = vi.fn()
+const INTEGRATION_CHECK_MOCKS = [
+  isShortcutConfigured,
+  isSentryConfigured,
+  isDriveConfigured,
+  isNotionConfigured,
+  isHelpjuiceConfigured,
+  isPostgresConfigured,
+  isBetterstackConfigured,
+  isGranolaConfigured,
+  isShopifyConfigured,
+]
+
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
 vi.mock('../auth/setup-code.js', () => ({ verifySetupCode, announceSetupCode }))
 vi.mock('../auth/allowed-domains.js', () => ({ getAllowedDomains, setAllowedDomains }))
 vi.mock('../auth/auth-methods.js', () => ({ getAuthMethods, setAuthMethods }))
 vi.mock('../auth/google-settings.js', () => ({ getGoogleClientId, setGoogleClientId }))
-vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCredentials }))
-vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken }))
-vi.mock('../shortcut/settings.js', () => ({ getShortcutToken, setShortcutToken }))
-vi.mock('../sentry/settings.js', () => ({ getSentryToken, setSentryToken, getSentryOrg, setSentryOrg }))
+vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCredentials, isDriveConfigured }))
+vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken, isNotionConfigured }))
+vi.mock('../shortcut/settings.js', () => ({ getShortcutToken, setShortcutToken, isShortcutConfigured }))
+vi.mock('../sentry/settings.js', () => ({
+  getSentryToken,
+  setSentryToken,
+  getSentryOrg,
+  setSentryOrg,
+  isSentryConfigured,
+}))
 vi.mock('../betterstack/settings.js', () => ({
   getBetterstackApiToken,
   setBetterstackApiToken,
@@ -118,18 +149,21 @@ vi.mock('../betterstack/settings.js', () => ({
   setBetterstackUsername,
   getBetterstackPassword,
   setBetterstackPassword,
+  isBetterstackConfigured,
 }))
 vi.mock('../helpjuice/settings.js', () => ({
   getHelpjuiceApiKey,
   setHelpjuiceApiKey,
   getHelpjuiceAccount,
   setHelpjuiceAccount,
+  isHelpjuiceConfigured,
 }))
 vi.mock('../postgres/settings.js', () => ({
   getPostgresConnection,
   setPostgresConnection,
   getPostgresMaxRows,
   setPostgresMaxRows,
+  isPostgresConfigured,
 }))
 vi.mock('../shopify/settings.js', () => ({
   getShopifyTokenQuery,
@@ -191,10 +225,40 @@ vi.mock('../db/users.js', () => ({
   findUserByEmail,
 }))
 
+vi.mock('../db/subagents.js', () => ({ listSubagents, createSubagent, updateSubagent, deleteSubagent }))
+
+const getMainAgentTools = vi.fn(async () => null)
+const setMainAgentTools = vi.fn(async () => {})
+vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools }))
+vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
+vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
+const REPO_TOOL_NAMES = new Set([
+  'list_repos',
+  'get_directory_contents',
+  'get_file_contents',
+  'search_code',
+  'find_files',
+  'git_log_file',
+  'git_blame',
+])
+
+vi.mock('../agent/tools.js', async () => {
+  const { INTEGRATION_TOOL_NAMES } = await import('../agent/sources.js')
+
+  return {
+    REPO_TOOL_NAMES,
+    SELECTABLE_TOOL_NAMES: new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()]),
+  }
+})
+
 const adminRouter = (await import('./admin.js')).default
 
 const app = express()
 app.use(express.json())
+app.use((req, _res, next) => {
+  req.user = { id: 7, role: 'admin' }
+  next()
+})
 app.use('/api/admin', adminRouter)
 
 beforeEach(() => {
@@ -276,6 +340,11 @@ beforeEach(() => {
   getVectorStoreId.mockReset()
   setVectorStoreId.mockReset()
   clearStatsCache.mockReset()
+  listSubagents.mockReset().mockResolvedValue([])
+  createSubagent.mockReset()
+  updateSubagent.mockReset()
+  deleteSubagent.mockReset()
+  for (const check of INTEGRATION_CHECK_MOCKS) check.mockReset().mockResolvedValue(false)
   currentDbRole = 'admin'
 })
 
@@ -1807,5 +1876,594 @@ describe('PUT /api/admin/config/knowledge/vector-store', () => {
         .status
     ).toBe(400)
     expect(setVectorStoreId).not.toHaveBeenCalled()
+  })
+})
+
+const VALID_SUBAGENT = {
+  name: 'code_investigator',
+  description: 'Owns the codebase and Sentry. Send it a stacktrace to follow or a regression to date.',
+  instructions: 'Read the code and report the specific files, lines and commits.',
+  provider: 'anthropic',
+  model: 'claude-sonnet-5',
+  tools: ['search_code', 'get_sentry_issue'],
+  exclusive: true,
+  enabled: true,
+}
+
+function enabledRows(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    name: `specialist_${index}`,
+    tools: [],
+    exclusive: false,
+    enabled: true,
+  }))
+}
+
+describe('GET /api/admin/subagents', () => {
+  it('returns the stored rows, the providers and the global selection in one payload', async () => {
+    listSubagents.mockResolvedValue([{ id: 1, name: 'code_investigator', tools: ['search_code'] }])
+    getLlmProvider.mockResolvedValue('anthropic')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.status).toBe(200)
+    expect(res.body.subagents).toEqual([{ id: 1, name: 'code_investigator', tools: ['search_code'] }])
+    expect(res.body.providers).toEqual([
+      { id: 'openai', label: 'OpenAI' },
+      { id: 'anthropic', label: 'Anthropic' },
+    ])
+    expect(res.body.globalProvider).toBe('anthropic')
+    expect(res.body.globalModel).toBe('claude-opus-5')
+  })
+
+  it('reads the global model of the stored provider, falling back to the default provider', async () => {
+    getLlmProvider.mockResolvedValue('gemini')
+    getOpenAIModel.mockResolvedValue('gpt-5.2-codex')
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.body.globalProvider).toBe('openai')
+    expect(res.body.globalModel).toBe('gpt-5.2-codex')
+    expect(getAnthropicModel).not.toHaveBeenCalled()
+  })
+
+  it('lists the repository tools first and always available', async () => {
+    const res = await request(app).get('/api/admin/subagents')
+
+    const [repo] = res.body.tools.groups
+    expect(repo).toEqual({
+      id: 'repo',
+      label: 'Repositories',
+      configured: true,
+      tools: [
+        'list_repos',
+        'get_directory_contents',
+        'get_file_contents',
+        'search_code',
+        'find_files',
+        'git_log_file',
+        'git_blame',
+      ],
+    })
+  })
+
+  it('marks each integration group with whether its credentials are in place', async () => {
+    isSentryConfigured.mockResolvedValue(true)
+    isNotionConfigured.mockResolvedValue(false)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    const byId = Object.fromEntries(res.body.tools.groups.map(group => [group.id, group]))
+    expect(byId.sentry).toEqual({
+      id: 'sentry',
+      label: 'Sentry',
+      configured: true,
+      tools: ['get_sentry_issue', 'search_sentry_issues'],
+    })
+    expect(byId.notion.configured).toBe(false)
+    expect(byId.notion.tools).toEqual(['search_notion_pages', 'get_notion_page'])
+  })
+
+  it('resolves the granola check against the requesting admin, whose key it is', async () => {
+    await request(app).get('/api/admin/subagents')
+
+    expect(isGranolaConfigured).toHaveBeenCalledWith(7)
+  })
+
+  it('returns 500 when the rows cannot be read', async () => {
+    listSubagents.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to load the subagents.')
+  })
+})
+
+describe('POST /api/admin/subagents', () => {
+  it('stores the normalized definition and returns it', async () => {
+    createSubagent.mockResolvedValue({ id: 3, ...VALID_SUBAGENT })
+
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, description: `  ${VALID_SUBAGENT.description}  `, model: ' claude-sonnet-5 ' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.subagent).toEqual({ id: 3, ...VALID_SUBAGENT })
+    expect(createSubagent).toHaveBeenCalledTimes(1)
+    expect(createSubagent).toHaveBeenCalledWith(VALID_SUBAGENT)
+  })
+
+  it('defaults a definition that omits the flags to shared and enabled', async () => {
+    createSubagent.mockResolvedValue({ id: 3 })
+
+    const res = await request(app).post('/api/admin/subagents').send({
+      name: 'log_detective',
+      description: 'Owns the logs.',
+      instructions: 'Search the logs.',
+      provider: null,
+      model: null,
+      tools: [],
+    })
+
+    expect(res.status).toBe(201)
+    expect(createSubagent).toHaveBeenCalledWith({
+      name: 'log_detective',
+      description: 'Owns the logs.',
+      instructions: 'Search the logs.',
+      provider: null,
+      model: null,
+      tools: [],
+      exclusive: false,
+      enabled: true,
+    })
+  })
+
+  it('drops a tool the caller listed twice', async () => {
+    createSubagent.mockResolvedValue({ id: 3 })
+
+    await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, tools: ['search_code', 'search_code', 'get_sentry_issue'] })
+
+    expect(createSubagent).toHaveBeenCalledWith(expect.objectContaining({ tools: ['search_code', 'get_sentry_issue'] }))
+  })
+
+  it('rejects a name that is not a lowercase underscore identifier', async () => {
+    for (const name of ['Code_Investigator', 'code-investigator', 'a', '1code', '', 42, undefined]) {
+      const res = await request(app)
+        .post('/api/admin/subagents')
+        .send({ ...VALID_SUBAGENT, name })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toMatch(/lowercase letters, numbers and underscores/)
+    }
+    expect(createSubagent).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty description, because it is the routing signal', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, description: '   ' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('A description is required — it is what tells the assistant when to use this subagent.')
+  })
+
+  it('rejects a description longer than the cap', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, description: 'x'.repeat(1001) })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Description is too long (max 1000 characters).')
+  })
+
+  it('rejects missing instructions', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, instructions: '  ' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Instructions are required.')
+  })
+
+  it('rejects a provider that is not registered', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, provider: 'gemini' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('That is not a supported LLM provider.')
+  })
+
+  it('rejects a provider without a model', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, model: null })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Pick both a provider and a model, or leave both empty to follow the global selection.')
+  })
+
+  it('rejects a model without a provider', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, provider: null })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Pick both a provider and a model, or leave both empty to follow the global selection.')
+  })
+
+  it('rejects an empty or oversized model id', async () => {
+    for (const model of ['   ', 'x'.repeat(101), 7]) {
+      const res = await request(app)
+        .post('/api/admin/subagents')
+        .send({ ...VALID_SUBAGENT, model })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('A model is required when you pick a provider.')
+    }
+  })
+
+  it('stores a null provider and model when both are left empty, to follow the global selection', async () => {
+    createSubagent.mockResolvedValue({ id: 3 })
+
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, provider: null, model: null })
+
+    expect(res.status).toBe(201)
+    expect(createSubagent).toHaveBeenCalledWith(expect.objectContaining({ provider: null, model: null }))
+  })
+
+  it('rejects a tool the assistant does not have', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, tools: ['search_code', 'rm_minus_rf'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('"rm_minus_rf" is not a tool the assistant can grant.')
+  })
+
+  it('rejects the artifact tool, which stays with the main agent', async () => {
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, tools: ['render_artifact'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('"render_artifact" is not a tool the assistant can grant.')
+  })
+
+  it('rejects a tools value that is not an array, or one over the cap', async () => {
+    const notAnArray = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, tools: 'search_code' })
+    expect(notAnArray.status).toBe(400)
+    expect(notAnArray.body.error).toBe('Tools must be an array of tool names.')
+
+    const tooMany = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, tools: Array.from({ length: 41 }, () => 'search_code') })
+    expect(tooMany.status).toBe(400)
+    expect(tooMany.body.error).toBe('A subagent can hold at most 40 tools.')
+  })
+
+  it('rejects non-boolean flags', async () => {
+    const exclusive = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, exclusive: 'yes' })
+    expect(exclusive.status).toBe(400)
+    expect(exclusive.body.error).toBe('Exclusive must be true or false.')
+
+    const enabled = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, enabled: 'yes' })
+    expect(enabled.status).toBe(400)
+    expect(enabled.body.error).toBe('Enabled must be true or false.')
+  })
+
+  it('refuses to claim a tool another enabled subagent already owns exclusively', async () => {
+    listSubagents.mockResolvedValue([
+      { id: 1, name: 'context_gatherer', tools: ['get_sentry_issue'], exclusive: true, enabled: true },
+    ])
+
+    const res = await request(app).post('/api/admin/subagents').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(409)
+    expect(res.body.error).toBe(
+      '"get_sentry_issue" already belongs to the subagent "context_gatherer". A tool can only be taken away from the main agent once.'
+    )
+    expect(createSubagent).not.toHaveBeenCalled()
+  })
+
+  it('lets two subagents share a tool when neither takes it away', async () => {
+    listSubagents.mockResolvedValue([
+      { id: 1, name: 'context_gatherer', tools: ['search_code'], exclusive: false, enabled: true },
+    ])
+    createSubagent.mockResolvedValue({ id: 3 })
+
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, exclusive: false })
+
+    expect(res.status).toBe(201)
+  })
+
+  it('ignores a disabled owner, whose tools are back with the main agent', async () => {
+    listSubagents.mockResolvedValue([
+      { id: 1, name: 'context_gatherer', tools: ['search_code'], exclusive: true, enabled: false },
+    ])
+    createSubagent.mockResolvedValue({ id: 3 })
+
+    const res = await request(app).post('/api/admin/subagents').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(201)
+  })
+
+  it('refuses to enable a ninth subagent', async () => {
+    listSubagents.mockResolvedValue(enabledRows(8))
+
+    const res = await request(app).post('/api/admin/subagents').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(422)
+    expect(res.body.error).toBe('You can have at most 8 enabled subagents. Disable one first.')
+    expect(createSubagent).not.toHaveBeenCalled()
+  })
+
+  it('lets a disabled draft past the cap', async () => {
+    listSubagents.mockResolvedValue(enabledRows(8))
+    createSubagent.mockResolvedValue({ id: 9 })
+
+    const res = await request(app)
+      .post('/api/admin/subagents')
+      .send({ ...VALID_SUBAGENT, enabled: false })
+
+    expect(res.status).toBe(201)
+  })
+
+  it('reports a duplicate name as a conflict', async () => {
+    createSubagent.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }))
+
+    const res = await request(app).post('/api/admin/subagents').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(409)
+    expect(res.body.error).toBe('A subagent with this name already exists.')
+  })
+
+  it('returns a generic 500 when the insert fails for another reason', async () => {
+    createSubagent.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).post('/api/admin/subagents').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to create the subagent.')
+  })
+})
+
+describe('PUT /api/admin/subagents/:id', () => {
+  it('updates the row and returns it', async () => {
+    updateSubagent.mockResolvedValue({ id: 4, ...VALID_SUBAGENT })
+
+    const res = await request(app).put('/api/admin/subagents/4').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(200)
+    expect(res.body.subagent).toEqual({ id: 4, ...VALID_SUBAGENT })
+    expect(updateSubagent).toHaveBeenCalledWith(4, VALID_SUBAGENT)
+  })
+
+  it('rejects an id that is not a number', async () => {
+    const res = await request(app).put('/api/admin/subagents/abc').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Invalid subagent ID.')
+    expect(updateSubagent).not.toHaveBeenCalled()
+  })
+
+  it('validates the body before touching the database', async () => {
+    const res = await request(app)
+      .put('/api/admin/subagents/4')
+      .send({ ...VALID_SUBAGENT, name: 'Nope' })
+
+    expect(res.status).toBe(400)
+    expect(updateSubagent).not.toHaveBeenCalled()
+  })
+
+  it('does not treat the row being edited as a competing owner', async () => {
+    listSubagents.mockResolvedValue([
+      { id: 4, name: 'code_investigator', tools: ['search_code'], exclusive: true, enabled: true },
+    ])
+    updateSubagent.mockResolvedValue({ id: 4 })
+
+    const res = await request(app).put('/api/admin/subagents/4').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('refuses to claim a tool another enabled subagent owns exclusively', async () => {
+    listSubagents.mockResolvedValue([
+      { id: 1, name: 'context_gatherer', tools: ['search_code'], exclusive: true, enabled: true },
+      { id: 4, name: 'code_investigator', tools: [], exclusive: true, enabled: true },
+    ])
+
+    const res = await request(app).put('/api/admin/subagents/4').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(409)
+    expect(updateSubagent).not.toHaveBeenCalled()
+  })
+
+  it('refuses to enable a row that would be the ninth', async () => {
+    listSubagents.mockResolvedValue([...enabledRows(8), { id: 99, name: 'draft', tools: [], enabled: false }])
+
+    const res = await request(app)
+      .put('/api/admin/subagents/99')
+      .send({ ...VALID_SUBAGENT, exclusive: false })
+
+    expect(res.status).toBe(422)
+    expect(updateSubagent).not.toHaveBeenCalled()
+  })
+
+  it('lets an already enabled row be saved again at the cap', async () => {
+    listSubagents.mockResolvedValue(enabledRows(8))
+    updateSubagent.mockResolvedValue({ id: 8 })
+
+    const res = await request(app)
+      .put('/api/admin/subagents/8')
+      .send({ ...VALID_SUBAGENT, exclusive: false })
+
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 404 when no row matches', async () => {
+    updateSubagent.mockResolvedValue(null)
+
+    const res = await request(app).put('/api/admin/subagents/99').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(404)
+    expect(res.body.error).toBe('Subagent not found.')
+  })
+
+  it('reports a duplicate name as a conflict', async () => {
+    updateSubagent.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }))
+
+    const res = await request(app).put('/api/admin/subagents/4').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(409)
+    expect(res.body.error).toBe('A subagent with this name already exists.')
+  })
+
+  it('returns a generic 500 when the update fails', async () => {
+    updateSubagent.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/subagents/4').send(VALID_SUBAGENT)
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to update the subagent.')
+  })
+})
+
+describe('DELETE /api/admin/subagents/:id', () => {
+  it('deletes the row', async () => {
+    deleteSubagent.mockResolvedValue(true)
+
+    const res = await request(app).delete('/api/admin/subagents/4')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ deleted: true })
+    expect(deleteSubagent).toHaveBeenCalledWith(4)
+  })
+
+  it('rejects an id that is not a number', async () => {
+    const res = await request(app).delete('/api/admin/subagents/abc')
+
+    expect(res.status).toBe(400)
+    expect(deleteSubagent).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when no row matched', async () => {
+    deleteSubagent.mockResolvedValue(false)
+
+    const res = await request(app).delete('/api/admin/subagents/99')
+
+    expect(res.status).toBe(404)
+    expect(res.body.error).toBe('Subagent not found.')
+  })
+
+  it('returns a generic 500 when the delete fails', async () => {
+    deleteSubagent.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).delete('/api/admin/subagents/4')
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to delete the subagent.')
+  })
+})
+
+describe('PUT /api/admin/agent/tools', () => {
+  beforeEach(() => {
+    getMainAgentTools.mockReset().mockResolvedValue(null)
+    setMainAgentTools.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('stores the allowlist it was given', async () => {
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code', 'get_sentry_issue'] })
+
+    expect(res.status).toBe(200)
+    expect(res.body.tools).toEqual(['search_code', 'get_sentry_issue'])
+    expect(setMainAgentTools).toHaveBeenCalledWith(['search_code', 'get_sentry_issue'])
+  })
+
+  it('clears the allowlist with null so every tool is allowed again', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: null })
+
+    expect(res.status).toBe(200)
+    expect(res.body.tools).toBeNull()
+    expect(setMainAgentTools).toHaveBeenCalledWith(null)
+  })
+
+  it('stores an empty allowlist as an empty list', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: [] })
+
+    expect(res.status).toBe(200)
+    expect(setMainAgentTools).toHaveBeenCalledWith([])
+  })
+
+  it('drops a duplicate without complaining', async () => {
+    await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code', 'search_code'] })
+
+    expect(setMainAgentTools).toHaveBeenCalledWith(['search_code'])
+  })
+
+  it('rejects a tool the assistant does not have', async () => {
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['drop_database'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('"drop_database" is not a tool the assistant can grant.')
+    expect(setMainAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('rejects anything that is not a list', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: 'search_code' })
+
+    expect(res.status).toBe(400)
+    expect(setMainAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the write fails', async () => {
+    setMainAgentTools.mockRejectedValue(new Error('nope'))
+
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code'] })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to save the main agent tools.')
+  })
+})
+
+describe('GET /api/admin/subagents main agent tools', () => {
+  it('returns the stored allowlist alongside the subagents', async () => {
+    getMainAgentTools.mockResolvedValue(['search_code'])
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.status).toBe(200)
+    expect(res.body.mainAgentTools).toEqual(['search_code'])
+  })
+
+  it('returns null when no allowlist was ever saved', async () => {
+    getMainAgentTools.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.body.mainAgentTools).toBeNull()
   })
 })

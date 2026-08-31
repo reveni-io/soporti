@@ -28,9 +28,14 @@ export async function runSchedule(schedule, conversationStore) {
       }),
     ])
 
+    const nestedToolCalls = []
+    const nestedUsage = []
+
     const agent = await createAgent(sources, schedule.profile, {
       customInstructions: customInstructions ?? '',
       userId: schedule.userId,
+      onNestedToolCall: call => nestedToolCalls.push(call),
+      onNestedUsage: usage => nestedUsage.push(usage),
     })
     const agentInput = buildUserTurn(schedule.question, { similarCases })
 
@@ -38,13 +43,15 @@ export async function runSchedule(schedule, conversationStore) {
       {
         channel: AGENT_CHANNEL_SCHEDULE,
         userId: schedule.userId,
+        nestedUsage,
+        nestedToolCalls,
         failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
       },
       () => run(agent, agentInput, { maxTurns: config.agent.maxIterations, session })
     )
 
     const answer = extractText(result)
-    const footer = isYoloMode(sources) ? buildSourcesFooter(toolCallsFromResult(result)) : ''
+    const footer = isYoloMode(sources) ? buildSourcesFooter([...toolCallsFromResult(result), ...nestedToolCalls]) : ''
 
     await conversationStore.saveTurn(conversationId, {
       lastResponseId: result?.lastResponseId,

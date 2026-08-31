@@ -12,8 +12,8 @@ describe('groupParts', () => {
       {
         type: 'steps',
         steps: [
-          { label: 'Listing repositories', detail: '', duration: '400ms', done: true },
-          { label: 'Searching code', detail: '"refund"', duration: '', done: false },
+          { label: 'Listing repositories', detail: '', duration: '400ms', done: true, nested: false },
+          { label: 'Searching code', detail: '"refund"', duration: '', done: false, nested: false },
         ],
       },
     ])

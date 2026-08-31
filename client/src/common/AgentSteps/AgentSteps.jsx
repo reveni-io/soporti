@@ -48,9 +48,13 @@ export default function AgentSteps({ steps, active }) {
 }
 
 function Step({ step }) {
-  const className = ['agent-steps__step', step.done ? 'agent-steps__step--done' : 'agent-steps__step--running'].join(
-    ' '
-  )
+  const className = [
+    'agent-steps__step',
+    step.done ? 'agent-steps__step--done' : 'agent-steps__step--running',
+    step.nested && 'agent-steps__step--nested',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <li className={className}>

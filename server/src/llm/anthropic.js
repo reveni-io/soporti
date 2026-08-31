@@ -10,18 +10,18 @@ const MAX_RETRIES = 2
 const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529])
 const EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
 
-export async function isConfigured() {
-  const [key, model] = await Promise.all([getAnthropicApiKey(), getAnthropicModel()])
+export async function isConfigured({ modelId = null } = {}) {
+  const [key, model] = await Promise.all([getAnthropicApiKey(), modelId ?? getAnthropicModel()])
   return Boolean(key && model)
 }
 
-export async function buildModel() {
+export async function buildModel({ modelId: override = null } = {}) {
   const key = await getAnthropicApiKey()
   if (!key) {
     throw new Error('Anthropic API key not configured. Set it in the admin panel (LLM section).')
   }
 
-  const modelId = await getAnthropicModel()
+  const modelId = override ?? (await getAnthropicModel())
   if (!modelId) {
     throw new Error('Anthropic model not configured. Set it in the admin panel (LLM section).')
   }

@@ -405,6 +405,45 @@ export function saveAnthropicModel(token, model) {
   })
 }
 
+export function getSubagents(token) {
+  return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
+}
+
+export function saveMainAgentTools(token, tools) {
+  return request('/api/admin/agent/tools', {
+    method: 'PUT',
+    token,
+    body: { tools },
+    errorMessage: 'Failed to save the main agent tools',
+  })
+}
+
+export function createSubagent(token, subagent) {
+  return request('/api/admin/subagents', {
+    method: 'POST',
+    token,
+    body: subagent,
+    errorMessage: 'Failed to save the subagent',
+  })
+}
+
+export function updateSubagent(token, id, subagent) {
+  return request(`/api/admin/subagents/${id}`, {
+    method: 'PUT',
+    token,
+    body: subagent,
+    errorMessage: 'Failed to save the subagent',
+  })
+}
+
+export function deleteSubagent(token, id) {
+  return request(`/api/admin/subagents/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the subagent',
+  })
+}
+
 export function getKnowledgeConfig(token) {
   return request('/api/admin/config/knowledge', { token, errorMessage: 'Failed to load the knowledge base settings' })
 }

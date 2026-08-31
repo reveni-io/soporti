@@ -114,6 +114,14 @@ const ICON_SHAPES = {
       <line x1="9" y1="8" x2="9" y2="21" />
     </>
   ),
+  subagents: (
+    <>
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="2" y="16" width="6" height="5" rx="1" />
+      <rect x="16" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v4M5 16v-2h14v2" />
+    </>
+  ),
 }
 
 const ICON_VIEW_BOXES = {

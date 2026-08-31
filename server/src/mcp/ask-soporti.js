@@ -57,16 +57,21 @@ export async function executeAskSoporti({
       : [],
   ])
 
+  const toolCalls = []
+  const nestedToolCalls = []
+  const nestedUsage = []
+
   const agent = await createAgent(sources, profile, {
     customInstructions: customInstructions ?? '',
     skills,
     skillArguments: question,
     userId,
+    onNestedToolCall: call => nestedToolCalls.push(call),
+    onNestedUsage: usage => nestedUsage.push(usage),
   })
   const agentInput = buildUserTurn(question, { similarCases, commands: skills.map(skill => skill.name) })
 
   const textParts = []
-  const toolCalls = []
   const callIdToName = new Map()
   let lastResponseId
   let unpersistedItems = null
@@ -74,6 +79,8 @@ export async function executeAskSoporti({
   async function runTurn(previousResponseId) {
     textParts.length = 0
     toolCalls.length = 0
+    nestedToolCalls.length = 0
+    nestedUsage.length = 0
     callIdToName.clear()
 
     const stream = await run(agent, agentInput, {
@@ -117,6 +124,8 @@ export async function executeAskSoporti({
     {
       channel: AGENT_CHANNEL_MCP,
       userId,
+      nestedUsage,
+      nestedToolCalls,
       failureReason: () => (textParts.join('').trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
     },
     async () => {
@@ -132,7 +141,7 @@ export async function executeAskSoporti({
   )
 
   return {
-    answer: `${textParts.join('')}${buildSourcesFooter(toolCalls)}`,
+    answer: `${textParts.join('')}${buildSourcesFooter([...toolCalls, ...nestedToolCalls])}`,
     lastResponseId,
     unpersistedItems,
     skills,
