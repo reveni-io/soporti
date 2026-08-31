@@ -91,6 +91,14 @@ describe('the openai client', () => {
 })
 
 describe('isConfigured', () => {
+  it('accepts a caller own model instead of the globally stored one', async () => {
+    getOpenAIApiKey.mockResolvedValue('sk-abc')
+    getOpenAIModel.mockResolvedValue(null)
+
+    expect(await provider.isConfigured({ modelId: 'gpt-5.2' })).toBe(true)
+    expect(getOpenAIModel).not.toHaveBeenCalled()
+  })
+
   it('requires both the key and the model', async () => {
     getOpenAIApiKey.mockResolvedValue('sk-abc')
     getOpenAIModel.mockResolvedValue('gpt-4o')

@@ -226,19 +226,30 @@ vi.mock('../db/users.js', () => ({
 }))
 
 vi.mock('../db/subagents.js', () => ({ listSubagents, createSubagent, updateSubagent, deleteSubagent }))
+
+const getMainAgentTools = vi.fn(async () => null)
+const setMainAgentTools = vi.fn(async () => {})
+vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
-vi.mock('../agent/tools.js', () => ({
-  REPO_TOOL_NAMES: new Set([
-    'list_repos',
-    'get_directory_contents',
-    'get_file_contents',
-    'search_code',
-    'find_files',
-    'git_log_file',
-    'git_blame',
-  ]),
-}))
+const REPO_TOOL_NAMES = new Set([
+  'list_repos',
+  'get_directory_contents',
+  'get_file_contents',
+  'search_code',
+  'find_files',
+  'git_log_file',
+  'git_blame',
+])
+
+vi.mock('../agent/tools.js', async () => {
+  const { INTEGRATION_TOOL_NAMES } = await import('../agent/sources.js')
+
+  return {
+    REPO_TOOL_NAMES,
+    SELECTABLE_TOOL_NAMES: new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()]),
+  }
+})
 
 const adminRouter = (await import('./admin.js')).default
 
@@ -2367,5 +2378,92 @@ describe('DELETE /api/admin/subagents/:id', () => {
 
     expect(res.status).toBe(500)
     expect(res.body.error).toBe('Failed to delete the subagent.')
+  })
+})
+
+describe('PUT /api/admin/agent/tools', () => {
+  beforeEach(() => {
+    getMainAgentTools.mockReset().mockResolvedValue(null)
+    setMainAgentTools.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('stores the allowlist it was given', async () => {
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code', 'get_sentry_issue'] })
+
+    expect(res.status).toBe(200)
+    expect(res.body.tools).toEqual(['search_code', 'get_sentry_issue'])
+    expect(setMainAgentTools).toHaveBeenCalledWith(['search_code', 'get_sentry_issue'])
+  })
+
+  it('clears the allowlist with null so every tool is allowed again', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: null })
+
+    expect(res.status).toBe(200)
+    expect(res.body.tools).toBeNull()
+    expect(setMainAgentTools).toHaveBeenCalledWith(null)
+  })
+
+  it('stores an empty allowlist as an empty list', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: [] })
+
+    expect(res.status).toBe(200)
+    expect(setMainAgentTools).toHaveBeenCalledWith([])
+  })
+
+  it('drops a duplicate without complaining', async () => {
+    await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code', 'search_code'] })
+
+    expect(setMainAgentTools).toHaveBeenCalledWith(['search_code'])
+  })
+
+  it('rejects a tool the assistant does not have', async () => {
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['drop_database'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('"drop_database" is not a tool the assistant can grant.')
+    expect(setMainAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('rejects anything that is not a list', async () => {
+    const res = await request(app).put('/api/admin/agent/tools').send({ tools: 'search_code' })
+
+    expect(res.status).toBe(400)
+    expect(setMainAgentTools).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic error when the write fails', async () => {
+    setMainAgentTools.mockRejectedValue(new Error('nope'))
+
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code'] })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to save the main agent tools.')
+  })
+})
+
+describe('GET /api/admin/subagents main agent tools', () => {
+  it('returns the stored allowlist alongside the subagents', async () => {
+    getMainAgentTools.mockResolvedValue(['search_code'])
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.status).toBe(200)
+    expect(res.body.mainAgentTools).toEqual(['search_code'])
+  })
+
+  it('returns null when no allowlist was ever saved', async () => {
+    getMainAgentTools.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.body.mainAgentTools).toBeNull()
   })
 })

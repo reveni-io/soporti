@@ -10,8 +10,8 @@ const MAX_RETRIES = 2
 const RETRYABLE_STATUS = new Set([408, 409, 429, 500, 502, 503, 504, 529])
 const EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
 
-export async function isConfigured() {
-  const [key, model] = await Promise.all([getAnthropicApiKey(), getAnthropicModel()])
+export async function isConfigured({ modelId = null } = {}) {
+  const [key, model] = await Promise.all([getAnthropicApiKey(), modelId ?? getAnthropicModel()])
   return Boolean(key && model)
 }
 

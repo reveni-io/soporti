@@ -31,8 +31,8 @@ export async function resolveModelForAgent({ provider: providerId = null, model:
   return { model, modelSettings: provider.modelSettings(resolved, { effort }) }
 }
 
-export async function isProviderConfigured(providerId) {
-  return getProvider(providerId).isConfigured()
+export async function isProviderConfigured(providerId, { model = null } = {}) {
+  return getProvider(providerId).isConfigured({ modelId: model })
 }
 
 export async function wrapSession(underlyingSession) {

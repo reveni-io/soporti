@@ -27,6 +27,7 @@ import {
   MAX_SEARCH_RESULTS,
 } from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
+import { INTEGRATION_TOOL_NAMES } from './sources.js'
 import { buildArtifactTools } from './artifact-tools.js'
 
 export const listReposTool = tool({
@@ -711,10 +712,18 @@ const INTEGRATION_TOOLS = {
   granola: ({ userId }) => buildGranolaTools(userId),
 }
 
+export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])
+
 export function selectToolsByName(tools, names) {
   const allowed = new Set(Array.isArray(names) ? names : [])
 
   return tools.filter(candidate => allowed.has(candidate.name))
+}
+
+export function restrictToolsByName(tools, names) {
+  const allowed = new Set(Array.isArray(names) ? names : [])
+
+  return tools.filter(candidate => !SELECTABLE_TOOL_NAMES.has(candidate.name) || allowed.has(candidate.name))
 }
 
 export function excludeToolsByName(tools, names) {

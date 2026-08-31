@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { deleteSubagent, getSubagents, isUnauthorized, updateSubagent } from '../../../services/services.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
+import MainAgentForm from './MainAgentForm/MainAgentForm.jsx'
 import SubagentForm from './SubagentForm/SubagentForm.jsx'
-import SubagentTree from './SubagentTree/SubagentTree.jsx'
-import './AdminSubagents.css'
+import SubagentFlow from './SubagentFlow/SubagentFlow.jsx'
 
 function toPayload(subagent, changes) {
   return {
@@ -61,6 +61,10 @@ export default function AdminSubagents({ token, onLogout }) {
     }
   }
 
+  function handleCancelDelete() {
+    setPendingDeleteId(null)
+  }
+
   function handleDelete(id) {
     setPendingDeleteId(null)
     runAction(() => deleteSubagent(token, id))
@@ -68,6 +72,10 @@ export default function AdminSubagents({ token, onLogout }) {
 
   function handleToggleEnabled(subagent) {
     runAction(() => updateSubagent(token, subagent.id, toPayload(subagent, { enabled: !subagent.enabled })))
+  }
+
+  function openMainToolsForm() {
+    setView('main-tools')
   }
 
   function openNewForm() {
@@ -87,6 +95,22 @@ export default function AdminSubagents({ token, onLogout }) {
 
   if (loadError) return <p className="alert alert--error">{loadError}</p>
   if (loading || !config) return <p className="admin__muted">Loading...</p>
+
+  if (view === 'main-tools') {
+    return (
+      <AdminSection title="Main agent tools">
+        <MainAgentForm
+          token={token}
+          onLogout={onLogout}
+          mainAgentTools={config.mainAgentTools}
+          subagents={config.subagents}
+          toolGroups={config.tools.groups}
+          onSaved={handleSaved}
+          onCancel={() => setView('list')}
+        />
+      </AdminSection>
+    )
+  }
 
   if (view === 'form') {
     return (
@@ -116,47 +140,24 @@ export default function AdminSubagents({ token, onLogout }) {
 
       {actionError && <p className="alert alert--error">{actionError}</p>}
 
-      <SubagentTree
+      <SubagentFlow
         subagents={config.subagents}
         toolGroups={config.tools.groups}
+        mainAgentTools={config.mainAgentTools}
         globalProvider={config.globalProvider}
         globalModel={config.globalModel}
+        pendingDeleteId={pendingDeleteId}
+        actions={{
+          onEditMainTools: openMainToolsForm,
+          onEdit: openEditForm,
+          onToggleEnabled: handleToggleEnabled,
+          onRequestDelete: setPendingDeleteId,
+          onCancelDelete: handleCancelDelete,
+          onDelete: handleDelete,
+        }}
       />
 
       {config.subagents.length === 0 && <p className="admin__muted">No subagents yet.</p>}
-
-      <ul className="subagents__list">
-        {config.subagents.map(subagent => (
-          <li className="subagents__item" key={subagent.id}>
-            <div className="subagents__info">
-              <span className="subagents__name">{subagent.name}</span>
-              <span className="subagents__description">{subagent.description}</span>
-            </div>
-            <div className="subagents__actions">
-              <button className="btn btn--secondary btn--sm" onClick={() => openEditForm(subagent)}>
-                Edit
-              </button>
-              <button className="btn btn--secondary btn--sm" onClick={() => handleToggleEnabled(subagent)}>
-                {subagent.enabled ? 'Disable' : 'Enable'}
-              </button>
-              {pendingDeleteId === subagent.id ? (
-                <>
-                  <button className="btn btn--danger btn--sm" onClick={() => handleDelete(subagent.id)}>
-                    Confirm
-                  </button>
-                  <button className="btn btn--secondary btn--sm" onClick={() => setPendingDeleteId(null)}>
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button className="btn btn--danger btn--sm" onClick={() => setPendingDeleteId(subagent.id)}>
-                  Delete
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
 
       <div className="modal__actions">
         <button className="btn btn--primary" onClick={openNewForm}>

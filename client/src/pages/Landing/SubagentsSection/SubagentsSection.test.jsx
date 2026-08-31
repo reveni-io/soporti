@@ -24,13 +24,31 @@ describe('SubagentsSection', () => {
     expect(screen.getByText(/its own provider and model/)).toBeInTheDocument()
   })
 
-  it('draws the division of labour as a tree with a model per specialist', () => {
+  it('draws the division of labour as a graph with a model per specialist', () => {
     const { container } = render(<SubagentsSection />)
 
-    expect(container.querySelectorAll('.lp-subagents__row--child')).toHaveLength(2)
+    expect(container.querySelectorAll('.lp-subagents__children .lp-subagents__node')).toHaveLength(2)
+    expect(container.querySelectorAll('.lp-subagents__edges path')).toHaveLength(2)
     expect(screen.getByText('code_investigator')).toBeInTheDocument()
     expect(screen.getByText('context_gatherer')).toBeInTheDocument()
     expect(screen.getByText('12 tools (13 delegated)')).toBeInTheDocument()
+  })
+
+  it('marks each node with the logos of the integrations it owns', () => {
+    const { container } = render(<SubagentsSection />)
+    const [parent] = container.querySelectorAll('.lp-subagents__node--parent')
+    const [specialist] = container.querySelectorAll('.lp-subagents__children .lp-subagents__node')
+
+    expect(parent.querySelector('[data-icon="shopify"]')).toBeInTheDocument()
+    expect(specialist.querySelector('[data-icon="github"]')).toBeInTheDocument()
+    expect(specialist.querySelector('[data-icon="sentry"]')).toBeInTheDocument()
+  })
+
+  it('shows the provider mark next to each specialist model', () => {
+    const { container } = render(<SubagentsSection />)
+
+    expect(container.querySelector('[data-icon="anthropic"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-icon="openai"]')).toBeInTheDocument()
   })
 
   it('is anchored so the nav can link to it', () => {

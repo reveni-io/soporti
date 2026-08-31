@@ -409,6 +409,15 @@ export function getSubagents(token) {
   return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
 }
 
+export function saveMainAgentTools(token, tools) {
+  return request('/api/admin/agent/tools', {
+    method: 'PUT',
+    token,
+    body: { tools },
+    errorMessage: 'Failed to save the main agent tools',
+  })
+}
+
 export function createSubagent(token, subagent) {
   return request('/api/admin/subagents', {
     method: 'POST',

@@ -25,8 +25,8 @@ async function getClient() {
   return clientInstance
 }
 
-export async function isConfigured() {
-  const [key, model] = await Promise.all([getOpenAIApiKey(), getOpenAIModel()])
+export async function isConfigured({ modelId = null } = {}) {
+  const [key, model] = await Promise.all([getOpenAIApiKey(), modelId ?? getOpenAIModel()])
   return Boolean(key && model)
 }
 

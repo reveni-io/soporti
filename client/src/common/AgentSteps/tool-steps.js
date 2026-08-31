@@ -42,12 +42,13 @@ const TOOL_LABELS = {
 const FALLBACK_LABEL = 'Working'
 const SECOND_MS = 1000
 
-export function describeToolCall({ tool, input, done, durationMs }) {
+export function describeToolCall({ tool, input, done, durationMs, parent }) {
   return {
     label: TOOL_LABELS[tool] || humanizeToolName(tool),
     detail: formatDetail(input),
     duration: formatDuration(durationMs),
     done: Boolean(done),
+    nested: Boolean(parent),
   }
 }
 

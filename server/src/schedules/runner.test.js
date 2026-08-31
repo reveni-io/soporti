@@ -66,6 +66,7 @@ describe('runSchedule', () => {
       customInstructions: 'Be brief.',
       userId: 7,
       onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
     expect(run).toHaveBeenCalledWith({ name: 'agent' }, 'Failed payments in the last 24h', {
       maxTurns: expect.any(Number),
@@ -120,6 +121,7 @@ describe('runSchedule', () => {
       customInstructions: '',
       userId: 7,
       onNestedToolCall: expect.any(Function),
+      onNestedUsage: expect.any(Function),
     })
   })
 

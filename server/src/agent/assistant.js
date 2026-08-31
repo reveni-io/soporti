@@ -1,6 +1,6 @@
 import { Agent } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
-import { buildAgentTools, excludeToolsByName, REPO_TOOL_NAMES } from './tools.js'
+import { buildAgentTools, excludeToolsByName, REPO_TOOL_NAMES, restrictToolsByName } from './tools.js'
 import {
   buildBasePrompt,
   buildSourceInstructions,
@@ -9,6 +9,7 @@ import {
   buildSubagentsPrompt,
 } from './system-prompt.js'
 import { buildSubagentTools, claimedToolNames, parentConfiguredFlags, resolveActiveSubagents } from './subagents.js'
+import { getMainAgentTools } from './settings.js'
 import { isYoloMode, buildSourcePolicy } from './sources.js'
 import { buildRepoCatalogPrompt } from './repo-catalog.js'
 import { isShortcutConfigured } from '../shortcut/settings.js'
@@ -32,6 +33,7 @@ export async function createAgent(
     conversationId = null,
     onArtifactPublished = null,
     onNestedToolCall = null,
+    onNestedToolResult = null,
     onNestedUsage = null,
   } = {}
 ) {
@@ -49,6 +51,7 @@ export async function createAgent(
     granolaConfigured,
     catalogPrompt,
     subagents,
+    mainAgentTools,
   ] = await Promise.all([
     isShortcutConfigured(),
     isSentryConfigured(),
@@ -61,6 +64,7 @@ export async function createAgent(
     isGranolaConfigured(userId),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
+    getMainAgentTools(),
   ])
   const configured = {
     shortcutConfigured,
@@ -74,9 +78,11 @@ export async function createAgent(
     granolaConfigured,
   }
 
-  const allowed = buildAgentTools(policy, configured, { userId, conversationId, onArtifactPublished })
-  const subagentTools = await buildSubagentTools(subagents, allowed, {
+  const registered = buildAgentTools(policy, configured, { userId, conversationId, onArtifactPublished })
+  const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
+  const subagentTools = await buildSubagentTools(subagents, registered, {
     onNestedToolCall,
+    onNestedToolResult,
     onNestedUsage,
     repoCatalogPrompt: catalogPrompt,
   })
@@ -108,9 +114,6 @@ export async function createAgent(
   }
   if (subagentsPrompt) parts.push(subagentsPrompt)
   if (skillsPrompt) parts.push(skillsPrompt)
-  parts.push(
-    `## Final reminder\n\nRespond in the language of the user's most recent message. If they switched languages, switch with them — do not keep replying in the previous language.`
-  )
 
   const { model, modelSettings } = await resolveModelForAgent()
 

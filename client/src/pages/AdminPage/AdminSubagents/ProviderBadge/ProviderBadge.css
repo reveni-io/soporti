@@ -1,0 +1,22 @@
+.provider-badge {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp1);
+}
+
+.provider-badge__inherits {
+  flex: none;
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+}
+
+.provider-badge__model {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-2xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

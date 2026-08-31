@@ -33,6 +33,14 @@ describe('the anthropic provider descriptor', () => {
 })
 
 describe('isConfigured', () => {
+  it('accepts a caller own model instead of the globally stored one', async () => {
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue(null)
+
+    expect(await provider.isConfigured({ modelId: 'claude-sonnet-5' })).toBe(true)
+    expect(getAnthropicModel).not.toHaveBeenCalled()
+  })
+
   it('requires both the key and the model', async () => {
     getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
     getAnthropicModel.mockResolvedValue('claude-opus-5')

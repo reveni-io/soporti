@@ -587,3 +587,23 @@ describe('the parent-effective prompt when tools are delegated', () => {
     )
   })
 })
+
+describe('buildSubagentsPrompt language', () => {
+  it('tells the main agent a specialist reply is raw material, not text to forward', () => {
+    const prompt = buildSubagentsPrompt([{ name: 'code_investigator', description: 'Owns the codebase.' }])
+
+    expect(prompt).toContain('what comes back is raw material, restate it yourself')
+  })
+
+  it('leaves the language rule to the core section instead of restating it', () => {
+    const prompt = buildSubagentsPrompt([{ name: 'code_investigator', description: 'Owns the codebase.' }])
+
+    expect(prompt).not.toContain("language of the user's latest message")
+  })
+
+  it('still refuses to forward a specialist reply verbatim', () => {
+    const prompt = buildSubagentsPrompt([{ name: 'code_investigator', description: 'Owns the codebase.' }])
+
+    expect(prompt).toContain("Do not paste a specialist's reply verbatim")
+  })
+})

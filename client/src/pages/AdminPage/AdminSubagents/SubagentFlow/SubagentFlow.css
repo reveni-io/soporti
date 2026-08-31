@@ -1,0 +1,58 @@
+.subagent-flow {
+  height: 28rem;
+  margin: 0 0 var(--sp4);
+  overflow: hidden;
+  background-color: var(--bg-app);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.subagent-flow .react-flow__attribution {
+  background: none;
+  font-size: var(--fs-2xs);
+}
+
+.subagent-flow .react-flow__controls-button {
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  border-bottom-color: var(--border-default);
+  fill: currentColor;
+}
+
+.subagent-flow__parent {
+  display: flex;
+  width: 22rem;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+  background-color: var(--bg-cool);
+  border-color: var(--border-strong);
+}
+
+.subagent-flow__child {
+  width: 20rem;
+}
+
+.subagent-flow__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.subagent-flow__logos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2) var(--sp3);
+}
+
+.subagent-flow__meta {
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+}
+
+.subagent-flow__actions {
+  display: flex;
+  gap: var(--sp2);
+  padding-top: var(--sp1);
+}

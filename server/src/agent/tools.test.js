@@ -142,7 +142,9 @@ const {
   buildAgentTools,
   selectToolsByName,
   excludeToolsByName,
+  restrictToolsByName,
   REPO_TOOL_NAMES,
+  SELECTABLE_TOOL_NAMES,
   buildGranolaTools,
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
@@ -971,5 +973,30 @@ describe('REPO_TOOL_NAMES', () => {
       'git_log_file',
       'git_blame',
     ])
+  })
+})
+
+describe('restrictToolsByName', () => {
+  const TOOLS = [{ name: 'search_code' }, { name: 'get_sentry_issue' }, { name: 'render_artifact' }]
+
+  it('keeps the named tools and every tool the admin cannot pick', () => {
+    expect(restrictToolsByName(TOOLS, ['search_code'])).toEqual([{ name: 'search_code' }, { name: 'render_artifact' }])
+  })
+
+  it('keeps the tools outside the picker even when nothing was allowed', () => {
+    expect(restrictToolsByName(TOOLS, [])).toEqual([{ name: 'render_artifact' }])
+    expect(restrictToolsByName(TOOLS, null)).toEqual([{ name: 'render_artifact' }])
+  })
+})
+
+describe('SELECTABLE_TOOL_NAMES', () => {
+  it('covers every repository and integration tool', () => {
+    for (const name of REPO_TOOL_NAMES) expect(SELECTABLE_TOOL_NAMES.has(name)).toBe(true)
+    expect(SELECTABLE_TOOL_NAMES.has('get_sentry_issue')).toBe(true)
+    expect(SELECTABLE_TOOL_NAMES.has('query_database')).toBe(true)
+  })
+
+  it('leaves out the artifact tool, which is not the admin to grant', () => {
+    expect(SELECTABLE_TOOL_NAMES.has('render_artifact')).toBe(false)
   })
 })

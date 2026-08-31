@@ -66,6 +66,7 @@ import {
   setReasoningEffort,
 } from '../llm/settings.js'
 import { DEFAULT_PROVIDER, isKnownProvider, listProviders } from '../llm/registry.js'
+import { getMainAgentTools, setMainAgentTools } from '../agent/settings.js'
 import {
   DEFAULT_REASONING_EFFORT,
   MAX_ACTIVE_SUBAGENTS,
@@ -79,7 +80,7 @@ import {
 import { listSubagents, createSubagent, updateSubagent, deleteSubagent } from '../db/subagents.js'
 import { INTEGRATION_TOOL_NAMES } from '../agent/sources.js'
 import { INTEGRATIONS } from '../agent/integrations.js'
-import { REPO_TOOL_NAMES } from '../agent/tools.js'
+import { REPO_TOOL_NAMES, SELECTABLE_TOOL_NAMES } from '../agent/tools.js'
 import { isShortcutConfigured } from '../shortcut/settings.js'
 import { isSentryConfigured } from '../sentry/settings.js'
 import { isDriveConfigured } from '../google-drive/settings.js'
@@ -110,7 +111,6 @@ const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
 const INVALID_HOST_ERROR = 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").'
 const REPO_TOOL_GROUP = { id: 'repo', label: 'Repositories', tools: [...REPO_TOOL_NAMES] }
-const KNOWN_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])
 const GLOBAL_MODEL_GETTERS = { openai: getOpenAIModel, anthropic: getAnthropicModel }
 const INTEGRATION_CHECKS = {
   shortcut: isShortcutConfigured,
@@ -571,6 +571,28 @@ function parseProviderSelection(provider, model) {
   return { value: { provider: provider ?? null, model: trimmedModel ?? null } }
 }
 
+function parseToolNames(names) {
+  const unique = []
+
+  for (const name of names) {
+    if (typeof name !== 'string' || !SELECTABLE_TOOL_NAMES.has(name)) {
+      return { error: `"${name}" is not a tool the assistant can grant.` }
+    }
+    if (!unique.includes(name)) unique.push(name)
+  }
+
+  return { value: unique }
+}
+
+function parseMainAgentTools(tools) {
+  if (tools === null) return { value: null }
+  if (!Array.isArray(tools)) {
+    return { error: 'Tools must be an array of tool names, or null to allow every tool.' }
+  }
+
+  return parseToolNames(tools)
+}
+
 function parseSubagentTools(tools) {
   if (tools !== undefined && !Array.isArray(tools)) return { error: 'Tools must be an array of tool names.' }
 
@@ -579,15 +601,7 @@ function parseSubagentTools(tools) {
     return { error: `A subagent can hold at most ${MAX_SUBAGENT_TOOLS} tools.` }
   }
 
-  const unique = []
-  for (const name of requested) {
-    if (typeof name !== 'string' || !KNOWN_TOOL_NAMES.has(name)) {
-      return { error: `"${name}" is not a tool the assistant can grant.` }
-    }
-    if (!unique.includes(name)) unique.push(name)
-  }
-
-  return { value: unique }
+  return parseToolNames(requested)
 }
 
 function parseSubagentInput(body) {
@@ -679,10 +693,11 @@ async function rejectSubagentConflicts(res, input, editingId) {
 
 router.get('/subagents', async (req, res) => {
   try {
-    const [subagents, tools, global] = await Promise.all([
+    const [subagents, tools, global, mainAgentTools] = await Promise.all([
       listSubagents(),
       resolveToolGroups(req.user.id),
       resolveGlobalSelection(),
+      getMainAgentTools(),
     ])
 
     res.json({
@@ -691,10 +706,24 @@ router.get('/subagents', async (req, res) => {
       tools: { groups: tools },
       globalProvider: global.provider,
       globalModel: global.model,
+      mainAgentTools,
     })
   } catch (err) {
     console.error('Admin list subagents error:', err)
     res.status(500).json({ error: 'Failed to load the subagents.' })
+  }
+})
+
+router.put('/agent/tools', async (req, res) => {
+  const { error, value } = parseMainAgentTools(req.body?.tools)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setMainAgentTools(value)
+    res.json({ tools: value })
+  } catch (err) {
+    console.error('Admin set main agent tools error:', err)
+    res.status(500).json({ error: 'Failed to save the main agent tools.' })
   }
 })
 

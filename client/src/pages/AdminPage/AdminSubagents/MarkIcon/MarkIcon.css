@@ -1,0 +1,13 @@
+.mark-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-secondary);
+  background-color: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}

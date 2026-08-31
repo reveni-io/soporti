@@ -7,6 +7,7 @@ import {
 } from '../../../../constants.js'
 import { createSubagent, updateSubagent } from '../../../../services/services.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
+import { claimedBy, toggleGroupTools } from '../claimed-tools.js'
 import ToolPicker from '../ToolPicker/ToolPicker.jsx'
 import './SubagentForm.css'
 
@@ -17,18 +18,6 @@ const EXCLUSIVE_HELP =
 const SHARED_DESCRIPTION_HELP =
   'Give the main agent a countable reason to hand off and an explicit case where it should not — it has these same tools.'
 const EXCLUSIVE_DESCRIPTION_HELP = 'Name the territory this subagent owns and the shape of what it returns.'
-
-function claimedByOthers(subagents, editingId) {
-  const owners = {}
-
-  for (const subagent of subagents) {
-    if (subagent.id === editingId || !subagent.exclusive || !subagent.enabled) continue
-
-    for (const tool of subagent.tools) owners[tool] = subagent.name
-  }
-
-  return owners
-}
 
 export default function SubagentForm({
   token,
@@ -51,7 +40,7 @@ export default function SubagentForm({
   const [enabled, setEnabled] = useState(subagent?.enabled ?? true)
   const { saving, error, save } = useSaveField(onLogout)
 
-  const claimedBy = claimedByOthers(subagents, subagent?.id ?? null)
+  const claimed = claimedBy(subagents, subagent?.id ?? null)
   const inheritsProvider = provider === FOLLOW_GLOBAL
   const nameInvalid = name.length > 0 && !SUBAGENT_NAME_RE.test(name)
   const canSave =
@@ -65,14 +54,7 @@ export default function SubagentForm({
   }
 
   function handleToggleGroup(group) {
-    const selectable = group.tools.filter(tool => !claimedBy[tool])
-    const allSelected = group.tools.every(tool => tools.includes(tool))
-
-    setTools(current =>
-      allSelected
-        ? current.filter(tool => !group.tools.includes(tool))
-        : [...current, ...selectable.filter(tool => !current.includes(tool))]
-    )
+    setTools(current => toggleGroupTools(current, group, claimed))
   }
 
   function handleSubmit(event) {
@@ -175,7 +157,7 @@ export default function SubagentForm({
       <ToolPicker
         groups={toolGroups}
         selected={tools}
-        claimedBy={claimedBy}
+        claimedBy={claimed}
         disabled={saving}
         onToggle={handleToggle}
         onToggleGroup={handleToggleGroup}

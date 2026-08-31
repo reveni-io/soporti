@@ -80,7 +80,7 @@ describe('resolveActiveSubagents', () => {
     const active = await resolveActiveSubagents()
 
     expect(active.map(subagent => subagent.id)).toEqual([2])
-    expect(isProviderConfigured).toHaveBeenCalledWith('anthropic')
+    expect(isProviderConfigured).toHaveBeenCalledWith('anthropic', { model: 'claude-sonnet-5' })
   })
 
   it('gates an inheriting row on the globally selected provider', async () => {
@@ -214,9 +214,16 @@ describe('buildSubagentTools', () => {
   it('builds the prompt from the row instructions plus how it is being used', async () => {
     const [tool] = await buildSubagentTools([row({ instructions: '  Trace the stacktrace.  ' })], PARENT_TOOLS)
 
-    expect(tool.agent.instructions).toBe(
-      `Trace the stacktrace.\n\n## How you are being used\n\nYou are a specialist invoked by another agent, not by a person. Answer only what was asked, in plain text, with the specifics the caller needs — findings, values, file paths, ids — and no preamble or closing question. You cannot ask a follow-up: if the request is ambiguous, state the assumption you made and answer under it. Everything you return goes back to the calling agent, never directly to a user.`
-    )
+    expect(tool.agent.instructions).toMatch(/^Trace the stacktrace\.\n\n## How you are being used\n/)
+    expect(tool.agent.instructions).toContain('You are a specialist invoked by another agent, not by a person.')
+    expect(tool.agent.instructions).toContain('no preamble or closing question')
+  })
+
+  it('tells the subagent its language is not the user language', async () => {
+    const [tool] = await buildSubagentTools([row({})], PARENT_TOOLS)
+
+    expect(tool.agent.instructions).toContain('answer in the language the request came in')
+    expect(tool.agent.instructions).toContain('never assume it is the language the user speaks')
   })
 
   it('appends the repo catalog to a subagent that ended up with a repo tool', async () => {
@@ -247,7 +254,12 @@ describe('buildSubagentTools', () => {
     })
 
     expect(onNestedToolCall).toHaveBeenCalledTimes(1)
-    expect(onNestedToolCall).toHaveBeenCalledWith({ name: 'search_code', arguments: '{"repo":"org/api"}' })
+    expect(onNestedToolCall).toHaveBeenCalledWith({
+      name: 'search_code',
+      arguments: '{"repo":"org/api"}',
+      callId: undefined,
+      parent: 'ask_code_investigator',
+    })
   })
 
   it('ignores the nested answer text, which must not interleave with the reply being streamed', async () => {
@@ -299,5 +311,52 @@ describe('buildSubagentTools', () => {
     expect(await tool.options.customOutputExtractor({ finalOutput: { file: 'a.js' }, state: {} })).toBe(
       '{"file":"a.js"}'
     )
+  })
+
+  it('tags a nested call with the tool the caller invoked', async () => {
+    const onNestedToolCall = vi.fn()
+    const [tool] = await buildSubagentTools([row()], PARENT_TOOLS, { onNestedToolCall })
+
+    tool.options.onStream({
+      event: {
+        type: 'run_item_stream_event',
+        item: { type: 'tool_call_item', rawItem: { name: 'search_code', arguments: '{}', callId: 'nested-1' } },
+      },
+      toolCall: { name: 'ask_code_investigator', callId: 'wrapper-1' },
+    })
+
+    expect(onNestedToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ callId: 'nested-1', parent: 'ask_code_investigator' })
+    )
+  })
+
+  it('reports the end of a nested call so its step can close', async () => {
+    const onNestedToolResult = vi.fn()
+    const [tool] = await buildSubagentTools([row()], PARENT_TOOLS, { onNestedToolResult })
+
+    tool.options.onStream({
+      event: {
+        type: 'run_item_stream_event',
+        item: { type: 'tool_call_output_item', rawItem: { name: 'search_code', callId: 'nested-1' } },
+      },
+      toolCall: { name: 'ask_code_investigator' },
+    })
+
+    expect(onNestedToolResult).toHaveBeenCalledWith({
+      name: 'search_code',
+      callId: 'nested-1',
+      parent: 'ask_code_investigator',
+    })
+  })
+
+  it('ignores the text a subagent streams so it never reaches the answer', async () => {
+    const onNestedToolCall = vi.fn()
+    const onNestedToolResult = vi.fn()
+    const [tool] = await buildSubagentTools([row()], PARENT_TOOLS, { onNestedToolCall, onNestedToolResult })
+
+    tool.options.onStream({ event: { type: 'raw_model_stream_event', data: { type: 'output_text_delta' } } })
+
+    expect(onNestedToolCall).not.toHaveBeenCalled()
+    expect(onNestedToolResult).not.toHaveBeenCalled()
   })
 })

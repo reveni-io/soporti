@@ -59,3 +59,14 @@ describe('describeToolCall', () => {
     expect(describeToolCall({ tool: 'list_repos' }).done).toBe(false)
   })
 })
+
+describe('describeToolCall nesting', () => {
+  it('marks a step a specialist ran as nested', () => {
+    expect(describeToolCall({ tool: 'search_code', parent: 'ask_code_reviewer' }).nested).toBe(true)
+  })
+
+  it('leaves a step the main agent ran flat', () => {
+    expect(describeToolCall({ tool: 'search_code' }).nested).toBe(false)
+    expect(describeToolCall({ tool: 'search_code', parent: null }).nested).toBe(false)
+  })
+})

@@ -210,6 +210,13 @@ describe('isProviderConfigured', () => {
 
     expect(await isProviderConfigured('anthropic')).toBe(false)
   })
+
+  it('hands the caller own model to the provider so no global one is needed', async () => {
+    anthropicProvider.isConfigured.mockResolvedValue(true)
+
+    expect(await isProviderConfigured('anthropic', { model: 'claude-sonnet-5' })).toBe(true)
+    expect(anthropicProvider.isConfigured).toHaveBeenCalledWith({ modelId: 'claude-sonnet-5' })
+  })
 })
 
 describe('wrapSession', () => {

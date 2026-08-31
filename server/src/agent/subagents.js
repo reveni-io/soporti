@@ -3,21 +3,30 @@ import { listEnabledSubagents } from '../db/subagents.js'
 import { isConfigured, isProviderConfigured, resolveModelForAgent } from '../llm/model.js'
 import { extractUsage } from '../llm/usage.js'
 import { REPO_TOOL_NAMES, selectToolsByName } from './tools.js'
+import { toolCallFromRawItem } from './run-items.js'
 import { INTEGRATION_TOOL_NAMES } from './sources.js'
 import { INTEGRATIONS } from './integrations.js'
 import { MAX_ACTIVE_SUBAGENTS, SUBAGENT_MAX_TURNS, SUBAGENT_TOOL_PREFIX } from '../constants.js'
 
 const ROLE_SECTION = `## How you are being used
 
-You are a specialist invoked by another agent, not by a person. Answer only what was asked, in plain text, with the specifics the caller needs — findings, values, file paths, ids — and no preamble or closing question. You cannot ask a follow-up: if the request is ambiguous, state the assumption you made and answer under it. Everything you return goes back to the calling agent, never directly to a user.`
+You are a specialist invoked by another agent, not by a person. Answer only what was asked, in plain text, with the specifics the caller needs — findings, values, file paths, ids — and no preamble or closing question. You cannot ask a follow-up: if the request is ambiguous, state the assumption you made and answer under it. Everything you return goes back to the calling agent, never directly to a user, and the caller rewrites it before anyone reads it — so answer in the language the request came in and never assume it is the language the user speaks.`
+
+function selectionKey(row) {
+  return `${row.provider ?? ''}|${row.model ?? ''}`
+}
 
 export async function resolveActiveSubagents() {
   const rows = await listEnabledSubagents()
-  const available = await Promise.all(
-    rows.map(row => (row.provider ? isProviderConfigured(row.provider) : isConfigured()))
+  const selections = [...new Map(rows.map(row => [selectionKey(row), row]))]
+  const checks = await Promise.all(
+    selections.map(([, row]) =>
+      row.provider ? isProviderConfigured(row.provider, { model: row.model }) : isConfigured()
+    )
   )
+  const available = new Map(selections.map(([key], index) => [key, checks[index]]))
 
-  return rows.filter((_, index) => available[index]).slice(0, MAX_ACTIVE_SUBAGENTS)
+  return rows.filter(row => available.get(selectionKey(row))).slice(0, MAX_ACTIVE_SUBAGENTS)
 }
 
 export function claimedToolNames(subagents) {
@@ -56,9 +65,10 @@ function buildSubagentPrompt(row, tools, repoCatalogPrompt) {
   return parts.join('\n\n')
 }
 
-async function buildSubagentTool(row, parentTools, { onNestedToolCall, onNestedUsage, repoCatalogPrompt }) {
+async function buildSubagentTool(row, parentTools, hooks, resolveModel) {
+  const { onNestedToolCall, onNestedToolResult, onNestedUsage, repoCatalogPrompt = '' } = hooks
   const tools = selectToolsByName(parentTools, row.tools)
-  const { model, modelSettings } = await resolveModelForAgent({ provider: row.provider, model: row.model })
+  const { model, modelSettings } = await resolveModel(row)
 
   const agent = new Agent({
     name: row.name,
@@ -72,24 +82,39 @@ async function buildSubagentTool(row, parentTools, { onNestedToolCall, onNestedU
     toolName: `${SUBAGENT_TOOL_PREFIX}${row.name}`,
     toolDescription: row.description,
     runOptions: { maxTurns: SUBAGENT_MAX_TURNS },
-    onStream: ({ event }) => {
+    onStream: ({ event, toolCall }) => {
       if (event.type !== 'run_item_stream_event') return
-      if (event.item?.type !== 'tool_call_item') return
 
-      onNestedToolCall?.({ name: event.item.rawItem?.name, arguments: event.item.rawItem?.arguments })
+      const item = event.item
+      const parent = toolCall?.name || `${SUBAGENT_TOOL_PREFIX}${row.name}`
+
+      if (item?.type === 'tool_call_item') {
+        onNestedToolCall?.(toolCallFromRawItem(item.rawItem, parent))
+        return
+      }
+
+      if (item?.type === 'tool_call_output_item') {
+        onNestedToolResult?.(toolCallFromRawItem(item.rawItem, parent))
+      }
     },
     customOutputExtractor: async result => {
       onNestedUsage?.(extractUsage(result.state?.usage))
 
-      return typeof result.finalOutput === 'string' ? result.finalOutput : JSON.stringify(result.finalOutput)
+      const output = result.finalOutput
+
+      return typeof output === 'string' ? output : (JSON.stringify(output) ?? '')
     },
   })
 }
 
 export async function buildSubagentTools(subagents, parentTools, hooks = {}) {
-  const { onNestedToolCall = null, onNestedUsage = null, repoCatalogPrompt = '' } = hooks
+  const models = new Map()
+  const resolveModel = row => {
+    const key = selectionKey(row)
+    if (!models.has(key)) models.set(key, resolveModelForAgent({ provider: row.provider, model: row.model }))
 
-  return Promise.all(
-    subagents.map(row => buildSubagentTool(row, parentTools, { onNestedToolCall, onNestedUsage, repoCatalogPrompt }))
-  )
+    return models.get(key)
+  }
+
+  return Promise.all(subagents.map(row => buildSubagentTool(row, parentTools, hooks, resolveModel)))
 }

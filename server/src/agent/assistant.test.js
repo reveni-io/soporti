@@ -36,6 +36,8 @@ vi.mock('./tools.js', () => ({
   REPO_TOOL_NAMES: new Set(REPO_TOOLS),
   buildAgentTools: vi.fn(() => toolList()),
   selectToolsByName: (tools, names) => tools.filter(candidate => (names ?? []).includes(candidate.name)),
+  restrictToolsByName: (tools, names) =>
+    tools.filter(candidate => candidate.name === 'render_artifact' || (names ?? []).includes(candidate.name)),
   excludeToolsByName: (tools, names) => tools.filter(candidate => !(names ?? []).includes(candidate.name)),
 }))
 
@@ -68,6 +70,9 @@ vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async ()
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
+
+const getMainAgentTools = vi.fn(async () => null)
+vi.mock('./settings.js', () => ({ getMainAgentTools: (...args) => getMainAgentTools(...args) }))
 
 const { isShortcutConfigured } = await import('../shortcut/settings.js')
 const { isSentryConfigured } = await import('../sentry/settings.js')
@@ -257,9 +262,7 @@ describe('createAgent', () => {
 
     const userPrefIdx = agent.instructions.indexOf('User preferences')
     const skillIdx = agent.instructions.indexOf('Active skill(s) for this conversation')
-    const finalIdx = agent.instructions.indexOf('Final reminder')
     expect(userPrefIdx).toBeLessThan(skillIdx)
-    expect(skillIdx).toBeLessThan(finalIdx)
   })
 
   it('substitutes $ARGUMENTS in skill instructions with the message', async () => {
@@ -561,7 +564,159 @@ describe('createAgent with subagents', () => {
       },
     })
 
-    expect(onNestedToolCall).toHaveBeenCalledWith({ name: 'search_code', arguments: '{}' })
+    expect(onNestedToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'search_code', arguments: '{}', parent: 'ask_code_investigator' })
+    )
     expect(onNestedUsage).not.toHaveBeenCalled()
+  })
+
+  it('forwards the nested result hook so a delegated step can close', async () => {
+    const onNestedToolResult = vi.fn()
+    listEnabledSubagents.mockResolvedValue([subagentRow()])
+
+    const agent = await createAgent(['org/api'], 'support', { onNestedToolResult })
+
+    const [askTool] = agent.tools.filter(tool => tool.name === 'ask_code_investigator')
+    askTool.options.onStream({
+      event: {
+        type: 'run_item_stream_event',
+        item: { type: 'tool_call_output_item', rawItem: { name: 'search_code', callId: 'nested-1' } },
+      },
+    })
+
+    expect(onNestedToolResult).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'search_code', callId: 'nested-1' })
+    )
+  })
+})
+
+describe('createAgent with a main agent allowlist', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getMainAgentTools.mockReset().mockResolvedValue(null)
+    mockIsConfigured.mockReset().mockResolvedValue(true)
+    mockIsProviderConfigured.mockReset().mockResolvedValue(true)
+  })
+
+  it('keeps every registered tool when no allowlist was ever saved', async () => {
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(AVAILABLE_TOOL_NAMES)
+  })
+
+  it('narrows the agent to the allowlist', async () => {
+    getMainAgentTools.mockResolvedValue(['search_code', 'get_sentry_issue'])
+
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(['search_code', 'get_sentry_issue', 'render_artifact'])
+  })
+
+  it('leaves the agent only the tools the allowlist cannot govern when it is empty', async () => {
+    getMainAgentTools.mockResolvedValue([])
+
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(['render_artifact'])
+  })
+
+  it('never grants a tool the conversation sources do not allow', async () => {
+    buildAgentTools.mockReturnValue(toolList(['search_code']))
+    getMainAgentTools.mockResolvedValue(['search_code', 'query_database'])
+
+    const agent = await createAgent(['org/api'], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(['search_code'])
+  })
+
+  it('drops the prompt section of an integration the allowlist left out', async () => {
+    isSentryConfigured.mockResolvedValue(true)
+    getMainAgentTools.mockResolvedValue(['search_code'])
+
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.instructions).not.toMatch(/Sentry/)
+  })
+
+  it('still lets a subagent hold a tool the main agent gave up', async () => {
+    getMainAgentTools.mockResolvedValue(['search_code'])
+    listEnabledSubagents.mockResolvedValue([
+      {
+        id: 1,
+        name: 'log_detective',
+        description: 'Owns the logs.',
+        instructions: 'Read logs.',
+        provider: null,
+        model: null,
+        tools: ['search_logs'],
+        exclusive: true,
+        enabled: true,
+      },
+    ])
+
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(['search_code', 'render_artifact', 'ask_log_detective'])
+  })
+
+  it('subtracts an exclusive subagent claim from the allowlist too', async () => {
+    getMainAgentTools.mockResolvedValue(['search_code', 'search_logs'])
+    listEnabledSubagents.mockResolvedValue([
+      {
+        id: 1,
+        name: 'log_detective',
+        description: 'Owns the logs.',
+        instructions: 'Read logs.',
+        provider: null,
+        model: null,
+        tools: ['search_logs'],
+        exclusive: true,
+        enabled: true,
+      },
+    ])
+
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.tools.map(tool => tool.name)).toEqual(['search_code', 'render_artifact', 'ask_log_detective'])
+  })
+})
+
+describe('createAgent language rule', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getMainAgentTools.mockReset().mockResolvedValue(null)
+  })
+
+  it('ties the answer language to the user latest message, English included', async () => {
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.instructions).toContain("Answer in the language of the user's latest message")
+    expect(agent.instructions).toContain('English if they wrote in English')
+  })
+
+  it('names the material whose language must not leak into the answer', async () => {
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.instructions).toContain("Only the user's own words set the language")
+    expect(agent.instructions).toMatch(/Code, tickets, logs, documents and a specialist's reply/)
+  })
+
+  it('still allows quoting an identifier verbatim', async () => {
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.instructions).toContain('quote identifiers verbatim')
+  })
+
+  it('states the rule once instead of repeating it at the end', async () => {
+    const agent = await createAgent([], 'support', {})
+
+    expect(agent.instructions).not.toContain('Final reminder')
   })
 })
