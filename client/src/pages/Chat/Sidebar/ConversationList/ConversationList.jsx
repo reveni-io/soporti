@@ -2,6 +2,7 @@ import Icon from '../../../../common/Icon/Icon.jsx'
 
 const UNTITLED_LABEL = 'Untitled conversation'
 const SCHEDULED_LABEL = 'Scheduled run'
+const STREAMING_LABEL = 'Answering'
 
 export default function ConversationList({ conversations, onSelect, onDelete }) {
   if (conversations.length === 0) return null
@@ -25,16 +26,27 @@ function ConversationItem({ conversation, onSelect, onDelete }) {
   }
 
   return (
-    <li className="sidebar__conversation" onClick={() => onSelect?.(conversation.id)}>
+    <li
+      className={`sidebar__conversation${conversation.isStreaming ? ' sidebar__conversation--streaming' : ''}`}
+      onClick={() => onSelect?.(conversation.id)}
+    >
       {conversation.scheduleId && (
         <span className="sidebar__conversation-badge" role="img" aria-label={SCHEDULED_LABEL} title={SCHEDULED_LABEL}>
           <Icon name="clock" size={12} />
         </span>
       )}
       <span className="sidebar__conversation-title">{conversation.title || UNTITLED_LABEL}</span>
-      <button className="sidebar__conversation-delete" onClick={handleDelete} aria-label="Delete conversation">
-        &times;
-      </button>
+      {conversation.isStreaming ? (
+        <span className="sidebar__conversation-typing" role="img" aria-label={STREAMING_LABEL} title={STREAMING_LABEL}>
+          <span />
+          <span />
+          <span />
+        </span>
+      ) : (
+        <button className="sidebar__conversation-delete" onClick={handleDelete} aria-label="Delete conversation">
+          &times;
+        </button>
+      )}
     </li>
   )
 }

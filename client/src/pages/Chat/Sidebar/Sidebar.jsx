@@ -21,13 +21,14 @@ export default function Sidebar({
   onOpenSettings,
   onLoadConversation,
   conversationsReloadKey,
+  activeConversation,
   integrations,
   token,
   isOpen,
   onClose,
 }) {
   const { repos, loading, error } = useRepos(token, onLogout)
-  const { conversations, remove } = useConversations(token, conversationsReloadKey)
+  const { conversations, remove } = useConversations(token, conversationsReloadKey, activeConversation)
   const { search, setSearch, filteredRepos, filteredIntegrations, yoloMatches } = useSourceSearch({
     repos,
     integrations,

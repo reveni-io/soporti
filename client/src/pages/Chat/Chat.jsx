@@ -43,16 +43,11 @@ export default function Chat({ initialQuestion = '' }) {
   const integrations = useAuthedResource(getIntegrations, 'integrations', token, [], integrationsReloadKey)
   const artifacts = useArtifacts(token, logout)
   const artifactShare = useArtifactShare(token, logout)
-  const {
-    messages,
-    isLoading,
-    conversationKey,
-    sendMessage,
-    stopGeneration,
-    clearChat,
-    loadConversation,
-    currentSessionId,
-  } = useChat(token, logout, artifacts.openPublished)
+  const { messages, isLoading, conversationKey, sendMessage, stopGeneration, clearChat, loadConversation, sessionId } =
+    useChat(token, logout, artifacts.openPublished)
+  const activeConversation = sessionId
+    ? { id: sessionId, title: firstUserMessageText(messages), isStreaming: isLoading }
+    : null
 
   useEffect(() => {
     if (wasLoading.current && !isLoading) {
@@ -101,10 +96,9 @@ export default function Chat({ initialQuestion = '' }) {
   }
 
   async function handleShare() {
-    const conversationId = currentSessionId.current
-    if (!conversationId) return
+    if (!sessionId) return
     try {
-      const data = await createShare(token, conversationId)
+      const data = await createShare(token, sessionId)
       setConversationShareUrl(absoluteAppUrl(data.url))
     } catch (err) {
       console.error('Share failed:', err) // eslint-disable-line no-console
@@ -126,6 +120,7 @@ export default function Chat({ initialQuestion = '' }) {
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={convReloadKey}
+        activeConversation={activeConversation}
         integrations={integrations}
         token={token}
         isOpen={sidebarOpen}
@@ -202,4 +197,8 @@ export default function Chat({ initialQuestion = '' }) {
       )}
     </div>
   )
+}
+
+function firstUserMessageText(messages) {
+  return messages.find(message => message.role === 'user')?.content
 }

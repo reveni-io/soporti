@@ -24,8 +24,18 @@ vi.mock('../../hooks/useSkills/useSkills.js', () => ({
 }))
 
 vi.mock('./Sidebar/Sidebar.jsx', () => ({
-  default: ({ onClearChat, onLogout, onToggleSource, onSelectProfile, onOpenSchedules, isOpen, onClose }) => (
+  default: ({
+    onClearChat,
+    onLogout,
+    onToggleSource,
+    onSelectProfile,
+    onOpenSchedules,
+    isOpen,
+    onClose,
+    activeConversation,
+  }) => (
     <div data-testid="sidebar" data-open={isOpen}>
+      <span data-testid="active-conversation">{JSON.stringify(activeConversation)}</span>
       <button onClick={onClearChat}>New Chat</button>
       <button onClick={onLogout}>Logout</button>
       <button onClick={() => onToggleSource('org/app')}>Toggle Source</button>
@@ -272,7 +282,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
-      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
+      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -352,7 +362,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
-      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
+      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -395,7 +405,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
-      currentSessionId: { current: null },
+      sessionId: null,
     })
 
     global.fetch = vi.fn()
@@ -424,7 +434,7 @@ describe('Chat', () => {
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
       clearChat: vi.fn(),
-      currentSessionId: { current: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
+      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
@@ -520,5 +530,80 @@ describe('Chat', () => {
     await user.click(overlay)
     expect(container.querySelector('.chat-page__overlay')).toBeNull()
     expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
+  })
+  it('feeds the sidebar the streaming conversation with a provisional title', () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [
+        { role: 'user', content: 'Why did the payout fail?' },
+        { role: 'assistant', parts: [] },
+      ],
+      isLoading: true,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
+    })
+
+    render(<Chat />)
+
+    expect(JSON.parse(screen.getByTestId('active-conversation').textContent)).toEqual({
+      id: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
+      title: 'Why did the payout fail?',
+      isStreaming: true,
+    })
+  })
+
+  it('stops marking the conversation as streaming once the answer is done', () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [{ role: 'user', content: 'Why did the payout fail?' }],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
+    })
+
+    render(<Chat />)
+
+    expect(JSON.parse(screen.getByTestId('active-conversation').textContent).isStreaming).toBe(false)
+  })
+
+  it('feeds the sidebar no active conversation before the first turn', () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      clearChat: vi.fn(),
+      sessionId: null,
+    })
+
+    render(<Chat />)
+
+    expect(JSON.parse(screen.getByTestId('active-conversation').textContent)).toBeNull()
   })
 })

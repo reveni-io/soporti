@@ -87,4 +87,60 @@ describe('useConversations', () => {
 
     await waitFor(() => expect(result.current.conversations).toEqual([]))
   })
+  it('prepends the active conversation while the server list does not know it yet', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
+
+    const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: true }
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+    expect(result.current.conversations).toEqual([active, { id: 'c1', title: 'Auth question' }])
+  })
+
+  it('keeps the server entry and marks it as streaming once the list knows it', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      mockList([
+        { id: 'c1', title: 'Auth question' },
+        { id: 'c2', title: 'Payout failure', scheduleId: null },
+      ])
+    )
+
+    const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: true }
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+    expect(result.current.conversations).toEqual([
+      { id: 'c1', title: 'Auth question' },
+      { id: 'c2', title: 'Payout failure', scheduleId: null, isStreaming: true },
+    ])
+  })
+
+  it('leaves the list untouched when there is no active conversation', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
+
+    const { result } = renderHook(() => useConversations('tok', 0))
+
+    await waitFor(() => expect(result.current.conversations).toEqual([{ id: 'c1', title: 'Auth question' }]))
+  })
+
+  it('replaces the optimistic entry with the server one when the list refetches', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([]))
+      .mockResolvedValueOnce(mockList([{ id: 'c2', title: 'Why did the payout fail?', scheduleId: null }]))
+
+    const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: false }
+    const { result, rerender } = renderHook(({ reloadKey }) => useConversations('tok', reloadKey, active), {
+      initialProps: { reloadKey: 0 },
+    })
+    await waitFor(() => expect(result.current.conversations).toEqual([active]))
+
+    rerender({ reloadKey: 1 })
+
+    await waitFor(() =>
+      expect(result.current.conversations).toEqual([
+        { id: 'c2', title: 'Why did the payout fail?', scheduleId: null, isStreaming: false },
+      ])
+    )
+  })
 })

@@ -71,4 +71,46 @@ describe('ConversationList', () => {
 
     expect(screen.getByText('Auth')).toBeInTheDocument()
   })
+  it('marks the conversation that is being answered', () => {
+    render(
+      <ConversationList
+        conversations={[
+          { id: 'c1', title: 'Payout failure', isStreaming: true },
+          { id: 'c2', title: 'Auth question' },
+        ]}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getAllByLabelText('Answering')).toHaveLength(1)
+  })
+
+  it('hides the delete button while the conversation is being answered', () => {
+    render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByLabelText('Delete conversation')).not.toBeInTheDocument()
+  })
+
+  it('still opens the conversation that is being answered', async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]}
+        onSelect={onSelect}
+        onDelete={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByText('Payout failure'))
+
+    expect(onSelect).toHaveBeenCalledWith('c1')
+  })
 })

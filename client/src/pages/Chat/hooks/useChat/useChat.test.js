@@ -234,6 +234,55 @@ describe('useChat', () => {
     expect(onAuthError).toHaveBeenCalled()
   })
 
+  it('exposes the conversation id as soon as the stream announces it', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+    expect(result.current.sessionId).toBeNull()
+
+    await act(async () => {
+      await result.current.sendMessage('hi', [], 'support')
+    })
+
+    expect(result.current.sessionId).toBe('sess-1')
+  })
+
+  it('sends the announced conversation id on the following turn', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', [], 'support')
+    })
+    await act(async () => {
+      await result.current.sendMessage('and then?', [], 'support')
+    })
+
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).sessionId).toBeNull()
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body).sessionId).toBe('sess-1')
+  })
+
+  it('exposes the loaded conversation id and drops it when the chat is cleared', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [] }) })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+    expect(result.current.sessionId).toBe('conv-1')
+
+    act(() => {
+      result.current.clearChat()
+    })
+    expect(result.current.sessionId).toBeNull()
+  })
+
   it('clearChat resets messages', async () => {
     global.fetch = vi
       .fn()
