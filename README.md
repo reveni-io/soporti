@@ -146,6 +146,7 @@ Google sign-in is optional and **off by default** (password sign-in is on) — s
 | `npm run docker:prod` | Build + start the production stack (`docker-compose.prod.yml`) |
 | `npm run docker:prod:down` | Stop the production stack |
 | `npm run install:all` | Install dependencies for both packages |
+| `npm run setup:worktree` | Set up a new `git worktree`: link the root `.env` from the primary checkout and install every package. See [Working from a Git Worktree](CONTRIBUTING.md#working-from-a-git-worktree) |
 | `npm run build:client` | Build client for production |
 | `npm test` | Run all tests (server + client) |
 | `npm run test:coverage` | Run all tests with coverage reports |

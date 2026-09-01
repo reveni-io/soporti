@@ -78,6 +78,30 @@ git rebase origin/main
 
 This keeps the history clean. If you have conflicts, resolve them during the rebase.
 
+## Working from a Git Worktree
+
+`git worktree` gives each branch its own checkout of the repo. Two things git ignores don't come with it:
+
+- **The root `.env`.** The dev Docker stack reads it from the root of the worktree it runs in (`env_file: .env` on the server, `${VITE_GOOGLE_CLIENT_ID}` on the client), so compose refuses to start without it.
+- **`node_modules`.** Needed for `npm test`, `npm run lint` and a native `npm run dev`. A root install is not enough — `server/` and `client/` have their own.
+
+One command from the new worktree handles both:
+
+```bash
+npm run setup:worktree
+```
+
+It symlinks the root `.env` to the one in your primary checkout — a link, not a copy, so a credential or tunable added there is picked up everywhere — and then installs the root, server and client dependencies. It is idempotent: an existing `.env` is never touched, so re-running it just re-installs.
+
+Once you're set up:
+
+- **The dev Docker stack is shared with your other checkouts.** `docker-compose.yml` pins the compose project name to `soporti`, so `npm run docker:up` from a worktree reuses the same containers, images and `pgdata` volume — same users, same `/admin` credentials. Without the pin, compose derives the project name from the directory and each worktree gets its own stack against an empty database.
+- **It runs the worktree's code.** The stack bind-mounts `server/src`, `server/drizzle` and `client`, so your branch is served with no rebuild.
+- **Its migrations are applied to that shared database on boot.** Fine for additive ones. For anything destructive, stop the shared stack and run an isolated one instead: `docker compose -p soporti-<branch> up --build`.
+- **`docker compose down -v` from a worktree drops the shared database.** Use `npm run docker:down`.
+
+If your primary clone lives in a directory that isn't named `soporti`, your existing dev database sits under the old project name and the pinned stack starts empty. Recreate it, or copy the data over from `<old-dir>_pgdata`.
+
 ## Before Opening a PR
 
 ### 1. Make sure it builds
