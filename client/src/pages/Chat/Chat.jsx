@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useChat } from './hooks/useChat/useChat.js'
 import { useArtifacts } from './hooks/useArtifacts/useArtifacts.js'
 import { useArtifactShare } from '../../hooks/useArtifactShare/useArtifactShare.js'
@@ -26,8 +26,6 @@ export default function Chat({ initialQuestion = '' }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [schedulesOpen, setSchedulesOpen] = useState(false)
   const [artifactsOpen, setArtifactsOpen] = useState(false)
-  const [convReloadKey, setConvReloadKey] = useState(0)
-  const wasLoading = useRef(false)
   const {
     token,
     isAuthenticated,
@@ -43,18 +41,18 @@ export default function Chat({ initialQuestion = '' }) {
   const integrations = useAuthedResource(getIntegrations, 'integrations', token, [], integrationsReloadKey)
   const artifacts = useArtifacts(token, logout)
   const artifactShare = useArtifactShare(token, logout)
-  const { messages, isLoading, conversationKey, sendMessage, stopGeneration, clearChat, loadConversation, sessionId } =
-    useChat(token, logout, artifacts.openPublished)
-  const activeConversation = sessionId
-    ? { id: sessionId, title: firstUserMessageText(messages), isStreaming: isLoading }
-    : null
-
-  useEffect(() => {
-    if (wasLoading.current && !isLoading) {
-      setConvReloadKey(k => k + 1)
-    }
-    wasLoading.current = isLoading
-  }, [isLoading])
+  const {
+    messages,
+    isLoading,
+    conversationKey,
+    activeConversations,
+    completedRuns,
+    sendMessage,
+    stopGeneration,
+    newChat,
+    loadConversation,
+    sessionId,
+  } = useChat(token, logout, artifacts.openPublished)
 
   if (!isAuthenticated) {
     return (
@@ -113,14 +111,15 @@ export default function Chat({ initialQuestion = '' }) {
         onToggleSource={toggleSource}
         selectedProfile={selectedProfile}
         onSelectProfile={handleProfileChange}
-        onClearChat={clearChat}
+        onNewChat={newChat}
         onLogout={logout}
         onOpenSchedules={() => setSchedulesOpen(true)}
         onOpenArtifacts={() => setArtifactsOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onLoadConversation={handleLoadConversation}
-        conversationsReloadKey={convReloadKey}
-        activeConversation={activeConversation}
+        conversationsReloadKey={completedRuns}
+        activeConversations={activeConversations}
+        selectedConversationId={sessionId}
         integrations={integrations}
         token={token}
         isOpen={sidebarOpen}
@@ -197,8 +196,4 @@ export default function Chat({ initialQuestion = '' }) {
       )}
     </div>
   )
-}
-
-function firstUserMessageText(messages) {
-  return messages.find(message => message.role === 'user')?.content
 }

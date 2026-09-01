@@ -204,6 +204,10 @@
 }
 
 .sidebar__conversation--streaming {
+  color: var(--sidebar-text);
+}
+
+.sidebar__conversation--selected {
   background-color: var(--sidebar-selected);
   color: var(--sidebar-text);
 }

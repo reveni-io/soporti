@@ -35,6 +35,41 @@ describe('useComposer', () => {
     expect(result.current.input).toBe('')
   })
 
+  it('clears the draft when another conversation is displayed', () => {
+    const { result, rerender } = renderHook(
+      ({ conversationKey }) =>
+        useComposer({ skills: SKILLS, hasSourcesSelected: true, onSend: vi.fn(), conversationKey }),
+      { initialProps: { conversationKey: 'chat-1' } }
+    )
+
+    act(() => result.current.onChange({ target: { value: 'half written question' } }))
+    expect(result.current.input).toBe('half written question')
+
+    rerender({ conversationKey: 'chat-2' })
+
+    expect(result.current.input).toBe('')
+  })
+
+  it('keeps the question it was opened with on the conversation it belongs to', () => {
+    const { result, rerender } = renderHook(
+      ({ conversationKey }) =>
+        useComposer({
+          skills: SKILLS,
+          hasSourcesSelected: true,
+          onSend: vi.fn(),
+          initialInput: 'why did that refund fail?',
+          conversationKey,
+        }),
+      { initialProps: { conversationKey: 'chat-1' } }
+    )
+
+    expect(result.current.input).toBe('why did that refund fail?')
+
+    rerender({ conversationKey: 'chat-1' })
+
+    expect(result.current.input).toBe('why did that refund fail?')
+  })
+
   it('starts from the initial input it is given and sends it untouched', () => {
     const { result, onSend } = setup({ initialInput: 'why did that refund fail?' })
 

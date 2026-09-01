@@ -14,21 +14,22 @@ export default function Sidebar({
   onToggleSource,
   selectedProfile,
   onSelectProfile,
-  onClearChat,
+  onNewChat,
   onLogout,
   onOpenSchedules,
   onOpenArtifacts,
   onOpenSettings,
   onLoadConversation,
   conversationsReloadKey,
-  activeConversation,
+  activeConversations,
+  selectedConversationId,
   integrations,
   token,
   isOpen,
   onClose,
 }) {
   const { repos, loading, error } = useRepos(token, onLogout)
-  const { conversations, remove } = useConversations(token, conversationsReloadKey, activeConversation)
+  const { conversations, remove } = useConversations(token, conversationsReloadKey, activeConversations)
   const { search, setSearch, filteredRepos, filteredIntegrations, yoloMatches } = useSourceSearch({
     repos,
     integrations,
@@ -40,11 +41,16 @@ export default function Sidebar({
     <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`}>
       <SidebarHeader onClose={onClose} />
 
-      <button className="sidebar__new-chat" onClick={onClearChat}>
+      <button className="sidebar__new-chat" onClick={onNewChat}>
         + New chat
       </button>
 
-      <ConversationList conversations={conversations} onSelect={onLoadConversation} onDelete={remove} />
+      <ConversationList
+        conversations={conversations}
+        selectedId={selectedConversationId}
+        onSelect={onLoadConversation}
+        onDelete={remove}
+      />
 
       <ProfileToggle selectedProfile={selectedProfile} onSelectProfile={onSelectProfile} />
 

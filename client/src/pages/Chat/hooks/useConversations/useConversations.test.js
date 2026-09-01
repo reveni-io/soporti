@@ -91,10 +91,46 @@ describe('useConversations', () => {
     global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
 
     const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: true }
-    const { result } = renderHook(() => useConversations('tok', 0, active))
+    const { result } = renderHook(() => useConversations('tok', 0, [active]))
 
     await waitFor(() => expect(result.current.conversations).toHaveLength(2))
     expect(result.current.conversations).toEqual([active, { id: 'c1', title: 'Auth question' }])
+  })
+
+  it('prepends every active conversation the server list does not know yet', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
+
+    const active = [
+      { id: 'c3', title: 'How does auth work?', isStreaming: true },
+      { id: 'c2', title: 'Why did the payout fail?', isStreaming: true },
+    ]
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+
+    await waitFor(() => expect(result.current.conversations).toHaveLength(3))
+    expect(result.current.conversations).toEqual([...active, { id: 'c1', title: 'Auth question' }])
+  })
+
+  it('marks each streaming conversation the server list already knows', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      mockList([
+        { id: 'c1', title: 'Auth question' },
+        { id: 'c2', title: 'Payout failure' },
+        { id: 'c3', title: 'Refund report' },
+      ])
+    )
+
+    const active = [
+      { id: 'c3', title: 'Refund report', isStreaming: true },
+      { id: 'c1', title: 'Auth question', isStreaming: false },
+    ]
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+
+    await waitFor(() => expect(result.current.conversations).toHaveLength(3))
+    expect(result.current.conversations).toEqual([
+      { id: 'c1', title: 'Auth question', isStreaming: false },
+      { id: 'c2', title: 'Payout failure' },
+      { id: 'c3', title: 'Refund report', isStreaming: true },
+    ])
   })
 
   it('keeps the server entry and marks it as streaming once the list knows it', async () => {
@@ -106,13 +142,30 @@ describe('useConversations', () => {
     )
 
     const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: true }
-    const { result } = renderHook(() => useConversations('tok', 0, active))
+    const { result } = renderHook(() => useConversations('tok', 0, [active]))
 
     await waitFor(() => expect(result.current.conversations).toHaveLength(2))
     expect(result.current.conversations).toEqual([
       { id: 'c1', title: 'Auth question' },
       { id: 'c2', title: 'Payout failure', scheduleId: null, isStreaming: true },
     ])
+  })
+
+  it('never brings back a conversation the reader deleted', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Auth question' }]))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) })
+
+    const active = [{ id: 'c1', title: 'Auth question', isStreaming: false }]
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.remove('c1')
+    })
+
+    expect(result.current.conversations).toEqual([])
   })
 
   it('leaves the list untouched when there is no active conversation', async () => {
@@ -130,7 +183,7 @@ describe('useConversations', () => {
       .mockResolvedValueOnce(mockList([{ id: 'c2', title: 'Why did the payout fail?', scheduleId: null }]))
 
     const active = { id: 'c2', title: 'Why did the payout fail?', isStreaming: false }
-    const { result, rerender } = renderHook(({ reloadKey }) => useConversations('tok', reloadKey, active), {
+    const { result, rerender } = renderHook(({ reloadKey }) => useConversations('tok', reloadKey, [active]), {
       initialProps: { reloadKey: 0 },
     })
     await waitFor(() => expect(result.current.conversations).toEqual([active]))

@@ -3,9 +3,22 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import ChatPanel from './ChatPanel.jsx'
 
-vi.mock('../../../common/Message/Message.jsx', () => ({
-  default: ({ message }) => <div data-testid="message">{message.content || 'assistant'}</div>,
-}))
+vi.mock('../../../common/Message/Message.jsx', async () => {
+  const { useState } = await import('react')
+
+  function MessageStub({ message }) {
+    const [rated, setRated] = useState(false)
+
+    return (
+      <div data-testid="message">
+        {message.content || 'assistant'}
+        <button onClick={() => setRated(true)}>{rated ? 'Rated' : 'Rate'}</button>
+      </div>
+    )
+  }
+
+  return { default: MessageStub }
+})
 
 const INTEGRATIONS = [
   { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
@@ -229,6 +242,33 @@ describe('ChatPanel', () => {
     rerender(<ChatPanel {...defaultProps} conversationKey={1} />)
 
     expect(screen.queryByText(/spec\.pdf/)).not.toBeInTheDocument()
+  })
+
+  it('keeps no trace of what the reader did to a message when another conversation is opened', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <ChatPanel {...defaultProps} conversationKey="chat-1" messages={[{ role: 'user', content: 'first' }]} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Rate' }))
+    expect(screen.getByRole('button', { name: 'Rated' })).toBeInTheDocument()
+
+    rerender(
+      <ChatPanel {...defaultProps} conversationKey="chat-2" messages={[{ role: 'user', content: 'another one' }]} />
+    )
+
+    expect(screen.getByRole('button', { name: 'Rate' })).toBeInTheDocument()
+  })
+
+  it('drops the draft when another conversation is opened', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPanel {...defaultProps} conversationKey="chat-1" />)
+
+    await user.type(screen.getByPlaceholderText(/ask/i), 'half written question')
+
+    rerender(<ChatPanel {...defaultProps} conversationKey="chat-2" />)
+
+    expect(screen.getByPlaceholderText(/ask/i)).toHaveValue('')
   })
 
   it('does not send empty message', async () => {

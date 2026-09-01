@@ -8,7 +8,7 @@ const defaultProps = {
   onToggleSource: vi.fn(),
   selectedProfile: 'support',
   onSelectProfile: vi.fn(),
-  onClearChat: vi.fn(),
+  onNewChat: vi.fn(),
   onLogout: vi.fn(),
   integrations: [
     { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
@@ -70,13 +70,13 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: /^tech$/i })).toBeInTheDocument()
   })
 
-  it('calls onClearChat when New Chat clicked', async () => {
-    const onClearChat = vi.fn()
+  it('calls onNewChat when New Chat clicked', async () => {
+    const onNewChat = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onClearChat={onClearChat} />)
+    render(<Sidebar {...defaultProps} onNewChat={onNewChat} />)
 
     await user.click(screen.getByText(/new chat/i))
-    expect(onClearChat).toHaveBeenCalled()
+    expect(onNewChat).toHaveBeenCalled()
   })
 
   it('calls onLogout when Logout clicked', async () => {
@@ -323,7 +323,7 @@ describe('Sidebar', () => {
       render(
         <Sidebar
           {...defaultProps}
-          activeConversation={{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }}
+          activeConversations={[{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }]}
         />
       )
 
@@ -337,7 +337,7 @@ describe('Sidebar', () => {
       render(
         <Sidebar
           {...defaultProps}
-          activeConversation={{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }}
+          activeConversations={[{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }]}
         />
       )
 
@@ -349,12 +349,43 @@ describe('Sidebar', () => {
     it('does not duplicate the in-flight conversation once the server list has it', async () => {
       mockWithConversations([{ id: 'c1', title: 'Payout failure', updatedAt: new Date().toISOString() }])
       render(
-        <Sidebar {...defaultProps} activeConversation={{ id: 'c1', title: 'Payout failure', isStreaming: true }} />
+        <Sidebar {...defaultProps} activeConversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]} />
       )
 
       await waitFor(() => expect(screen.getByText('Payout failure')).toBeInTheDocument())
       expect(screen.getAllByText('Payout failure')).toHaveLength(1)
       expect(screen.getByLabelText('Answering')).toBeInTheDocument()
+    })
+
+    it('marks every in-flight conversation at once', async () => {
+      mockWithConversations([{ id: 'c1', title: 'Auth question', updatedAt: new Date().toISOString() }])
+      render(
+        <Sidebar
+          {...defaultProps}
+          activeConversations={[
+            { id: 'c2', title: 'Why did the payout fail?', isStreaming: true },
+            { id: 'c1', title: 'Auth question', isStreaming: true },
+          ]}
+        />
+      )
+
+      await waitFor(() => expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument())
+      expect(screen.getByText('Auth question')).toBeInTheDocument()
+      expect(screen.getAllByLabelText('Answering')).toHaveLength(2)
+    })
+
+    it('marks the conversation the reader is on', async () => {
+      mockWithConversations([
+        { id: 'c1', title: 'Auth question', updatedAt: new Date().toISOString() },
+        { id: 'c2', title: 'Payout failure', updatedAt: new Date().toISOString() },
+      ])
+      const { container } = render(<Sidebar {...defaultProps} selectedConversationId="c2" />)
+
+      await waitFor(() => expect(screen.getByText('Payout failure')).toBeInTheDocument())
+
+      const current = container.querySelectorAll('[aria-current="true"]')
+      expect(current).toHaveLength(1)
+      expect(current[0]).toHaveTextContent('Payout failure')
     })
 
     it('reloads the list when conversationsReloadKey changes', async () => {
