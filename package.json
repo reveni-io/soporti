@@ -1,7 +1,8 @@
 {
   "name": "soporti",
-  "version": "1.33.0",
+  "version": "1.34.0",
   "private": true,
+  "type": "module",
   "description": "AI-powered code assistant that helps support and engineering teams understand and navigate code repositories.",
   "repository": {
     "type": "git",
@@ -24,9 +25,10 @@
     "docker:prod": "docker compose -f docker-compose.prod.yml up -d --build",
     "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
     "install:all": "npm install --prefix server && npm install --prefix client",
+    "setup:worktree": "node scripts/setup-worktree.js",
     "build:client": "npm run build --prefix client",
-    "lint": "npm run lint --prefix server && npm run lint --prefix client && prettier --check \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\"",
-    "format": "prettier --write \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\"",
+    "lint": "npm run lint --prefix server && npm run lint --prefix client && prettier --check \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\" \"scripts/**/*.js\"",
+    "format": "prettier --write \"server/**/*.{js,jsx}\" \"client/**/*.{js,jsx}\" \"scripts/**/*.js\"",
     "test": "npm test --prefix server && npm test --prefix client",
     "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client"
   },

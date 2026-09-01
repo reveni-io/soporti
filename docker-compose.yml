@@ -1,5 +1,12 @@
 # Development stack: `npm run docker:up` brings up Postgres + server + client
 # with hot-reload. Not intended for production deployment.
+#
+# The project name is pinned so every checkout of the repo — including a git
+# worktree, whose directory name would otherwise become the project name — shares
+# one set of containers, images and one `soporti_pgdata` volume. Pass `-p` or set
+# COMPOSE_PROJECT_NAME to run an isolated stack on purpose.
+name: soporti
+
 services:
   db:
     image: postgres:16-alpine
