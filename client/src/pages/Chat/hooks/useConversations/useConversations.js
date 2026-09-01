@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteConversation, getConversations } from '../../../../services/services.js'
 
-export function useConversations(token, reloadKey) {
+export function useConversations(token, reloadKey, activeConversation = null) {
   const [conversations, setConversations] = useState([])
 
   useEffect(() => {
@@ -25,5 +25,16 @@ export function useConversations(token, reloadKey) {
     } catch {}
   }
 
-  return { conversations, remove }
+  return { conversations: withActiveConversation(conversations, activeConversation), remove }
+}
+
+function withActiveConversation(conversations, active) {
+  if (!active) return conversations
+
+  const known = conversations.some(conversation => conversation.id === active.id)
+  if (!known) return [active, ...conversations]
+
+  return conversations.map(conversation =>
+    conversation.id === active.id ? { ...conversation, isStreaming: active.isStreaming } : conversation
+  )
 }

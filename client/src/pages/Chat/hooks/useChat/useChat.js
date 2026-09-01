@@ -5,7 +5,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [conversationKey, setConversationKey] = useState(0)
-  const sessionIdRef = useRef(null)
+  const [sessionId, setSessionId] = useState(null)
   const abortRef = useRef(null)
 
   const sendMessage = useCallback(
@@ -28,7 +28,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
         const response = await streamChat(
           token,
           {
-            sessionId: sessionIdRef.current,
+            sessionId,
             message: text,
             selectedSources,
             profile,
@@ -61,7 +61,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
 
             switch (data.type) {
               case 'session_id':
-                sessionIdRef.current = data.sessionId
+                setSessionId(data.sessionId)
                 break
 
               case 'text_delta':
@@ -191,7 +191,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
         abortRef.current = null
       }
     },
-    [isLoading, token, onAuthError, onArtifactPublished]
+    [isLoading, sessionId, token, onAuthError, onArtifactPublished]
   )
 
   const stopGeneration = useCallback(() => {
@@ -204,7 +204,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
   const clearChat = useCallback(() => {
     setMessages([])
     setConversationKey(key => key + 1)
-    sessionIdRef.current = null
+    setSessionId(null)
   }, [])
 
   const loadConversation = useCallback(
@@ -212,7 +212,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
       try {
         const data = await getConversation(token, id)
 
-        sessionIdRef.current = id
+        setSessionId(id)
         setMessages(data.messages || [])
         setConversationKey(key => key + 1)
       } catch (err) {
@@ -230,6 +230,6 @@ export function useChat(token, onAuthError, onArtifactPublished) {
     stopGeneration,
     clearChat,
     loadConversation,
-    currentSessionId: sessionIdRef,
+    sessionId,
   }
 }

@@ -61,7 +61,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 
 ### Keep and share the answers
 
-- **Conversation history** — chats are persisted and reopenable from the sidebar
+- **Conversation history** — chats are persisted and reopenable from the sidebar. A new chat shows up there the moment you send the first message, titled with what you asked, and carries a live indicator while the answer is still being written — so a long investigation is visible in the list instead of appearing only once it finishes
 - **Read-only share links** — hand a conversation to someone with no account; the transcript is frozen at that point and the link expires in 30 days
 - **Let Me Soporti That For You** — for the question that gets asked over and over: type it at `/lmstfy`, share the link you get back, and whoever opens it watches the question being typed into Soporti and sent, then lands on the chat with it already written. The page is public and needs no account to watch, but the answer still happens behind your login — no agent, no LLM spend and no data are exposed to the internet, and nothing is stored either: the question travels in the link itself
 

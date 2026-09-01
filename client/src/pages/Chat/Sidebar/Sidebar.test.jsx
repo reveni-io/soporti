@@ -318,6 +318,45 @@ describe('Sidebar', () => {
       await waitFor(() => expect(screen.queryByText('Auth question')).not.toBeInTheDocument())
     })
 
+    it('shows the in-flight conversation the server list does not have yet', async () => {
+      mockWithConversations([{ id: 'c1', title: 'Auth question', updatedAt: new Date().toISOString() }])
+      render(
+        <Sidebar
+          {...defaultProps}
+          activeConversation={{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }}
+        />
+      )
+
+      await waitFor(() => expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument())
+      expect(screen.getByLabelText('Answering')).toBeInTheDocument()
+      expect(screen.getByText('Auth question')).toBeInTheDocument()
+    })
+
+    it('shows the conversations section for an in-flight conversation on an empty server list', async () => {
+      mockWithConversations([])
+      render(
+        <Sidebar
+          {...defaultProps}
+          activeConversation={{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }}
+        />
+      )
+
+      await waitFor(() => expect(global.fetch).toHaveBeenCalled())
+      expect(screen.getByText('Conversations')).toBeInTheDocument()
+      expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument()
+    })
+
+    it('does not duplicate the in-flight conversation once the server list has it', async () => {
+      mockWithConversations([{ id: 'c1', title: 'Payout failure', updatedAt: new Date().toISOString() }])
+      render(
+        <Sidebar {...defaultProps} activeConversation={{ id: 'c1', title: 'Payout failure', isStreaming: true }} />
+      )
+
+      await waitFor(() => expect(screen.getByText('Payout failure')).toBeInTheDocument())
+      expect(screen.getAllByText('Payout failure')).toHaveLength(1)
+      expect(screen.getByLabelText('Answering')).toBeInTheDocument()
+    })
+
     it('reloads the list when conversationsReloadKey changes', async () => {
       mockWithConversations([{ id: 'c1', title: 'First', updatedAt: new Date().toISOString() }])
       const { rerender } = render(<Sidebar {...defaultProps} conversationsReloadKey={0} />)
