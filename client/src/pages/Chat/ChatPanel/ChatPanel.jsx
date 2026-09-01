@@ -52,6 +52,7 @@ export default function ChatPanel({
     isUploading,
     onSend: handleSend,
     initialInput: initialQuestion,
+    conversationKey,
   })
 
   function handleSend(text, invokedSkills) {
@@ -93,7 +94,7 @@ export default function ChatPanel({
 
           <div className="chat__messages-list" ref={contentRef}>
             {messages.map((message, index) => (
-              <div key={index} className="chat__message" data-message-index={index}>
+              <div key={`${conversationKey}-${index}`} className="chat__message" data-message-index={index}>
                 <Message
                   message={message}
                   isStreaming={isLoading && index === messages.length - 1}

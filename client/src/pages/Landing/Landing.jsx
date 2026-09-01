@@ -12,6 +12,7 @@ import LandingFooter from './LandingFooter/LandingFooter.jsx'
 import LandingHero from './LandingHero/LandingHero.jsx'
 import LandingNav from './LandingNav/LandingNav.jsx'
 import LmstfySection from './LmstfySection/LmstfySection.jsx'
+import ParallelSection from './ParallelSection/ParallelSection.jsx'
 import ProfilesSection from './ProfilesSection/ProfilesSection.jsx'
 import ProvidersSection from './ProvidersSection/ProvidersSection.jsx'
 import RendersSection from './RendersSection/RendersSection.jsx'
@@ -35,6 +36,7 @@ export default function Landing({ hideCta = false }) {
       <LandingHero cta={visibleCta} />
       <StatsSection />
       <AskSection />
+      <ParallelSection />
       <RendersSection />
       <ArtifactsSection />
       <IntegrationsSection />

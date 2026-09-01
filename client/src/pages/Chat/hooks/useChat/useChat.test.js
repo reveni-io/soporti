@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { useChat } from './useChat.js'
 
 function createSSEResponse(events) {
@@ -21,6 +21,53 @@ function createSSEResponse(events) {
           },
         }
       },
+    },
+  }
+}
+
+function createManualStream() {
+  const encoder = new TextEncoder()
+  const chunks = []
+  let pendingRead = null
+  let closed = false
+
+  function deliver() {
+    if (!pendingRead) return
+
+    if (chunks.length > 0) {
+      const resolve = pendingRead
+      pendingRead = null
+      resolve({ done: false, value: chunks.shift() })
+      return
+    }
+    if (closed) {
+      const resolve = pendingRead
+      pendingRead = null
+      resolve({ done: true, value: undefined })
+    }
+  }
+
+  return {
+    response: {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: () =>
+            new Promise(resolve => {
+              pendingRead = resolve
+              deliver()
+            }),
+        }),
+      },
+    },
+    push(event) {
+      chunks.push(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+      deliver()
+    },
+    close() {
+      closed = true
+      deliver()
     },
   }
 }
@@ -172,6 +219,54 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual([])
   })
 
+  it('ignores a second message while the displayed conversation is being answered', async () => {
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockResolvedValue(stream.response)
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('first', [], 'support')
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+    await act(async () => {
+      await result.current.sendMessage('second', [], 'support')
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(result.current.messages).toHaveLength(2)
+  })
+
+  it('skips a malformed event without dropping the rest of the stream', async () => {
+    const encoder = new TextEncoder()
+    const encoded = encoder.encode('data: {oops\n\ndata: {"type":"text_delta","text":"Hello"}\n\n')
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => {
+          let sent = false
+          return {
+            read: async () => {
+              if (sent) return { done: true, value: undefined }
+              sent = true
+              return { done: false, value: encoded }
+            },
+          }
+        },
+      },
+    })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', [], 'support')
+    })
+
+    expect(result.current.messages[1].parts).toEqual([{ type: 'text', content: 'Hello' }])
+  })
+
   it('handles tool_start and tool_end events', async () => {
     global.fetch = vi
       .fn()
@@ -216,6 +311,26 @@ describe('useChat', () => {
 
     const parts = result.current.messages[1].parts
     expect(parts.some(p => p.type === 'error' && p.content === 'Something went wrong')).toBe(true)
+  })
+
+  it('tags the answer with the feedback id the stream announces', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        createSSEResponse([
+          { type: 'session_id', sessionId: 'sess-1' },
+          { type: 'feedback_id', feedbackId: 42 },
+          { type: 'done' },
+        ])
+      )
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('hi', [], 'support')
+    })
+
+    expect(result.current.messages[1].feedbackId).toBe(42)
   })
 
   it('calls onAuthError on 401 response', async () => {
@@ -267,7 +382,7 @@ describe('useChat', () => {
     expect(JSON.parse(global.fetch.mock.calls[1][1].body).sessionId).toBe('sess-1')
   })
 
-  it('exposes the loaded conversation id and drops it when the chat is cleared', async () => {
+  it('exposes the loaded conversation id and drops it on a new chat', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [] }) })
 
     const { result } = renderHook(() => useChat('token', vi.fn()))
@@ -278,12 +393,12 @@ describe('useChat', () => {
     expect(result.current.sessionId).toBe('conv-1')
 
     act(() => {
-      result.current.clearChat()
+      result.current.newChat()
     })
     expect(result.current.sessionId).toBeNull()
   })
 
-  it('clearChat resets messages', async () => {
+  it('newChat shows an empty transcript', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -302,7 +417,7 @@ describe('useChat', () => {
     expect(result.current.messages.length).toBe(2)
 
     act(() => {
-      result.current.clearChat()
+      result.current.newChat()
     })
     expect(result.current.messages).toEqual([])
   })
@@ -323,7 +438,7 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual(messages)
   })
 
-  it('advances the conversation key when a conversation is loaded or cleared', async () => {
+  it('advances the conversation key when a conversation is loaded or a new chat starts', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ messages: [] }) })
 
     const { result } = renderHook(() => useChat('token', vi.fn()))
@@ -335,7 +450,7 @@ describe('useChat', () => {
     const loadedKey = result.current.conversationKey
 
     act(() => {
-      result.current.clearChat()
+      result.current.newChat()
     })
 
     expect(loadedKey).not.toBe(initialKey)
@@ -378,6 +493,53 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual([])
   })
 
+  it('refetches a conversation that is already in memory and not being answered', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ messages: [] }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ messages: [{ role: 'user', content: 'saved by a schedule' }] }),
+      })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+    act(() => {
+      result.current.newChat()
+    })
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(result.current.messages).toEqual([{ role: 'user', content: 'saved by a schedule' }])
+  })
+
+  it('keeps reporting a conversation it holds once its answer is done', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [{ role: 'user', content: 'How does auth work?' }] }),
+    })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.loadConversation('conv-1')
+    })
+    act(() => {
+      result.current.newChat()
+    })
+
+    expect(result.current.activeConversations).toEqual([
+      { id: 'conv-1', title: 'How does auth work?', isStreaming: false },
+    ])
+  })
+
   it('handles HTTP error response', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -393,5 +555,187 @@ describe('useChat', () => {
 
     const parts = result.current.messages[1].parts
     expect(parts.some(p => p.type === 'error')).toBe(true)
+  })
+
+  it('counts every finished run so the conversation list can be refreshed', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+    expect(result.current.completedRuns).toBe(0)
+
+    await act(async () => {
+      await result.current.sendMessage('hi', [], 'support')
+    })
+
+    expect(result.current.completedRuns).toBe(1)
+  })
+
+  it('keeps answering the conversation the user leaves and shows the answer on the way back', async () => {
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockResolvedValue(stream.response)
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('long research', [], 'support')
+    })
+    stream.push({ type: 'session_id', sessionId: 'sess-1' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-1'))
+
+    act(() => {
+      result.current.newChat()
+    })
+    expect(result.current.messages).toEqual([])
+    expect(result.current.isLoading).toBe(false)
+
+    stream.push({ type: 'text_delta', text: 'still working' })
+    await waitFor(() => expect(result.current.activeConversations[0].isStreaming).toBe(true))
+    expect(result.current.messages).toEqual([])
+
+    await act(async () => {
+      await result.current.loadConversation('sess-1')
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.messages[1].parts).toEqual([{ type: 'text', content: 'still working' }])
+  })
+
+  it('never appends the running answer to the conversation the user opens instead', async () => {
+    const stream = createManualStream()
+    const loaded = [
+      { role: 'user', content: 'How does auth work?' },
+      { role: 'assistant', parts: [{ type: 'text', content: 'It uses JWT.' }] },
+    ]
+    global.fetch = vi.fn().mockImplementation(url => {
+      if (String(url).includes('/api/conversations/')) {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ messages: loaded }) })
+      }
+      return Promise.resolve(stream.response)
+    })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('long research', [], 'support')
+    })
+    stream.push({ type: 'session_id', sessionId: 'sess-1' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-1'))
+
+    await act(async () => {
+      await result.current.loadConversation('conv-2')
+    })
+
+    stream.push({ type: 'text_delta', text: 'still working' })
+    stream.push({ type: 'tool_start', tool: 'search_code', input: {} })
+    await waitFor(() => expect(result.current.activeConversations).toHaveLength(2))
+
+    expect(result.current.messages).toEqual(loaded)
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('marks every in-flight conversation, newest first', async () => {
+    const first = createManualStream()
+    const second = createManualStream()
+    const streams = [first, second]
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(streams.shift().response))
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('why did the payout fail?', [], 'support')
+    })
+    first.push({ type: 'session_id', sessionId: 'sess-1' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-1'))
+
+    act(() => {
+      result.current.newChat()
+    })
+    act(() => {
+      result.current.sendMessage('how does auth work?', [], 'support')
+    })
+    second.push({ type: 'session_id', sessionId: 'sess-2' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-2'))
+
+    expect(result.current.activeConversations).toEqual([
+      { id: 'sess-2', title: 'how does auth work?', isStreaming: true },
+      { id: 'sess-1', title: 'why did the payout fail?', isStreaming: true },
+    ])
+  })
+
+  it('stops only the displayed conversation', async () => {
+    const first = createManualStream()
+    const second = createManualStream()
+    const streams = [first, second]
+    const signals = []
+    global.fetch = vi.fn().mockImplementation((url, options) => {
+      signals.push(options.signal)
+      return Promise.resolve(streams.shift().response)
+    })
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('long research', [], 'support')
+    })
+    first.push({ type: 'session_id', sessionId: 'sess-1' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-1'))
+
+    act(() => {
+      result.current.newChat()
+    })
+    act(() => {
+      result.current.sendMessage('quick question', [], 'support')
+    })
+    second.push({ type: 'session_id', sessionId: 'sess-2' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-2'))
+
+    act(() => {
+      result.current.stopGeneration()
+    })
+
+    expect(signals[0].aborted).toBe(false)
+    expect(signals[1].aborted).toBe(true)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.activeConversations).toEqual([
+      { id: 'sess-2', title: 'quick question', isStreaming: false },
+      { id: 'sess-1', title: 'long research', isStreaming: true },
+    ])
+  })
+
+  it('opens the published artifact of the displayed conversation only', async () => {
+    const first = createManualStream()
+    const second = createManualStream()
+    const streams = [first, second]
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(streams.shift().response))
+
+    const onArtifactPublished = vi.fn()
+    const { result } = renderHook(() => useChat('token', vi.fn(), onArtifactPublished))
+
+    act(() => {
+      result.current.sendMessage('build the runbook', [], 'support')
+    })
+    first.push({ type: 'session_id', sessionId: 'sess-1' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-1'))
+
+    act(() => {
+      result.current.newChat()
+    })
+    act(() => {
+      result.current.sendMessage('and the incident report', [], 'support')
+    })
+    second.push({ type: 'session_id', sessionId: 'sess-2' })
+    await waitFor(() => expect(result.current.sessionId).toBe('sess-2'))
+
+    first.push({ type: 'artifact', artifactId: 'art-1', title: 'Runbook', version: 1 })
+    second.push({ type: 'artifact', artifactId: 'art-2', title: 'Incident report', version: 1 })
+
+    await waitFor(() => expect(onArtifactPublished).toHaveBeenCalledTimes(1))
+    expect(onArtifactPublished).toHaveBeenCalledWith({ artifactId: 'art-2', title: 'Incident report', version: 1 })
+    expect(result.current.messages[1].parts).toEqual([
+      { type: 'artifact', artifactId: 'art-2', title: 'Incident report', version: 1 },
+    ])
   })
 })

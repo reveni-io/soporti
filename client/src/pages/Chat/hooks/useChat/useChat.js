@@ -1,16 +1,198 @@
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
 
+const FIRST_CHAT_KEY = 'chat-1'
+const DATA_PREFIX = 'data: '
+
+function emptyChat() {
+  return { sessionId: null, messages: [], isLoading: false }
+}
+
+function withChat(chats, key, updater) {
+  const chat = chats[key]
+  if (!chat) return chats
+
+  const updated = updater(chat)
+  if (updated === chat) return chats
+
+  return { ...chats, [key]: updated }
+}
+
+function withLastAssistant(chat, updateMessage) {
+  const last = chat.messages[chat.messages.length - 1]
+  if (!last || last.role !== 'assistant') return chat
+
+  const messages = [...chat.messages]
+  messages[messages.length - 1] = updateMessage(last)
+
+  return { ...chat, messages }
+}
+
+function withPart(part) {
+  return message => ({ ...message, parts: [...message.parts, part] })
+}
+
+function withAppendedText(text) {
+  return message => {
+    const parts = [...message.parts]
+    const last = parts[parts.length - 1]
+
+    if (last && last.type === 'text') parts[parts.length - 1] = { ...last, content: last.content + text }
+    else parts.push({ type: 'text', content: text })
+
+    return { ...message, parts }
+  }
+}
+
+function startedToolPart(event) {
+  return {
+    type: 'tool_call',
+    tool: event.tool,
+    input: event.input,
+    parent: event.parent ?? null,
+    done: false,
+    startedAt: Date.now(),
+  }
+}
+
+function withFinishedTool(event) {
+  return message => {
+    const parts = [...message.parts]
+
+    for (let index = parts.length - 1; index >= 0; index--) {
+      const part = parts[index]
+      const matches =
+        part.type === 'tool_call' &&
+        part.tool === event.tool &&
+        (part.parent ?? null) === (event.parent ?? null) &&
+        !part.done
+      if (!matches) continue
+
+      parts[index] = { ...part, done: true, durationMs: Date.now() - part.startedAt }
+      break
+    }
+
+    return { ...message, parts }
+  }
+}
+
+function parseEvent(line) {
+  try {
+    return JSON.parse(line.slice(DATA_PREFIX.length))
+  } catch {
+    return null
+  }
+}
+
+async function readEvents(response, onEvent) {
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) return
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      if (!line.startsWith(DATA_PREFIX)) continue
+
+      const event = parseEvent(line)
+      if (event) onEvent(event)
+    }
+  }
+}
+
+function firstUserMessageText(messages) {
+  return messages.find(message => message.role === 'user')?.content
+}
+
+function toActiveConversations(chats) {
+  return Object.values(chats)
+    .filter(chat => chat.sessionId)
+    .map(chat => ({
+      id: chat.sessionId,
+      title: firstUserMessageText(chat.messages),
+      isStreaming: chat.isLoading,
+    }))
+    .reverse()
+}
+
 export function useChat(token, onAuthError, onArtifactPublished) {
-  const [messages, setMessages] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [conversationKey, setConversationKey] = useState(0)
-  const [sessionId, setSessionId] = useState(null)
-  const abortRef = useRef(null)
+  const [chats, setChats] = useState({ [FIRST_CHAT_KEY]: emptyChat() })
+  const [activeKey, setActiveKey] = useState(FIRST_CHAT_KEY)
+  const [completedRuns, setCompletedRuns] = useState(0)
+  const activeKeyRef = useRef(FIRST_CHAT_KEY)
+  const nextKeyRef = useRef(2)
+  const abortControllers = useRef(new Map())
+
+  const updateChat = useCallback((key, updater) => {
+    setChats(prev => withChat(prev, key, updater))
+  }, [])
+
+  const selectChat = useCallback(key => {
+    activeKeyRef.current = key
+    setActiveKey(key)
+  }, [])
+
+  const openChat = useCallback(
+    chat => {
+      const key = `chat-${nextKeyRef.current}`
+      nextKeyRef.current += 1
+
+      setChats(prev => ({ ...prev, [key]: chat }))
+      selectChat(key)
+    },
+    [selectChat]
+  )
+
+  const applyEvent = useCallback(
+    (key, event) => {
+      switch (event.type) {
+        case 'session_id':
+          updateChat(key, chat => ({ ...chat, sessionId: event.sessionId }))
+          break
+
+        case 'text_delta':
+          updateChat(key, chat => withLastAssistant(chat, withAppendedText(event.text)))
+          break
+
+        case 'tool_start':
+          updateChat(key, chat => withLastAssistant(chat, withPart(startedToolPart(event))))
+          break
+
+        case 'tool_end':
+          updateChat(key, chat => withLastAssistant(chat, withFinishedTool(event)))
+          break
+
+        case 'error':
+          updateChat(key, chat => withLastAssistant(chat, withPart({ type: 'error', content: event.message })))
+          break
+
+        case 'artifact': {
+          const published = { artifactId: event.artifactId, title: event.title, version: event.version }
+
+          if (key === activeKeyRef.current) onArtifactPublished?.(published)
+          updateChat(key, chat => withLastAssistant(chat, withPart({ type: 'artifact', ...published })))
+          break
+        }
+
+        case 'feedback_id':
+          updateChat(key, chat => withLastAssistant(chat, message => ({ ...message, feedbackId: event.feedbackId })))
+          break
+      }
+    },
+    [onArtifactPublished, updateChat]
+  )
 
   const sendMessage = useCallback(
     async (text, selectedSources, profile, skills = [], attachments = []) => {
-      if (!text.trim() || isLoading) return
+      const key = activeKeyRef.current
+      const chat = chats[key]
+      if (!text.trim() || chat.isLoading) return
 
       const userMessage = { role: 'user', content: text }
       if (skills.length > 0) userMessage.skills = skills
@@ -18,218 +200,97 @@ export function useChat(token, onAuthError, onArtifactPublished) {
         userMessage.attachments = attachments.map(({ name, truncated, imageId }) => ({ name, truncated, imageId }))
       }
 
-      setMessages(prev => [...prev, userMessage, { role: 'assistant', parts: [] }])
-      setIsLoading(true)
+      updateChat(key, current => ({
+        ...current,
+        isLoading: true,
+        messages: [...current.messages, userMessage, { role: 'assistant', parts: [] }],
+      }))
 
       const abortController = new AbortController()
-      abortRef.current = abortController
+      abortControllers.current.set(key, abortController)
 
       try {
         const response = await streamChat(
           token,
           {
-            sessionId,
+            sessionId: chat.sessionId,
             message: text,
             selectedSources,
             profile,
-            skillIds: skills.map(s => s.id),
+            skillIds: skills.map(skill => skill.id),
             attachments: attachments.map(({ previewUrl: _previewUrl, ...sent }) => sent),
           },
           abortController.signal
         )
 
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            let data
-            try {
-              data = JSON.parse(line.slice(6))
-            } catch {
-              continue
-            }
-
-            switch (data.type) {
-              case 'session_id':
-                setSessionId(data.sessionId)
-                break
-
-              case 'text_delta':
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-
-                  const parts = [...last.parts]
-                  const lastPart = parts[parts.length - 1]
-
-                  if (lastPart && lastPart.type === 'text') {
-                    parts[parts.length - 1] = { ...lastPart, content: lastPart.content + data.text }
-                  } else {
-                    parts.push({ type: 'text', content: data.text })
-                  }
-                  updated[updated.length - 1] = { ...last, parts }
-                  return updated
-                })
-                break
-
-              case 'tool_start':
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-
-                  const parts = [...last.parts]
-                  parts.push({
-                    type: 'tool_call',
-                    tool: data.tool,
-                    input: data.input,
-                    parent: data.parent ?? null,
-                    done: false,
-                    startedAt: Date.now(),
-                  })
-                  updated[updated.length - 1] = { ...last, parts }
-                  return updated
-                })
-                break
-
-              case 'tool_end':
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-
-                  const parts = [...last.parts]
-                  for (let i = parts.length - 1; i >= 0; i--) {
-                    const part = parts[i]
-                    if (
-                      part.type === 'tool_call' &&
-                      part.tool === data.tool &&
-                      (part.parent ?? null) === (data.parent ?? null) &&
-                      !part.done
-                    ) {
-                      parts[i] = { ...parts[i], done: true, durationMs: Date.now() - parts[i].startedAt }
-                      break
-                    }
-                  }
-                  updated[updated.length - 1] = { ...last, parts }
-                  return updated
-                })
-                break
-
-              case 'error':
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-
-                  const parts = [...last.parts]
-                  parts.push({ type: 'error', content: data.message })
-                  updated[updated.length - 1] = { ...last, parts }
-                  return updated
-                })
-                break
-
-              case 'artifact': {
-                const published = { artifactId: data.artifactId, title: data.title, version: data.version }
-                onArtifactPublished?.(published)
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-
-                  updated[updated.length - 1] = { ...last, parts: [...last.parts, { type: 'artifact', ...published }] }
-                  return updated
-                })
-                break
-              }
-
-              case 'feedback_id':
-                setMessages(prev => {
-                  const updated = [...prev]
-                  const last = updated[updated.length - 1]
-                  if (!last || last.role !== 'assistant') return prev
-                  updated[updated.length - 1] = { ...last, feedbackId: data.feedbackId }
-                  return updated
-                })
-                break
-
-              case 'done':
-                break
-            }
-          }
-        }
+        await readEvents(response, event => applyEvent(key, event))
       } catch (err) {
         if (err.name === 'AbortError') return
         if (isUnauthorized(err)) {
           onAuthError?.()
           return
         }
-        setMessages(prev => {
-          const updated = [...prev]
-          const last = updated[updated.length - 1]
-          if (last && last.role === 'assistant') {
-            updated[updated.length - 1] = {
-              ...last,
-              parts: [...last.parts, { type: 'error', content: err.message }],
-            }
-          }
-          return updated
-        })
+        updateChat(key, current => withLastAssistant(current, withPart({ type: 'error', content: err.message })))
       } finally {
-        setIsLoading(false)
-        abortRef.current = null
+        updateChat(key, current => ({ ...current, isLoading: false }))
+        abortControllers.current.delete(key)
+        setCompletedRuns(runs => runs + 1)
       }
     },
-    [isLoading, sessionId, token, onAuthError, onArtifactPublished]
+    [chats, token, onAuthError, applyEvent, updateChat]
   )
 
   const stopGeneration = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort()
-      setIsLoading(false)
-    }
-  }, [])
+    const key = activeKeyRef.current
+    const abortController = abortControllers.current.get(key)
+    if (!abortController) return
 
-  const clearChat = useCallback(() => {
-    setMessages([])
-    setConversationKey(key => key + 1)
-    setSessionId(null)
-  }, [])
+    abortController.abort()
+    updateChat(key, chat => ({ ...chat, isLoading: false }))
+  }, [updateChat])
+
+  const newChat = useCallback(() => {
+    openChat(emptyChat())
+  }, [openChat])
 
   const loadConversation = useCallback(
     async id => {
+      const knownKey = Object.keys(chats).find(key => chats[key].sessionId === id)
+      if (knownKey && chats[knownKey].isLoading) {
+        selectChat(knownKey)
+        return
+      }
+
       try {
         const data = await getConversation(token, id)
+        const loaded = { sessionId: id, messages: data.messages || [], isLoading: false }
 
-        setSessionId(id)
-        setMessages(data.messages || [])
-        setConversationKey(key => key + 1)
+        if (!knownKey) {
+          openChat(loaded)
+          return
+        }
+
+        updateChat(knownKey, () => loaded)
+        selectChat(knownKey)
       } catch (err) {
         if (isUnauthorized(err)) onAuthError?.()
       }
     },
-    [token, onAuthError]
+    [chats, token, onAuthError, openChat, selectChat, updateChat]
   )
 
+  const activeChat = chats[activeKey]
+
   return {
-    messages,
-    isLoading,
-    conversationKey,
+    messages: activeChat.messages,
+    isLoading: activeChat.isLoading,
+    sessionId: activeChat.sessionId,
+    conversationKey: activeKey,
+    activeConversations: toActiveConversations(chats),
+    completedRuns,
     sendMessage,
     stopGeneration,
-    clearChat,
+    newChat,
     loadConversation,
-    sessionId,
   }
 }

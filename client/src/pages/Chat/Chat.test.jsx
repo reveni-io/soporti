@@ -25,18 +25,22 @@ vi.mock('../../hooks/useSkills/useSkills.js', () => ({
 
 vi.mock('./Sidebar/Sidebar.jsx', () => ({
   default: ({
-    onClearChat,
+    onNewChat,
     onLogout,
     onToggleSource,
     onSelectProfile,
     onOpenSchedules,
     isOpen,
     onClose,
-    activeConversation,
+    activeConversations,
+    conversationsReloadKey,
+    selectedConversationId,
   }) => (
     <div data-testid="sidebar" data-open={isOpen}>
-      <span data-testid="active-conversation">{JSON.stringify(activeConversation)}</span>
-      <button onClick={onClearChat}>New Chat</button>
+      <span data-testid="active-conversations">{JSON.stringify(activeConversations)}</span>
+      <span data-testid="conversations-reload-key">{conversationsReloadKey}</span>
+      <span data-testid="selected-conversation">{selectedConversationId}</span>
+      <button onClick={onNewChat}>New Chat</button>
       <button onClick={onLogout}>Logout</button>
       <button onClick={() => onToggleSource('org/app')}>Toggle Source</button>
       <button onClick={() => onSelectProfile('tech')}>Set Tech</button>
@@ -111,7 +115,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     render(<Chat />)
@@ -133,7 +137,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     render(<Chat />)
@@ -156,7 +160,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     render(<Chat initialQuestion="why did that refund fail?" />)
@@ -178,7 +182,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     render(<Chat />)
@@ -209,7 +213,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     render(<Chat />)
@@ -231,7 +235,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage,
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -243,8 +247,8 @@ describe('Chat', () => {
     expect(sendMessage).toHaveBeenCalledWith('hello', ['org/app'], 'support', [], [])
   })
 
-  it('clears chat on New Chat', async () => {
-    const clearChat = vi.fn()
+  it('starts a new chat on New Chat', async () => {
+    const newChat = vi.fn()
     useAuth.mockReturnValue({
       token: 'tok',
       isAuthenticated: true,
@@ -258,13 +262,13 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat,
+      newChat,
     })
 
     const user = userEvent.setup()
     render(<Chat />)
     await user.click(screen.getByText('New Chat'))
-    expect(clearChat).toHaveBeenCalled()
+    expect(newChat).toHaveBeenCalled()
   })
 
   it('shows share modal after sharing', async () => {
@@ -281,7 +285,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
       sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
@@ -313,7 +317,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -337,7 +341,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage,
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -361,7 +365,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
       sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
@@ -404,7 +408,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
       sessionId: null,
     })
 
@@ -433,7 +437,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
       sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
@@ -464,7 +468,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -489,7 +493,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -517,7 +521,7 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
     })
 
     const user = userEvent.setup()
@@ -531,7 +535,7 @@ describe('Chat', () => {
     expect(container.querySelector('.chat-page__overlay')).toBeNull()
     expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
   })
-  it('feeds the sidebar the streaming conversation with a provisional title', () => {
+  it('feeds the sidebar every in-flight conversation', () => {
     useAuth.mockReturnValue({
       token: 'tok',
       isAuthenticated: true,
@@ -540,28 +544,27 @@ describe('Chat', () => {
       error: null,
       isLoggingIn: false,
     })
+    const activeConversations = [
+      { id: 'a3bb189e-8bf9-4888-9912-ace4e6543002', title: 'Why did the payout fail?', isStreaming: true },
+      { id: 'b4cc290f-9cf0-4999-8823-bdf5f7654113', title: 'How does auth work?', isStreaming: false },
+    ]
     useChat.mockReturnValue({
-      messages: [
-        { role: 'user', content: 'Why did the payout fail?' },
-        { role: 'assistant', parts: [] },
-      ],
-      isLoading: true,
+      messages: [],
+      isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
-      sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
+      newChat: vi.fn(),
+      activeConversations,
+      completedRuns: 0,
+      sessionId: null,
     })
 
     render(<Chat />)
 
-    expect(JSON.parse(screen.getByTestId('active-conversation').textContent)).toEqual({
-      id: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
-      title: 'Why did the payout fail?',
-      isStreaming: true,
-    })
+    expect(JSON.parse(screen.getByTestId('active-conversations').textContent)).toEqual(activeConversations)
   })
 
-  it('stops marking the conversation as streaming once the answer is done', () => {
+  it('tells the sidebar which conversation is on screen', () => {
     useAuth.mockReturnValue({
       token: 'tok',
       isAuthenticated: true,
@@ -575,16 +578,18 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
+      activeConversations: [],
+      completedRuns: 0,
       sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
     render(<Chat />)
 
-    expect(JSON.parse(screen.getByTestId('active-conversation').textContent).isStreaming).toBe(false)
+    expect(screen.getByTestId('selected-conversation').textContent).toBe('a3bb189e-8bf9-4888-9912-ace4e6543002')
   })
 
-  it('feeds the sidebar no active conversation before the first turn', () => {
+  it('refreshes the conversation list every time a run finishes', () => {
     useAuth.mockReturnValue({
       token: 'tok',
       isAuthenticated: true,
@@ -598,12 +603,14 @@ describe('Chat', () => {
       isLoading: false,
       sendMessage: vi.fn(),
       stopGeneration: vi.fn(),
-      clearChat: vi.fn(),
+      newChat: vi.fn(),
+      activeConversations: [],
+      completedRuns: 3,
       sessionId: null,
     })
 
     render(<Chat />)
 
-    expect(JSON.parse(screen.getByTestId('active-conversation').textContent)).toBeNull()
+    expect(screen.getByTestId('conversations-reload-key').textContent).toBe('3')
   })
 })

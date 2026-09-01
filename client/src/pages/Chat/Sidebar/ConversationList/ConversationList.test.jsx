@@ -41,6 +41,51 @@ describe('ConversationList', () => {
     expect(screen.getAllByLabelText('Scheduled run')).toHaveLength(1)
   })
 
+  it('marks the conversation being read', () => {
+    const { container } = render(
+      <ConversationList
+        conversations={[
+          { id: 'c1', title: 'Auth question' },
+          { id: 'c2', title: 'Payout failure' },
+        ]}
+        selectedId="c2"
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    const current = container.querySelectorAll('[aria-current="true"]')
+    expect(current).toHaveLength(1)
+    expect(current[0]).toHaveTextContent('Payout failure')
+  })
+
+  it('marks none while a brand-new chat is open', () => {
+    const { container } = render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Auth question' }]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('[aria-current="true"]')).toBeNull()
+  })
+
+  it('marks a conversation that is both being read and still answering', () => {
+    const { container } = render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]}
+        selectedId="c1"
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('[aria-current="true"]')).toBeInTheDocument()
+    expect(screen.getByLabelText('Answering')).toBeInTheDocument()
+  })
+
   it('selects a conversation by id', async () => {
     const onSelect = vi.fn()
     const user = userEvent.setup()

@@ -4,7 +4,7 @@ const UNTITLED_LABEL = 'Untitled conversation'
 const SCHEDULED_LABEL = 'Scheduled run'
 const STREAMING_LABEL = 'Answering'
 
-export default function ConversationList({ conversations, onSelect, onDelete }) {
+export default function ConversationList({ conversations, selectedId, onSelect, onDelete }) {
   if (conversations.length === 0) return null
 
   return (
@@ -12,24 +12,35 @@ export default function ConversationList({ conversations, onSelect, onDelete }) 
       <h2 className="sidebar__section-title">Conversations</h2>
       <ul className="sidebar__conversation-list">
         {conversations.map(conversation => (
-          <ConversationItem key={conversation.id} conversation={conversation} onSelect={onSelect} onDelete={onDelete} />
+          <ConversationItem
+            key={conversation.id}
+            conversation={conversation}
+            isSelected={conversation.id === selectedId}
+            onSelect={onSelect}
+            onDelete={onDelete}
+          />
         ))}
       </ul>
     </div>
   )
 }
 
-function ConversationItem({ conversation, onSelect, onDelete }) {
+function ConversationItem({ conversation, isSelected, onSelect, onDelete }) {
+  const className = [
+    'sidebar__conversation',
+    isSelected && 'sidebar__conversation--selected',
+    conversation.isStreaming && 'sidebar__conversation--streaming',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   function handleDelete(event) {
     event.stopPropagation()
     onDelete(conversation.id)
   }
 
   return (
-    <li
-      className={`sidebar__conversation${conversation.isStreaming ? ' sidebar__conversation--streaming' : ''}`}
-      onClick={() => onSelect?.(conversation.id)}
-    >
+    <li className={className} aria-current={isSelected} onClick={() => onSelect?.(conversation.id)}>
       {conversation.scheduleId && (
         <span className="sidebar__conversation-badge" role="img" aria-label={SCHEDULED_LABEL} title={SCHEDULED_LABEL}>
           <Icon name="clock" size={12} />
