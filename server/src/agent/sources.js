@@ -24,6 +24,14 @@ export function buildSourcePolicy(selectedSources) {
 
 const REPO_TOOLS = new Set(['get_directory_contents', 'get_file_contents', 'search_code'])
 
+export const SHORTCUT_WRITE_TOOL_NAMES = [
+  'get_my_shortcut_member',
+  'list_shortcut_teams',
+  'create_shortcut_story',
+  'update_shortcut_story',
+  'add_shortcut_comment',
+]
+
 export const INTEGRATION_TOOL_NAMES = {
   shortcut: [
     'get_shortcut_story',
@@ -32,6 +40,7 @@ export const INTEGRATION_TOOL_NAMES = {
     'get_shortcut_iteration_stories',
     'list_shortcut_epics',
     'list_shortcut_members',
+    ...SHORTCUT_WRITE_TOOL_NAMES,
   ],
   notion: ['search_notion_pages', 'get_notion_page'],
   'google-drive': ['search_drive_files', 'get_drive_file', 'list_drive_files'],

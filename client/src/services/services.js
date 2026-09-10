@@ -604,6 +604,15 @@ export function saveShortcutToken(token, value) {
   })
 }
 
+export function saveShortcutWrites(token, enabled) {
+  return request('/api/admin/config/shortcut/writes', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the write access',
+  })
+}
+
 export function getSentryConfig(token) {
   return request('/api/admin/config/sentry', { token, errorMessage: 'Failed to load the Sentry settings' })
 }

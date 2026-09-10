@@ -47,7 +47,7 @@ const CAPABILITIES = [
     bullets: [
       'Mandatory PKCE, and tokens bound to this endpoint alone',
       'Refresh tokens rotate, so a replayed one kills the grant',
-      'Read-only tools, and every run lands in your /admin stats',
+      'The same tools it has in the chat, and every run lands in your /admin stats',
     ],
   },
 ]

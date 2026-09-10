@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { YOLO_SOURCE, isYoloMode, buildSourcePolicy, collectConsultedSources, buildSourcesFooter } from './sources.js'
+import {
+  YOLO_SOURCE,
+  isYoloMode,
+  buildSourcePolicy,
+  collectConsultedSources,
+  buildSourcesFooter,
+  INTEGRATION_TOOL_NAMES,
+  SHORTCUT_WRITE_TOOL_NAMES,
+} from './sources.js'
+
+describe('INTEGRATION_TOOL_NAMES', () => {
+  it('lists the Shortcut write tools as part of the Shortcut group, so they can be granted and labelled', () => {
+    expect(SHORTCUT_WRITE_TOOL_NAMES).toContain('create_shortcut_story')
+    for (const name of SHORTCUT_WRITE_TOOL_NAMES) {
+      expect(INTEGRATION_TOOL_NAMES.shortcut).toContain(name)
+    }
+  })
+})
 
 describe('isYoloMode', () => {
   it('is true when yolo is in the list', () => {

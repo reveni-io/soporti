@@ -61,7 +61,10 @@ vi.mock('../db/subagents.js', () => ({ listEnabledSubagents }))
 const buildRepoCatalogPrompt = vi.fn(async () => '')
 vi.mock('./repo-catalog.js', () => ({ buildRepoCatalogPrompt }))
 
-vi.mock('../shortcut/settings.js', () => ({ isShortcutConfigured: vi.fn(async () => false) }))
+vi.mock('../shortcut/settings.js', () => ({
+  isShortcutConfigured: vi.fn(async () => false),
+  areShortcutWritesEnabled: vi.fn(async () => false),
+}))
 vi.mock('../sentry/settings.js', () => ({ isSentryConfigured: vi.fn(async () => false) }))
 vi.mock('../google-drive/settings.js', () => ({ isDriveConfigured: vi.fn(async () => false) }))
 vi.mock('../notion/settings.js', () => ({ isNotionConfigured: vi.fn(async () => false) }))
@@ -74,7 +77,7 @@ vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () =
 const getMainAgentTools = vi.fn(async () => null)
 vi.mock('./settings.js', () => ({ getMainAgentTools: (...args) => getMainAgentTools(...args) }))
 
-const { isShortcutConfigured } = await import('../shortcut/settings.js')
+const { isShortcutConfigured, areShortcutWritesEnabled } = await import('../shortcut/settings.js')
 const { isSentryConfigured } = await import('../sentry/settings.js')
 const { isDriveConfigured } = await import('../google-drive/settings.js')
 const { isNotionConfigured } = await import('../notion/settings.js')
@@ -101,6 +104,7 @@ const CONFIGURATION_CHECKS = [
 describe('createAgent', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -346,6 +350,44 @@ describe('createAgent', () => {
     expect(agent.instructions).not.toContain('Active skill')
   })
 
+  it('passes the stored Shortcut write access to the tool builder', async () => {
+    areShortcutWritesEnabled.mockResolvedValue(true)
+
+    await createAgent([], 'support')
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ shortcutWrites: true })
+    )
+  })
+
+  it('keeps the write tools out while the admin switch is off', async () => {
+    await createAgent([], 'support')
+
+    expect(areShortcutWritesEnabled).toHaveBeenCalledTimes(1)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ shortcutWrites: false })
+    )
+  })
+
+  it('adds the write rules to the prompt only when a write tool survived the tool selection', async () => {
+    isShortcutConfigured.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'create_shortcut_story']))
+
+    const withWrites = await createAgent([], 'support')
+
+    expect(withWrites.instructions).toContain('### Filing and changing stories')
+
+    buildAgentTools.mockReturnValue(toolList())
+    const readOnly = await createAgent([], 'support')
+
+    expect(readOnly.instructions).toContain('## Shortcut integration')
+    expect(readOnly.instructions).not.toContain('### Filing and changing stories')
+  })
+
   it('forwards the resolved integration availability to the tool builder', async () => {
     isBetterstackConfigured.mockResolvedValue(true)
 
@@ -354,7 +396,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
       expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null }
+      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
     )
   })
 
@@ -367,7 +409,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: true }),
-      { userId: 7, conversationId: null, onArtifactPublished: null }
+      { userId: 7, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
     )
   })
 
@@ -380,7 +422,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null }
+      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
     )
   })
 })
@@ -403,6 +445,7 @@ describe('createAgent with subagents', () => {
 
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -593,6 +636,7 @@ describe('createAgent with subagents', () => {
 describe('createAgent with a main agent allowlist', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -688,6 +732,7 @@ describe('createAgent with a main agent allowlist', () => {
 describe('createAgent language rule', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockReturnValue(toolList())
     listEnabledSubagents.mockReset().mockResolvedValue([])

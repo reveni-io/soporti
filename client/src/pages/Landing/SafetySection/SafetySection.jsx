@@ -6,8 +6,9 @@ const SHIELD_STROKE = 1.8
 
 const GUARANTEES = [
   {
-    title: 'Read-only everywhere',
-    description: 'No tool can change code, data or settings. You can’t break anything by asking.',
+    title: 'Writes are opt-in',
+    description:
+      'Code, data and settings are never changed. Filing a Shortcut story is the only write it has, and it stays off until an admin turns it on.',
   },
   {
     title: 'Company sign-in only',

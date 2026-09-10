@@ -14,7 +14,7 @@ export default function LandingHero({ cta }) {
         <div className="lp-hero__text">
           <span className="lp-hero__badge">
             <span className="lp-hero__badge-dot" />
-            Internal AI teammate · Read-only &amp; safe
+            Internal AI teammate · Safe by design
           </span>
           <h1 className="lp-hero__title">
             Ask anything about <em>how your product works</em>.

@@ -12,8 +12,9 @@ export default function IntegrationsSection() {
         <span className="lp-eyebrow">Connected everywhere</span>
         <h2 className="lp-h2">Plugged into the tools your team already uses.</h2>
         <p className="lp-lead">
-          Every integration is optional and read-only. Leave <strong>YOLO (auto)</strong> on and Soporti picks the right
-          tools for each question, or focus it on specific repos and sources.
+          Every integration is optional, and you pick which ones a conversation may use. Leave{' '}
+          <strong>YOLO (auto)</strong> on and Soporti picks the right tools for each question, or focus it on specific
+          repos and sources.
         </p>
       </div>
       <div className="lp-int__grid">

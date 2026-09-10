@@ -33,6 +33,11 @@ vi.mock('../shortcut/client.js', () => ({
   getIterationStories: vi.fn(),
   listEpics: vi.fn(),
   listMembers: vi.fn(),
+  listTeams: vi.fn(),
+  getMyMember: vi.fn(),
+  createStory: vi.fn(),
+  updateStory: vi.fn(),
+  addComment: vi.fn(),
   isConfigured: vi.fn(async () => true),
 }))
 
@@ -146,6 +151,7 @@ const {
   REPO_TOOL_NAMES,
   SELECTABLE_TOOL_NAMES,
   buildGranolaTools,
+  buildShortcutWriteTools,
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
 
@@ -998,5 +1004,132 @@ describe('SELECTABLE_TOOL_NAMES', () => {
 
   it('leaves out the artifact tool, which is not the admin to grant', () => {
     expect(SELECTABLE_TOOL_NAMES.has('render_artifact')).toBe(false)
+  })
+})
+
+describe('buildShortcutWriteTools', () => {
+  const byName = name => buildShortcutWriteTools(7).find(t => t.name === name)
+
+  it('resolves the Shortcut member of the user behind the conversation', async () => {
+    const shortcutMod = await import('../shortcut/client.js')
+    shortcutMod.getMyMember.mockResolvedValue({ member: { id: 'user-1', name: 'Sergio Zam' } })
+
+    const result = await byName('get_my_shortcut_member').execute({})
+
+    expect(JSON.parse(result)).toEqual({ member: { id: 'user-1', name: 'Sergio Zam' } })
+    expect(shortcutMod.getMyMember).toHaveBeenCalledWith(7)
+  })
+
+  it('lists the teams a story can be filed into', async () => {
+    const shortcutMod = await import('../shortcut/client.js')
+    shortcutMod.listTeams.mockResolvedValue({ total: 1, teams: [{ id: 'team-1', name: 'Returns' }] })
+
+    const result = await byName('list_shortcut_teams').execute({})
+
+    expect(JSON.parse(result).teams).toEqual([{ id: 'team-1', name: 'Returns' }])
+  })
+
+  it('creates a story with the requester the user confirmed', async () => {
+    const shortcutMod = await import('../shortcut/client.js')
+    shortcutMod.createStory.mockResolvedValue({ id: 4321, requested_by: 'Ana Ruiz' })
+
+    const input = {
+      name: 'Refund fails',
+      description: 'Steps: refund order 1234',
+      storyType: 'bug',
+      teamId: 'team-1',
+      requestedById: 'user-2',
+      ownerIds: [],
+      epicId: null,
+      iterationId: null,
+    }
+    const result = await byName('create_shortcut_story').execute(input)
+
+    expect(JSON.parse(result)).toEqual({ id: 4321, requested_by: 'Ana Ruiz' })
+    expect(shortcutMod.createStory).toHaveBeenCalledWith(input)
+  })
+
+  it('requires the team and documents the requester fallback', () => {
+    const create = byName('create_shortcut_story')
+
+    expect(create.parameters.shape.teamId.isOptional()).toBe(false)
+    expect(create.parameters.shape.requestedById.description).toContain('Null falls back to the member')
+    expect(byName('add_shortcut_comment').parameters.shape.authorId.description).toContain('Null falls back')
+  })
+
+  it('updates a story with the story id split out of the changes', async () => {
+    const shortcutMod = await import('../shortcut/client.js')
+    shortcutMod.updateStory.mockResolvedValue({ id: 4321, state: 'In Development' })
+
+    const result = await byName('update_shortcut_story').execute({
+      storyId: 4321,
+      name: null,
+      description: null,
+      storyType: null,
+      state: 'In Development',
+      ownerIds: null,
+      epicId: null,
+      iterationId: null,
+    })
+
+    expect(JSON.parse(result)).toEqual({ id: 4321, state: 'In Development' })
+    expect(shortcutMod.updateStory).toHaveBeenCalledWith(4321, {
+      name: null,
+      description: null,
+      storyType: null,
+      state: 'In Development',
+      ownerIds: null,
+      epicId: null,
+      iterationId: null,
+    })
+  })
+
+  it('adds a comment signed by the member the user named', async () => {
+    const shortcutMod = await import('../shortcut/client.js')
+    shortcutMod.addComment.mockResolvedValue({ id: 99, author: 'Ana Ruiz' })
+
+    const input = { storyId: 4321, text: 'Reported again', authorId: 'user-2' }
+    const result = await byName('add_shortcut_comment').execute(input)
+
+    expect(JSON.parse(result)).toEqual({ id: 99, author: 'Ana Ruiz' })
+    expect(shortcutMod.addComment).toHaveBeenCalledWith(input)
+  })
+
+  it('warns the model that an edit cannot be attributed', () => {
+    expect(byName('update_shortcut_story').description).toContain('cannot be attributed')
+    expect(byName('create_shortcut_story').description).toContain('never yours to guess')
+  })
+})
+
+describe('buildAgentTools with the Shortcut write tools', () => {
+  const names = tools => tools.map(t => t.name)
+  const selection = { unrestricted: false, repos: [], integrations: ['shortcut'] }
+
+  it('leaves them out unless the context enables them', () => {
+    const registered = names(buildAgentTools(selection, { shortcutConfigured: true }, { userId: 7 }))
+
+    expect(registered).toContain('get_shortcut_story')
+    expect(registered).not.toContain('create_shortcut_story')
+    expect(registered).not.toContain('add_shortcut_comment')
+    expect(registered).not.toContain('update_shortcut_story')
+  })
+
+  it('registers them alongside the read tools when they are enabled', () => {
+    const registered = names(
+      buildAgentTools(selection, { shortcutConfigured: true }, { userId: 7, shortcutWrites: true })
+    )
+
+    expect(registered).toContain('get_shortcut_story')
+    expect(registered).toContain('get_my_shortcut_member')
+    expect(registered).toContain('list_shortcut_teams')
+    expect(registered).toContain('create_shortcut_story')
+    expect(registered).toContain('update_shortcut_story')
+    expect(registered).toContain('add_shortcut_comment')
+  })
+
+  it('never registers them when Shortcut itself is not configured', () => {
+    const registered = names(buildAgentTools(selection, { shortcutConfigured: false }, { shortcutWrites: true }))
+
+    expect(registered).not.toContain('create_shortcut_story')
   })
 })

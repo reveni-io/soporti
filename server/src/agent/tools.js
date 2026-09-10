@@ -308,6 +308,122 @@ export const listShortcutMembersTool = tool({
   },
 })
 
+export function buildShortcutWriteTools(userId) {
+  return [
+    tool({
+      name: 'get_my_shortcut_member',
+      description:
+        'Resolve which Shortcut member the person you are talking to is, by matching the email of their Soporti account against the workspace members. Call it before creating a story or writing a comment: it gives you the candidate to offer as the requester, which the user still has to confirm out loud. It returns { member: null } when there is no match — then ask whose name the story goes under and resolve it with list_shortcut_members.',
+      parameters: z.object({}),
+      execute: async () => {
+        const result = await shortcut.getMyMember(userId)
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'list_shortcut_teams',
+      description:
+        'List the active Shortcut teams (groups) with their id, name and mention_name. Every story belongs to a team, and the team decides which workflow it enters and in which state, so resolve the team here before creating one — and when the user has not said which team it is, ask instead of picking one.',
+      parameters: z.object({}),
+      execute: async () => {
+        const result = await shortcut.listTeams()
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'create_shortcut_story',
+      description: `Create a story in Shortcut — a bug, a feature or a chore — out of what this conversation established. This WRITES to Shortcut: only call it when you were asked to, and once the user has seen the draft (title, description, type, team) and said yes.
+
+**The requester is never yours to guess.** requestedById becomes the story's Requester, which is the "filed by" everyone reads in Shortcut. Ask the user whose name it goes under and wait for the answer: get_my_shortcut_member gives you the obvious candidate to offer, list_shortcut_members resolves anyone else. Pass null only when there is genuinely nobody to ask — an unattended run — or when the user tells you to file it without choosing; Shortcut then puts it under the member the API token belongs to. The API token belongs to one single member, so the story's activity always shows that member as its creator: the Requester is the only field that puts the story under the right person's name, and the response tells you who it ended up under, so say it.
+
+Write the description from evidence that is actually in this conversation — steps to reproduce, ids, urls, log lines, stacktraces — and never invent acceptance criteria. Give the user the story url once it exists.`,
+      parameters: z.object({
+        name: z.string().describe('Story title: one specific line, in the language the team writes its stories in.'),
+        description: z
+          .string()
+          .describe('Markdown body: what happens, how to reproduce it, and the evidence gathered in the conversation.'),
+        storyType: z
+          .enum(['bug', 'feature', 'chore'])
+          .describe('Story type. A defect is a bug, new behavior is a feature, maintenance work is a chore.'),
+        teamId: z.string().describe('Team UUID from list_shortcut_teams.'),
+        requestedById: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe(
+            'Member id of the person the story is filed for, as confirmed by the user. Null falls back to the member the API token belongs to.'
+          ),
+        ownerIds: z
+          .array(z.string())
+          .default([])
+          .describe('Member ids to assign the story to. Leave empty unless the user asked for an assignee.'),
+        epicId: z.number().nullable().default(null).describe('Epic id from list_shortcut_epics, or null.'),
+        iterationId: z
+          .number()
+          .nullable()
+          .default(null)
+          .describe('Iteration id from list_shortcut_iterations, or null to leave it out of a sprint.'),
+      }),
+      execute: async input => {
+        const story = await shortcut.createStory(input)
+        return JSON.stringify(story)
+      },
+    }),
+    tool({
+      name: 'update_shortcut_story',
+      description: `Change fields of an existing Shortcut story: its title, description, type, workflow state, owners, epic or iteration. This WRITES to Shortcut: read the story first, tell the user exactly what you are about to change and only call it once they agree. Every field left null is left untouched.
+
+Unlike a story or a comment, an edit cannot be attributed to anyone: Shortcut records it as made by the member who owns the API token. Say so before editing on someone else's behalf, so nobody is surprised by their name on a change they did not make.`,
+      parameters: z.object({
+        storyId: z.number().describe('Numeric story id.'),
+        name: z.string().nullable().default(null).describe('New title, or null to keep it.'),
+        description: z.string().nullable().default(null).describe('New Markdown description, or null to keep it.'),
+        storyType: z
+          .enum(['bug', 'feature', 'chore'])
+          .nullable()
+          .default(null)
+          .describe('New story type, or null to keep it.'),
+        state: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe('New workflow state by name, as returned by get_shortcut_story ("In Development"), or null.'),
+        ownerIds: z
+          .array(z.string())
+          .nullable()
+          .default(null)
+          .describe('Replaces the owners: member ids to assign, an empty array to unassign, null to keep them.'),
+        epicId: z.number().nullable().default(null).describe('New epic id, or null to keep it.'),
+        iterationId: z.number().nullable().default(null).describe('New iteration id, or null to keep it.'),
+      }),
+      execute: async ({ storyId, ...changes }) => {
+        const story = await shortcut.updateStory(storyId, changes)
+        return JSON.stringify(story)
+      },
+    }),
+    tool({
+      name: 'add_shortcut_comment',
+      description:
+        'Add a comment to a Shortcut story. This WRITES to Shortcut: only call it when you were asked to and once the user has seen the text and agreed to post it. The comment is signed by authorId, so the same rule as a story applies — ask whose name it goes under and wait for the answer instead of assuming it is the person you are talking to. Pass null only when there is nobody to ask, and the comment is signed by the member the API token belongs to.',
+      parameters: z.object({
+        storyId: z.number().describe('Numeric story id.'),
+        text: z.string().describe('Comment body in Markdown.'),
+        authorId: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe(
+            'Member id the comment is signed by, as confirmed by the user. Null falls back to the member the API token belongs to.'
+          ),
+      }),
+      execute: async input => {
+        const comment = await shortcut.addComment(input)
+        return JSON.stringify(comment)
+      },
+    }),
+  ]
+}
+
 export const searchNotionPagesTool = tool({
   name: 'search_notion_pages',
   description: 'Search Notion pages by keyword. Returns a list of matching pages with their IDs, titles, and URLs.',
@@ -701,7 +817,8 @@ export const allTools = [
 export const REPO_TOOL_NAMES = new Set(allTools.map(candidate => candidate.name))
 
 const INTEGRATION_TOOLS = {
-  shortcut: SHORTCUT_TOOLS,
+  shortcut: ({ userId, shortcutWrites }) =>
+    shortcutWrites ? [...SHORTCUT_TOOLS, ...buildShortcutWriteTools(userId)] : SHORTCUT_TOOLS,
   notion: NOTION_TOOLS,
   'google-drive': DRIVE_TOOLS,
   postgres: POSTGRES_TOOLS,

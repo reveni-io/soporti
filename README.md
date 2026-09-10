@@ -22,7 +22,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 |---|---|
 | **GitHub** | Browse repositories and directories, read files, search code by content, find files by name, and trace a file's history with `git log` / `git blame` |
 | **Database** | Explore schemas and tables, then answer with real data through read-only, row-capped `SELECT`s |
-| **Shortcut** | Read a story by ID or search stories — what was specced versus what shipped |
+| **Shortcut** | Read a story by ID or search stories — what was specced versus what shipped — and, with write access enabled, file a bug, comment on a story or change its fields from the chat |
 | **Sentry** | Open an issue with its stacktrace, or find issues by error message |
 | **Better Stack** | Search the application logs by text and time range, or aggregate them with read-only ClickHouse SQL (counts per level, errors per endpoint) |
 | **Notion** | Search and read the pages shared with the integration |
@@ -31,6 +31,8 @@ Every integration is optional and configured from the `/admin` panel — the ass
 | **Granola** | Search and read **your own** meeting notes — connected per user, so nobody reaches anyone else's (web and MCP only, not Slack) |
 | **Shopify** | Look up orders, products and webhooks store by store, or run read-only Admin GraphQL queries |
 | **Slack** | Ask the assistant from Slack, in a thread, with an @mention — the reply is a live card showing each source it opens as it happens, with the answer streaming in underneath |
+
+Everything above reads. Writing is one switch away: with **write access** enabled (`/admin` → Shortcut, off by default), the assistant can file a Shortcut story, comment on one and change its fields from a conversation. It drafts the story from what the conversation actually established, shows it to you before writing anything, and **always asks whose name it goes under** — a Shortcut token belongs to one member, so it sets the story's Requester (and a comment's author) to the person you name instead of silently filing everything under the token's owner. When there is nobody to ask — a scheduled query, a ticket triaged on its own, a question that came in over MCP — it falls back to the token's own member and tells you who that was.
 
 ### Make it answer your way
 
@@ -166,7 +168,7 @@ All integrations are conditionally loaded — tools are only registered with the
 - **Shopify** — rides on that query database: an admin-written SQL template resolves a store identifier to its Shopify domain + Admin API token (`/admin` → Shopify, with a "Draft with Soporti" helper that explores your schema).
 - **Google Drive** — a read-only service-account JSON key (`/admin` → Google Drive). Access is governed by Drive sharing: share each folder with the service-account email as Viewer.
 - **Helpjuice** — API key + account subdomain (`/admin` → Helpjuice).
-- **Shortcut** — API token (`/admin` → Shortcut). Generate one in Shortcut under **Settings → Your Account → API Tokens**. Powers story lookups and the spec axis of PR reviews.
+- **Shortcut** — API token (`/admin` → Shortcut). Generate one in Shortcut under **Settings → Your Account → API Tokens**. Powers story lookups and the spec axis of PR reviews. The same section carries a **write access** switch, off by default: turn it on to let the assistant file stories, comment on them and update them from a conversation.
 - **Sentry** — auth token + organization slug (`/admin` → Sentry). Create a token at [sentry.io/settings/auth-tokens](https://sentry.io/settings/auth-tokens/). Fetches issue details with stacktraces and searches issues by error message.
 - **Better Stack** — Telemetry API token plus the connect host, username and password of a ClickHouse HTTP client connection (`/admin` → Better Stack). Get the token under **API tokens → Team-based tokens**, and the other three from **Integrations → SQL API → Connect** on *ClickHouse HTTP client* (the password is only shown once, in the creation banner). Searches log lines and runs read-only SQL over them.
 - **Slack bot** — bot token, app token and signing secret (`/admin` → Slack); the bot (re)connects in place when they are saved. Uses Socket Mode (no public URL required). Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) with scopes: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`, `im:read`. The live progress card streams over `chat:write` and needs no extra scope, but it is a Slack AI feature and some of those require a paid plan — a free [Developer Program](https://api.slack.com/developer-program) sandbox has them all if you only need to try it.
