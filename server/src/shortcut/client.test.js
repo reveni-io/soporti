@@ -35,10 +35,22 @@ const API_ROOT = 'https://api.app.shortcut.com/api/v3'
 
 const WORKFLOWS = [
   {
+    id: 9000,
+    name: 'Product Development',
+    default_state_id: 500,
     states: [
-      { id: 500, name: 'Ready for Dev' },
-      { id: 501, name: 'In Progress' },
-      { id: 502, name: 'Done' },
+      { id: 500, name: 'Ready for Dev', type: 'unstarted' },
+      { id: 501, name: 'In Progress', type: 'started' },
+      { id: 502, name: 'Done', type: 'done' },
+    ],
+  },
+  {
+    id: 9001,
+    name: 'Design',
+    default_state_id: 600,
+    states: [
+      { id: 600, name: 'Inbox', type: 'unstarted' },
+      { id: 601, name: 'Designing', type: 'started' },
     ],
   },
 ]
@@ -59,9 +71,10 @@ const MEMBERS = [
 ]
 
 const TEAMS = [
-  { id: 'team-1', name: 'Returns', mention_name: 'returns' },
-  { id: 'team-2', name: 'Atlas', mention_name: 'atlas' },
+  { id: 'team-1', name: 'Payments', mention_name: 'payments', default_workflow_id: 9000, workflow_ids: [9000, 9001] },
+  { id: 'team-2', name: 'Studio', mention_name: 'studio', workflow_ids: [9001] },
   { id: 'team-3', name: 'Old squad', mention_name: 'old', archived: true },
+  { id: 'team-4', name: 'Newcomers', mention_name: 'newcomers' },
 ]
 
 const EPICS = [
@@ -533,10 +546,11 @@ describe('listTeams', () => {
     mockApi()
 
     expect(await listTeams()).toEqual({
-      total: 2,
+      total: 3,
       teams: [
-        { id: 'team-1', name: 'Returns', mention_name: 'returns' },
-        { id: 'team-2', name: 'Atlas', mention_name: 'atlas' },
+        { id: 'team-1', name: 'Payments', mention_name: 'payments' },
+        { id: 'team-2', name: 'Studio', mention_name: 'studio' },
+        { id: 'team-4', name: 'Newcomers', mention_name: 'newcomers' },
       ],
     })
   })
@@ -602,6 +616,7 @@ describe('createStory', () => {
       description: 'Steps: refund order 1234',
       story_type: 'bug',
       group_id: 'team-1',
+      workflow_state_id: 500,
       requested_by_id: 'user-2',
       owner_ids: ['user-1'],
     })
@@ -611,9 +626,44 @@ describe('createStory', () => {
       state: 'Ready for Dev',
       owners: ['Sergio Zam'],
       requested_by: 'Ana Ruiz',
-      team: 'Returns',
+      team: 'Payments',
       app_url: 'https://app.shortcut.com/story/4321',
     })
+  })
+
+  it('starts the story in the default state of the team workflow, or in the state the caller names', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+    const story = { name: 'Bug', description: 'Something broke', storyType: 'bug' }
+
+    await createStory({ ...story, teamId: 'team-2' })
+    expect(sentBody('POST').workflow_state_id).toBe(600)
+
+    mockFetch.mockClear()
+    await createStory({ ...story, teamId: 'team-1', state: 'in progress' })
+    expect(sentBody('POST').workflow_state_id).toBe(501)
+
+    mockFetch.mockClear()
+    await createStory({ ...story, teamId: 'team-4' })
+    expect(sentBody('POST').workflow_state_id).toBe(500)
+  })
+
+  it('refuses a state that does not belong to the team workflow and lists the ones that do', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+
+    await expect(
+      createStory({ name: 'Bug', description: 'x', storyType: 'bug', teamId: 'team-2', state: 'Done' })
+    ).rejects.toThrow('Available: Inbox, Designing.')
+  })
+
+  it('falls back to the first state when the workflow has no default', async () => {
+    mockApi([
+      ['/stories', CREATED_STORY, 'POST'],
+      ['/workflows', [{ id: 9000, states: [{ id: 700, name: 'Triage' }, { id: 701, name: 'Fixing' }] }]],
+    ])
+
+    await createStory({ name: 'Bug', description: 'x', storyType: 'bug', teamId: 'team-1' })
+
+    expect(sentBody('POST').workflow_state_id).toBe(700)
   })
 
   it('sends the epic and the iteration only when they are given', async () => {

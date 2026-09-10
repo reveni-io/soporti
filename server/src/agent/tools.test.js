@@ -1039,6 +1039,7 @@ describe('buildShortcutWriteTools', () => {
       storyType: 'bug',
       teamId: 'team-1',
       requestedById: 'user-2',
+      state: null,
       ownerIds: [],
       epicId: null,
       iterationId: null,

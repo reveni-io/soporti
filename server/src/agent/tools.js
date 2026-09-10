@@ -346,6 +346,13 @@ Write the description from evidence that is actually in this conversation — st
           .enum(['bug', 'feature', 'chore'])
           .describe('Story type. A defect is a bug, new behavior is a feature, maintenance work is a chore.'),
         teamId: z.string().describe('Team UUID from list_shortcut_teams.'),
+        state: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe(
+            'Workflow state to start in, by name ("Ready for Development"). Null uses the default state of the team workflow, which is where new stories normally land.'
+          ),
         requestedById: z
           .string()
           .nullable()

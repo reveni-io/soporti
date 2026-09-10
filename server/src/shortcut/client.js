@@ -21,6 +21,7 @@ const UNKNOWN_TEAM_ERROR =
   'Unknown or archived Shortcut team: call list_shortcut_teams and use one of the ids it returns.'
 const UNKNOWN_STATE_ERROR = 'Unknown Shortcut workflow state'
 const NOTHING_TO_UPDATE_ERROR = 'Nothing to update: pass at least one field to change.'
+const NO_WORKFLOW_ERROR = 'The Shortcut workspace has no workflow to file the story into.'
 
 const EPIC_STATUS_DONE = 'done'
 const EPIC_STATUS_IN_PROGRESS = 'in progress'
@@ -71,13 +72,26 @@ function toMap(items, toEntry) {
   return new Map(items.map(toEntry))
 }
 
-async function getWorkflowStates() {
-  return cached('workflow-states', async () => {
+async function getWorkflows() {
+  return cached('workflows', async () => {
     const workflows = await request('GET', '/workflows')
-    const states = (workflows || []).flatMap(w => w.states || [])
 
-    return toMap(states, state => [state.id, state.name])
+    return (workflows || []).map(workflow => ({
+      id: workflow.id,
+      name: workflow.name,
+      default_state_id: workflow.default_state_id ?? null,
+      states: (workflow.states || []).map(state => ({ id: state.id, name: state.name, type: state.type })),
+    }))
   })
+}
+
+async function getWorkflowStates() {
+  const workflows = await getWorkflows()
+
+  return toMap(
+    workflows.flatMap(workflow => workflow.states),
+    state => [state.id, state.name]
+  )
 }
 
 async function getMembers() {
@@ -109,6 +123,8 @@ async function getTeams() {
         name: team.name,
         mention_name: team.mention_name || null,
         archived: Boolean(team.archived),
+        default_workflow_id: team.default_workflow_id ?? null,
+        workflow_ids: team.workflow_ids || [],
       },
     ])
   })
@@ -370,12 +386,36 @@ async function resolveOwnerIds(ids) {
   return owners.map(owner => owner.id)
 }
 
-async function resolveWorkflowStateId(name) {
-  const states = await getWorkflowStates()
-  const match = [...states].find(([, stateName]) => stateName.toLowerCase() === name.toLowerCase())
-  if (!match) throw new Error(`${UNKNOWN_STATE_ERROR} "${name}". Available: ${[...states.values()].join(', ')}.`)
+function findStateByName(states, name) {
+  const match = states.find(state => state.name.toLowerCase() === name.toLowerCase())
+  if (!match) throw new Error(`${UNKNOWN_STATE_ERROR} "${name}". Available: ${states.map(s => s.name).join(', ')}.`)
 
-  return match[0]
+  return match.id
+}
+
+async function resolveWorkflowStateId(name) {
+  const workflows = await getWorkflows()
+
+  return findStateByName(
+    workflows.flatMap(workflow => workflow.states),
+    name
+  )
+}
+
+async function resolveTeamWorkflow(team) {
+  const workflows = await getWorkflows()
+  const preferred = team.default_workflow_id ?? team.workflow_ids[0] ?? null
+  const workflow = workflows.find(candidate => candidate.id === preferred) || workflows[0]
+  if (!workflow) throw new Error(NO_WORKFLOW_ERROR)
+
+  return workflow
+}
+
+async function resolveInitialStateId(team, stateName) {
+  const workflow = await resolveTeamWorkflow(team)
+  if (stateName) return findStateByName(workflow.states, stateName)
+
+  return workflow.default_state_id ?? workflow.states[0]?.id ?? null
 }
 
 async function toWrittenStory(story) {
@@ -394,6 +434,7 @@ export async function createStory({
   storyType,
   teamId,
   requestedById = null,
+  state = null,
   ownerIds = [],
   epicId = null,
   iterationId = null,
@@ -403,12 +444,14 @@ export async function createStory({
     requireTeam(teamId),
     resolveOwnerIds(ownerIds),
   ])
+  const workflowStateId = await resolveInitialStateId(team, state)
 
   const created = await request('POST', '/stories', {
     name: redactSecrets(name),
     description: redactSecrets(description),
     story_type: storyType,
     group_id: team.id,
+    workflow_state_id: workflowStateId,
     owner_ids: owners,
     ...(requester ? { requested_by_id: requester.id } : {}),
     ...(epicId ? { epic_id: epicId } : {}),
