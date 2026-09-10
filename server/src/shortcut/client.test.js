@@ -646,6 +646,20 @@ describe('createStory', () => {
     expect(sentBody('POST').description).toBe('The request used [redacted] as the token')
   })
 
+  it('falls back to the token owner when no requester is given', async () => {
+    mockApi([['/stories', { ...CREATED_STORY, requested_by_id: 'user-1' }, 'POST']])
+
+    const result = await createStory({
+      name: 'Bug',
+      description: 'Something broke',
+      storyType: 'bug',
+      teamId: 'team-1',
+    })
+
+    expect(sentBody('POST')).not.toHaveProperty('requested_by_id')
+    expect(result.requested_by).toBe('Sergio Zam')
+  })
+
   it('refuses an unknown requester, a deactivated one, an unknown team and an unknown owner', async () => {
     mockApi([['/stories', CREATED_STORY, 'POST']])
     const story = {
@@ -705,7 +719,13 @@ describe('updateStory', () => {
 
 describe('addComment', () => {
   it('posts the comment on behalf of its author', async () => {
-    mockApi([['/stories/4321/comments', { id: 99, app_url: 'https://app.shortcut.com/story/4321#comment-99' }, 'POST']])
+    mockApi([
+      [
+        '/stories/4321/comments',
+        { id: 99, author_id: 'user-2', app_url: 'https://app.shortcut.com/story/4321#comment-99' },
+        'POST',
+      ],
+    ])
 
     const result = await addComment({ storyId: 4321, text: 'Reported again by a customer', authorId: 'user-2' })
 
@@ -716,6 +736,15 @@ describe('addComment', () => {
       author: 'Ana Ruiz',
       app_url: 'https://app.shortcut.com/story/4321#comment-99',
     })
+  })
+
+  it('falls back to the token owner when no author is given, and reports who signed it', async () => {
+    mockApi([['/stories/4321/comments', { id: 99, author_id: 'user-1' }, 'POST']])
+
+    const result = await addComment({ storyId: 4321, text: 'Filed automatically' })
+
+    expect(sentBody('POST')).toEqual({ text: 'Filed automatically' })
+    expect(result).toEqual({ id: 99, story_id: 4321, author: 'Sergio Zam', app_url: null })
   })
 
   it('refuses an unknown author', async () => {

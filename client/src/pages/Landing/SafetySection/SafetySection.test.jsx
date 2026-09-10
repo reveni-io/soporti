@@ -8,7 +8,7 @@ describe('SafetySection', () => {
 
     expect(container.querySelectorAll('.lp-safe')).toHaveLength(4)
     expect(container.querySelectorAll('[data-icon="shield"]')).toHaveLength(4)
-    expect(screen.getByText('Read-only by default')).toBeInTheDocument()
+    expect(screen.getByText('Writes are opt-in')).toBeInTheDocument()
     expect(screen.getByText(/until an admin turns it on/i)).toBeInTheDocument()
     expect(screen.getByText(/purged 14 days/i)).toBeInTheDocument()
   })

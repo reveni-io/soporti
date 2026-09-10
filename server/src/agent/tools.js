@@ -332,9 +332,9 @@ export function buildShortcutWriteTools(userId) {
     }),
     tool({
       name: 'create_shortcut_story',
-      description: `Create a story in Shortcut — a bug, a feature or a chore — out of what this conversation established. This WRITES to Shortcut: only call it once the user has seen the draft (title, description, type, team) and said yes.
+      description: `Create a story in Shortcut — a bug, a feature or a chore — out of what this conversation established. This WRITES to Shortcut: only call it when you were asked to, and once the user has seen the draft (title, description, type, team) and said yes.
 
-**The requester is never yours to choose.** requestedById becomes the story's Requester, which is the "filed by" everyone reads in Shortcut. Ask the user whose name it goes under and wait for the answer: get_my_shortcut_member gives you the obvious candidate to offer, list_shortcut_members resolves anyone else. The API token belongs to one single member, so the story's activity will always show that member as its creator and the Requester is the only field that puts the story under the right person's name — left out, it silently becomes the token's owner, which is exactly what must not happen.
+**The requester is never yours to guess.** requestedById becomes the story's Requester, which is the "filed by" everyone reads in Shortcut. Ask the user whose name it goes under and wait for the answer: get_my_shortcut_member gives you the obvious candidate to offer, list_shortcut_members resolves anyone else. Pass null only when there is genuinely nobody to ask — an unattended run — or when the user tells you to file it without choosing; Shortcut then puts it under the member the API token belongs to. The API token belongs to one single member, so the story's activity always shows that member as its creator: the Requester is the only field that puts the story under the right person's name, and the response tells you who it ended up under, so say it.
 
 Write the description from evidence that is actually in this conversation — steps to reproduce, ids, urls, log lines, stacktraces — and never invent acceptance criteria. Give the user the story url once it exists.`,
       parameters: z.object({
@@ -348,7 +348,11 @@ Write the description from evidence that is actually in this conversation — st
         teamId: z.string().describe('Team UUID from list_shortcut_teams.'),
         requestedById: z
           .string()
-          .describe('Member id of the person the story is filed for, as confirmed by the user in this conversation.'),
+          .nullable()
+          .default(null)
+          .describe(
+            'Member id of the person the story is filed for, as confirmed by the user. Null falls back to the member the API token belongs to.'
+          ),
         ownerIds: z
           .array(z.string())
           .default([])
@@ -400,13 +404,17 @@ Unlike a story or a comment, an edit cannot be attributed to anyone: Shortcut re
     tool({
       name: 'add_shortcut_comment',
       description:
-        'Add a comment to a Shortcut story. This WRITES to Shortcut: only call it once the user has seen the text and agreed to post it. The comment is signed by authorId, so the same rule as a story applies — ask whose name it goes under and wait for the answer instead of defaulting to the person you are talking to or to the token owner.',
+        'Add a comment to a Shortcut story. This WRITES to Shortcut: only call it when you were asked to and once the user has seen the text and agreed to post it. The comment is signed by authorId, so the same rule as a story applies — ask whose name it goes under and wait for the answer instead of assuming it is the person you are talking to. Pass null only when there is nobody to ask, and the comment is signed by the member the API token belongs to.',
       parameters: z.object({
         storyId: z.number().describe('Numeric story id.'),
         text: z.string().describe('Comment body in Markdown.'),
         authorId: z
           .string()
-          .describe('Member id the comment is signed by, as confirmed by the user in this conversation.'),
+          .nullable()
+          .default(null)
+          .describe(
+            'Member id the comment is signed by, as confirmed by the user. Null falls back to the member the API token belongs to.'
+          ),
       }),
       execute: async input => {
         const comment = await shortcut.addComment(input)

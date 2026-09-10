@@ -6,9 +6,9 @@ const SHIELD_STROKE = 1.8
 
 const GUARANTEES = [
   {
-    title: 'Read-only by default',
+    title: 'Writes are opt-in',
     description:
-      'No tool changes code, data or settings. Filing a Shortcut story is the only exception, and it stays off until an admin turns it on.',
+      'Code, data and settings are never changed. Filing a Shortcut story is the only write it has, and it stays off until an admin turns it on.',
   },
   {
     title: 'Company sign-in only',

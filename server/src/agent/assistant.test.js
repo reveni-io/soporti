@@ -350,29 +350,20 @@ describe('createAgent', () => {
     expect(agent.instructions).not.toContain('Active skill')
   })
 
-  it('only reaches for the Shortcut write access on an interactive run', async () => {
+  it('passes the stored Shortcut write access to the tool builder', async () => {
     areShortcutWritesEnabled.mockResolvedValue(true)
 
     await createAgent([], 'support')
 
-    expect(areShortcutWritesEnabled).not.toHaveBeenCalled()
     expect(buildAgentTools).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ shortcutWrites: false })
-    )
-
-    await createAgent([], 'support', { interactive: true })
-
-    expect(buildAgentTools).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.anything(),
       expect.objectContaining({ shortcutWrites: true })
     )
   })
 
-  it('keeps the write tools out when an interactive run has them disabled', async () => {
-    await createAgent([], 'support', { interactive: true })
+  it('keeps the write tools out while the admin switch is off', async () => {
+    await createAgent([], 'support')
 
     expect(areShortcutWritesEnabled).toHaveBeenCalledTimes(1)
     expect(buildAgentTools).toHaveBeenCalledWith(
@@ -386,12 +377,12 @@ describe('createAgent', () => {
     isShortcutConfigured.mockResolvedValue(true)
     buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'create_shortcut_story']))
 
-    const withWrites = await createAgent([], 'support', { interactive: true })
+    const withWrites = await createAgent([], 'support')
 
     expect(withWrites.instructions).toContain('### Filing and changing stories')
 
     buildAgentTools.mockReturnValue(toolList())
-    const readOnly = await createAgent([], 'support', { interactive: true })
+    const readOnly = await createAgent([], 'support')
 
     expect(readOnly.instructions).toContain('## Shortcut integration')
     expect(readOnly.instructions).not.toContain('### Filing and changing stories')

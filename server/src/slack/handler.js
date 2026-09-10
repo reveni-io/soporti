@@ -67,7 +67,6 @@ export async function processMessage({
   const agent = await createAgent(selectedSources, profile, {
     customInstructions,
     userId,
-    interactive: true,
     onNestedToolCall: call => toolCalls.push(call),
     onNestedUsage: usage => nestedUsage.push(usage),
   })

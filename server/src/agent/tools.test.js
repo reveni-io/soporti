@@ -1049,12 +1049,12 @@ describe('buildShortcutWriteTools', () => {
     expect(shortcutMod.createStory).toHaveBeenCalledWith(input)
   })
 
-  it('requires the requester in the create schema, so it can never default to the token owner', () => {
-    const { requestedById, teamId, ownerIds } = byName('create_shortcut_story').parameters.shape
+  it('requires the team and documents the requester fallback', () => {
+    const create = byName('create_shortcut_story')
 
-    expect(requestedById.isOptional()).toBe(false)
-    expect(teamId.isOptional()).toBe(false)
-    expect(ownerIds.isOptional()).toBe(true)
+    expect(create.parameters.shape.teamId.isOptional()).toBe(false)
+    expect(create.parameters.shape.requestedById.description).toContain('Null falls back to the member')
+    expect(byName('add_shortcut_comment').parameters.shape.authorId.description).toContain('Null falls back')
   })
 
   it('updates a story with the story id split out of the changes', async () => {
@@ -1097,7 +1097,7 @@ describe('buildShortcutWriteTools', () => {
 
   it('warns the model that an edit cannot be attributed', () => {
     expect(byName('update_shortcut_story').description).toContain('cannot be attributed')
-    expect(byName('create_shortcut_story').description).toContain('never yours to choose')
+    expect(byName('create_shortcut_story').description).toContain('never yours to guess')
   })
 })
 

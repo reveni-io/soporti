@@ -393,13 +393,13 @@ export async function createStory({
   description,
   storyType,
   teamId,
-  requestedById,
+  requestedById = null,
   ownerIds = [],
   epicId = null,
   iterationId = null,
 }) {
   const [requester, team, owners] = await Promise.all([
-    requireMember(requestedById),
+    requestedById ? requireMember(requestedById) : null,
     requireTeam(teamId),
     resolveOwnerIds(ownerIds),
   ])
@@ -409,8 +409,8 @@ export async function createStory({
     description: redactSecrets(description),
     story_type: storyType,
     group_id: team.id,
-    requested_by_id: requester.id,
     owner_ids: owners,
+    ...(requester ? { requested_by_id: requester.id } : {}),
     ...(epicId ? { epic_id: epicId } : {}),
     ...(iterationId ? { iteration_id: iterationId } : {}),
   })
@@ -447,18 +447,20 @@ export async function updateStory(
   return toWrittenStory(updated)
 }
 
-export async function addComment({ storyId, text, authorId }) {
-  const author = await requireMember(authorId)
+export async function addComment({ storyId, text, authorId = null }) {
+  const author = authorId ? await requireMember(authorId) : null
 
   const comment = await request('POST', `/stories/${storyId}/comments`, {
     text: redactSecrets(text),
-    author_id: author.id,
+    ...(author ? { author_id: author.id } : {}),
   })
+
+  const members = await getMembers()
 
   return {
     id: comment.id,
     story_id: storyId,
-    author: author.name,
+    author: members.get(comment.author_id)?.name || null,
     app_url: comment.app_url || null,
   }
 }

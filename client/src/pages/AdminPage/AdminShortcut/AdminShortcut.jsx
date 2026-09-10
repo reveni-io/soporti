@@ -69,10 +69,10 @@ export default function AdminShortcut({ token, onLogout }) {
         <p className="note">
           A Shortcut token belongs to one member, so Shortcut records that member as the creator of every story and the
           author of every edit. What the assistant sets is the <strong>Requester</strong> of a story and the author of a
-          comment — the fields your team reads as the person behind the work. Automated runs (scheduled queries, the
-          Slack ticket poller, the MCP endpoint) stay read-only, since nobody is there to confirm who is asking. If you
-          have narrowed the assistant&apos;s tools in <strong>Subagents</strong>, grant it the new Shortcut tools there
-          too.
+          comment — the fields your team reads as the person behind the work. When there is nobody to ask (a scheduled
+          query, a ticket triaged on its own, a request over MCP) it falls back to the token&apos;s own member and says
+          so. If you have narrowed the assistant&apos;s tools in <strong>Subagents</strong>, grant it the new Shortcut
+          tools there too.
         </p>
 
         <WriteAccessField enabled={config.writesEnabled} onSave={saveWrites} onLogout={onLogout} />

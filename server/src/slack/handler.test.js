@@ -237,7 +237,6 @@ describe('processMessage', () => {
     expect(createAgent).toHaveBeenCalledWith([], 'tech', {
       customInstructions: '',
       userId: null,
-      interactive: true,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
     })
