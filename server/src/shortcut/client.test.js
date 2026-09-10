@@ -658,7 +658,18 @@ describe('createStory', () => {
   it('falls back to the first state when the workflow has no default', async () => {
     mockApi([
       ['/stories', CREATED_STORY, 'POST'],
-      ['/workflows', [{ id: 9000, states: [{ id: 700, name: 'Triage' }, { id: 701, name: 'Fixing' }] }]],
+      [
+        '/workflows',
+        [
+          {
+            id: 9000,
+            states: [
+              { id: 700, name: 'Triage' },
+              { id: 701, name: 'Fixing' },
+            ],
+          },
+        ],
+      ],
     ])
 
     await createStory({ name: 'Bug', description: 'x', storyType: 'bug', teamId: 'team-1' })
