@@ -49,6 +49,6 @@ export const INTEGRATIONS = [
   {
     id: 'shortcut',
     name: 'Shortcut',
-    desc: 'Fetches stories, epics, status and acceptance criteria so you can track ongoing work from the chat.',
+    desc: 'Fetches stories, epics, status and acceptance criteria so you can track ongoing work from the chat — and, if you switch write access on, files the bug for you, always asking whose name it goes under.',
   },
 ]

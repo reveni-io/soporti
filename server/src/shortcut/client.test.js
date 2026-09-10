@@ -7,6 +7,11 @@ vi.mock('./settings.js', () => ({
   isShortcutConfigured: (...args) => mockIsShortcutConfigured(...args),
 }))
 
+const mockFindUserById = vi.fn(async () => null)
+vi.mock('../db/users.js', () => ({
+  findUserById: (...args) => mockFindUserById(...args),
+}))
+
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
@@ -17,6 +22,11 @@ const {
   getIterationStories,
   listEpics,
   listMembers,
+  listTeams,
+  getMyMember,
+  createStory,
+  updateStory,
+  addComment,
   isConfigured,
   _resetShortcutClientCachesForTests,
 } = await import('./client.js')
@@ -34,9 +44,24 @@ const WORKFLOWS = [
 ]
 
 const MEMBERS = [
-  { id: 'user-1', role: 'member', profile: { name: 'Sergio Zam', mention_name: 'sergio' } },
-  { id: 'user-2', role: 'owner', profile: { name: 'Ana Ruiz', mention_name: 'ana' } },
-  { id: 'user-3', role: 'member', disabled: true, profile: { name: 'Former Teammate', mention_name: 'former' } },
+  {
+    id: 'user-1',
+    role: 'member',
+    profile: { name: 'Sergio Zam', mention_name: 'sergio', email_address: 'Sergio@Reveni.io' },
+  },
+  { id: 'user-2', role: 'owner', profile: { name: 'Ana Ruiz', mention_name: 'ana', email_address: 'ana@reveni.io' } },
+  {
+    id: 'user-3',
+    role: 'member',
+    disabled: true,
+    profile: { name: 'Former Teammate', mention_name: 'former', email_address: 'former@reveni.io' },
+  },
+]
+
+const TEAMS = [
+  { id: 'team-1', name: 'Returns', mention_name: 'returns' },
+  { id: 'team-2', name: 'Atlas', mention_name: 'atlas' },
+  { id: 'team-3', name: 'Old squad', mention_name: 'old', archived: true },
 ]
 
 const EPICS = [
@@ -61,6 +86,7 @@ const ITERATIONS = [
 const LOOKUP_ROUTES = [
   ['/workflows', WORKFLOWS],
   ['/members', MEMBERS],
+  ['/groups', TEAMS],
   ['/epics', EPICS],
   ['/iterations/71', ITERATIONS[1]],
   ['/iterations', ITERATIONS],
@@ -76,13 +102,20 @@ function toPath(url) {
 
 function mockApi(routes = []) {
   const all = [...routes, ...LOOKUP_ROUTES]
-  mockFetch.mockImplementation(async url => {
+  mockFetch.mockImplementation(async (url, options) => {
     const path = toPath(url)
-    const match = all.find(([prefix]) => path.startsWith(prefix))
-    if (!match) throw new Error(`Unexpected Shortcut request: ${path}`)
+    const method = options?.method || 'GET'
+    const match = all.find(([prefix, , routeMethod]) => path.startsWith(prefix) && (routeMethod || 'GET') === method)
+    if (!match) throw new Error(`Unexpected Shortcut request: ${method} ${path}`)
 
     return jsonResponse(match[1])
   })
+}
+
+function sentBody(method) {
+  const call = mockFetch.mock.calls.find(([, options]) => options?.method === method)
+
+  return JSON.parse(call[1].body)
 }
 
 function requestedPaths() {
@@ -94,6 +127,7 @@ beforeEach(() => {
   _resetShortcutClientCachesForTests()
   mockGetShortcutToken.mockResolvedValue('test-shortcut-token')
   mockIsShortcutConfigured.mockResolvedValue(true)
+  mockFindUserById.mockResolvedValue(null)
 })
 
 describe('isConfigured', () => {
@@ -491,5 +525,202 @@ describe('lookup caching', () => {
     await getStory(1)
 
     expect(requestedPaths().filter(p => p === '/workflows')).toHaveLength(2)
+  })
+})
+
+describe('listTeams', () => {
+  it('returns the active teams with their id, name and mention name', async () => {
+    mockApi()
+
+    expect(await listTeams()).toEqual({
+      total: 2,
+      teams: [
+        { id: 'team-1', name: 'Returns', mention_name: 'returns' },
+        { id: 'team-2', name: 'Atlas', mention_name: 'atlas' },
+      ],
+    })
+  })
+})
+
+describe('getMyMember', () => {
+  it('matches the app user email against the Shortcut members, ignoring case', async () => {
+    mockApi()
+    mockFindUserById.mockResolvedValue({ id: 7, email: 'sergio@reveni.io' })
+
+    expect(await getMyMember(7)).toEqual({ member: { id: 'user-1', name: 'Sergio Zam', mention_name: 'sergio' } })
+    expect(mockFindUserById).toHaveBeenCalledWith(7)
+  })
+
+  it('returns no member when there is no user, no email or no match', async () => {
+    mockApi()
+
+    expect(await getMyMember(null)).toEqual({ member: null })
+    expect(mockFetch).not.toHaveBeenCalled()
+
+    mockFindUserById.mockResolvedValue({ id: 7, email: null })
+    expect(await getMyMember(7)).toEqual({ member: null })
+
+    mockFindUserById.mockResolvedValue({ id: 8, email: 'someone@else.com' })
+    expect(await getMyMember(8)).toEqual({ member: null })
+  })
+
+  it('never matches a deactivated member', async () => {
+    mockApi()
+    mockFindUserById.mockResolvedValue({ id: 9, email: 'former@reveni.io' })
+
+    expect(await getMyMember(9)).toEqual({ member: null })
+  })
+})
+
+const CREATED_STORY = {
+  id: 4321,
+  name: 'Checkout returns a 500 on refund',
+  story_type: 'bug',
+  workflow_state_id: 500,
+  group_id: 'team-1',
+  requested_by_id: 'user-2',
+  owner_ids: ['user-1'],
+  labels: [],
+  app_url: 'https://app.shortcut.com/story/4321',
+}
+
+describe('createStory', () => {
+  it('files the story on behalf of the requester, in the given team', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+
+    const result = await createStory({
+      name: 'Checkout returns a 500 on refund',
+      description: 'Steps: refund order 1234',
+      storyType: 'bug',
+      teamId: 'team-1',
+      requestedById: 'user-2',
+      ownerIds: ['user-1'],
+    })
+
+    expect(sentBody('POST')).toEqual({
+      name: 'Checkout returns a 500 on refund',
+      description: 'Steps: refund order 1234',
+      story_type: 'bug',
+      group_id: 'team-1',
+      requested_by_id: 'user-2',
+      owner_ids: ['user-1'],
+    })
+    expect(result).toMatchObject({
+      id: 4321,
+      story_type: 'bug',
+      state: 'Ready for Dev',
+      owners: ['Sergio Zam'],
+      requested_by: 'Ana Ruiz',
+      team: 'Returns',
+      app_url: 'https://app.shortcut.com/story/4321',
+    })
+  })
+
+  it('sends the epic and the iteration only when they are given', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+
+    await createStory({
+      name: 'Bug',
+      description: 'Something broke',
+      storyType: 'bug',
+      teamId: 'team-1',
+      requestedById: 'user-1',
+      epicId: 10,
+      iterationId: 71,
+    })
+
+    expect(sentBody('POST')).toMatchObject({ epic_id: 10, iteration_id: 71, owner_ids: [] })
+  })
+
+  it('redacts anything secret-shaped before it reaches Shortcut', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+
+    await createStory({
+      name: 'Bug',
+      description: 'The request used ghp_abcdefghijklmnopqrstuvwxyz012345 as the token',
+      storyType: 'bug',
+      teamId: 'team-1',
+      requestedById: 'user-1',
+    })
+
+    expect(sentBody('POST').description).toBe('The request used [redacted] as the token')
+  })
+
+  it('refuses an unknown requester, a deactivated one, an unknown team and an unknown owner', async () => {
+    mockApi([['/stories', CREATED_STORY, 'POST']])
+    const story = {
+      name: 'Bug',
+      description: 'Something broke',
+      storyType: 'bug',
+      teamId: 'team-1',
+      requestedById: 'user-1',
+    }
+
+    await expect(createStory({ ...story, requestedById: 'nobody' })).rejects.toThrow('list_shortcut_members')
+    await expect(createStory({ ...story, requestedById: 'user-3' })).rejects.toThrow('deactivated')
+    await expect(createStory({ ...story, teamId: 'team-3' })).rejects.toThrow('list_shortcut_teams')
+    await expect(createStory({ ...story, ownerIds: ['nobody'] })).rejects.toThrow('list_shortcut_members')
+
+    expect(mockFetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
+  })
+})
+
+describe('updateStory', () => {
+  it('resolves the state name into its id and sends only the given fields', async () => {
+    mockApi([['/stories/4321', { ...CREATED_STORY, workflow_state_id: 501 }, 'PUT']])
+
+    const result = await updateStory(4321, { state: 'in progress', ownerIds: ['user-2'] })
+
+    expect(sentBody('PUT')).toEqual({ workflow_state_id: 501, owner_ids: ['user-2'] })
+    expect(result).toMatchObject({ state: 'In Progress', requested_by: 'Ana Ruiz' })
+  })
+
+  it('updates the name, the description, the type, the epic and the iteration', async () => {
+    mockApi([['/stories/4321', CREATED_STORY, 'PUT']])
+
+    await updateStory(4321, {
+      name: 'Refunds fail',
+      description: 'Now with the order id',
+      storyType: 'chore',
+      epicId: 10,
+      iterationId: 71,
+    })
+
+    expect(sentBody('PUT')).toEqual({
+      name: 'Refunds fail',
+      description: 'Now with the order id',
+      story_type: 'chore',
+      epic_id: 10,
+      iteration_id: 71,
+    })
+  })
+
+  it('refuses an empty update and an unknown state', async () => {
+    mockApi([['/stories/4321', CREATED_STORY, 'PUT']])
+
+    await expect(updateStory(4321, {})).rejects.toThrow('Nothing to update')
+    await expect(updateStory(4321, { state: 'Shipped' })).rejects.toThrow('Ready for Dev, In Progress, Done')
+  })
+})
+
+describe('addComment', () => {
+  it('posts the comment on behalf of its author', async () => {
+    mockApi([['/stories/4321/comments', { id: 99, app_url: 'https://app.shortcut.com/story/4321#comment-99' }, 'POST']])
+
+    const result = await addComment({ storyId: 4321, text: 'Reported again by a customer', authorId: 'user-2' })
+
+    expect(sentBody('POST')).toEqual({ text: 'Reported again by a customer', author_id: 'user-2' })
+    expect(result).toEqual({
+      id: 99,
+      story_id: 4321,
+      author: 'Ana Ruiz',
+      app_url: 'https://app.shortcut.com/story/4321#comment-99',
+    })
+  })
+
+  it('refuses an unknown author', async () => {
+    mockApi([['/stories/4321/comments', { id: 99 }, 'POST']])
+
+    await expect(addComment({ storyId: 4321, text: 'Hi', authorId: 'nobody' })).rejects.toThrow('list_shortcut_members')
   })
 })

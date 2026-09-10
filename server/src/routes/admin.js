@@ -8,7 +8,12 @@ import { getAuthMethods, setAuthMethods } from '../auth/auth-methods.js'
 import { getGoogleClientId, setGoogleClientId } from '../auth/google-settings.js'
 import { getDriveCredentials, setDriveCredentials } from '../google-drive/settings.js'
 import { getNotionToken, setNotionToken } from '../notion/settings.js'
-import { getShortcutToken, setShortcutToken } from '../shortcut/settings.js'
+import {
+  getShortcutToken,
+  getShortcutWritesEnabled,
+  setShortcutToken,
+  setShortcutWritesEnabled,
+} from '../shortcut/settings.js'
 import { getSentryToken, setSentryToken, getSentryOrg, setSentryOrg } from '../sentry/settings.js'
 import {
   getBetterstackApiToken,
@@ -899,8 +904,8 @@ router.put('/config/notion/token', async (req, res) => {
 
 router.get('/config/shortcut', async (_req, res) => {
   try {
-    const token = await getShortcutToken()
-    res.json({ tokenConfigured: Boolean(token) })
+    const [token, writesEnabled] = await Promise.all([getShortcutToken(), getShortcutWritesEnabled()])
+    res.json({ tokenConfigured: Boolean(token), writesEnabled })
   } catch (err) {
     console.error('Admin get shortcut config error:', err)
     res.status(500).json({ error: 'Failed to read the Shortcut settings.' })
@@ -924,6 +929,22 @@ router.put('/config/shortcut/token', async (req, res) => {
   } catch (err) {
     console.error('Admin set shortcut token error:', err)
     res.status(500).json({ error: 'Failed to save the Shortcut token.' })
+  }
+})
+
+router.put('/config/shortcut/writes', async (req, res) => {
+  const { enabled } = req.body ?? {}
+
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: '"enabled" must be a boolean.' })
+  }
+
+  try {
+    await setShortcutWritesEnabled(enabled)
+    res.json({ writesEnabled: enabled })
+  } catch (err) {
+    console.error('Admin set shortcut writes error:', err)
+    res.status(500).json({ error: 'Failed to save the Shortcut write access.' })
   }
 })
 

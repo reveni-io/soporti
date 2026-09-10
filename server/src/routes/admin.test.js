@@ -62,6 +62,8 @@ const getNotionToken = vi.fn()
 const setNotionToken = vi.fn()
 const getShortcutToken = vi.fn()
 const setShortcutToken = vi.fn()
+const getShortcutWritesEnabled = vi.fn(async () => false)
+const setShortcutWritesEnabled = vi.fn()
 
 const getSentryToken = vi.fn()
 const setSentryToken = vi.fn()
@@ -132,7 +134,13 @@ vi.mock('../auth/auth-methods.js', () => ({ getAuthMethods, setAuthMethods }))
 vi.mock('../auth/google-settings.js', () => ({ getGoogleClientId, setGoogleClientId }))
 vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCredentials, isDriveConfigured }))
 vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken, isNotionConfigured }))
-vi.mock('../shortcut/settings.js', () => ({ getShortcutToken, setShortcutToken, isShortcutConfigured }))
+vi.mock('../shortcut/settings.js', () => ({
+  getShortcutToken,
+  setShortcutToken,
+  getShortcutWritesEnabled,
+  setShortcutWritesEnabled,
+  isShortcutConfigured,
+}))
 vi.mock('../sentry/settings.js', () => ({
   getSentryToken,
   setSentryToken,
@@ -284,6 +292,8 @@ beforeEach(() => {
   setNotionToken.mockReset()
   getShortcutToken.mockReset()
   setShortcutToken.mockReset()
+  getShortcutWritesEnabled.mockReset().mockResolvedValue(false)
+  setShortcutWritesEnabled.mockReset().mockResolvedValue(undefined)
   getSentryToken.mockReset()
   setSentryToken.mockReset()
   getSentryOrg.mockReset()
@@ -709,7 +719,7 @@ describe('GET /api/admin/config/shortcut', () => {
     const res = await request(app).get('/api/admin/config/shortcut')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ tokenConfigured: true })
+    expect(res.body).toEqual({ tokenConfigured: true, writesEnabled: false })
     expect(JSON.stringify(res.body)).not.toContain('shortcut-secret')
   })
 
@@ -718,7 +728,42 @@ describe('GET /api/admin/config/shortcut', () => {
 
     const res = await request(app).get('/api/admin/config/shortcut')
 
-    expect(res.body).toEqual({ tokenConfigured: false })
+    expect(res.body).toEqual({ tokenConfigured: false, writesEnabled: false })
+  })
+})
+
+describe('PUT /api/admin/config/shortcut/writes', () => {
+  it('enables the write tools', async () => {
+    const res = await request(app).put('/api/admin/config/shortcut/writes').send({ enabled: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ writesEnabled: true })
+    expect(setShortcutWritesEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('disables them again', async () => {
+    const res = await request(app).put('/api/admin/config/shortcut/writes').send({ enabled: false })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ writesEnabled: false })
+    expect(setShortcutWritesEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('rejects anything that is not a boolean', async () => {
+    const res = await request(app).put('/api/admin/config/shortcut/writes').send({ enabled: 'yes' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: '"enabled" must be a boolean.' })
+    expect(setShortcutWritesEnabled).not.toHaveBeenCalled()
+  })
+
+  it('reports a failure to save', async () => {
+    setShortcutWritesEnabled.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/shortcut/writes').send({ enabled: true })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the Shortcut write access.' })
   })
 })
 

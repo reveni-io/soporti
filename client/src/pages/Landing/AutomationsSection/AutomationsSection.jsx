@@ -5,7 +5,7 @@ const AUTOMATIONS = [
   {
     icon: '💬',
     title: 'Slack teammate',
-    description: 'Mention Soporti in Slack and it answers in the thread — same tools, same read-only safety.',
+    description: 'Mention Soporti in Slack and it answers in the thread — same tools, same guardrails.',
     bullets: [
       'Auto-diagnoses new support tickets on its own',
       'Reads screenshots attached to a ticket (vision)',

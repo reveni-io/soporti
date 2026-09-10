@@ -10,9 +10,9 @@ import {
 } from './system-prompt.js'
 import { buildSubagentTools, claimedToolNames, parentConfiguredFlags, resolveActiveSubagents } from './subagents.js'
 import { getMainAgentTools } from './settings.js'
-import { isYoloMode, buildSourcePolicy } from './sources.js'
+import { isYoloMode, buildSourcePolicy, SHORTCUT_WRITE_TOOL_NAMES } from './sources.js'
 import { buildRepoCatalogPrompt } from './repo-catalog.js'
-import { isShortcutConfigured } from '../shortcut/settings.js'
+import { areShortcutWritesEnabled, isShortcutConfigured } from '../shortcut/settings.js'
 import { isSentryConfigured } from '../sentry/settings.js'
 import { isDriveConfigured } from '../google-drive/settings.js'
 import { isNotionConfigured } from '../notion/settings.js'
@@ -31,6 +31,7 @@ export async function createAgent(
     skillArguments = '',
     userId = null,
     conversationId = null,
+    interactive = false,
     onArtifactPublished = null,
     onNestedToolCall = null,
     onNestedToolResult = null,
@@ -49,6 +50,7 @@ export async function createAgent(
     shopifyConfigured,
     betterstackConfigured,
     granolaConfigured,
+    shortcutWrites,
     catalogPrompt,
     subagents,
     mainAgentTools,
@@ -62,6 +64,7 @@ export async function createAgent(
     shopify.isConfigured(),
     isBetterstackConfigured(),
     isGranolaConfigured(userId),
+    interactive ? areShortcutWritesEnabled() : false,
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
@@ -78,7 +81,12 @@ export async function createAgent(
     granolaConfigured,
   }
 
-  const registered = buildAgentTools(policy, configured, { userId, conversationId, onArtifactPublished })
+  const registered = buildAgentTools(policy, configured, {
+    userId,
+    conversationId,
+    onArtifactPublished,
+    shortcutWrites,
+  })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
     onNestedToolCall,
@@ -89,6 +97,7 @@ export async function createAgent(
   const parentTools = excludeToolsByName(allowed, claimedToolNames(subagents))
 
   const hasRepoTools = parentTools.some(candidate => REPO_TOOL_NAMES.has(candidate.name))
+  const hasShortcutWrites = parentTools.some(candidate => SHORTCUT_WRITE_TOOL_NAMES.includes(candidate.name))
   const parentConfigured = parentConfiguredFlags(configured, parentTools)
 
   const sourceInstructions = buildSourceInstructions(selectedSources, parentConfigured, { hasRepoTools })
@@ -103,6 +112,7 @@ export async function createAgent(
       configured: parentConfigured,
       canRenderArtifacts: Boolean(conversationId),
       hasRepoTools,
+      hasShortcutWrites,
     }),
   ]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)

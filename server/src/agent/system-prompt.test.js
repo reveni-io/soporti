@@ -189,6 +189,30 @@ describe('buildBasePrompt', () => {
     expect(prompt).toContain('## Sentry integration')
   })
 
+  it('adds the Shortcut write rules only when the write tools were registered', () => {
+    const withWrites = buildBasePrompt(buildSourcePolicy(['owner/repo']), {
+      configured: ALL_CONFIGURED,
+      hasShortcutWrites: true,
+    })
+
+    expect(withWrites).toContain('### Filing and changing stories')
+    expect(withWrites).toContain('Always ask whose name it goes under')
+
+    const readOnly = buildBasePrompt(buildSourcePolicy(['owner/repo']), { configured: ALL_CONFIGURED })
+
+    expect(readOnly).toContain('## Shortcut integration')
+    expect(readOnly).not.toContain('### Filing and changing stories')
+  })
+
+  it('never mentions the Shortcut write rules when Shortcut itself is not configured', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['owner/repo']), {
+      configured: { sentryConfigured: true },
+      hasShortcutWrites: true,
+    })
+
+    expect(prompt).not.toContain('### Filing and changing stories')
+  })
+
   it('includes the code exploration section only when repos are selected', () => {
     expect(buildBasePrompt(buildSourcePolicy(['owner/repo']), { configured: ALL_CONFIGURED })).toContain(
       '## How to explore code'

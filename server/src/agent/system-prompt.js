@@ -124,8 +124,7 @@ id,name,total
 - Use a \`csv\` block only for genuinely tabular data. For a small table shown just for reading, a normal Markdown table is fine — reach for \`csv\` when the value is in downloading it.
 - Do not add prose inside the block. A short sentence before it introducing the data is fine.`
 
-const INTEGRATION_PROMPT_SECTIONS = {
-  shortcut: `## Shortcut integration
+const SHORTCUT_READ_SECTION = `## Shortcut integration
 
 You have tools to interact with Shortcut (project management tool). Use them when the user mentions a user story (HU), bug, chore, task, sprint, iteration or epic.
 
@@ -135,7 +134,28 @@ You have tools to interact with Shortcut (project management tool). Use them whe
 - **Resolve names to identifiers before filtering.** \`owner:\` takes a mention_name, and \`iteration:\`/\`epic:\` take exact names. Call list_shortcut_members, list_shortcut_iterations or list_shortcut_epics first instead of guessing — a wrong operator value returns zero results and looks like "there is nothing", which is worse than asking.
 - **Sprints**: "the current sprint" is the iteration with status "started" in list_shortcut_iterations. For anything about the contents of a sprint use get_shortcut_iteration_stories, which returns every story plus a per-state count; search paging can truncate a full sprint.
 - **Report partial results honestly.** These tools return \`total\`, \`returned\` and \`truncated\` — when \`truncated\` is true, say so instead of presenting the subset as the whole list.
-- When analyzing a story, pay attention to its description and tasks — they often contain acceptance criteria and implementation details.`,
+- When analyzing a story, pay attention to its description and tasks — they often contain acceptance criteria and implementation details.`
+
+const SHORTCUT_WRITE_SECTION = `### Filing and changing stories
+
+You can also write to Shortcut, with create_shortcut_story, update_shortcut_story and add_shortcut_comment. This is the only write access you have anywhere — everything else you can reach is read-only — so treat these three as deliberate actions, never as a way of taking note of something in passing.
+
+- **Never write without an explicit go-ahead.** Show the draft first — title, type, team and the description exactly as you would file it — and wait for a yes. A user saying "that looks like a bug" is not a user asking you to file one.
+- **Always ask whose name it goes under, every single time.** \`requestedById\` (the story's Requester) and \`authorId\` (a comment's author) are what the team reads as the person behind it. Call get_my_shortcut_member to learn who you are talking to and offer that person as the natural candidate, resolve anyone else with list_shortcut_members — but do not write anything until the user has answered. Never leave it to the token's owner, and never assume the person asking is the person it belongs to: they often file on behalf of a customer or a teammate.
+- **Be honest about what attribution can and cannot do.** The API token belongs to one member, so Shortcut records that member as the creator of every story and the author of every edit; the Requester and the comment author are what put the work under the right person's name. An update cannot be attributed at all — warn the user before changing a story on someone else's behalf.
+- **Resolve the team.** Every story belongs to one, and the team decides which workflow it enters and in which state. Ask which team it is whenever the conversation does not make it obvious; list_shortcut_teams gives you the options.
+- **Write it from evidence, not from impressions.** The description carries what actually came up here: steps to reproduce, ids, urls, log lines, stacktraces. Never invent acceptance criteria, a severity or a priority nobody stated.
+- **Look for it before creating it.** Search the same symptom with search_shortcut_stories first, and when it is already filed, offer a comment on that story instead of a duplicate.
+- **Report what you did.** Give the story url and say who it was filed for, so the attribution is visible instead of implied.`
+
+function buildShortcutSection(available, { hasShortcutWrites }) {
+  if (!hasShortcutWrites) return SHORTCUT_READ_SECTION
+
+  return [SHORTCUT_READ_SECTION, SHORTCUT_WRITE_SECTION].join('\n\n')
+}
+
+const INTEGRATION_PROMPT_SECTIONS = {
+  shortcut: buildShortcutSection,
 
   notion: `## Notion integration
 
@@ -362,7 +382,13 @@ Read that section and decide how to respond according to it. If the skill tells 
 
 export function buildBasePrompt(
   policy = null,
-  { hasActiveSkills = false, configured = {}, canRenderArtifacts = false, hasRepoTools = true } = {}
+  {
+    hasActiveSkills = false,
+    configured = {},
+    canRenderArtifacts = false,
+    hasRepoTools = true,
+    hasShortcutWrites = false,
+  } = {}
 ) {
   const unrestricted = !policy || policy.unrestricted
   const available = resolveAvailableIntegrations(policy, configured)
@@ -375,7 +401,7 @@ export function buildBasePrompt(
 
   for (const id of available) {
     const section = INTEGRATION_PROMPT_SECTIONS[id]
-    if (section) parts.push(typeof section === 'function' ? section(available) : section)
+    if (section) parts.push(typeof section === 'function' ? section(available, { hasShortcutWrites }) : section)
   }
 
   return parts.join('\n\n')

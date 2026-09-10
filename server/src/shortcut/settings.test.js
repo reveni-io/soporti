@@ -7,10 +7,18 @@ vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 const {
   getShortcutToken,
   setShortcutToken,
+  getShortcutWritesEnabled,
+  setShortcutWritesEnabled,
   isShortcutConfigured,
+  areShortcutWritesEnabled,
   SHORTCUT_TOKEN_KEY,
+  SHORTCUT_WRITES_KEY,
   _resetShortcutSettingsCacheForTests,
 } = await import('./settings.js')
+
+function storedConfig(values) {
+  getConfigValue.mockImplementation(async key => values[key] ?? null)
+}
 
 beforeEach(() => {
   getConfigValue.mockReset()
@@ -75,5 +83,67 @@ describe('isShortcutConfigured', () => {
     _resetShortcutSettingsCacheForTests()
     getConfigValue.mockResolvedValue(null)
     expect(await isShortcutConfigured()).toBe(false)
+  })
+})
+
+describe('getShortcutWritesEnabled', () => {
+  it('returns false when nothing is stored', async () => {
+    storedConfig({})
+
+    expect(await getShortcutWritesEnabled()).toBe(false)
+    expect(getConfigValue).toHaveBeenCalledWith(SHORTCUT_WRITES_KEY)
+  })
+
+  it('returns the stored flag', async () => {
+    storedConfig({ [SHORTCUT_WRITES_KEY]: true })
+
+    expect(await getShortcutWritesEnabled()).toBe(true)
+  })
+
+  it('caches the value between calls', async () => {
+    storedConfig({ [SHORTCUT_WRITES_KEY]: true })
+
+    await getShortcutWritesEnabled()
+    await getShortcutWritesEnabled()
+
+    expect(getConfigValue).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('setShortcutWritesEnabled', () => {
+  it('stores the flag and invalidates the cache', async () => {
+    storedConfig({})
+    expect(await getShortcutWritesEnabled()).toBe(false)
+
+    await setShortcutWritesEnabled(true)
+    expect(setConfigValue).toHaveBeenCalledWith(SHORTCUT_WRITES_KEY, true)
+
+    storedConfig({ [SHORTCUT_WRITES_KEY]: true })
+    expect(await getShortcutWritesEnabled()).toBe(true)
+  })
+
+  it('leaves the token cache untouched', async () => {
+    storedConfig({ [SHORTCUT_TOKEN_KEY]: 'shortcut-token' })
+    await getShortcutToken()
+
+    await setShortcutWritesEnabled(true)
+    await getShortcutToken()
+
+    expect(getConfigValue).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('areShortcutWritesEnabled', () => {
+  it('is true only when the token is stored and writes are enabled', async () => {
+    storedConfig({ [SHORTCUT_TOKEN_KEY]: 'shortcut-token', [SHORTCUT_WRITES_KEY]: true })
+    expect(await areShortcutWritesEnabled()).toBe(true)
+
+    _resetShortcutSettingsCacheForTests()
+    storedConfig({ [SHORTCUT_TOKEN_KEY]: 'shortcut-token' })
+    expect(await areShortcutWritesEnabled()).toBe(false)
+
+    _resetShortcutSettingsCacheForTests()
+    storedConfig({ [SHORTCUT_WRITES_KEY]: true })
+    expect(await areShortcutWritesEnabled()).toBe(false)
   })
 })

@@ -1,4 +1,6 @@
 import { getShortcutToken, isShortcutConfigured } from './settings.js'
+import { findUserById } from '../db/users.js'
+import { redactSecrets } from '../review/output-guard.js'
 
 const BASE_URL = 'https://api.app.shortcut.com/api/v3'
 const API_PREFIX = '/api/v3'
@@ -13,6 +15,12 @@ const MAX_EPICS = 50
 const MAX_ERROR_CHARS = 500
 
 const NOT_CONFIGURED_ERROR = 'Shortcut token not configured. Set it in the admin panel (Shortcut section).'
+const UNKNOWN_MEMBER_ERROR =
+  'Unknown or deactivated Shortcut member: call list_shortcut_members and use one of the ids it returns.'
+const UNKNOWN_TEAM_ERROR =
+  'Unknown or archived Shortcut team: call list_shortcut_teams and use one of the ids it returns.'
+const UNKNOWN_STATE_ERROR = 'Unknown Shortcut workflow state'
+const NOTHING_TO_UPDATE_ERROR = 'Nothing to update: pass at least one field to change.'
 
 const EPIC_STATUS_DONE = 'done'
 const EPIC_STATUS_IN_PROGRESS = 'in progress'
@@ -82,8 +90,25 @@ async function getMembers() {
         id: member.id,
         name: member.profile?.name || member.profile?.mention_name || member.id,
         mention_name: member.profile?.mention_name || null,
+        email: member.profile?.email_address?.toLowerCase() || null,
         role: member.role || null,
         disabled: Boolean(member.disabled),
+      },
+    ])
+  })
+}
+
+async function getTeams() {
+  return cached('teams', async () => {
+    const teams = await request('GET', '/groups')
+
+    return toMap(teams || [], team => [
+      team.id,
+      {
+        id: team.id,
+        name: team.name,
+        mention_name: team.mention_name || null,
+        archived: Boolean(team.archived),
       },
     ])
   })
@@ -298,6 +323,143 @@ export async function listMembers() {
   return {
     total: active.length,
     members: active.map(({ id, name, mention_name, role }) => ({ id, name, mention_name, role })),
+  }
+}
+
+export async function listTeams() {
+  const teams = await getTeams()
+  const active = [...teams.values()].filter(t => !t.archived)
+
+  return {
+    total: active.length,
+    teams: active.map(({ id, name, mention_name }) => ({ id, name, mention_name })),
+  }
+}
+
+export async function getMyMember(userId) {
+  const user = userId ? await findUserById(userId) : null
+  const email = typeof user?.email === 'string' ? user.email.toLowerCase() : null
+  if (!email) return { member: null }
+
+  const members = await getMembers()
+  const match = [...members.values()].find(m => !m.disabled && m.email === email)
+  if (!match) return { member: null }
+
+  return { member: { id: match.id, name: match.name, mention_name: match.mention_name } }
+}
+
+async function requireMember(id) {
+  const members = await getMembers()
+  const member = members.get(id)
+  if (!member || member.disabled) throw new Error(`${UNKNOWN_MEMBER_ERROR} Received "${id}".`)
+
+  return member
+}
+
+async function requireTeam(id) {
+  const teams = await getTeams()
+  const team = teams.get(id)
+  if (!team || team.archived) throw new Error(`${UNKNOWN_TEAM_ERROR} Received "${id}".`)
+
+  return team
+}
+
+async function resolveOwnerIds(ids) {
+  const owners = await Promise.all(ids.map(id => requireMember(id)))
+
+  return owners.map(owner => owner.id)
+}
+
+async function resolveWorkflowStateId(name) {
+  const states = await getWorkflowStates()
+  const match = [...states].find(([, stateName]) => stateName.toLowerCase() === name.toLowerCase())
+  if (!match) throw new Error(`${UNKNOWN_STATE_ERROR} "${name}". Available: ${[...states.values()].join(', ')}.`)
+
+  return match[0]
+}
+
+async function toWrittenStory(story) {
+  const [lookups, teams] = await Promise.all([getLookups(), getTeams()])
+
+  return {
+    ...toStorySummary(story, lookups),
+    requested_by: lookups.members.get(story.requested_by_id)?.name || null,
+    team: story.group_id ? teams.get(story.group_id)?.name || null : null,
+  }
+}
+
+export async function createStory({
+  name,
+  description,
+  storyType,
+  teamId,
+  requestedById,
+  ownerIds = [],
+  epicId = null,
+  iterationId = null,
+}) {
+  const [requester, team, owners] = await Promise.all([
+    requireMember(requestedById),
+    requireTeam(teamId),
+    resolveOwnerIds(ownerIds),
+  ])
+
+  const created = await request('POST', '/stories', {
+    name: redactSecrets(name),
+    description: redactSecrets(description),
+    story_type: storyType,
+    group_id: team.id,
+    requested_by_id: requester.id,
+    owner_ids: owners,
+    ...(epicId ? { epic_id: epicId } : {}),
+    ...(iterationId ? { iteration_id: iterationId } : {}),
+  })
+
+  return toWrittenStory(created)
+}
+
+export async function updateStory(
+  storyId,
+  {
+    name = null,
+    description = null,
+    storyType = null,
+    state = null,
+    ownerIds = null,
+    epicId = null,
+    iterationId = null,
+  }
+) {
+  const changes = { name, description, storyType, state, ownerIds, epicId, iterationId }
+  if (Object.values(changes).every(value => value === null)) throw new Error(NOTHING_TO_UPDATE_ERROR)
+
+  const body = {}
+  if (name !== null) body.name = redactSecrets(name)
+  if (description !== null) body.description = redactSecrets(description)
+  if (storyType !== null) body.story_type = storyType
+  if (state !== null) body.workflow_state_id = await resolveWorkflowStateId(state)
+  if (ownerIds !== null) body.owner_ids = await resolveOwnerIds(ownerIds)
+  if (epicId !== null) body.epic_id = epicId
+  if (iterationId !== null) body.iteration_id = iterationId
+
+  const updated = await request('PUT', `/stories/${storyId}`, body)
+
+  return toWrittenStory(updated)
+}
+
+export async function addComment({ storyId, text, authorId }) {
+  const author = await requireMember(authorId)
+
+  const comment = await request('POST', `/stories/${storyId}/comments`, {
+    text: redactSecrets(text),
+    author_id: author.id,
+  })
+
+  return {
+    id: comment.id,
+    story_id: storyId,
+    author: author.name,
+    app_url: comment.app_url || null,
   }
 }
 

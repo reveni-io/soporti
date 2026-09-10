@@ -7,8 +7,8 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet({ tokenConfigured = false } = {}) {
-  return { ok: true, status: 200, json: async () => ({ tokenConfigured }) }
+function mockGet({ tokenConfigured = false, writesEnabled = false } = {}) {
+  return { ok: true, status: 200, json: async () => ({ tokenConfigured, writesEnabled }) }
 }
 
 describe('AdminShortcut', () => {
@@ -86,6 +86,70 @@ describe('AdminShortcut', () => {
     await user.click(screen.getByRole('button', { name: /save token/i }))
 
     expect(await screen.findByText('That does not look like a valid Shortcut token.')).toBeInTheDocument()
+  })
+
+  it('reflects the stored write access and only saves it when the button is pressed', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: true }) })
+    const user = userEvent.setup()
+
+    render(<AdminShortcut token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('configured')
+
+    const toggle = screen.getByRole('checkbox')
+    expect(toggle).not.toBeChecked()
+
+    await user.click(toggle)
+
+    expect(toggle).toBeChecked()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/shortcut/writes')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ enabled: true })
+  })
+
+  it('shows the write access already on, and lets it be turned off', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true, writesEnabled: true }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: false }) })
+    const user = userEvent.setup()
+
+    render(<AdminShortcut token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('configured')
+
+    expect(screen.getByRole('checkbox')).toBeChecked()
+
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ enabled: false })
+    })
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('surfaces an error when the write access cannot be saved', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true }))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'Boom.' }) })
+    const user = userEvent.setup()
+
+    render(<AdminShortcut token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('configured')
+
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Boom.')).toBeInTheDocument()
   })
 
   it('logs out on a 401', async () => {

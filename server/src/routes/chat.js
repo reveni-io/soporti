@@ -251,6 +251,7 @@ export default function chatRoute(conversationStore) {
         skillArguments: trimmedMessage,
         userId: req.user.id,
         conversationId,
+        interactive: true,
         onArtifactPublished: artifact => publishedArtifacts.push(artifact),
         onNestedToolCall: startToolCall,
         onNestedToolResult: finishToolCall,
