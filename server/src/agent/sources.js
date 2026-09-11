@@ -24,13 +24,20 @@ export function buildSourcePolicy(selectedSources) {
 
 const REPO_TOOLS = new Set(['get_directory_contents', 'get_file_contents', 'search_code'])
 
-export const SHORTCUT_WRITE_TOOL_NAMES = [
-  'get_my_shortcut_member',
-  'list_shortcut_teams',
-  'create_shortcut_story',
-  'update_shortcut_story',
-  'add_shortcut_comment',
-]
+export const INTEGRATION_WRITE_TOOL_NAMES = {
+  shortcut: [
+    'get_my_shortcut_member',
+    'list_shortcut_teams',
+    'create_shortcut_story',
+    'update_shortcut_story',
+    'add_shortcut_comment',
+  ],
+  figma: ['post_figma_comment'],
+}
+
+export function hasWriteTools(integrationId, toolNames) {
+  return (INTEGRATION_WRITE_TOOL_NAMES[integrationId] ?? []).some(name => toolNames.has(name))
+}
 
 export const INTEGRATION_TOOL_NAMES = {
   shortcut: [
@@ -40,7 +47,7 @@ export const INTEGRATION_TOOL_NAMES = {
     'get_shortcut_iteration_stories',
     'list_shortcut_epics',
     'list_shortcut_members',
-    ...SHORTCUT_WRITE_TOOL_NAMES,
+    ...INTEGRATION_WRITE_TOOL_NAMES.shortcut,
   ],
   notion: ['search_notion_pages', 'get_notion_page'],
   'google-drive': ['search_drive_files', 'get_drive_file', 'list_drive_files'],
@@ -49,6 +56,13 @@ export const INTEGRATION_TOOL_NAMES = {
   betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
   helpjuice: ['search_helpjuice_articles', 'get_helpjuice_article'],
   granola: ['search_granola_notes', 'get_granola_note'],
+  figma: [
+    'get_figma_file',
+    'get_figma_node',
+    'get_figma_screenshot',
+    'list_figma_comments',
+    ...INTEGRATION_WRITE_TOOL_NAMES.figma,
+  ],
   shopify: [
     'get_shopify_order',
     'search_shopify_orders',

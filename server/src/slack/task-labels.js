@@ -35,6 +35,11 @@ const TOOL_LABELS = {
   get_shopify_product: { label: 'Reading Shopify product', arg: 'productId' },
   get_shopify_webhooks: { label: 'Listing Shopify webhooks' },
   shopify_graphql_query: { label: 'Querying Shopify' },
+  get_figma_file: { label: 'Reading Figma file', arg: 'file' },
+  get_figma_node: { label: 'Reading Figma layers', arg: 'nodeId' },
+  get_figma_screenshot: { label: 'Rendering Figma design', arg: 'nodeId' },
+  list_figma_comments: { label: 'Reading Figma comments', arg: 'file' },
+  post_figma_comment: { label: 'Commenting on Figma design', arg: 'nodeId' },
 }
 
 function parseArguments(rawArguments) {

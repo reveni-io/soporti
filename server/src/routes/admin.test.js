@@ -65,6 +65,11 @@ const setShortcutToken = vi.fn()
 const getShortcutWritesEnabled = vi.fn(async () => false)
 const setShortcutWritesEnabled = vi.fn()
 
+const getFigmaToken = vi.fn()
+const setFigmaToken = vi.fn()
+const getFigmaCommentsEnabled = vi.fn(async () => false)
+const setFigmaCommentsEnabled = vi.fn()
+
 const getSentryToken = vi.fn()
 const setSentryToken = vi.fn()
 const getSentryOrg = vi.fn()
@@ -115,6 +120,7 @@ const isPostgresConfigured = vi.fn()
 const isBetterstackConfigured = vi.fn()
 const isGranolaConfigured = vi.fn()
 const isShopifyConfigured = vi.fn()
+const isFigmaConfigured = vi.fn()
 const INTEGRATION_CHECK_MOCKS = [
   isShortcutConfigured,
   isSentryConfigured,
@@ -125,6 +131,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isBetterstackConfigured,
   isGranolaConfigured,
   isShopifyConfigured,
+  isFigmaConfigured,
 ]
 
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
@@ -134,6 +141,13 @@ vi.mock('../auth/auth-methods.js', () => ({ getAuthMethods, setAuthMethods }))
 vi.mock('../auth/google-settings.js', () => ({ getGoogleClientId, setGoogleClientId }))
 vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCredentials, isDriveConfigured }))
 vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken, isNotionConfigured }))
+vi.mock('../figma/settings.js', () => ({
+  getFigmaToken,
+  setFigmaToken,
+  getFigmaCommentsEnabled,
+  setFigmaCommentsEnabled,
+  isFigmaConfigured,
+}))
 vi.mock('../shortcut/settings.js', () => ({
   getShortcutToken,
   setShortcutToken,
@@ -298,6 +312,10 @@ beforeEach(() => {
   setSentryToken.mockReset()
   getSentryOrg.mockReset()
   setSentryOrg.mockReset()
+  getFigmaToken.mockReset()
+  setFigmaToken.mockReset()
+  getFigmaCommentsEnabled.mockReset().mockResolvedValue(false)
+  setFigmaCommentsEnabled.mockReset().mockResolvedValue(undefined)
   getBetterstackApiToken.mockReset()
   setBetterstackApiToken.mockReset()
   getBetterstackConnectHost.mockReset()
@@ -709,6 +727,111 @@ describe('PUT /api/admin/config/notion/token', () => {
       400
     )
     expect(setNotionToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/admin/config/figma', () => {
+  it('reports token presence and the comment switch without ever returning the token', async () => {
+    getFigmaToken.mockResolvedValue('figd_secret')
+    getFigmaCommentsEnabled.mockResolvedValue(true)
+
+    const res = await request(app).get('/api/admin/config/figma')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tokenConfigured: true, commentsEnabled: true })
+    expect(JSON.stringify(res.body)).not.toContain('figd_secret')
+  })
+
+  it('reports an unconfigured token', async () => {
+    getFigmaToken.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/admin/config/figma')
+
+    expect(res.body).toEqual({ tokenConfigured: false, commentsEnabled: false })
+  })
+
+  it('returns 500 when the settings cannot be read', async () => {
+    getFigmaToken.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/config/figma')
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to read the Figma settings.')
+  })
+})
+
+describe('PUT /api/admin/config/figma/token', () => {
+  it('saves a trimmed token', async () => {
+    const res = await request(app).put('/api/admin/config/figma/token').send({ token: '  figd_new  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tokenConfigured: true })
+    expect(setFigmaToken).toHaveBeenCalledWith('figd_new')
+  })
+
+  it('clears the token with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/figma/token').send({ token: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tokenConfigured: false })
+    expect(setFigmaToken).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings and token-shaped garbage', async () => {
+    expect((await request(app).put('/api/admin/config/figma/token').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/figma/token').send({ token: 42 })).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/figma/token').send({ token: 'has spaces inside' })).status).toBe(
+      400
+    )
+    expect(
+      (
+        await request(app)
+          .put('/api/admin/config/figma/token')
+          .send({ token: 'x'.repeat(301) })
+      ).status
+    ).toBe(400)
+    expect(setFigmaToken).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the token cannot be saved', async () => {
+    setFigmaToken.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/figma/token').send({ token: 'figd_new' })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to save the Figma token.')
+  })
+})
+
+describe('PUT /api/admin/config/figma/comments', () => {
+  it('enables the comment tool', async () => {
+    const res = await request(app).put('/api/admin/config/figma/comments').send({ enabled: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ commentsEnabled: true })
+    expect(setFigmaCommentsEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('disables it again', async () => {
+    const res = await request(app).put('/api/admin/config/figma/comments').send({ enabled: false })
+
+    expect(res.body).toEqual({ commentsEnabled: false })
+    expect(setFigmaCommentsEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('rejects anything that is not a boolean', async () => {
+    expect((await request(app).put('/api/admin/config/figma/comments').send({})).status).toBe(400)
+    expect((await request(app).put('/api/admin/config/figma/comments').send({ enabled: 'yes' })).status).toBe(400)
+    expect(setFigmaCommentsEnabled).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the switch cannot be saved', async () => {
+    setFigmaCommentsEnabled.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/figma/comments').send({ enabled: true })
+
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Failed to save the Figma comment access.')
   })
 })
 

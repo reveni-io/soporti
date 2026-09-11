@@ -7,6 +7,7 @@ import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
 import * as granola from '../granola/client.js'
+import * as figma from '../figma/client.js'
 import { ALWAYS_AVAILABLE_INTEGRATIONS, INTEGRATIONS } from '../agent/integrations.js'
 
 export const GITHUB_INTEGRATION_ID = 'github'
@@ -38,6 +39,7 @@ const CATALOG = [
   catalogEntry('sentry', 'Inspect production errors and issues', sentry.isConfigured),
   catalogEntry('granola', 'Search and read your own meeting notes', granola.isConfigured),
   catalogEntry('betterstack', 'Search and query application logs', betterstack.isConfigured),
+  catalogEntry('figma', 'Look at Figma designs, render screenshots and read their comments', figma.isConfigured),
 ]
 
 export async function listConfiguredIntegrations(userId) {

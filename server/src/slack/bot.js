@@ -8,6 +8,7 @@ import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
 import * as betterstack from '../betterstack/client.js'
+import * as figma from '../figma/client.js'
 import { YOLO_SOURCE } from '../agent/sources.js'
 import { processMessage } from './handler.js'
 import { getSlackSettings } from './settings.js'
@@ -142,6 +143,14 @@ async function buildSourceSelectorBlocks(question, repos) {
       text: { type: 'plain_text', text: 'Better Stack' },
       description: { type: 'plain_text', text: 'Search and query application logs' },
       value: 'integration:betterstack',
+    })
+  }
+
+  if (await figma.isConfigured()) {
+    sourceOptions.push({
+      text: { type: 'plain_text', text: 'Figma' },
+      description: { type: 'plain_text', text: 'Look at Figma designs, render screenshots and read their comments' },
+      value: 'integration:figma',
     })
   }
 

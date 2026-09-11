@@ -57,6 +57,10 @@ vi.mock('./AdminShopify/AdminShopify.jsx', () => ({
   default: () => <div data-testid="admin-shopify" />,
 }))
 
+vi.mock('./AdminFigma/AdminFigma.jsx', () => ({
+  default: () => <div data-testid="admin-figma" />,
+}))
+
 vi.mock('./AdminShortcut/AdminShortcut.jsx', () => ({
   default: () => <div data-testid="admin-shortcut" />,
 }))

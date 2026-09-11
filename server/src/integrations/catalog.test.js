@@ -9,6 +9,7 @@ const shortcutIsConfigured = vi.fn()
 const sentryIsConfigured = vi.fn()
 const betterstackIsConfigured = vi.fn()
 const granolaIsConfigured = vi.fn()
+const figmaIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({ isConfigured: (...args) => notionIsConfigured(...args) }))
 vi.mock('../postgres/client.js', () => ({ isConfigured: (...args) => postgresIsConfigured(...args) }))
@@ -19,6 +20,7 @@ vi.mock('../shortcut/client.js', () => ({ isConfigured: (...args) => shortcutIsC
 vi.mock('../sentry/client.js', () => ({ isConfigured: (...args) => sentryIsConfigured(...args) }))
 vi.mock('../betterstack/client.js', () => ({ isConfigured: (...args) => betterstackIsConfigured(...args) }))
 vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsConfigured(...args) }))
+vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigured(...args) }))
 
 const { listConfiguredIntegrations, GITHUB_INTEGRATION_ID } = await import('./catalog.js')
 
@@ -32,6 +34,7 @@ function configureAll(value) {
   sentryIsConfigured.mockResolvedValue(value)
   betterstackIsConfigured.mockResolvedValue(value)
   granolaIsConfigured.mockResolvedValue(value)
+  figmaIsConfigured.mockResolvedValue(value)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -53,6 +56,7 @@ describe('listConfiguredIntegrations', () => {
       'sentry',
       'granola',
       'betterstack',
+      'figma',
     ])
     expect(integrations.find(integration => integration.id === 'betterstack')).toEqual({
       id: 'betterstack',
@@ -80,6 +84,7 @@ describe('listConfiguredIntegrations', () => {
       'google-drive': true,
       granola: true,
       betterstack: true,
+      figma: true,
     })
   })
 

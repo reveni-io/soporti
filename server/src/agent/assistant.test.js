@@ -73,6 +73,10 @@ vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async ()
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
+vi.mock('../figma/settings.js', () => ({
+  isFigmaConfigured: vi.fn(async () => false),
+  getFigmaCommentsEnabled: vi.fn(async () => false),
+}))
 
 const getMainAgentTools = vi.fn(async () => null)
 vi.mock('./settings.js', () => ({ getMainAgentTools: (...args) => getMainAgentTools(...args) }))
@@ -86,6 +90,7 @@ const { isPostgresConfigured } = await import('../postgres/settings.js')
 const { isBetterstackConfigured } = await import('../betterstack/settings.js')
 const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js')
 const { isGranolaConfigured } = await import('../granola/settings.js')
+const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -99,6 +104,8 @@ const CONFIGURATION_CHECKS = [
   isBetterstackConfigured,
   isShopifyConfigured,
   isGranolaConfigured,
+  isFigmaConfigured,
+  getFigmaCommentsEnabled,
 ]
 
 describe('createAgent', () => {
@@ -388,6 +395,59 @@ describe('createAgent', () => {
     expect(readOnly.instructions).not.toContain('### Filing and changing stories')
   })
 
+  it('passes the Figma comment switch to the tool builder and adds the comment rules only when the tool survived', async () => {
+    isFigmaConfigured.mockResolvedValue(true)
+    getFigmaCommentsEnabled.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'get_figma_file', 'post_figma_comment']))
+
+    const withComments = await createAgent(['integration:figma'], 'support')
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ figmaConfigured: true }),
+      expect.objectContaining({ figmaComments: true })
+    )
+    expect(withComments.instructions).toContain('## Figma integration')
+    expect(withComments.instructions).toContain('### Commenting on designs')
+
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'get_figma_file']))
+    const readOnly = await createAgent(['integration:figma'], 'support')
+
+    expect(readOnly.instructions).toContain('## Figma integration')
+    expect(readOnly.instructions).toContain('get_figma_screenshot')
+    expect(readOnly.instructions).not.toContain('### Commenting on designs')
+  })
+
+  it('leaves the Figma comment tool out when the token is missing, even with the switch on', async () => {
+    getFigmaCommentsEnabled.mockResolvedValue(true)
+
+    await createAgent(['integration:figma'], 'support')
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ figmaConfigured: false }),
+      expect.objectContaining({ figmaComments: false })
+    )
+  })
+
+  it('tells the model to embed Figma renders only in a web conversation', async () => {
+    isFigmaConfigured.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'get_figma_screenshot']))
+
+    const web = await createAgent(['integration:figma'], 'support', { conversationId: 'conv-1' })
+    expect(web.instructions).toContain('embed the render in your reply')
+
+    const slack = await createAgent(['integration:figma'], 'support')
+    expect(slack.instructions).toContain('This channel does not display images')
+  })
+
+  it('tells the model when Figma is selected but not configured', async () => {
+    const agent = await createAgent(['integration:figma'], 'support')
+
+    expect(agent.instructions).not.toContain('## Figma integration')
+    expect(agent.instructions).toContain('Figma is selected but not configured in this app')
+  })
+
   it('forwards the resolved integration availability to the tool builder', async () => {
     isBetterstackConfigured.mockResolvedValue(true)
 
@@ -396,7 +456,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
       expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
+      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
     )
   })
 
@@ -409,7 +469,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: true }),
-      { userId: 7, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
+      { userId: 7, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
     )
   })
 
@@ -422,7 +482,7 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false }
+      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
     )
   })
 })

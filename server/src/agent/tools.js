@@ -18,6 +18,7 @@ import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
 import * as granola from '../granola/client.js'
+import * as figma from '../figma/client.js'
 import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
@@ -789,6 +790,122 @@ export function buildGranolaTools(userId) {
   ]
 }
 
+const DEFAULT_FIGMA_NODE_DEPTH = 3
+const MAX_FIGMA_NODE_DEPTH = 8
+const DEFAULT_FIGMA_SCALE = 1
+const MIN_FIGMA_SCALE = 0.5
+const MAX_FIGMA_SCALE = 2
+const FIGMA_IMAGE_URL_TTL_DAYS = 30
+
+const FIGMA_FILE_PARAM = z
+  .string()
+  .describe('Figma file URL (any figma.com/design, /file or /proto link, node-id included) or the bare file key.')
+
+const FIGMA_NODE_ID_PARAM = z
+  .string()
+  .nullable()
+  .default(null)
+  .describe('Node id such as "12:345" or "12-345". Null uses the node-id carried by the file URL.')
+
+export const getFigmaFileTool = tool({
+  name: 'get_figma_file',
+  description:
+    'Get an overview of a Figma file: its name, when it was last modified, its pages and the top-level frames of each page with their ids and sizes. Start here when the user shares a Figma link without a node-id or asks what a file contains, then drill into a frame with get_figma_node or get_figma_screenshot.',
+  parameters: z.object({
+    file: FIGMA_FILE_PARAM,
+  }),
+  execute: async input => {
+    const file = await figma.getFile(input.file)
+    return JSON.stringify(file)
+  },
+})
+
+export const getFigmaNodeTool = tool({
+  name: 'get_figma_node',
+  description:
+    'Read the layer tree of a Figma frame, component or layer: names, types, sizes, every text with its font, solid fill colors, corner radii, auto-layout direction and the component each instance comes from. Use it for questions about the copy, colors, spacing or structure of a screen, and to compare a design against the code. Pair it with get_figma_screenshot to also see the design. When `truncated` is true the tree was cut short — ask for a smaller node or a lower depth.',
+  parameters: z.object({
+    file: FIGMA_FILE_PARAM,
+    nodeId: FIGMA_NODE_ID_PARAM,
+    depth: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_FIGMA_NODE_DEPTH)
+      .default(DEFAULT_FIGMA_NODE_DEPTH)
+      .describe(
+        `Levels of children to include. Default ${DEFAULT_FIGMA_NODE_DEPTH}, max ${MAX_FIGMA_NODE_DEPTH}. Raise it for deeply nested frames.`
+      ),
+  }),
+  execute: async input => {
+    const node = await figma.getNode(input.file, input.nodeId, input.depth)
+    return JSON.stringify(node)
+  },
+})
+
+export const getFigmaScreenshotTool = tool({
+  name: 'get_figma_screenshot',
+  description: `Render a Figma frame or layer as a PNG and look at it. The image comes back to you so you can describe, review or compare the design; \`imageUrl\` is a public link to that render that expires after ${FIGMA_IMAGE_URL_TTL_DAYS} days, and \`url\` is the permanent link to the node in Figma.`,
+  parameters: z.object({
+    file: FIGMA_FILE_PARAM,
+    nodeId: FIGMA_NODE_ID_PARAM,
+    scale: z
+      .number()
+      .min(MIN_FIGMA_SCALE)
+      .max(MAX_FIGMA_SCALE)
+      .default(DEFAULT_FIGMA_SCALE)
+      .describe(
+        `Render scale between ${MIN_FIGMA_SCALE} and ${MAX_FIGMA_SCALE}. Default ${DEFAULT_FIGMA_SCALE}; lower it for very large frames.`
+      ),
+  }),
+  execute: async input => {
+    const rendered = await figma.renderNode(input.file, input.nodeId, input.scale)
+
+    return [
+      { type: 'text', text: JSON.stringify(rendered) },
+      { type: 'image', image: rendered.imageUrl },
+    ]
+  },
+})
+
+export const listFigmaCommentsTool = tool({
+  name: 'list_figma_comments',
+  description:
+    'List the comments on a Figma file, oldest first, with their id, author, text, the node they are pinned to, the comment they reply to and whether they are resolved. `total` counts every comment on the file while at most 100 are returned. Use it for questions about the feedback on a design, and before posting a comment so you reply to an existing thread instead of opening a duplicate.',
+  parameters: z.object({
+    file: FIGMA_FILE_PARAM,
+  }),
+  execute: async input => {
+    const result = await figma.listComments(input.file)
+    return JSON.stringify(result)
+  },
+})
+
+export const postFigmaCommentTool = tool({
+  name: 'post_figma_comment',
+  description: `Post a comment on a Figma file, pinned to a node or as a reply to an existing comment. This WRITES to Figma: only call it when the user asked for a comment and has approved its exact text. Figma signs every comment with the account the personal access token belongs to, so when the user is not that account, open the message with who it is from ("From Ana via Soporti: …").`,
+  parameters: z.object({
+    file: FIGMA_FILE_PARAM,
+    message: z.string().describe('The comment text, exactly as approved by the user.'),
+    nodeId: FIGMA_NODE_ID_PARAM.describe(
+      'Node id to pin the comment to. Null uses the node-id carried by the file URL. Ignored for replies, which stay in their thread.'
+    ),
+    replyTo: z
+      .string()
+      .nullable()
+      .default(null)
+      .describe('Id of the comment to reply to, from list_figma_comments. Null opens a new thread.'),
+  }),
+  execute: async input => {
+    const comment = await figma.postComment(input.file, {
+      message: input.message,
+      nodeId: input.nodeId,
+      replyTo: input.replyTo,
+    })
+    return JSON.stringify(comment)
+  },
+})
+
 const SHORTCUT_TOOLS = [
   getShortcutStoryTool,
   searchShortcutStoriesTool,
@@ -801,6 +918,8 @@ const SENTRY_TOOLS = [getSentryIssueTool, searchSentryIssuesTool]
 export const BETTERSTACK_TOOLS = [listLogSourcesTool, describeLogSourceTool, searchLogsTool, queryLogsTool]
 const DRIVE_TOOLS = [searchDriveFilesTool, getDriveFileTool, listDriveFilesTool]
 const NOTION_TOOLS = [searchNotionPagesTool, getNotionPageTool]
+const FIGMA_TOOLS = [getFigmaFileTool, getFigmaNodeTool, getFigmaScreenshotTool, listFigmaCommentsTool]
+const FIGMA_WRITE_TOOLS = [postFigmaCommentTool]
 const HELPJUICE_TOOLS = [searchHelpjuiceArticlesTool, getHelpjuiceArticleTool]
 const POSTGRES_TOOLS = [listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool, queryDatabaseTool]
 const SHOPIFY_TOOLS = [
@@ -834,6 +953,7 @@ const INTEGRATION_TOOLS = {
   helpjuice: HELPJUICE_TOOLS,
   shopify: SHOPIFY_TOOLS,
   granola: ({ userId }) => buildGranolaTools(userId),
+  figma: ({ figmaComments }) => (figmaComments ? [...FIGMA_TOOLS, ...FIGMA_WRITE_TOOLS] : FIGMA_TOOLS),
 }
 
 export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])

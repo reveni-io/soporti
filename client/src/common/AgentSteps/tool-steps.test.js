@@ -6,6 +6,11 @@ describe('describeToolCall', () => {
     expect(describeToolCall({ tool: 'search_sentry_issues', input: {} }).label).toBe('Searching Sentry')
   })
 
+  it('labels the Figma tools', () => {
+    expect(describeToolCall({ tool: 'get_figma_screenshot', input: {} }).label).toBe('Rendering Figma design')
+    expect(describeToolCall({ tool: 'post_figma_comment', input: {} }).label).toBe('Commenting on Figma design')
+  })
+
   it('humanizes an unknown tool name', () => {
     expect(describeToolCall({ tool: 'inspect_widget_state', input: {} }).label).toBe('Inspect widget state')
   })

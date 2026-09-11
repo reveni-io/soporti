@@ -613,6 +613,28 @@ export function saveShortcutWrites(token, enabled) {
   })
 }
 
+export function getFigmaConfig(token) {
+  return request('/api/admin/config/figma', { token, errorMessage: 'Failed to load the Figma settings' })
+}
+
+export function saveFigmaToken(token, value) {
+  return request('/api/admin/config/figma/token', {
+    method: 'PUT',
+    token,
+    body: { token: value },
+    errorMessage: 'Failed to save the token',
+  })
+}
+
+export function saveFigmaComments(token, enabled) {
+  return request('/api/admin/config/figma/comments', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the comment access',
+  })
+}
+
 export function getSentryConfig(token) {
   return request('/api/admin/config/sentry', { token, errorMessage: 'Failed to load the Sentry settings' })
 }

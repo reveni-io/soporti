@@ -6,15 +6,30 @@ import {
   collectConsultedSources,
   buildSourcesFooter,
   INTEGRATION_TOOL_NAMES,
-  SHORTCUT_WRITE_TOOL_NAMES,
+  INTEGRATION_WRITE_TOOL_NAMES,
+  hasWriteTools,
 } from './sources.js'
 
-describe('INTEGRATION_TOOL_NAMES', () => {
-  it('lists the Shortcut write tools as part of the Shortcut group, so they can be granted and labelled', () => {
-    expect(SHORTCUT_WRITE_TOOL_NAMES).toContain('create_shortcut_story')
-    for (const name of SHORTCUT_WRITE_TOOL_NAMES) {
-      expect(INTEGRATION_TOOL_NAMES.shortcut).toContain(name)
+describe('INTEGRATION_WRITE_TOOL_NAMES', () => {
+  it('lists every write tool inside its integration group, so it can be granted and labelled', () => {
+    expect(INTEGRATION_WRITE_TOOL_NAMES.shortcut).toContain('create_shortcut_story')
+    expect(INTEGRATION_WRITE_TOOL_NAMES.figma).toEqual(['post_figma_comment'])
+    for (const [id, names] of Object.entries(INTEGRATION_WRITE_TOOL_NAMES)) {
+      for (const name of names) expect(INTEGRATION_TOOL_NAMES[id], id).toContain(name)
     }
+  })
+})
+
+describe('hasWriteTools', () => {
+  it('tells whether any write tool of an integration survived', () => {
+    expect(hasWriteTools('shortcut', new Set(['get_shortcut_story', 'add_shortcut_comment']))).toBe(true)
+    expect(hasWriteTools('shortcut', new Set(['get_shortcut_story']))).toBe(false)
+    expect(hasWriteTools('figma', new Set(['post_figma_comment']))).toBe(true)
+    expect(hasWriteTools('figma', new Set())).toBe(false)
+  })
+
+  it('is false for integrations without write tools', () => {
+    expect(hasWriteTools('notion', new Set(['search_notion_pages']))).toBe(false)
   })
 })
 
@@ -89,9 +104,10 @@ describe('collectConsultedSources', () => {
       { name: 'search_helpjuice_articles', arguments: '{}' },
       { name: 'get_sentry_issue', arguments: '{}' },
       { name: 'get_shortcut_story', arguments: '{}' },
+      { name: 'get_figma_screenshot', arguments: '{}' },
     ]
     const { integrations } = collectConsultedSources(calls)
-    expect(integrations).toEqual(['Notion', 'Database', 'Shopify', 'Helpjuice', 'Sentry', 'Shortcut'])
+    expect(integrations).toEqual(['Notion', 'Database', 'Shopify', 'Helpjuice', 'Sentry', 'Shortcut', 'Figma'])
   })
 
   it('credits Granola for either of its note tools', () => {

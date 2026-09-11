@@ -16,6 +16,13 @@ import {
 } from '../shortcut/settings.js'
 import { getSentryToken, setSentryToken, getSentryOrg, setSentryOrg } from '../sentry/settings.js'
 import {
+  getFigmaToken,
+  getFigmaCommentsEnabled,
+  setFigmaToken,
+  setFigmaCommentsEnabled,
+  isFigmaConfigured,
+} from '../figma/settings.js'
+import {
   getBetterstackApiToken,
   setBetterstackApiToken,
   getBetterstackConnectHost,
@@ -127,6 +134,7 @@ const INTEGRATION_CHECKS = {
   helpjuice: isHelpjuiceConfigured,
   shopify: isShopifyConfigured,
   granola: isGranolaConfigured,
+  figma: isFigmaConfigured,
 }
 
 function validEmail(email) {
@@ -945,6 +953,49 @@ router.put('/config/shortcut/writes', async (req, res) => {
   } catch (err) {
     console.error('Admin set shortcut writes error:', err)
     res.status(500).json({ error: 'Failed to save the Shortcut write access.' })
+  }
+})
+
+router.get('/config/figma', async (_req, res) => {
+  try {
+    const [token, commentsEnabled] = await Promise.all([getFigmaToken(), getFigmaCommentsEnabled()])
+    res.json({ tokenConfigured: Boolean(token), commentsEnabled })
+  } catch (err) {
+    console.error('Admin get figma config error:', err)
+    res.status(500).json({ error: 'Failed to read the Figma settings.' })
+  }
+})
+
+router.put('/config/figma/token', async (req, res) => {
+  const { error, value } = parseSecret(req.body?.token, {
+    field: 'token',
+    maxLength: API_KEY_MAX_LENGTH,
+    message: 'That does not look like a valid Figma personal access token.',
+  })
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setFigmaToken(value)
+    res.json({ tokenConfigured: value.length > 0 })
+  } catch (err) {
+    console.error('Admin set figma token error:', err)
+    res.status(500).json({ error: 'Failed to save the Figma token.' })
+  }
+})
+
+router.put('/config/figma/comments', async (req, res) => {
+  const { enabled } = req.body ?? {}
+
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: '"enabled" must be a boolean.' })
+  }
+
+  try {
+    await setFigmaCommentsEnabled(enabled)
+    res.json({ commentsEnabled: enabled })
+  } catch (err) {
+    console.error('Admin set figma comments error:', err)
+    res.status(500).json({ error: 'Failed to save the Figma comment access.' })
   }
 })
 

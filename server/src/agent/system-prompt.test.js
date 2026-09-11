@@ -21,6 +21,7 @@ const ALL_CONFIGURED = {
   shopifyConfigured: true,
   betterstackConfigured: true,
   granolaConfigured: true,
+  figmaConfigured: true,
 }
 
 describe('constants', () => {
@@ -48,9 +49,49 @@ describe('buildBasePrompt', () => {
       'Better Stack',
       'Helpjuice',
       'Shopify',
+      'Figma',
     ]) {
       expect(prompt).toContain(`## ${section} integration`)
     }
+  })
+
+  it('adds the Figma comment rules only when the comment tool was registered', () => {
+    const withComments = buildBasePrompt(buildSourcePolicy(['integration:figma']), {
+      configured: ALL_CONFIGURED,
+      toolNames: new Set(['get_figma_file', 'post_figma_comment']),
+    })
+
+    expect(withComments).toContain('## Figma integration')
+    expect(withComments).toContain('### Commenting on designs')
+    expect(withComments).toContain('Only comment when asked to')
+
+    const readOnly = buildBasePrompt(buildSourcePolicy(['integration:figma']), { configured: ALL_CONFIGURED })
+
+    expect(readOnly).toContain('## Figma integration')
+    expect(readOnly).toContain('get_figma_screenshot')
+    expect(readOnly).not.toContain('### Commenting on designs')
+  })
+
+  it('never mentions the Figma comment rules when Figma itself is not configured', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:figma']), {
+      configured: { sentryConfigured: true },
+      toolNames: new Set(['post_figma_comment']),
+    })
+
+    expect(prompt).not.toContain('## Figma integration')
+    expect(prompt).not.toContain('### Commenting on designs')
+  })
+
+  it('tells the model to embed Figma renders only where the channel displays images', () => {
+    const policy = buildSourcePolicy(['integration:figma'])
+
+    const web = buildBasePrompt(policy, { configured: ALL_CONFIGURED, rendersMarkdownImages: true })
+    expect(web).toContain('embed the render in your reply as `![frame name](imageUrl)`')
+    expect(web).not.toContain('This channel does not display images')
+
+    const text = buildBasePrompt(policy, { configured: ALL_CONFIGURED })
+    expect(text).toContain('This channel does not display images')
+    expect(text).not.toContain('embed the render in your reply')
   })
 
   it('omits the artifacts section when no panel can render one', () => {
@@ -192,7 +233,7 @@ describe('buildBasePrompt', () => {
   it('adds the Shortcut write rules only when the write tools were registered', () => {
     const withWrites = buildBasePrompt(buildSourcePolicy(['owner/repo']), {
       configured: ALL_CONFIGURED,
-      hasShortcutWrites: true,
+      toolNames: new Set(['get_shortcut_story', 'create_shortcut_story']),
     })
 
     expect(withWrites).toContain('### Filing and changing stories')
@@ -207,7 +248,7 @@ describe('buildBasePrompt', () => {
   it('never mentions the Shortcut write rules when Shortcut itself is not configured', () => {
     const prompt = buildBasePrompt(buildSourcePolicy(['owner/repo']), {
       configured: { sentryConfigured: true },
-      hasShortcutWrites: true,
+      toolNames: new Set(['create_shortcut_story']),
     })
 
     expect(prompt).not.toContain('### Filing and changing stories')
@@ -375,6 +416,12 @@ describe('buildSourceInstructions', () => {
     expect(result).toContain('owner/repo1')
     expect(result).toContain('owner/repo2')
     expect(result).toContain('selected the following repos')
+  })
+
+  it('adds Figma integration instructions', () => {
+    const result = buildSourceInstructions(['integration:figma'], { figmaConfigured: true })
+    expect(result).toContain('**Figma**')
+    expect(result).toContain('get_figma_screenshot')
   })
 
   it('adds Notion integration instructions', () => {
