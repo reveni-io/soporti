@@ -53,6 +53,10 @@ vi.mock('../github/client.js', () => ({
   listRepos: vi.fn(),
 }))
 
+vi.mock('../figma/client.js', () => ({
+  isConfigured: vi.fn(() => false),
+}))
+
 vi.mock('../notion/client.js', () => ({
   isConfigured: vi.fn(() => false),
 }))
@@ -401,6 +405,7 @@ describe('Slack bot', () => {
       const shopify = await import('../shopify/client.js')
       const googleDrive = await import('../google-drive/client.js')
       const betterstack = await import('../betterstack/client.js')
+      const figma = await import('../figma/client.js')
 
       notion.isConfigured.mockReturnValue(true)
       postgres.isConfigured.mockReturnValue(true)
@@ -408,6 +413,7 @@ describe('Slack bot', () => {
       shopify.isConfigured.mockReturnValue(true)
       googleDrive.isConfigured.mockReturnValue(true)
       betterstack.isConfigured.mockReturnValue(true)
+      figma.isConfigured.mockReturnValue(true)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -432,15 +438,18 @@ describe('Slack bot', () => {
       expect(values).toContain('integration:shopify')
       expect(values).toContain('integration:google-drive')
       expect(values).toContain('integration:betterstack')
+      expect(values).toContain('integration:figma')
     })
 
     it('omits integration source options when their integrations are not configured', async () => {
       const notion = await import('../notion/client.js')
       const googleDrive = await import('../google-drive/client.js')
       const betterstack = await import('../betterstack/client.js')
+      const figma = await import('../figma/client.js')
       notion.isConfigured.mockReturnValue(false)
       googleDrive.isConfigured.mockReturnValue(false)
       betterstack.isConfigured.mockReturnValue(false)
+      figma.isConfigured.mockReturnValue(false)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -462,6 +471,7 @@ describe('Slack bot', () => {
       expect(values).not.toContain('integration:notion')
       expect(values).not.toContain('integration:google-drive')
       expect(values).not.toContain('integration:betterstack')
+      expect(values).not.toContain('integration:figma')
     })
 
     it('adds thread context into the question sent to processMessage', async () => {

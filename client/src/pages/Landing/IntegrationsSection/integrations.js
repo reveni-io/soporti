@@ -47,6 +47,11 @@ export const INTEGRATIONS = [
     desc: 'Reads your own meeting notes so a decision made on a call is an answer, not something you retype. Each person connects their own account — nobody reads anyone else’s.',
   },
   {
+    id: 'figma',
+    name: 'Figma',
+    desc: 'Opens the designs you link: lists pages and frames, reads the layers of a screen — copy, fonts, colors, components — and renders a screenshot it can see and show in the chat. Switch comments on and it can leave feedback on a frame for you.',
+  },
+  {
     id: 'shortcut',
     name: 'Shortcut',
     desc: 'Fetches stories, epics, status and acceptance criteria so you can track ongoing work from the chat — and, if you switch write access on, files the bug for you, always asking whose name it goes under.',

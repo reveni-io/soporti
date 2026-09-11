@@ -98,6 +98,15 @@ vi.mock('../granola/client.js', () => ({
   DEFAULT_SEARCH_RESULTS: 10,
 }))
 
+vi.mock('../figma/client.js', () => ({
+  getFile: vi.fn(),
+  getNode: vi.fn(),
+  renderNode: vi.fn(),
+  listComments: vi.fn(),
+  postComment: vi.fn(),
+  isConfigured: vi.fn(async () => true),
+}))
+
 vi.mock('../config.js', () => ({
   default: {
     postgres: { connection: 'test' },
@@ -142,6 +151,11 @@ const {
   describeLogSourceTool,
   searchLogsTool,
   queryLogsTool,
+  getFigmaFileTool,
+  getFigmaNodeTool,
+  getFigmaScreenshotTool,
+  listFigmaCommentsTool,
+  postFigmaCommentTool,
   allTools,
   buildRepoTools,
   buildAgentTools,
@@ -457,6 +471,34 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(yolo, { notionConfigured: true }))).toContain('search_notion_pages')
   })
 
+  it('gates the Figma tools on figmaConfigured', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['figma'] }
+    expect(names(buildAgentTools(selection, { figmaConfigured: false }))).not.toContain('get_figma_file')
+    expect(names(buildAgentTools(selection, { figmaConfigured: true }))).toContain('get_figma_screenshot')
+
+    const yolo = { unrestricted: true, repos: [], integrations: [] }
+    expect(names(buildAgentTools(yolo, { figmaConfigured: false }))).not.toContain('get_figma_file')
+    expect(names(buildAgentTools(yolo, { figmaConfigured: true }))).toContain('get_figma_node')
+  })
+
+  it('registers the Figma comment tool only when comments are switched on', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['figma'] }
+
+    expect(names(buildAgentTools(selection, { figmaConfigured: true }))).toEqual([
+      'get_figma_file',
+      'get_figma_node',
+      'get_figma_screenshot',
+      'list_figma_comments',
+    ])
+    expect(names(buildAgentTools(selection, { figmaConfigured: true }, { figmaComments: true }))).toEqual([
+      'get_figma_file',
+      'get_figma_node',
+      'get_figma_screenshot',
+      'list_figma_comments',
+      'post_figma_comment',
+    ])
+  })
+
   it('gates the Helpjuice tools on helpjuiceConfigured', () => {
     const selection = { unrestricted: false, repos: [], integrations: ['helpjuice'] }
     expect(names(buildAgentTools(selection, { helpjuiceConfigured: false }))).not.toContain('search_helpjuice_articles')
@@ -676,6 +718,75 @@ describe('tool execute functions', () => {
     const result = await listShortcutMembersTool.execute({})
     expect(JSON.parse(result)).toEqual({ total: 1, members: [{ id: 'user-1', mention_name: 'sergio' }] })
     expect(shortcut.listMembers).toHaveBeenCalledWith()
+  })
+
+  it('getFigmaFileTool.execute passes the reference through and returns JSON', async () => {
+    const figma = await import('../figma/client.js')
+    figma.getFile.mockResolvedValue({ fileKey: 'Key1234567890', name: 'Checkout', pages: [] })
+
+    const result = await getFigmaFileTool.execute({ file: 'https://www.figma.com/design/Key1234567890/Checkout' })
+
+    expect(figma.getFile).toHaveBeenCalledWith('https://www.figma.com/design/Key1234567890/Checkout')
+    expect(JSON.parse(result)).toEqual({ fileKey: 'Key1234567890', name: 'Checkout', pages: [] })
+  })
+
+  it('getFigmaNodeTool.execute forwards the node id and the depth', async () => {
+    const figma = await import('../figma/client.js')
+    figma.getNode.mockResolvedValue({ nodeId: '1:2', node: { id: '1:2' } })
+
+    const result = await getFigmaNodeTool.execute({ file: 'Key1234567890', nodeId: '1-2', depth: 5 })
+
+    expect(figma.getNode).toHaveBeenCalledWith('Key1234567890', '1-2', 5)
+    expect(JSON.parse(result)).toEqual({ nodeId: '1:2', node: { id: '1:2' } })
+  })
+
+  it('getFigmaScreenshotTool.execute hands the model the render as an image next to the metadata', async () => {
+    const figma = await import('../figma/client.js')
+    const rendered = {
+      fileKey: 'Key1234567890',
+      nodeId: '1:2',
+      url: 'https://www.figma.com/design/Key1234567890?node-id=1-2',
+      imageUrl: 'https://s3.example/render.png',
+      scale: 1,
+    }
+    figma.renderNode.mockResolvedValue(rendered)
+
+    const result = await getFigmaScreenshotTool.execute({ file: 'Key1234567890', nodeId: null, scale: 1 })
+
+    expect(figma.renderNode).toHaveBeenCalledWith('Key1234567890', null, 1)
+    expect(result).toEqual([
+      { type: 'text', text: JSON.stringify(rendered) },
+      { type: 'image', image: 'https://s3.example/render.png' },
+    ])
+  })
+
+  it('listFigmaCommentsTool.execute returns the comments as JSON', async () => {
+    const figma = await import('../figma/client.js')
+    figma.listComments.mockResolvedValue({ total: 1, comments: [{ id: 'c1' }] })
+
+    const result = await listFigmaCommentsTool.execute({ file: 'Key1234567890' })
+
+    expect(figma.listComments).toHaveBeenCalledWith('Key1234567890')
+    expect(JSON.parse(result)).toEqual({ total: 1, comments: [{ id: 'c1' }] })
+  })
+
+  it('postFigmaCommentTool.execute forwards the message, the pin and the thread', async () => {
+    const figma = await import('../figma/client.js')
+    figma.postComment.mockResolvedValue({ id: 'c9', replyTo: 'c1' })
+
+    const result = await postFigmaCommentTool.execute({
+      file: 'Key1234567890',
+      message: 'From Ana via Soporti: enlarge the button',
+      nodeId: '1:2',
+      replyTo: 'c1',
+    })
+
+    expect(figma.postComment).toHaveBeenCalledWith('Key1234567890', {
+      message: 'From Ana via Soporti: enlarge the button',
+      nodeId: '1:2',
+      replyTo: 'c1',
+    })
+    expect(JSON.parse(result)).toEqual({ id: 'c9', replyTo: 'c1' })
   })
 
   it('searchNotionPagesTool.execute calls searchPages and returns JSON', async () => {

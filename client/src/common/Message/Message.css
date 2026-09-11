@@ -143,6 +143,15 @@
   color: var(--link-hover);
 }
 
+.message__bubble--assistant img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--sp2) 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
 .inline-code {
   background-color: var(--bg-cool);
   color: var(--text-primary);

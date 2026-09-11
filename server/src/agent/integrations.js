@@ -8,6 +8,7 @@ export const INTEGRATIONS = {
   helpjuice: { label: 'Helpjuice', flag: 'helpjuiceConfigured' },
   shopify: { label: 'Shopify', flag: 'shopifyConfigured' },
   granola: { label: 'Granola', flag: 'granolaConfigured' },
+  figma: { label: 'Figma', flag: 'figmaConfigured' },
 }
 
 export const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])

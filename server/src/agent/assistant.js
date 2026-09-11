@@ -10,7 +10,7 @@ import {
 } from './system-prompt.js'
 import { buildSubagentTools, claimedToolNames, parentConfiguredFlags, resolveActiveSubagents } from './subagents.js'
 import { getMainAgentTools } from './settings.js'
-import { isYoloMode, buildSourcePolicy, SHORTCUT_WRITE_TOOL_NAMES } from './sources.js'
+import { isYoloMode, buildSourcePolicy } from './sources.js'
 import { buildRepoCatalogPrompt } from './repo-catalog.js'
 import { areShortcutWritesEnabled, isShortcutConfigured } from '../shortcut/settings.js'
 import { isSentryConfigured } from '../sentry/settings.js'
@@ -20,6 +20,7 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
+import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
 import * as shopify from '../shopify/client.js'
 
 export async function createAgent(
@@ -49,7 +50,9 @@ export async function createAgent(
     shopifyConfigured,
     betterstackConfigured,
     granolaConfigured,
+    figmaConfigured,
     shortcutWrites,
+    figmaCommentsEnabled,
     catalogPrompt,
     subagents,
     mainAgentTools,
@@ -63,7 +66,9 @@ export async function createAgent(
     shopify.isConfigured(),
     isBetterstackConfigured(),
     isGranolaConfigured(userId),
+    isFigmaConfigured(),
     areShortcutWritesEnabled(),
+    getFigmaCommentsEnabled(),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
@@ -78,6 +83,7 @@ export async function createAgent(
     shopifyConfigured,
     betterstackConfigured,
     granolaConfigured,
+    figmaConfigured,
   }
 
   const registered = buildAgentTools(policy, configured, {
@@ -85,6 +91,7 @@ export async function createAgent(
     conversationId,
     onArtifactPublished,
     shortcutWrites,
+    figmaComments: figmaConfigured && figmaCommentsEnabled,
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
@@ -95,8 +102,8 @@ export async function createAgent(
   })
   const parentTools = excludeToolsByName(allowed, claimedToolNames(subagents))
 
+  const parentToolNames = new Set(parentTools.map(candidate => candidate.name))
   const hasRepoTools = parentTools.some(candidate => REPO_TOOL_NAMES.has(candidate.name))
-  const hasShortcutWrites = parentTools.some(candidate => SHORTCUT_WRITE_TOOL_NAMES.includes(candidate.name))
   const parentConfigured = parentConfiguredFlags(configured, parentTools)
 
   const sourceInstructions = buildSourceInstructions(selectedSources, parentConfigured, { hasRepoTools })
@@ -110,8 +117,9 @@ export async function createAgent(
       hasActiveSkills: Boolean(skillsPrompt),
       configured: parentConfigured,
       canRenderArtifacts: Boolean(conversationId),
+      rendersMarkdownImages: Boolean(conversationId),
       hasRepoTools,
-      hasShortcutWrites,
+      toolNames: parentToolNames,
     }),
   ]
   parts.push(profileInstructions, `## Current context\n\n${sourceInstructions}`)

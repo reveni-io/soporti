@@ -41,6 +41,11 @@ const TOOL_LABELS = {
   get_shopify_product: 'Reading Shopify product',
   get_shopify_webhooks: 'Reading Shopify webhooks',
   shopify_graphql_query: 'Querying Shopify',
+  get_figma_file: 'Reading Figma file',
+  get_figma_node: 'Reading Figma layers',
+  get_figma_screenshot: 'Rendering Figma design',
+  list_figma_comments: 'Reading Figma comments',
+  post_figma_comment: 'Commenting on Figma design',
   render_artifact: 'Writing artifact',
 }
 

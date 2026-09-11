@@ -1,6 +1,6 @@
 import { MAX_ATTACHMENT_CHARS, PROMPT_SECTION_SEPARATOR, SUBAGENT_TOOL_PREFIX } from '../constants.js'
 import { carriesImage } from '../documents/attachments.js'
-import { isYoloMode, buildSourcePolicy } from './sources.js'
+import { isYoloMode, buildSourcePolicy, hasWriteTools } from './sources.js'
 import {
   INTEGRATIONS,
   ALWAYS_AVAILABLE_INTEGRATIONS,
@@ -149,14 +149,46 @@ You can also write to Shortcut, with create_shortcut_story, update_shortcut_stor
 - **Look for it before creating it.** Search the same symptom with search_shortcut_stories first, and when it is already filed, offer a comment on that story instead of a duplicate.
 - **Report what you did.** Give the story url and say who it was filed for, so the attribution is visible instead of implied.`
 
-function buildShortcutSection(available, { hasShortcutWrites }) {
-  if (!hasShortcutWrites) return SHORTCUT_READ_SECTION
+function withWriteSection(readSection, writeSection) {
+  return (_available, { hasWrites }) => (hasWrites ? [readSection, writeSection].join('\n\n') : readSection)
+}
 
-  return [SHORTCUT_READ_SECTION, SHORTCUT_WRITE_SECTION].join('\n\n')
+const FIGMA_READ_SECTION = `## Figma integration
+
+You have tools to look at designs in Figma. Use them whenever the user shares a figma.com link or asks about a screen, a mockup, a component or the copy of a design.
+
+- **A link carries everything you need.** Pass the URL straight into the \`file\` parameter — the tools extract the file key and the node-id themselves. A link without a node-id points at a whole file: call get_figma_file first to see its pages and frames, then pick the frame the user means.
+- **get_figma_file**: pages and top-level frames with their ids and sizes. The starting point for "what is in this file".
+- **get_figma_node**: the layer tree of a frame — names, types, sizes, every text with its font, solid colors, auto-layout and the components used. Reach for it when the question is about copy, colors, spacing or structure, and when comparing the design with the code.
+- **get_figma_screenshot**: renders a frame and hands you the image so you can actually see it. Call it whenever looking at the design helps; lower the scale for very large frames.
+- **list_figma_comments**: the comment threads on a file, with their author, node and resolution state. Use it for "what feedback is there on this design".
+- Figma's API is read-only for layers: you cannot move, restyle or edit anything in a design. When the user asks for a change, describe precisely what should change — node, property, value — so a designer can apply it.`
+
+const FIGMA_SHOW_RENDER_NOTE = `- **Show the user what you looked at.** After get_figma_screenshot, embed the render in your reply as \`![frame name](imageUrl)\` — the chat displays it as an image. The image link expires after 30 days; the \`url\` field is the permanent link to the node in Figma.`
+
+const FIGMA_LINK_RENDER_NOTE = `- This channel does not display images, so never paste \`imageUrl\` as markdown. Give the user the \`url\` of the node instead, so they can open the design in Figma.`
+
+const FIGMA_WRITE_SECTION = `### Commenting on designs
+
+You can also post comments with post_figma_comment, pinned to a node or as a reply to an existing thread. It is the only thing you can write in Figma, so treat it as a deliberate action.
+
+- **Only comment when asked to.** Show the exact text first and wait for a yes — a user pointing out a problem is not a user asking you to post it.
+- **Say who it is from.** Figma signs every comment with the account the token belongs to, so when the user is someone else, open the comment with their name ("From Ana via Soporti: …") and ask whose name to use instead of assuming.
+- **Check the thread first.** Call list_figma_comments and reply to an existing thread when the same point has already been raised, instead of opening a duplicate.
+- **Report what you did.** Give the comment id and the file url.`
+
+function buildFigmaSection(available, { hasWrites, rendersMarkdownImages }) {
+  const readSection = [
+    FIGMA_READ_SECTION,
+    rendersMarkdownImages ? FIGMA_SHOW_RENDER_NOTE : FIGMA_LINK_RENDER_NOTE,
+  ].join('\n')
+
+  return withWriteSection(readSection, FIGMA_WRITE_SECTION)(available, { hasWrites })
 }
 
 const INTEGRATION_PROMPT_SECTIONS = {
-  shortcut: buildShortcutSection,
+  shortcut: withWriteSection(SHORTCUT_READ_SECTION, SHORTCUT_WRITE_SECTION),
+  figma: buildFigmaSection,
 
   notion: `## Notion integration
 
@@ -387,8 +419,9 @@ export function buildBasePrompt(
     hasActiveSkills = false,
     configured = {},
     canRenderArtifacts = false,
+    rendersMarkdownImages = false,
     hasRepoTools = true,
-    hasShortcutWrites = false,
+    toolNames = new Set(),
   } = {}
 ) {
   const unrestricted = !policy || policy.unrestricted
@@ -402,7 +435,11 @@ export function buildBasePrompt(
 
   for (const id of available) {
     const section = INTEGRATION_PROMPT_SECTIONS[id]
-    if (section) parts.push(typeof section === 'function' ? section(available, { hasShortcutWrites }) : section)
+    if (typeof section === 'function') {
+      parts.push(section(available, { hasWrites: hasWriteTools(id, toolNames), rendersMarkdownImages }))
+    } else if (section) {
+      parts.push(section)
+    }
   }
 
   return parts.join('\n\n')
@@ -421,6 +458,8 @@ const INTEGRATION_INSTRUCTIONS = {
     'The user has enabled the **Better Stack** integration. Use the log tools (list_log_sources, describe_log_source, search_logs, query_logs) to search and aggregate application logs when relevant to the conversation.',
   granola:
     'The user has enabled the **Granola** integration. Use search_granola_notes and get_granola_note to read their own meeting notes when the answer may have been settled in a call; search by company, person or project, since only titles and owners are matched, and cite the note url.',
+  figma:
+    'The user has enabled the **Figma** integration. Use get_figma_file, get_figma_node and get_figma_screenshot to look at the designs they link — pass the figma.com URL straight to the tools — and list_figma_comments for the feedback on them.',
   'google-drive':
     'The user has enabled the **Google Drive** integration. Use search_drive_files and list_drive_files to find documentation and get_drive_file to read it; cite the document url in your answer. Be proactive — search immediately when the Drive docs might answer the question.',
 }

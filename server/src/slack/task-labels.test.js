@@ -19,6 +19,12 @@ describe('describeToolCall', () => {
       title: 'Describing table',
       details: 'orders',
     })
+    expect(
+      describeToolCall('get_figma_screenshot', JSON.stringify({ file: 'https://figma.com/design/k', nodeId: '1:2' }))
+    ).toEqual({
+      title: 'Rendering Figma design',
+      details: '1:2',
+    })
   })
 
   it('omits details for tools whose arguments should not be shown', () => {
