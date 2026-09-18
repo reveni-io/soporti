@@ -18,6 +18,7 @@ export function useComposer({
   const textareaRef = useRef(null)
   const highlightRef = useRef(null)
   const draftedFor = useRef(conversationKey)
+  const wasLoading = useRef(isLoading)
 
   useEffect(() => {
     if (draftedFor.current === conversationKey) return
@@ -25,6 +26,17 @@ export function useComposer({
     draftedFor.current = conversationKey
     setInput('')
   }, [conversationKey])
+
+  useEffect(() => {
+    const finishedLoading = wasLoading.current && !isLoading
+    wasLoading.current = isLoading
+    if (!finishedLoading) return
+
+    const active = document.activeElement
+    if (active !== document.body && active !== textareaRef.current) return
+
+    textareaRef.current?.focus()
+  }, [isLoading])
 
   function syncHighlightScroll() {
     if (highlightRef.current && textareaRef.current) {

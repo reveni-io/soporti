@@ -41,15 +41,24 @@ function fileDrag(files = []) {
 
 describe('ChatComposer', () => {
   it('invites a question when sources are selected', () => {
-    render(<ChatComposer {...BASE_PROPS} />)
+    const { container } = render(<ChatComposer {...BASE_PROPS} />)
 
     expect(screen.getByPlaceholderText('Ask Soporti anything...')).toBeEnabled()
+    expect(container.querySelector('.composer__card')).not.toHaveClass('composer__card--locked')
   })
 
   it('disables the textarea and asks for a source when none is selected', () => {
-    render(<ChatComposer {...BASE_PROPS} hasSourcesSelected={false} />)
+    const { container } = render(<ChatComposer {...BASE_PROPS} hasSourcesSelected={false} />)
 
     expect(screen.getByPlaceholderText('Select a source from the sidebar first...')).toBeDisabled()
+    expect(container.querySelector('.composer__card')).toHaveClass('composer__card--locked')
+  })
+
+  it('locks the textarea and says Soporti is responding while a response is streaming', () => {
+    const { container } = render(<ChatComposer {...BASE_PROPS} isLoading />)
+
+    expect(screen.getByPlaceholderText('Soporti is responding...')).toBeDisabled()
+    expect(container.querySelector('.composer__card')).toHaveClass('composer__card--locked')
   })
 
   it('reports what the user types', async () => {

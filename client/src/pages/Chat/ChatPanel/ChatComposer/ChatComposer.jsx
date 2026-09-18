@@ -9,7 +9,17 @@ import './ChatComposer.css'
 const DROP_HINT = 'Drop your files to attach them'
 const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
 const DISCLAIMER = 'Soporti has read-only access to the connected tools. It does not execute code or make changes.'
+const ASK_PLACEHOLDER = 'Ask Soporti anything...'
+const RESPONDING_PLACEHOLDER = 'Soporti is responding...'
+const NO_SOURCES_PLACEHOLDER = 'Select a source from the sidebar first...'
 const TEXTAREA_ROWS = 2
+
+function resolvePlaceholder(isLoading, hasSourcesSelected) {
+  if (!hasSourcesSelected) return NO_SOURCES_PLACEHOLDER
+  if (isLoading) return RESPONDING_PLACEHOLDER
+
+  return ASK_PLACEHOLDER
+}
 
 export default function ChatComposer({
   input,
@@ -37,6 +47,7 @@ export default function ChatComposer({
   token,
 }) {
   const fileInputRef = useRef(null)
+  const isInputLocked = isLoading || !hasSourcesSelected
   const canAttach = !isLoading && !isUploadingAttachment && hasSourcesSelected && attachments.length < MAX_ATTACHMENTS
   const { isDraggingFiles, dropProps } = useFileDrop(onAttachFiles, canAttach)
 
@@ -57,7 +68,7 @@ export default function ChatComposer({
     <form className={`composer${isDraggingFiles ? ' composer--dropping' : ''}`} onSubmit={onSubmit} {...dropProps}>
       {attachmentError && <p className="alert alert--error composer__error">{attachmentError}</p>}
 
-      <div className="composer__card">
+      <div className={`composer__card${isInputLocked ? ' composer__card--locked' : ''}`}>
         {menuOpen && <SkillMenu skills={matchingSkills} activeIndex={menuIndex} onSelect={onSelectSkill} />}
         {isDraggingFiles && <p className="composer__drop-hint">{DROP_HINT}</p>}
 
@@ -90,9 +101,9 @@ export default function ChatComposer({
             onBlur={onBlur}
             onScroll={onScroll}
             onPaste={handlePaste}
-            placeholder={hasSourcesSelected ? 'Ask Soporti anything...' : 'Select a source from the sidebar first...'}
+            placeholder={resolvePlaceholder(isLoading, hasSourcesSelected)}
             rows={TEXTAREA_ROWS}
-            disabled={isLoading || !hasSourcesSelected}
+            disabled={isInputLocked}
           />
         </div>
 
