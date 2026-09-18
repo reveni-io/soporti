@@ -205,6 +205,57 @@ describe('useComposer', () => {
     expect(result.current.menuOpen).toBe(false)
   })
 
+  it('returns the focus to the textarea once the response finishes', () => {
+    const textarea = document.createElement('textarea')
+    document.body.appendChild(textarea)
+    const { result, rerender } = renderHook(
+      ({ isLoading }) => useComposer({ skills: SKILLS, isLoading, hasSourcesSelected: true, onSend: vi.fn() }),
+      { initialProps: { isLoading: true } }
+    )
+    result.current.textareaRef.current = textarea
+
+    rerender({ isLoading: false })
+
+    expect(document.activeElement).toBe(textarea)
+    textarea.remove()
+  })
+
+  it('leaves the focus alone when the user is typing somewhere else as the response finishes', () => {
+    const textarea = document.createElement('textarea')
+    const other = document.createElement('input')
+    document.body.append(textarea, other)
+    other.focus()
+    const { result, rerender } = renderHook(
+      ({ isLoading }) => useComposer({ skills: SKILLS, isLoading, hasSourcesSelected: true, onSend: vi.fn() }),
+      { initialProps: { isLoading: true } }
+    )
+    result.current.textareaRef.current = textarea
+
+    rerender({ isLoading: false })
+
+    expect(document.activeElement).toBe(other)
+    textarea.remove()
+    other.remove()
+  })
+
+  it('does not grab the focus while the response is still running or when it has not started', () => {
+    const textarea = document.createElement('textarea')
+    document.body.appendChild(textarea)
+    const { result, rerender } = renderHook(
+      ({ isLoading }) => useComposer({ skills: SKILLS, isLoading, hasSourcesSelected: true, onSend: vi.fn() }),
+      { initialProps: { isLoading: false } }
+    )
+    result.current.textareaRef.current = textarea
+
+    rerender({ isLoading: true })
+    expect(document.activeElement).toBe(document.body)
+
+    rerender({ isLoading: true })
+    expect(document.activeElement).toBe(document.body)
+
+    textarea.remove()
+  })
+
   it('fills the input from an example', () => {
     const { result } = setup()
 

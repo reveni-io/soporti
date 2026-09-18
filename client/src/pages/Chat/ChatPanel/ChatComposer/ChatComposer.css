@@ -37,6 +37,12 @@
   box-shadow: var(--focus-ring), var(--shadow-card-hover);
 }
 
+.composer__card--locked {
+  background-color: var(--bg-cool);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 .composer__attachments {
   display: flex;
   flex-wrap: wrap;
@@ -81,6 +87,10 @@
 
 .composer__input::placeholder {
   color: var(--text-muted);
+}
+
+.composer__input:disabled {
+  cursor: not-allowed;
 }
 
 .composer__highlight {
