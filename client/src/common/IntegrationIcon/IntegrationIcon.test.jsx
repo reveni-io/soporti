@@ -13,6 +13,7 @@ describe('IntegrationIcon', () => {
     'sentry',
     'betterstack',
     'figma',
+    'zendesk',
     'openai',
     'anthropic',
   ])('renders the %s brand mark', id => {

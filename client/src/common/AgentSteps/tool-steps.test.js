@@ -9,6 +9,9 @@ describe('describeToolCall', () => {
   it('labels the Figma tools', () => {
     expect(describeToolCall({ tool: 'get_figma_screenshot', input: {} }).label).toBe('Rendering Figma design')
     expect(describeToolCall({ tool: 'post_figma_comment', input: {} }).label).toBe('Commenting on Figma design')
+    expect(describeToolCall({ tool: 'zendesk_post_internal_note', input: {} }).label).toBe(
+      'Posting Zendesk internal note'
+    )
   })
 
   it('humanizes an unknown tool name', () => {

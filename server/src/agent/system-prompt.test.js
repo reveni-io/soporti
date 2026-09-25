@@ -22,6 +22,7 @@ const ALL_CONFIGURED = {
   betterstackConfigured: true,
   granolaConfigured: true,
   figmaConfigured: true,
+  zendeskConfigured: true,
 }
 
 describe('constants', () => {
@@ -50,6 +51,7 @@ describe('buildBasePrompt', () => {
       'Helpjuice',
       'Shopify',
       'Figma',
+      'Zendesk',
     ]) {
       expect(prompt).toContain(`## ${section} integration`)
     }
@@ -70,6 +72,21 @@ describe('buildBasePrompt', () => {
     expect(readOnly).toContain('## Figma integration')
     expect(readOnly).toContain('get_figma_screenshot')
     expect(readOnly).not.toContain('### Commenting on designs')
+  })
+
+  it('adds the Zendesk note rules only when the note tool was registered', () => {
+    const policy = buildSourcePolicy(['integration:zendesk'])
+
+    const withNotes = buildBasePrompt(policy, {
+      configured: ALL_CONFIGURED,
+      toolNames: new Set(['zendesk_get_ticket', 'zendesk_post_internal_note']),
+    })
+    const readOnly = buildBasePrompt(policy, { configured: ALL_CONFIGURED })
+
+    expect(withNotes).toContain('## Zendesk integration')
+    expect(withNotes).toContain('### Posting internal notes')
+    expect(readOnly).toContain('You never reply to the requester')
+    expect(readOnly).not.toContain('### Posting internal notes')
   })
 
   it('never mentions the Figma comment rules when Figma itself is not configured', () => {
@@ -453,6 +470,13 @@ describe('buildSourceInstructions', () => {
 
     expect(result).toContain('search_granola_notes')
     expect(result).toContain('their own meeting notes')
+  })
+
+  it('tells the agent it reads Zendesk tickets without ever replying to the requester', () => {
+    const result = buildSourceInstructions(['integration:zendesk'], { zendeskConfigured: true })
+
+    expect(result).toContain('zendesk_get_ticket')
+    expect(result).toContain('never reply to the requester')
   })
 
   it('handles selections with only integrations', () => {

@@ -232,6 +232,41 @@ export function saveGranolaApiKey(token, apiKey) {
   })
 }
 
+export function getZendeskConnection(token) {
+  return request('/api/user/zendesk', { token, errorMessage: 'Failed to load the Zendesk connection' })
+}
+
+export function connectZendesk(token, { subdomain, email, apiToken }) {
+  return request('/api/user/zendesk', {
+    method: 'PUT',
+    token,
+    body: { subdomain, email, apiToken },
+    errorMessage: 'Failed to save the Zendesk connection',
+  })
+}
+
+export function disconnectZendesk(token) {
+  return request('/api/user/zendesk', { method: 'DELETE', token, errorMessage: 'Failed to disconnect Zendesk' })
+}
+
+export function saveZendeskView(token, viewId) {
+  return request('/api/user/zendesk/view', {
+    method: 'PUT',
+    token,
+    body: { viewId },
+    errorMessage: 'Failed to save the Zendesk view',
+  })
+}
+
+export function saveZendeskWrites(token, enabled) {
+  return request('/api/user/zendesk/writes', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the Zendesk write access',
+  })
+}
+
 export function getSkills(token) {
   return request('/api/skills', { token, errorMessage: 'Failed to load skills' })
 }

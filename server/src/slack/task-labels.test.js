@@ -25,6 +25,10 @@ describe('describeToolCall', () => {
       title: 'Rendering Figma design',
       details: '1:2',
     })
+    expect(describeToolCall('zendesk_post_internal_note', JSON.stringify({ ticket: '123', body: 'Draft' }))).toEqual({
+      title: 'Posting Zendesk internal note',
+      details: '123',
+    })
   })
 
   it('omits details for tools whose arguments should not be shown', () => {

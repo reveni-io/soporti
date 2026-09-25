@@ -107,6 +107,13 @@ vi.mock('../figma/client.js', () => ({
   isConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../zendesk/client.js', () => ({
+  getTicket: vi.fn(),
+  listViewTickets: vi.fn(),
+  postInternalNote: vi.fn(),
+  isConfigured: vi.fn(async () => true),
+}))
+
 vi.mock('../config.js', () => ({
   default: {
     postgres: { connection: 'test' },
@@ -165,6 +172,7 @@ const {
   REPO_TOOL_NAMES,
   SELECTABLE_TOOL_NAMES,
   buildGranolaTools,
+  buildZendeskTools,
   buildShortcutWriteTools,
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
@@ -1243,5 +1251,76 @@ describe('buildAgentTools with the Shortcut write tools', () => {
     const registered = names(buildAgentTools(selection, { shortcutConfigured: false }, { shortcutWrites: true }))
 
     expect(registered).not.toContain('create_shortcut_story')
+  })
+})
+
+describe('buildZendeskTools', () => {
+  const names = tools => tools.map(t => t.name)
+
+  it('builds only the read tools unless writes are enabled', () => {
+    expect(names(buildZendeskTools(7, false))).toEqual(['zendesk_get_ticket', 'zendesk_list_view_tickets'])
+    expect(names(buildZendeskTools(7, true))).toEqual([
+      'zendesk_get_ticket',
+      'zendesk_list_view_tickets',
+      'zendesk_post_internal_note',
+    ])
+  })
+
+  it('reads a ticket for the user the tools were built for', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.getTicket.mockResolvedValue({ id: 123, subject: 'Refund' })
+
+    const [getTicket] = buildZendeskTools(7, false)
+    const result = await getTicket.execute({ ticket: '#123' })
+
+    expect(JSON.parse(result)).toEqual({ id: 123, subject: 'Refund' })
+    expect(zendeskMod.getTicket).toHaveBeenCalledTimes(1)
+    expect(zendeskMod.getTicket).toHaveBeenCalledWith(7, '#123')
+  })
+
+  it('lists the tickets of the requested view', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.listViewTickets.mockResolvedValue({ viewId: '42', tickets: [], truncated: false })
+
+    const [, listTickets] = buildZendeskTools(7, false)
+    const result = await listTickets.execute({ viewId: null })
+
+    expect(JSON.parse(result)).toEqual({ viewId: '42', tickets: [], truncated: false })
+    expect(zendeskMod.listViewTickets).toHaveBeenCalledWith(7, null)
+  })
+
+  it('posts the note body exactly as given', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.postInternalNote.mockResolvedValue({ ticketId: 123, noteId: 9, public: false })
+
+    const [, , postNote] = buildZendeskTools(7, true)
+    const result = await postNote.execute({ ticket: '123', body: 'Draft reply' })
+
+    expect(JSON.parse(result)).toEqual({ ticketId: 123, noteId: 9, public: false })
+    expect(zendeskMod.postInternalNote).toHaveBeenCalledWith(7, '123', 'Draft reply')
+  })
+})
+
+describe('buildAgentTools with Zendesk', () => {
+  const names = tools => tools.map(t => t.name)
+  const selection = { unrestricted: false, repos: [], integrations: ['zendesk'] }
+
+  it('gates the Zendesk tools on zendeskConfigured', () => {
+    expect(names(buildAgentTools(selection, { zendeskConfigured: false }, { userId: 7 }))).not.toContain(
+      'zendesk_get_ticket'
+    )
+    expect(names(buildAgentTools(selection, { zendeskConfigured: true }, { userId: 7 }))).toContain(
+      'zendesk_get_ticket'
+    )
+  })
+
+  it('registers the internal note tool only with the write toggle on', () => {
+    const readOnly = names(buildAgentTools(selection, { zendeskConfigured: true }, { userId: 7, zendeskWrites: false }))
+    const withWrites = names(
+      buildAgentTools(selection, { zendeskConfigured: true }, { userId: 7, zendeskWrites: true })
+    )
+
+    expect(readOnly).not.toContain('zendesk_post_internal_note')
+    expect(withWrites).toContain('zendesk_post_internal_note')
   })
 })

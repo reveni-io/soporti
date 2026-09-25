@@ -21,6 +21,7 @@ import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
+import { getZendeskConnection } from '../zendesk/settings.js'
 import * as shopify from '../shopify/client.js'
 
 export async function createAgent(
@@ -51,6 +52,7 @@ export async function createAgent(
     betterstackConfigured,
     granolaConfigured,
     figmaConfigured,
+    zendeskConnection,
     shortcutWrites,
     figmaCommentsEnabled,
     catalogPrompt,
@@ -67,6 +69,7 @@ export async function createAgent(
     isBetterstackConfigured(),
     isGranolaConfigured(userId),
     isFigmaConfigured(),
+    getZendeskConnection(userId),
     areShortcutWritesEnabled(),
     getFigmaCommentsEnabled(),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
@@ -84,6 +87,7 @@ export async function createAgent(
     betterstackConfigured,
     granolaConfigured,
     figmaConfigured,
+    zendeskConfigured: Boolean(zendeskConnection),
   }
 
   const registered = buildAgentTools(policy, configured, {
@@ -92,6 +96,7 @@ export async function createAgent(
     onArtifactPublished,
     shortcutWrites,
     figmaComments: figmaConfigured && figmaCommentsEnabled,
+    zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {

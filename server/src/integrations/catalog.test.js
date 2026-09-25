@@ -10,6 +10,7 @@ const sentryIsConfigured = vi.fn()
 const betterstackIsConfigured = vi.fn()
 const granolaIsConfigured = vi.fn()
 const figmaIsConfigured = vi.fn()
+const zendeskIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({ isConfigured: (...args) => notionIsConfigured(...args) }))
 vi.mock('../postgres/client.js', () => ({ isConfigured: (...args) => postgresIsConfigured(...args) }))
@@ -21,6 +22,7 @@ vi.mock('../sentry/client.js', () => ({ isConfigured: (...args) => sentryIsConfi
 vi.mock('../betterstack/client.js', () => ({ isConfigured: (...args) => betterstackIsConfigured(...args) }))
 vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsConfigured(...args) }))
 vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigured(...args) }))
+vi.mock('../zendesk/client.js', () => ({ isConfigured: (...args) => zendeskIsConfigured(...args) }))
 
 const { listConfiguredIntegrations, GITHUB_INTEGRATION_ID } = await import('./catalog.js')
 
@@ -35,6 +37,7 @@ function configureAll(value) {
   betterstackIsConfigured.mockResolvedValue(value)
   granolaIsConfigured.mockResolvedValue(value)
   figmaIsConfigured.mockResolvedValue(value)
+  zendeskIsConfigured.mockResolvedValue(value)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -57,6 +60,7 @@ describe('listConfiguredIntegrations', () => {
       'granola',
       'betterstack',
       'figma',
+      'zendesk',
     ])
     expect(integrations.find(integration => integration.id === 'betterstack')).toEqual({
       id: 'betterstack',
@@ -85,6 +89,7 @@ describe('listConfiguredIntegrations', () => {
       granola: true,
       betterstack: true,
       figma: true,
+      zendesk: true,
     })
   })
 
@@ -114,5 +119,14 @@ describe('listConfiguredIntegrations', () => {
 
     expect(granolaIsConfigured).toHaveBeenCalledWith(7)
     expect(integrations.map(integration => integration.id)).toEqual(['github', 'granola'])
+  })
+  it('checks Zendesk for the requesting user', async () => {
+    configureAll(false)
+    zendeskIsConfigured.mockResolvedValue(true)
+
+    const integrations = await listConfiguredIntegrations(7)
+
+    expect(zendeskIsConfigured).toHaveBeenCalledWith(7)
+    expect(integrations.map(integration => integration.id)).toEqual(['github', 'zendesk'])
   })
 })

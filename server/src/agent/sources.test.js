@@ -14,6 +14,7 @@ describe('INTEGRATION_WRITE_TOOL_NAMES', () => {
   it('lists every write tool inside its integration group, so it can be granted and labelled', () => {
     expect(INTEGRATION_WRITE_TOOL_NAMES.shortcut).toContain('create_shortcut_story')
     expect(INTEGRATION_WRITE_TOOL_NAMES.figma).toEqual(['post_figma_comment'])
+    expect(INTEGRATION_WRITE_TOOL_NAMES.zendesk).toEqual(['zendesk_post_internal_note'])
     for (const [id, names] of Object.entries(INTEGRATION_WRITE_TOOL_NAMES)) {
       for (const name of names) expect(INTEGRATION_TOOL_NAMES[id], id).toContain(name)
     }

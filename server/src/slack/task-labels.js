@@ -40,6 +40,9 @@ const TOOL_LABELS = {
   get_figma_screenshot: { label: 'Rendering Figma design', arg: 'nodeId' },
   list_figma_comments: { label: 'Reading Figma comments', arg: 'file' },
   post_figma_comment: { label: 'Commenting on Figma design', arg: 'nodeId' },
+  zendesk_get_ticket: { label: 'Reading Zendesk ticket', arg: 'ticket' },
+  zendesk_list_view_tickets: { label: 'Listing Zendesk tickets', arg: 'viewId' },
+  zendesk_post_internal_note: { label: 'Posting Zendesk internal note', arg: 'ticket' },
 }
 
 function parseArguments(rawArguments) {

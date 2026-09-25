@@ -46,6 +46,9 @@ const TOOL_LABELS = {
   get_figma_screenshot: 'Rendering Figma design',
   list_figma_comments: 'Reading Figma comments',
   post_figma_comment: 'Commenting on Figma design',
+  zendesk_get_ticket: 'Reading Zendesk ticket',
+  zendesk_list_view_tickets: 'Listing Zendesk tickets',
+  zendesk_post_internal_note: 'Posting Zendesk internal note',
   render_artifact: 'Writing artifact',
 }
 

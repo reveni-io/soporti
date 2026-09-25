@@ -8,6 +8,7 @@ import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
 import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
+import * as zendesk from '../zendesk/client.js'
 import { ALWAYS_AVAILABLE_INTEGRATIONS, INTEGRATIONS } from '../agent/integrations.js'
 
 export const GITHUB_INTEGRATION_ID = 'github'
@@ -40,6 +41,7 @@ const CATALOG = [
   catalogEntry('granola', 'Search and read your own meeting notes', granola.isConfigured),
   catalogEntry('betterstack', 'Search and query application logs', betterstack.isConfigured),
   catalogEntry('figma', 'Look at Figma designs, render screenshots and read their comments', figma.isConfigured),
+  catalogEntry('zendesk', 'Read your own Zendesk tickets and post internal notes on them', zendesk.isConfigured),
 ]
 
 export async function listConfiguredIntegrations(userId) {
