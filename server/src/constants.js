@@ -101,3 +101,6 @@ export const MCP_JOB_WAIT_MS = 30_000
 export const MCP_JOB_RUN_TIMEOUT_MS = 10 * 60_000
 export const MCP_JOB_RETENTION_MS = 15 * 60_000
 export const MCP_MAX_JOBS_PER_USER = 5
+
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export const MAX_EMAIL_LENGTH = 254

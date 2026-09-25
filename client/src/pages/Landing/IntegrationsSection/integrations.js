@@ -47,6 +47,11 @@ export const INTEGRATIONS = [
     desc: 'Reads your own meeting notes so a decision made on a call is an answer, not something you retype. Each person connects their own account — nobody reads anyone else’s.',
   },
   {
+    id: 'zendesk',
+    name: 'Zendesk',
+    desc: 'Reads your tickets — the requester, the status and the whole thread, internal notes included — so a skill can gather the answer from the database or the docs and leave the draft on the ticket as an internal note. It never replies to the customer, never changes a status. Each person connects their own account.',
+  },
+  {
     id: 'figma',
     name: 'Figma',
     desc: 'Opens the designs you link: lists pages and frames, reads the layers of a screen — copy, fonts, colors, components — and renders a screenshot it can see and show in the chat. Switch comments on and it can leave feedback on a frame for you.',

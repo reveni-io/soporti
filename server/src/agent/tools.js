@@ -19,6 +19,7 @@ import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
 import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
+import * as zendesk from '../zendesk/client.js'
 import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
@@ -790,6 +791,60 @@ export function buildGranolaTools(userId) {
   ]
 }
 
+const ZENDESK_TICKET_PARAM = z
+  .string()
+  .describe('Zendesk ticket id ("123", "#123") or its url (https://acme.zendesk.com/agent/tickets/123).')
+
+export function buildZendeskTools(userId, writes) {
+  const readTools = [
+    tool({
+      name: 'zendesk_get_ticket',
+      description:
+        'Read a Zendesk ticket from the user\'s own Zendesk connection: subject, status, priority, tags, the requester and the full comment thread, oldest first, each comment with its author, the author\'s role (end-user, agent or admin) and whether it is public (seen by the requester) or an internal note. Accepts the ticket id or its url. A "notice" field means the thread was cut short — say so instead of treating it as the whole conversation. Cite the ticket url in your answer.',
+      parameters: z.object({ ticket: ZENDESK_TICKET_PARAM }),
+      execute: async input => {
+        const ticket = await zendesk.getTicket(userId, input.ticket)
+        return JSON.stringify(ticket)
+      },
+    }),
+    tool({
+      name: 'zendesk_list_view_tickets',
+      description:
+        "List the tickets in a Zendesk view with their id, url, subject, requester, status and last update. Omit viewId to use the view the user's connection is scoped to; when the connection is scoped, no other view can be listed. Returns at most 100 tickets: when `truncated` is true the view holds more, so do not present the list as complete.",
+      parameters: z.object({
+        viewId: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe("Numeric Zendesk view id. Null uses the view set in the user's connection."),
+      }),
+      execute: async input => {
+        const result = await zendesk.listViewTickets(userId, input.viewId)
+        return JSON.stringify(result)
+      },
+    }),
+  ]
+
+  if (!writes) return readTools
+
+  return [
+    ...readTools,
+    tool({
+      name: 'zendesk_post_internal_note',
+      description:
+        'Post an internal note on a Zendesk ticket — a private comment only agents can see, never a reply to the requester. This WRITES to Zendesk: only call it when you were asked to post a note, and in a conversation only once the user has seen the exact text and said yes. It never changes the status, the assignee or any other field of the ticket. Zendesk signs the note with the agent the connection belongs to.',
+      parameters: z.object({
+        ticket: ZENDESK_TICKET_PARAM,
+        body: z.string().describe('The note text, exactly as approved. Plain text; line breaks are kept.'),
+      }),
+      execute: async input => {
+        const note = await zendesk.postInternalNote(userId, input.ticket, input.body)
+        return JSON.stringify(note)
+      },
+    }),
+  ]
+}
+
 const DEFAULT_FIGMA_NODE_DEPTH = 3
 const MAX_FIGMA_NODE_DEPTH = 8
 const DEFAULT_FIGMA_SCALE = 1
@@ -954,6 +1009,7 @@ const INTEGRATION_TOOLS = {
   shopify: SHOPIFY_TOOLS,
   granola: ({ userId }) => buildGranolaTools(userId),
   figma: ({ figmaComments }) => (figmaComments ? [...FIGMA_TOOLS, ...FIGMA_WRITE_TOOLS] : FIGMA_TOOLS),
+  zendesk: ({ userId, zendeskWrites }) => buildZendeskTools(userId, zendeskWrites),
 }
 
 export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])

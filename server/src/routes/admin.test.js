@@ -121,6 +121,7 @@ const isBetterstackConfigured = vi.fn()
 const isGranolaConfigured = vi.fn()
 const isShopifyConfigured = vi.fn()
 const isFigmaConfigured = vi.fn()
+const isZendeskConfigured = vi.fn()
 const INTEGRATION_CHECK_MOCKS = [
   isShortcutConfigured,
   isSentryConfigured,
@@ -132,6 +133,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isGranolaConfigured,
   isShopifyConfigured,
   isFigmaConfigured,
+  isZendeskConfigured,
 ]
 
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
@@ -253,6 +255,7 @@ const getMainAgentTools = vi.fn(async () => null)
 const setMainAgentTools = vi.fn(async () => {})
 vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
+vi.mock('../zendesk/settings.js', () => ({ isZendeskConfigured }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
 const REPO_TOOL_NAMES = new Set([
   'list_repos',
@@ -2138,6 +2141,20 @@ describe('GET /api/admin/subagents', () => {
     await request(app).get('/api/admin/subagents')
 
     expect(isGranolaConfigured).toHaveBeenCalledWith(7)
+  })
+
+  it('resolves the zendesk check against the requesting admin, whose connection it is', async () => {
+    isZendeskConfigured.mockResolvedValue(true)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(isZendeskConfigured).toHaveBeenCalledWith(7)
+    expect(res.body.tools.groups.find(group => group.id === 'zendesk')).toEqual({
+      id: 'zendesk',
+      label: 'Zendesk',
+      configured: true,
+      tools: ['zendesk_get_ticket', 'zendesk_list_view_tickets', 'zendesk_post_internal_note'],
+    })
   })
 
   it('returns 500 when the rows cannot be read', async () => {

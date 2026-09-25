@@ -81,7 +81,9 @@ import { DEFAULT_PROVIDER, isKnownProvider, listProviders } from '../llm/registr
 import { getMainAgentTools, setMainAgentTools } from '../agent/settings.js'
 import {
   DEFAULT_REASONING_EFFORT,
+  EMAIL_RE,
   MAX_ACTIVE_SUBAGENTS,
+  MAX_EMAIL_LENGTH,
   MAX_INSTRUCTIONS_LENGTH,
   MAX_SUBAGENT_DESCRIPTION_LENGTH,
   MAX_SUBAGENT_NAME_LENGTH,
@@ -101,6 +103,7 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
+import { isZendeskConfigured } from '../zendesk/settings.js'
 import { isConfigured as isShopifyConfigured } from '../shopify/client.js'
 import {
   getOwnApiKey,
@@ -114,7 +117,6 @@ import { clearStatsCache } from './stats.js'
 
 const router = Router()
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const DOMAIN_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/
 const HOST_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/
 const ID_RE = /^\d{1,9}$/
@@ -135,10 +137,11 @@ const INTEGRATION_CHECKS = {
   shopify: isShopifyConfigured,
   granola: isGranolaConfigured,
   figma: isFigmaConfigured,
+  zendesk: isZendeskConfigured,
 }
 
 function validEmail(email) {
-  return typeof email === 'string' && email.trim().length <= 254 && EMAIL_REGEX.test(email.trim())
+  return typeof email === 'string' && email.trim().length <= MAX_EMAIL_LENGTH && EMAIL_RE.test(email.trim())
 }
 
 function parseSecret(value, { field, maxLength, message }) {

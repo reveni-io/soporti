@@ -120,6 +120,13 @@
       "when": 1787783039086,
       "tag": "0016_closed_blonde_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790334412862,
+      "tag": "0017_hard_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

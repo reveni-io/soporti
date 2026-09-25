@@ -73,6 +73,7 @@ vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async ()
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
+vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () => null) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
   getFigmaCommentsEnabled: vi.fn(async () => false),
@@ -91,6 +92,7 @@ const { isBetterstackConfigured } = await import('../betterstack/settings.js')
 const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js')
 const { isGranolaConfigured } = await import('../granola/settings.js')
 const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
+const { getZendeskConnection } = await import('../zendesk/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -112,6 +114,7 @@ describe('createAgent', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
     areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
+    getZendeskConnection.mockReset().mockResolvedValue(null)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -456,7 +459,14 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.objectContaining({ integrations: ['betterstack'], unrestricted: false }),
       expect.objectContaining({ betterstackConfigured: true, sentryConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
+      {
+        userId: null,
+        conversationId: null,
+        onArtifactPublished: null,
+        shortcutWrites: false,
+        figmaComments: false,
+        zendeskWrites: false,
+      }
     )
   })
 
@@ -469,7 +479,14 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: true }),
-      { userId: 7, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
+      {
+        userId: 7,
+        conversationId: null,
+        onArtifactPublished: null,
+        shortcutWrites: false,
+        figmaComments: false,
+        zendeskWrites: false,
+      }
     )
   })
 
@@ -482,8 +499,71 @@ describe('createAgent', () => {
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ granolaConfigured: false }),
-      { userId: null, conversationId: null, onArtifactPublished: null, shortcutWrites: false, figmaComments: false }
+      {
+        userId: null,
+        conversationId: null,
+        onArtifactPublished: null,
+        shortcutWrites: false,
+        figmaComments: false,
+        zendeskWrites: false,
+      }
     )
+  })
+})
+
+describe('createAgent with Zendesk', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getZendeskConnection.mockReset().mockResolvedValue(null)
+  })
+
+  it('resolves the Zendesk connection of the requesting user and passes its write toggle to the tool builder', async () => {
+    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: true, viewId: null })
+    buildAgentTools.mockReturnValue(
+      toolList([...AVAILABLE_TOOL_NAMES, 'zendesk_get_ticket', 'zendesk_post_internal_note'])
+    )
+
+    const agent = await createAgent(['integration:zendesk'], 'support', { userId: 7 })
+
+    expect(getZendeskConnection).toHaveBeenCalledWith(7)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ zendeskConfigured: true }),
+      expect.objectContaining({ userId: 7, zendeskWrites: true })
+    )
+    expect(agent.instructions).toContain('## Zendesk integration')
+    expect(agent.instructions).toContain('### Posting internal notes')
+  })
+
+  it('keeps the note rules out of the prompt when the write toggle is off', async () => {
+    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: false, viewId: null })
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'zendesk_get_ticket']))
+
+    const agent = await createAgent(['integration:zendesk'], 'support', { userId: 7 })
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ zendeskConfigured: true }),
+      expect.objectContaining({ zendeskWrites: false })
+    )
+    expect(agent.instructions).toContain('## Zendesk integration')
+    expect(agent.instructions).not.toContain('### Posting internal notes')
+  })
+
+  it('leaves Zendesk unconfigured for a user who has not connected it', async () => {
+    const agent = await createAgent(['integration:zendesk'], 'support', { userId: 8 })
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ zendeskConfigured: false }),
+      expect.objectContaining({ zendeskWrites: false })
+    )
+    expect(agent.instructions).not.toContain('## Zendesk integration')
   })
 })
 
