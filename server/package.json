@@ -45,7 +45,7 @@
     "mammoth": "^1.12.0",
     "openai": "^6.25.0",
     "pg": "^8.19.0",
-    "unpdf": "^1.6.2",
+    "unpdf": "^1.8.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
