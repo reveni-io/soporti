@@ -6,10 +6,12 @@ vi.mock('../db/schedules.js', () => ({
   listSchedules: vi.fn(),
   countSchedules: vi.fn(),
   createSchedule: vi.fn(),
+  updateSchedule: vi.fn(),
   deleteSchedule: vi.fn(),
 }))
 
-const { listSchedules, countSchedules, createSchedule, deleteSchedule } = await import('../db/schedules.js')
+const { listSchedules, countSchedules, createSchedule, updateSchedule, deleteSchedule } =
+  await import('../db/schedules.js')
 const { default: schedulesRouter } = await import('./schedules.js')
 
 const DAILY_BODY = {
@@ -206,6 +208,83 @@ describe('schedules routes', () => {
 
       expect(res.status).toBe(500)
       expect(res.body.error).toBe('Failed to create the scheduled query.')
+    })
+  })
+
+  describe('PUT /:id', () => {
+    it('rejects a non-numeric id', async () => {
+      const res = await request(app).put('/nope').send(DAILY_BODY)
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('Invalid schedule ID.')
+      expect(updateSchedule).not.toHaveBeenCalled()
+    })
+
+    it('updates the schedule of the user and recomputes its next run', async () => {
+      updateSchedule.mockImplementation(async (id, userId, schedule) => ({ id, ...schedule }))
+
+      const res = await request(app)
+        .put('/3')
+        .send({ ...DAILY_BODY, question: '  Open PRs  ', frequency: 'weekly', weekday: 5, hour: 8, minute: 30 })
+
+      expect(res.status).toBe(200)
+      expect(updateSchedule).toHaveBeenCalledTimes(1)
+      const [id, userId, schedule] = updateSchedule.mock.calls[0]
+      expect(id).toBe(3)
+      expect(userId).toBe(1)
+      expect(schedule).toMatchObject({
+        question: 'Open PRs',
+        sources: ['yolo'],
+        profile: 'support',
+        frequency: 'weekly',
+        minute: 30,
+        hour: 8,
+        weekday: 5,
+        monthDay: null,
+        timezone: 'Europe/Madrid',
+      })
+      expect(schedule.nextRunAt.getTime()).toBeGreaterThan(Date.now())
+      expect(schedule).not.toHaveProperty('lastRunAt')
+      expect(schedule).not.toHaveProperty('lastStatus')
+      expect(res.body.schedule).toMatchObject({ id: 3, question: 'Open PRs', frequency: 'weekly' })
+    })
+
+    it('does not count the update against the schedule limit', async () => {
+      countSchedules.mockResolvedValue(20)
+      updateSchedule.mockResolvedValue({ id: 3 })
+
+      const res = await request(app).put('/3').send(DAILY_BODY)
+
+      expect(res.status).toBe(200)
+      expect(countSchedules).not.toHaveBeenCalled()
+    })
+
+    it('rejects invalid input with the same message as the creation', async () => {
+      const res = await request(app)
+        .put('/3')
+        .send({ ...DAILY_BODY, frequency: 'weekly' })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('Weekday must be an integer between 0 (Sunday) and 6 (Saturday).')
+      expect(updateSchedule).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when the schedule does not exist or is not owned', async () => {
+      updateSchedule.mockResolvedValue(null)
+
+      const res = await request(app).put('/3').send(DAILY_BODY)
+
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe('Scheduled query not found.')
+    })
+
+    it('returns 500 when the DB fails', async () => {
+      updateSchedule.mockRejectedValue(new Error('boom'))
+
+      const res = await request(app).put('/3').send(DAILY_BODY)
+
+      expect(res.status).toBe(500)
+      expect(res.body.error).toBe('Failed to update the scheduled query.')
     })
   })
 

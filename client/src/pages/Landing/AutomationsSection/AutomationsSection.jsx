@@ -20,6 +20,7 @@ const AUTOMATIONS = [
     bullets: [
       'Runs with the sources and profile you picked',
       'Every run lands as its own conversation you can continue',
+      'Edit the question, cadence or sources anytime without losing its history',
       'The answer is waiting before you think to ask',
     ],
   },

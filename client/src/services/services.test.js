@@ -34,6 +34,7 @@ import {
   signInWithGoogle,
   signInWithPassword,
   streamChat,
+  updateSchedule,
   updateSkill,
   updateSubagent,
 } from './services.js'
@@ -370,6 +371,16 @@ describe('endpoints', () => {
       hour: 9,
       minute: 0,
     })
+  })
+
+  it('updates a scheduled query', async () => {
+    await updateSchedule('tok', 3, { question: 'Open PRs?', frequency: 'hourly', minute: 30 })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/schedules/3')
+    expect(options.method).toBe('PUT')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ question: 'Open PRs?', frequency: 'hourly', minute: 30 })
   })
 
   it('deletes a scheduled query', async () => {

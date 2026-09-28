@@ -11,7 +11,7 @@ import {
   SCHEDULE_QUESTION_MAX_LENGTH,
   SCHEDULE_WEEKLY,
 } from '../constants.js'
-import { countSchedules, createSchedule, deleteSchedule, listSchedules } from '../db/schedules.js'
+import { countSchedules, createSchedule, deleteSchedule, listSchedules, updateSchedule } from '../db/schedules.js'
 import { computeNextRun, isValidTimezone } from '../schedules/next-run.js'
 
 const router = Router()
@@ -109,6 +109,25 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Failed to create a schedule:', err)
     res.status(500).json({ error: 'Failed to create the scheduled query.' })
+  }
+})
+
+router.put('/:id', async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid schedule ID.' })
+
+  const { error, value } = parseScheduleInput(req.body)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    const schedule = await updateSchedule(Number(req.params.id), req.user.id, {
+      ...value,
+      nextRunAt: computeNextRun(value),
+    })
+    if (!schedule) return res.status(404).json({ error: 'Scheduled query not found.' })
+    res.json({ schedule })
+  } catch (err) {
+    console.error('Failed to update a schedule:', err)
+    res.status(500).json({ error: 'Failed to update the scheduled query.' })
   }
 })
 
