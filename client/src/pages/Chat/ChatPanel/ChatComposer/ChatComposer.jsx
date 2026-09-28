@@ -7,7 +7,7 @@ import { ATTACHMENT_ACCEPT, MAX_ATTACHMENTS } from '../../../../constants.js'
 import './ChatComposer.css'
 
 const DROP_HINT = 'Drop your files to attach them'
-const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
+const ATTACH_HINT = 'Attach a PDF, Word, Excel or CSV file, or an image'
 const DISCLAIMER = 'Soporti has read-only access to the connected tools. It does not execute code or make changes.'
 const ASK_PLACEHOLDER = 'Ask Soporti anything...'
 const RESPONDING_PLACEHOLDER = 'Soporti is responding...'

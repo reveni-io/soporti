@@ -9,10 +9,17 @@ describe('AttachmentsSection', () => {
     expect(screen.getByText('.pdf')).toBeInTheDocument()
     expect(screen.getByText('.docx')).toBeInTheDocument()
     expect(screen.getByText('.xlsx')).toBeInTheDocument()
+    expect(screen.getByText('.csv')).toBeInTheDocument()
     expect(screen.getByText('.png')).toBeInTheDocument()
     expect(screen.getByText('.jpg')).toBeInTheDocument()
     expect(screen.getByText('.webp')).toBeInTheDocument()
     expect(screen.getByText('.gif')).toBeInTheDocument()
+  })
+
+  it('names csv exports among the documents it reads', () => {
+    render(<AttachmentsSection />)
+
+    expect(screen.getByText(/an Excel sheet or a CSV export/)).toBeInTheDocument()
   })
 
   it('explains that an attachment stays in its conversation', () => {

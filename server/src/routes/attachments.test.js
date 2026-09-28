@@ -10,6 +10,7 @@ vi.mock('../documents/parsers.js', () => ({
   parsePdf: vi.fn(),
   parseDocx: vi.fn(),
   parseXlsx: vi.fn(),
+  parseCsv: vi.fn(),
 }))
 
 vi.mock('../db/attachment-images.js', () => ({
@@ -18,7 +19,7 @@ vi.mock('../db/attachment-images.js', () => ({
   setAttachmentImageThumbnail: vi.fn(),
 }))
 
-const { parsePdf, parseDocx } = await import('../documents/parsers.js')
+const { parsePdf, parseDocx, parseCsv } = await import('../documents/parsers.js')
 const { createAttachmentImage, getAttachmentPreview, setAttachmentImageThumbnail } =
   await import('../db/attachment-images.js')
 const { default: attachmentsRouter } = await import('./attachments.js')
@@ -59,6 +60,17 @@ describe('attachments routes', () => {
     expect(parsePdf).toHaveBeenCalledTimes(1)
   })
 
+  it('extracts the text of an uploaded csv', async () => {
+    parseCsv.mockResolvedValue('order_id,total\n1001,49.90')
+
+    const res = await request(app).post('/?name=orders.csv').set('Content-Type', 'text/csv').send('order_id,total')
+
+    expect(res.status).toBe(200)
+    expect(res.body.attachment).toEqual({ name: 'orders.csv', text: 'order_id,total\n1001,49.90', truncated: false })
+    expect(parseCsv).toHaveBeenCalledTimes(1)
+    expect(parseCsv).toHaveBeenCalledWith(Buffer.from('order_id,total'), MAX_ATTACHMENT_CHARS * 2)
+  })
+
   it('flags a document cut at the character cap', async () => {
     parseDocx.mockResolvedValue('a'.repeat(MAX_ATTACHMENT_CHARS + 1))
 
@@ -91,7 +103,7 @@ describe('attachments routes', () => {
     const res = await request(app).post('/?name=notes.txt').set('Content-Type', 'text/plain').send('hello')
 
     expect(res.status).toBe(400)
-    expect(res.body.error).toMatch(/\.pdf, \.docx, \.xlsx, \.png, \.jpg, \.jpeg, \.webp, \.gif/)
+    expect(res.body.error).toMatch(/\.pdf, \.docx, \.xlsx, \.csv, \.png, \.jpg, \.jpeg, \.webp, \.gif/)
   })
 
   it('stores an uploaded image and returns its id instead of text', async () => {

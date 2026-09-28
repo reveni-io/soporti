@@ -1,3 +1,5 @@
+const NUL_CHAR = '\u0000'
+
 export async function parsePdf(buffer) {
   const { getDocumentProxy, extractText } = await import('unpdf')
   const pdf = await getDocumentProxy(new Uint8Array(buffer))
@@ -9,6 +11,13 @@ export async function parseDocx(buffer) {
   const mammoth = (await import('mammoth')).default
   const { value } = await mammoth.extractRawText({ buffer: Buffer.from(buffer) })
   return value
+}
+
+export async function parseCsv(buffer, maxChars = Infinity) {
+  const text = new TextDecoder().decode(buffer)
+  if (text.includes(NUL_CHAR)) throw new Error('not a text file')
+
+  return text.slice(0, maxChars)
 }
 
 function formatCell(v) {
