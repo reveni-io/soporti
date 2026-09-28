@@ -135,6 +135,13 @@ export function getConversations(token) {
   return request('/api/conversations', { token, errorMessage: 'Failed to load the conversations' })
 }
 
+export function searchConversations(token, query) {
+  return request(`/api/conversations?q=${encodeURIComponent(query)}`, {
+    token,
+    errorMessage: 'Failed to search the conversations',
+  })
+}
+
 export function getConversation(token, id) {
   return request(`/api/conversations/${id}`, { token })
 }

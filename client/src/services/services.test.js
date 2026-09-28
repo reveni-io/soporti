@@ -30,6 +30,7 @@ import {
   saveGithubToken,
   saveSlackCredential,
   saveUserInstructions,
+  searchConversations,
   sendFeedback,
   signInWithGoogle,
   signInWithPassword,
@@ -238,6 +239,15 @@ describe('endpoints', () => {
   it('reads the repositories', async () => {
     await getRepos('tok')
     expect(lastCall()[0]).toBe('/api/repos')
+  })
+
+  it('searches the conversations with the query encoded', async () => {
+    await searchConversations('tok', '50% off & refund')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/conversations?q=50%25%20off%20%26%20refund')
+    expect(options.method).toBe('GET')
+    expect(options.headers).toEqual({ Authorization: 'Bearer tok' })
   })
 
   it('deletes a conversation', async () => {

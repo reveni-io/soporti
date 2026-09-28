@@ -398,5 +398,45 @@ describe('Sidebar', () => {
       rerender(<Sidebar {...defaultProps} conversationsReloadKey={1} />)
       await waitFor(() => expect(convCalls()).toBeGreaterThan(before))
     })
+
+    it('searches the conversations and restores the full list when the search is cleared', async () => {
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (url.includes('/api/conversations?q=refund')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              conversations: [{ id: 'c2', title: 'Vague title', snippet: 'we checked the refund window' }],
+            }),
+          })
+        }
+        if (url.includes('/api/conversations')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              conversations: [
+                { id: 'c1', title: 'Auth question' },
+                { id: 'c2', title: 'Vague title' },
+              ],
+            }),
+          })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
+      })
+      const user = userEvent.setup()
+      render(<Sidebar {...defaultProps} />)
+      await waitFor(() => expect(screen.getByText('Auth question')).toBeInTheDocument())
+
+      const searchBox = screen.getByRole('textbox', { name: 'Search conversations' })
+      await user.type(searchBox, 'refund')
+
+      await waitFor(() => expect(screen.queryByText('Auth question')).not.toBeInTheDocument())
+      expect(screen.getByText('Vague title')).toBeInTheDocument()
+      expect(screen.getByText('refund', { selector: 'mark' })).toBeInTheDocument()
+
+      await user.clear(searchBox)
+
+      await waitFor(() => expect(screen.getByText('Auth question')).toBeInTheDocument())
+      expect(screen.queryByText('refund', { selector: 'mark' })).not.toBeInTheDocument()
+    })
   })
 })
