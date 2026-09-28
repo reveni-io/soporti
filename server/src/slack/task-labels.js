@@ -41,6 +41,8 @@ const TOOL_LABELS = {
   list_figma_comments: { label: 'Reading Figma comments', arg: 'file' },
   post_figma_comment: { label: 'Commenting on Figma design', arg: 'nodeId' },
   zendesk_get_ticket: { label: 'Reading Zendesk ticket', arg: 'ticket' },
+  zendesk_search_tickets: { label: 'Searching Zendesk tickets', arg: 'query' },
+  zendesk_list_views: { label: 'Listing Zendesk views' },
   zendesk_list_view_tickets: { label: 'Listing Zendesk tickets', arg: 'viewId' },
   zendesk_post_internal_note: { label: 'Posting Zendesk internal note', arg: 'ticket' },
 }

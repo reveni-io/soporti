@@ -49,7 +49,6 @@ const CONNECTION = {
   email: 'ana@acme.com',
   apiToken: 'abcdefghijklmnopqrstuvwxyz0123456789ABCD',
   writesEnabled: false,
-  viewId: null,
 }
 
 beforeEach(() => {
@@ -85,7 +84,6 @@ describe('saveZendeskCredentials', () => {
     expect(insert.steps.values).toMatchObject({ userId: 7, subdomain: 'acme', apiToken: CONNECTION.apiToken })
     expect(insert.steps.onConflictDoUpdate.set).toMatchObject({ subdomain: 'acme', email: 'ana@acme.com' })
     expect(insert.steps.onConflictDoUpdate.set).not.toHaveProperty('writesEnabled')
-    expect(insert.steps.onConflictDoUpdate.set).not.toHaveProperty('viewId')
     expect(row).toEqual(CONNECTION)
   })
 })
@@ -103,7 +101,7 @@ describe('updateZendeskOptions', () => {
   it('returns null when the user is not connected', async () => {
     queue = [[]]
 
-    expect(await updateZendeskOptions(7, { viewId: '42' })).toBeNull()
+    expect(await updateZendeskOptions(7, { writesEnabled: true })).toBeNull()
   })
 })
 

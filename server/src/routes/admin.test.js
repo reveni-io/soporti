@@ -2164,7 +2164,13 @@ describe('GET /api/admin/subagents', () => {
       id: 'zendesk',
       label: 'Zendesk',
       configured: true,
-      tools: ['zendesk_get_ticket', 'zendesk_list_view_tickets', 'zendesk_post_internal_note'],
+      tools: [
+        'zendesk_get_ticket',
+        'zendesk_search_tickets',
+        'zendesk_list_views',
+        'zendesk_list_view_tickets',
+        'zendesk_post_internal_note',
+      ],
     })
   })
 

@@ -4,12 +4,6 @@
   gap: var(--sp2);
 }
 
-.zendesk-connection__hint {
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}
-
 .zendesk-connection__writes {
   display: flex;
   gap: var(--sp2);

@@ -523,7 +523,7 @@ describe('createAgent with Zendesk', () => {
   })
 
   it('resolves the Zendesk connection of the requesting user and passes its write toggle to the tool builder', async () => {
-    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: true, viewId: null })
+    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: true })
     buildAgentTools.mockReturnValue(
       toolList([...AVAILABLE_TOOL_NAMES, 'zendesk_get_ticket', 'zendesk_post_internal_note'])
     )
@@ -541,7 +541,7 @@ describe('createAgent with Zendesk', () => {
   })
 
   it('keeps the note rules out of the prompt when the write toggle is off', async () => {
-    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: false, viewId: null })
+    getZendeskConnection.mockResolvedValue({ subdomain: 'acme', writesEnabled: false })
     buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'zendesk_get_ticket']))
 
     const agent = await createAgent(['integration:zendesk'], 'support', { userId: 7 })

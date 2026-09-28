@@ -57,7 +57,13 @@ export const INTEGRATION_TOOL_NAMES = {
   betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
   helpjuice: ['search_helpjuice_articles', 'get_helpjuice_article'],
   granola: ['search_granola_notes', 'get_granola_note'],
-  zendesk: ['zendesk_get_ticket', 'zendesk_list_view_tickets', ...INTEGRATION_WRITE_TOOL_NAMES.zendesk],
+  zendesk: [
+    'zendesk_get_ticket',
+    'zendesk_search_tickets',
+    'zendesk_list_views',
+    'zendesk_list_view_tickets',
+    ...INTEGRATION_WRITE_TOOL_NAMES.zendesk,
+  ],
   figma: [
     'get_figma_file',
     'get_figma_node',

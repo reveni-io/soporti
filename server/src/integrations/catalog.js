@@ -41,7 +41,11 @@ const CATALOG = [
   catalogEntry('granola', 'Search and read your own meeting notes', granola.isConfigured),
   catalogEntry('betterstack', 'Search and query application logs', betterstack.isConfigured),
   catalogEntry('figma', 'Look at Figma designs, render screenshots and read their comments', figma.isConfigured),
-  catalogEntry('zendesk', 'Read your own Zendesk tickets and post internal notes on them', zendesk.isConfigured),
+  catalogEntry(
+    'zendesk',
+    'Read and search your own Zendesk tickets and views, and post internal notes on them',
+    zendesk.isConfigured
+  ),
 ]
 
 export async function listConfiguredIntegrations(userId) {

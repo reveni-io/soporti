@@ -7,7 +7,6 @@ import {
   describeZendeskConnection,
   disconnectZendesk,
   getZendeskConnection,
-  setZendeskView,
   setZendeskWrites,
 } from '../zendesk/settings.js'
 import { MAX_INSTRUCTIONS_LENGTH } from '../constants.js'
@@ -119,26 +118,6 @@ router.put('/zendesk/writes', async (req, res) => {
   } catch (err) {
     console.error('Failed to save the Zendesk write access:', err)
     res.status(500).json({ error: 'Failed to save the Zendesk write access.' })
-  }
-})
-
-router.put('/zendesk/view', async (req, res) => {
-  const { viewId } = req.body ?? {}
-
-  if (viewId != null && typeof viewId !== 'string') {
-    return res.status(400).json({ error: '"viewId" must be a string (empty to clear it).' })
-  }
-
-  try {
-    const connection = await setZendeskView(req.user.id, viewId ?? '')
-    if (!connection) return res.status(404).json({ error: ZENDESK_NOT_CONNECTED_ERROR })
-
-    res.json(describeZendeskConnection(connection))
-  } catch (err) {
-    if (err.code === INVALID_ZENDESK_CONNECTION) return res.status(400).json({ error: err.message })
-
-    console.error('Failed to save the Zendesk view:', err)
-    res.status(500).json({ error: 'Failed to save the Zendesk view.' })
   }
 })
 

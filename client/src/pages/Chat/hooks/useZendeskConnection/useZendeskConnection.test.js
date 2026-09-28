@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useZendeskConnection } from './useZendeskConnection.js'
 
-const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false, viewId: null }
-const CONNECTED = { connected: true, subdomain: 'acme', email: 'ana@acme.com', writesEnabled: false, viewId: null }
+const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false }
+const CONNECTED = { connected: true, subdomain: 'acme', email: 'ana@acme.com', writesEnabled: false }
 
 function jsonResponse(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body }
@@ -51,28 +51,23 @@ describe('useZendeskConnection', () => {
     expect(JSON.parse(options.body)).toEqual({ subdomain: 'acme', email: 'ana@acme.com', apiToken: 'secret' })
   })
 
-  it('saves the view and the write toggle without refreshing the sources', async () => {
+  it('saves the write toggle without refreshing the sources', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(CONNECTED))
-      .mockResolvedValueOnce(jsonResponse({ ...CONNECTED, viewId: '42' }))
-      .mockResolvedValueOnce(jsonResponse({ ...CONNECTED, viewId: '42', writesEnabled: true }))
+      .mockResolvedValueOnce(jsonResponse({ ...CONNECTED, writesEnabled: true }))
     const { result } = renderHook(() => useZendeskConnection('tok', onLogout, onConnectionsChange))
     await waitFor(() => expect(result.current.connection).toEqual(CONNECTED))
 
     await act(async () => {
-      await result.current.saveView('42')
-    })
-    await act(async () => {
       await result.current.saveWrites(true)
     })
 
-    expect(result.current.connection).toMatchObject({ viewId: '42', writesEnabled: true })
+    expect(result.current.connection).toMatchObject({ writesEnabled: true })
     expect(onConnectionsChange).not.toHaveBeenCalled()
-    expect(global.fetch.mock.calls[1][0]).toContain('/api/user/zendesk/view')
-    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ viewId: '42' })
-    expect(global.fetch.mock.calls[2][0]).toContain('/api/user/zendesk/writes')
-    expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({ enabled: true })
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch.mock.calls[1][0]).toContain('/api/user/zendesk/writes')
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ enabled: true })
   })
 
   it('disconnects with a DELETE and refreshes the sources', async () => {

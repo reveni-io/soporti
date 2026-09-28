@@ -49,7 +49,7 @@ export const INTEGRATIONS = [
   {
     id: 'zendesk',
     name: 'Zendesk',
-    desc: 'Reads your tickets — the requester, the status and the whole thread, internal notes included — so a skill can gather the answer from the database or the docs and leave the draft on the ticket as an internal note. It never replies to the customer, never changes a status. Each person connects their own account.',
+    desc: 'Reads, searches and lists your tickets and views — the requester, the status and the whole thread, internal notes included — so a skill can gather the answer from the database or the docs and leave the draft on the ticket as an internal note. It never replies to the customer, never changes a status. Each person connects their own account.',
   },
   {
     id: 'figma',

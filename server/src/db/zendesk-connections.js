@@ -7,7 +7,6 @@ const CONNECTION_COLUMNS = {
   email: zendeskConnections.email,
   apiToken: zendeskConnections.apiToken,
   writesEnabled: zendeskConnections.writesEnabled,
-  viewId: zendeskConnections.viewId,
 }
 
 export async function getZendeskConnection(userId) {

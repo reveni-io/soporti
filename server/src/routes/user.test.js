@@ -21,14 +21,13 @@ vi.mock('../zendesk/settings.js', async () => {
     connectZendesk: vi.fn(),
     disconnectZendesk: vi.fn(),
     setZendeskWrites: vi.fn(),
-    setZendeskView: vi.fn(),
   }
 })
 
 const { getCustomInstructions, updateCustomInstructions } = await import('../db/users.js')
 const { isGranolaConfigured, setGranolaApiKey } = await import('../granola/settings.js')
 const { MAX_INSTRUCTIONS_LENGTH } = await import('../constants.js')
-const { getZendeskConnection, connectZendesk, disconnectZendesk, setZendeskWrites, setZendeskView } =
+const { getZendeskConnection, connectZendesk, disconnectZendesk, setZendeskWrites } =
   await import('../zendesk/settings.js')
 const { default: userRouter } = await import('./user.js')
 
@@ -221,16 +220,14 @@ describe('user Zendesk routes', () => {
     email: 'ana@acme.com',
     apiToken: API_TOKEN,
     writesEnabled: false,
-    viewId: null,
   }
   const PUBLIC_CONNECTION = {
     connected: true,
     subdomain: 'acme',
     email: 'ana@acme.com',
     writesEnabled: false,
-    viewId: null,
   }
-  const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false, viewId: null }
+  const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false }
   let app
 
   function invalidConnection(message) {
@@ -362,44 +359,5 @@ describe('user Zendesk routes', () => {
 
     expect(res.status).toBe(500)
     expect(res.body.error).toBe('Failed to save the Zendesk write access.')
-  })
-
-  it('scopes the connection to a view, and clears it when the id is missing', async () => {
-    setZendeskView.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-
-    const scoped = await request(app).put('/zendesk/view').send({ viewId: '42' })
-    await request(app).put('/zendesk/view').send({})
-
-    expect(scoped.status).toBe(200)
-    expect(scoped.body.viewId).toBe('42')
-    expect(setZendeskView).toHaveBeenNthCalledWith(1, 7, '42')
-    expect(setZendeskView).toHaveBeenNthCalledWith(2, 7, '')
-  })
-
-  it('rejects a view id that is not a string or not a number', async () => {
-    const wrongType = await request(app).put('/zendesk/view').send({ viewId: 42 })
-    setZendeskView.mockRejectedValue(invalidConnection('A Zendesk view id is a number.'))
-    const wrongValue = await request(app).put('/zendesk/view').send({ viewId: 'mine' })
-
-    expect(wrongType.status).toBe(400)
-    expect(wrongValue.status).toBe(400)
-    expect(wrongValue.body.error).toBe('A Zendesk view id is a number.')
-  })
-
-  it('answers 404 when scoping a view without a connection', async () => {
-    setZendeskView.mockResolvedValue(null)
-
-    const res = await request(app).put('/zendesk/view').send({ viewId: '42' })
-
-    expect(res.status).toBe(404)
-  })
-
-  it('returns 500 when the view cannot be saved', async () => {
-    setZendeskView.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).put('/zendesk/view').send({ viewId: '42' })
-
-    expect(res.status).toBe(500)
-    expect(res.body.error).toBe('Failed to save the Zendesk view.')
   })
 })

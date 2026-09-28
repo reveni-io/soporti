@@ -256,15 +256,6 @@ export function disconnectZendesk(token) {
   return request('/api/user/zendesk', { method: 'DELETE', token, errorMessage: 'Failed to disconnect Zendesk' })
 }
 
-export function saveZendeskView(token, viewId) {
-  return request('/api/user/zendesk/view', {
-    method: 'PUT',
-    token,
-    body: { viewId },
-    errorMessage: 'Failed to save the Zendesk view',
-  })
-}
-
 export function saveZendeskWrites(token, enabled) {
   return request('/api/user/zendesk/writes', {
     method: 'PUT',

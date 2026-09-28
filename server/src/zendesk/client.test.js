@@ -2,15 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const getZendeskConnection = vi.fn()
 const isZendeskConfigured = vi.fn()
-vi.mock('./settings.js', async () => {
-  const { parseZendeskViewId } = await vi.importActual('./settings.js')
-  return { getZendeskConnection, isZendeskConfigured, parseZendeskViewId }
-})
+vi.mock('./settings.js', () => ({ getZendeskConnection, isZendeskConfigured }))
 
-const { getTicket, listViewTickets, postInternalNote, isConfigured } = await import('./client.js')
+const { getTicket, listViews, listViewTickets, searchTickets, postInternalNote, isConfigured } =
+  await import('./client.js')
 
 const API_TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789ABCD'
-const CONNECTION = { subdomain: 'acme', email: 'ana@acme.com', apiToken: API_TOKEN, writesEnabled: true, viewId: null }
+const CONNECTION = { subdomain: 'acme', email: 'ana@acme.com', apiToken: API_TOKEN, writesEnabled: true }
 const BASE_URL = 'https://acme.zendesk.com/api/v2'
 const REQUESTER = { id: 11, name: 'Carla Customer', email: 'carla@example.com', role: 'end-user' }
 const AGENT = { id: 22, name: 'Ana Agent', email: 'ana@acme.com', role: 'agent' }
@@ -72,6 +70,7 @@ describe('ticket references', () => {
 
     expect(ticket.id).toBe(123)
     expect(requestedPaths()).toContain('/tickets/123.json?include=users')
+    expect(requestedPaths().some(path => path.startsWith('/views/'))).toBe(false)
   })
 
   it('refuses a ticket url of another Zendesk account', async () => {
@@ -181,37 +180,6 @@ describe('getTicket', () => {
     expect(only.truncated).toBe(true)
   })
 
-  it('reads a ticket that is in the view the connection is scoped to', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-    routeFetch({
-      '/views/42/tickets.json': jsonResponse({ tickets: [{ id: 123 }], meta: { has_more: false } }),
-      '/tickets/123.json': jsonResponse({ ticket: TICKET, users: [] }),
-      '/tickets/123/comments.json': jsonResponse({ comments: [], users: [], meta: { has_more: false } }),
-    })
-
-    const ticket = await getTicket(7, '123')
-
-    expect(ticket.id).toBe(123)
-  })
-
-  it('refuses a ticket outside the scoped view without reading it', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-    routeFetch({ '/views/42/tickets.json': jsonResponse({ tickets: [{ id: 999 }], meta: { has_more: false } }) })
-
-    await expect(getTicket(7, '123')).rejects.toThrow(/not in Zendesk view 42/)
-    expect(requestedPaths().some(path => path.startsWith('/tickets/'))).toBe(false)
-  })
-
-  it('refuses when the scoped view is too large to confirm the ticket is in it', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-    routeFetch({
-      '/views/42/tickets.json': jsonResponse({ tickets: [{ id: 1 }], meta: { has_more: true, after_cursor: 'c' } }),
-    })
-
-    await expect(getTicket(7, '123')).rejects.toThrow(/could not be confirmed/)
-    expect(global.fetch).toHaveBeenCalledTimes(10)
-  })
-
   it('fails with a reconnect hint when Zendesk rejects the credentials', async () => {
     routeFetch({
       '/tickets/123.json': jsonResponse({ error: 'Couldn’t authenticate you' }, 401),
@@ -243,8 +211,45 @@ describe('getTicket', () => {
   })
 })
 
+describe('listViews', () => {
+  it('lists the active views, following the cursor, and flags the personal ones', async () => {
+    routeFetch({
+      '/views.json': path =>
+        path.includes('page[after]')
+          ? jsonResponse({ views: [{ id: 2, title: 'My queue', restriction: { type: 'User', id: 22 } }], meta: {} })
+          : jsonResponse({
+              views: [{ id: 1, title: 'Tier 2', restriction: null }],
+              meta: { has_more: true, after_cursor: 'next' },
+            }),
+    })
+
+    const result = await listViews(7)
+
+    expect(result).toEqual({
+      views: [
+        { id: 1, title: 'Tier 2', personal: false },
+        { id: 2, title: 'My queue', personal: true },
+      ],
+      truncated: false,
+    })
+    expect(requestedPaths()).toEqual([
+      '/views.json?active=true&page[size]=100',
+      '/views.json?active=true&page[size]=100&page[after]=next',
+    ])
+  })
+
+  it('stops after five pages and says the list is truncated', async () => {
+    routeFetch({ '/views.json': jsonResponse({ views: [], meta: { has_more: true, after_cursor: 'c' } }) })
+
+    const result = await listViews(7)
+
+    expect(result.truncated).toBe(true)
+    expect(global.fetch).toHaveBeenCalledTimes(5)
+  })
+})
+
 describe('listViewTickets', () => {
-  it('lists the tickets of the requested view with their requesters', async () => {
+  it('lists the tickets of any view with their requesters', async () => {
     routeFetch({
       '/views/77/tickets.json': jsonResponse({
         tickets: [
@@ -256,7 +261,7 @@ describe('listViewTickets', () => {
       '/users/show_many.json': jsonResponse({ users: [REQUESTER] }),
     })
 
-    const result = await listViewTickets(7, '77')
+    const result = await listViewTickets(7, ' 77 ')
 
     expect(result).toEqual({
       viewId: '77',
@@ -270,29 +275,65 @@ describe('listViewTickets', () => {
         updatedAt: '2026-09-02T10:00:00Z',
       })),
     })
-    expect(requestedPaths()).toContain('/users/show_many.json?ids=11')
+    expect(requestedPaths()).toEqual(['/views/77/tickets.json?page[size]=100', '/users/show_many.json?ids=11'])
   })
 
-  it('defaults to the view the connection is scoped to', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-    routeFetch({ '/views/42/tickets.json': jsonResponse({ tickets: [], meta: { has_more: false } }) })
+  it('skips the requester lookup for an empty view', async () => {
+    routeFetch({ '/views/77/tickets.json': jsonResponse({ tickets: [], meta: { has_more: false } }) })
 
-    const result = await listViewTickets(7)
+    const result = await listViewTickets(7, '77')
 
-    expect(result).toEqual({ viewId: '42', tickets: [], truncated: false })
+    expect(result).toEqual({ viewId: '77', tickets: [], truncated: false })
     expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('refuses another view than the one the connection is scoped to', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-
-    await expect(listViewTickets(7, '77')).rejects.toThrow(/scoped to view 42 and cannot read view 77/)
+  it('refuses anything that is not a numeric view id and points to the list of views', async () => {
+    await expect(listViewTickets(7, 'My queue')).rejects.toThrow(/not a Zendesk view id.*zendesk_list_views/)
+    await expect(listViewTickets(7)).rejects.toThrow(/not a Zendesk view id/)
     expect(global.fetch).not.toHaveBeenCalled()
   })
+})
 
-  it('asks for a view id when neither the call nor the connection has one', async () => {
-    await expect(listViewTickets(7)).rejects.toThrow(/No view id/)
-    await expect(listViewTickets(7, 'mine')).rejects.toThrow(/view id is a number/)
+describe('searchTickets', () => {
+  it('searches tickets with the query and returns them with their requesters', async () => {
+    routeFetch({
+      '/search.json': jsonResponse({ results: [{ ...TICKET, id: 5 }], count: 240, next_page: 'https://next' }),
+      '/users/show_many.json': jsonResponse({ users: [REQUESTER] }),
+    })
+
+    const result = await searchTickets(7, '  refund status<solved  ')
+
+    expect(result).toEqual({
+      query: 'refund status<solved',
+      count: 240,
+      truncated: true,
+      tickets: [
+        {
+          id: 5,
+          url: 'https://acme.zendesk.com/agent/tickets/5',
+          subject: 'Where is my refund?',
+          requester: { name: 'Carla Customer', email: 'carla@example.com' },
+          status: 'open',
+          updatedAt: '2026-09-02T10:00:00Z',
+        },
+      ],
+    })
+    expect(requestedPaths()[0]).toBe(
+      `/search.json?query=${encodeURIComponent('type:ticket refund status<solved')}&per_page=100`
+    )
+  })
+
+  it('reports a search without matches as complete', async () => {
+    routeFetch({ '/search.json': jsonResponse({ results: [], count: 0, next_page: null }) })
+
+    const result = await searchTickets(7, 'requester:nobody@example.com')
+
+    expect(result).toEqual({ query: 'requester:nobody@example.com', count: 0, tickets: [], truncated: false })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses an empty query', async () => {
+    await expect(searchTickets(7, '   ')).rejects.toThrow(/needs a query/)
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })
@@ -332,14 +373,6 @@ describe('postInternalNote', () => {
   it('refuses an empty note', async () => {
     await expect(postInternalNote(7, '123', '   ')).rejects.toThrow(/needs a body/)
     expect(global.fetch).not.toHaveBeenCalled()
-  })
-
-  it('refuses a ticket outside the scoped view without writing', async () => {
-    getZendeskConnection.mockResolvedValue({ ...CONNECTION, viewId: '42' })
-    routeFetch({ '/views/42/tickets.json': jsonResponse({ tickets: [], meta: { has_more: false } }) })
-
-    await expect(postInternalNote(7, '123', 'Draft')).rejects.toThrow(/not in Zendesk view 42/)
-    expect(global.fetch.mock.calls.some(([, options]) => options.method === 'PUT')).toBe(false)
   })
 })
 

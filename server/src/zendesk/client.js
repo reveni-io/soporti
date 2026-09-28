@@ -1,14 +1,15 @@
 import { redactSecrets } from '../review/output-guard.js'
-import { getZendeskConnection, isZendeskConfigured, parseZendeskViewId } from './settings.js'
+import { getZendeskConnection, isZendeskConfigured } from './settings.js'
 
 const REQUEST_TIMEOUT_MS = 15_000
 const PAGE_SIZE = 100
 const MAX_COMMENT_PAGES = 5
-const MAX_VIEW_SCAN_PAGES = 10
+const MAX_VIEW_PAGES = 5
 const MAX_COMMENT_CHARS = 10_000
 const MAX_ERROR_CHARS = 300
 const TICKET_URL_RE = /^(?:https?:\/\/)?([a-z0-9-]+)\.zendesk\.com\/.*\/tickets\/(\d{1,20})(?:\D.*)?$/i
 const TICKET_ID_RE = /^#?(\d{1,20})$/
+const VIEW_ID_RE = /^\d{1,20}$/
 const NOT_CONNECTED_MESSAGE =
   'Zendesk is not connected for this user. Connect a Zendesk account in Settings → Connections.'
 const REJECTED_MESSAGE =
@@ -106,26 +107,6 @@ async function* paginate(connection, path, maxPages) {
   }
 }
 
-async function assertTicketInView(connection, ticketId) {
-  if (!connection.viewId) return
-
-  let hasMore = false
-  for await (const page of paginate(connection, `/views/${connection.viewId}/tickets.json`, MAX_VIEW_SCAN_PAGES)) {
-    if ((page.data.tickets || []).some(ticket => String(ticket.id) === ticketId)) return
-    hasMore = page.hasMore
-  }
-
-  if (hasMore) {
-    throw new Error(
-      `Zendesk view ${connection.viewId} holds more than ${PAGE_SIZE * MAX_VIEW_SCAN_PAGES} tickets, so ticket #${ticketId} could not be confirmed to be in it. Leave it alone.`
-    )
-  }
-
-  throw new Error(
-    `Ticket #${ticketId} is not in Zendesk view ${connection.viewId}, the only view this connection may read and write. Leave it alone.`
-  )
-}
-
 function indexUsers(users) {
   return new Map((users || []).map(user => [user.id, user]))
 }
@@ -178,8 +159,6 @@ export async function getTicket(userId, reference) {
   const connection = await requireConnection(userId)
   const ticketId = parseTicketId(reference, connection.subdomain)
 
-  await assertTicketInView(connection, ticketId)
-
   const [{ ticket, users: ticketUsers }, thread] = await Promise.all([
     request(connection, `/tickets/${ticketId}.json?include=users`),
     fetchComments(connection, ticketId),
@@ -201,21 +180,14 @@ export async function getTicket(userId, reference) {
   }
 }
 
-function resolveViewId(connection, viewId) {
-  const requested = parseZendeskViewId(viewId)
+function parseViewId(viewId) {
+  const raw = String(viewId ?? '').trim()
 
-  if (connection.viewId && requested && requested !== connection.viewId) {
-    throw new Error(
-      `This Zendesk connection is scoped to view ${connection.viewId} and cannot read view ${requested}. Omit viewId to list it.`
-    )
+  if (!VIEW_ID_RE.test(raw)) {
+    throw new Error(`"${raw}" is not a Zendesk view id. Use zendesk_list_views to find the id of a view by its name.`)
   }
 
-  const resolved = requested ?? connection.viewId
-  if (!resolved) {
-    throw new Error('No view id: pass the id of a Zendesk view, or set a default view in Settings → Connections.')
-  }
-
-  return resolved
+  return raw
 }
 
 async function fetchRequesters(connection, tickets) {
@@ -226,25 +198,66 @@ async function fetchRequesters(connection, tickets) {
   return indexUsers(data.users)
 }
 
+function toTicketSummary(ticket, requesters, subdomain) {
+  return {
+    id: ticket.id,
+    url: ticketUrl(subdomain, ticket.id),
+    subject: ticket.subject ?? '',
+    requester: toPerson(requesters.get(ticket.requester_id)),
+    status: ticket.status,
+    updatedAt: ticket.updated_at,
+  }
+}
+
+async function summarizeTickets(connection, tickets) {
+  const requesters = await fetchRequesters(connection, tickets)
+
+  return tickets.map(ticket => toTicketSummary(ticket, requesters, connection.subdomain))
+}
+
+export async function listViews(userId) {
+  const connection = await requireConnection(userId)
+
+  const views = []
+  let truncated = false
+  for await (const page of paginate(connection, '/views.json?active=true', MAX_VIEW_PAGES)) {
+    views.push(...(page.data.views || []))
+    truncated = page.hasMore
+  }
+
+  return {
+    views: views.map(view => ({ id: view.id, title: view.title ?? '', personal: Boolean(view.restriction) })),
+    truncated,
+  }
+}
+
 export async function listViewTickets(userId, viewId) {
   const connection = await requireConnection(userId)
-  const resolvedViewId = resolveViewId(connection, viewId)
+  const resolvedViewId = parseViewId(viewId)
 
   const data = await request(connection, pagePath(`/views/${resolvedViewId}/tickets.json`, null))
-  const tickets = data.tickets || []
-  const requesters = await fetchRequesters(connection, tickets)
 
   return {
     viewId: resolvedViewId,
-    tickets: tickets.map(ticket => ({
-      id: ticket.id,
-      url: ticketUrl(connection.subdomain, ticket.id),
-      subject: ticket.subject ?? '',
-      requester: toPerson(requesters.get(ticket.requester_id)),
-      status: ticket.status,
-      updatedAt: ticket.updated_at,
-    })),
+    tickets: await summarizeTickets(connection, data.tickets || []),
     truncated: Boolean(data.meta?.has_more),
+  }
+}
+
+export async function searchTickets(userId, query) {
+  const connection = await requireConnection(userId)
+  const trimmed = String(query ?? '').trim()
+
+  if (!trimmed) throw new Error('A Zendesk search needs a query.')
+
+  const fullQuery = encodeURIComponent(`type:ticket ${trimmed}`)
+  const data = await request(connection, `/search.json?query=${fullQuery}&per_page=${PAGE_SIZE}`)
+
+  return {
+    query: trimmed,
+    count: data.count,
+    tickets: await summarizeTickets(connection, data.results || []),
+    truncated: Boolean(data.next_page),
   }
 }
 
@@ -254,8 +267,6 @@ export async function postInternalNote(userId, reference, body) {
   const text = redactSecrets(String(body ?? '').trim())
 
   if (!text) throw new Error('An internal note needs a body.')
-
-  await assertTicketInView(connection, ticketId)
 
   const data = await request(connection, `/tickets/${ticketId}.json`, {
     method: 'PUT',

@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ZendeskConnection from './ZendeskConnection.jsx'
 
-const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false, viewId: null }
-const CONNECTED = { connected: true, subdomain: 'acme', email: 'ana@acme.com', writesEnabled: false, viewId: null }
+const DISCONNECTED = { connected: false, subdomain: null, email: null, writesEnabled: false }
+const CONNECTED = { connected: true, subdomain: 'acme', email: 'ana@acme.com', writesEnabled: false }
 const API_TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789ABCD'
 
 function jsonResponse(body, status = 200) {
@@ -26,10 +26,9 @@ describe('ZendeskConnection', () => {
     expect(screen.getByLabelText(/zendesk agent email/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/zendesk api token/i)).toHaveAttribute('type', 'password')
     expect(screen.getByRole('button', { name: /^connect$/i })).toBeDisabled()
-    expect(screen.queryByLabelText(/zendesk view id/i)).not.toBeInTheDocument()
   })
 
-  it('connects with the typed credentials and then offers the view and the write toggle', async () => {
+  it('connects with the typed credentials and then offers only the write toggle', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(DISCONNECTED))
@@ -47,7 +46,7 @@ describe('ZendeskConnection', () => {
 
     expect(await screen.findByText('Connected')).toBeInTheDocument()
     expect(screen.getByText('acme.zendesk.com')).toBeInTheDocument()
-    expect(screen.getByLabelText(/zendesk view id/i)).toHaveValue('')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /post internal notes/i })).not.toBeChecked()
     expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
       subdomain: 'acme',
@@ -74,27 +73,6 @@ describe('ZendeskConnection', () => {
 
     expect(await screen.findByText('That does not look like a Zendesk subdomain.')).toBeInTheDocument()
     expect(screen.getByLabelText(/zendesk subdomain/i)).toHaveValue('not a host')
-  })
-
-  it('scopes the connection to a view', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(CONNECTED))
-      .mockResolvedValueOnce(jsonResponse({ ...CONNECTED, viewId: '42' }))
-    const user = userEvent.setup()
-
-    render(<ZendeskConnection token="tok" onLogout={vi.fn()} />)
-    await screen.findByText('Connected')
-
-    expect(screen.getByRole('button', { name: /save view/i })).toBeDisabled()
-    await user.type(screen.getByLabelText(/zendesk view id/i), '42')
-    await user.click(screen.getByRole('button', { name: /save view/i }))
-
-    expect(await screen.findByDisplayValue('42')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /save view/i })).toBeDisabled()
-    const [url, options] = global.fetch.mock.calls[1]
-    expect(url).toContain('/api/user/zendesk/view')
-    expect(JSON.parse(options.body)).toEqual({ viewId: '42' })
   })
 
   it('turns the internal notes on from the checkbox', async () => {
