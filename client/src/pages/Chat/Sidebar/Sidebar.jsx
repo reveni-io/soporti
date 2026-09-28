@@ -29,7 +29,13 @@ export default function Sidebar({
   onClose,
 }) {
   const { repos, loading, error } = useRepos(token, onLogout)
-  const { conversations, remove } = useConversations(token, conversationsReloadKey, activeConversations)
+  const {
+    conversations,
+    remove,
+    query: conversationQuery,
+    setQuery: setConversationQuery,
+    searchedQuery: searchedConversationQuery,
+  } = useConversations(token, conversationsReloadKey, activeConversations)
   const { search, setSearch, filteredRepos, filteredIntegrations, yoloMatches } = useSourceSearch({
     repos,
     integrations,
@@ -47,6 +53,9 @@ export default function Sidebar({
 
       <ConversationList
         conversations={conversations}
+        query={conversationQuery}
+        searchedQuery={searchedConversationQuery}
+        onQueryChange={setConversationQuery}
         selectedId={selectedConversationId}
         onSelect={onLoadConversation}
         onDelete={remove}

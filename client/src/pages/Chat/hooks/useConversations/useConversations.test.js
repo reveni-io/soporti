@@ -10,6 +10,14 @@ function mockList(conversations) {
   return { ok: true, status: 200, json: async () => ({ conversations }) }
 }
 
+function searchCalls() {
+  return global.fetch.mock.calls.filter(([url]) => url.includes('?q='))
+}
+
+function waitPastDebounce() {
+  return new Promise(resolve => setTimeout(resolve, 400))
+}
+
 describe('useConversations', () => {
   it('loads the conversations', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
@@ -195,5 +203,99 @@ describe('useConversations', () => {
         { id: 'c2', title: 'Why did the payout fail?', scheduleId: null, isStreaming: false },
       ])
     )
+  })
+
+  it('searches once the query settles and exposes the query the results answer', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Auth question' }]))
+      .mockResolvedValueOnce(mockList([{ id: 'c2', title: 'Vague title', snippet: 'the refund window' }]))
+
+    const { result } = renderHook(() => useConversations('tok', 0))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(1))
+
+    act(() => result.current.setQuery('r'))
+    act(() => result.current.setQuery('ref'))
+    act(() => result.current.setQuery('  refund  '))
+
+    await waitFor(() => expect(result.current.searchedQuery).toBe('refund'))
+    expect(result.current.query).toBe('  refund  ')
+    expect(result.current.conversations).toEqual([{ id: 'c2', title: 'Vague title', snippet: 'the refund window' }])
+    expect(searchCalls()).toHaveLength(1)
+    expect(searchCalls()[0][0]).toBe('/api/conversations?q=refund')
+  })
+
+  it('does not search a blank query', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockList([{ id: 'c1', title: 'Auth question' }]))
+
+    const { result } = renderHook(() => useConversations('tok', 0))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(1))
+
+    act(() => result.current.setQuery('   '))
+    await act(waitPastDebounce)
+
+    expect(searchCalls()).toHaveLength(0)
+    expect(result.current.searchedQuery).toBe('')
+    expect(result.current.conversations).toEqual([{ id: 'c1', title: 'Auth question' }])
+  })
+
+  it('leaves out in-flight conversations the search did not return, but still marks the ones it did', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Refund report' }]))
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Refund report' }]))
+
+    const active = [
+      { id: 'c1', title: 'Refund report', isStreaming: true },
+      { id: 'c9', title: 'Why did the payout fail?', isStreaming: true },
+    ]
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+
+    act(() => result.current.setQuery('refund'))
+
+    await waitFor(() => expect(result.current.searchedQuery).toBe('refund'))
+    expect(result.current.conversations).toEqual([{ id: 'c1', title: 'Refund report', isStreaming: true }])
+  })
+
+  it('restores the regular list, in-flight conversations included, when the query is cleared', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Auth question' }]))
+      .mockResolvedValueOnce(mockList([]))
+      .mockResolvedValueOnce(mockList([{ id: 'c1', title: 'Auth question' }]))
+
+    const active = [{ id: 'c9', title: 'Why did the payout fail?', isStreaming: true }]
+    const { result } = renderHook(() => useConversations('tok', 0, active))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+
+    act(() => result.current.setQuery('nothing'))
+    await waitFor(() => expect(result.current.searchedQuery).toBe('nothing'))
+    expect(result.current.conversations).toEqual([])
+
+    act(() => result.current.setQuery(''))
+
+    await waitFor(() => expect(result.current.searchedQuery).toBe(''))
+    expect(result.current.conversations).toEqual([...active, { id: 'c1', title: 'Auth question' }])
+    expect(global.fetch.mock.calls[2][0]).toBe('/api/conversations')
+  })
+
+  it('drops a deleted conversation from the search results', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockList([]))
+      .mockResolvedValueOnce(mockList([{ id: 'c1' }, { id: 'c2' }]))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) })
+
+    const { result } = renderHook(() => useConversations('tok', 0))
+    act(() => result.current.setQuery('refund'))
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.remove('c1')
+    })
+
+    expect(result.current.conversations).toEqual([{ id: 'c2' }])
+    expect(result.current.searchedQuery).toBe('refund')
   })
 })

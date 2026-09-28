@@ -7,6 +7,7 @@ const VALID_ID = '11111111-1111-4111-8111-111111111111'
 
 const store = {
   listWeb: vi.fn(),
+  searchWeb: vi.fn(),
   getWebMessages: vi.fn(),
   deleteWeb: vi.fn(),
 }
@@ -35,6 +36,55 @@ describe('conversations routes', () => {
       store.listWeb.mockRejectedValue(new Error('boom'))
       const res = await request(app).get('/')
       expect(res.status).toBe(500)
+    })
+
+    it('searches the user conversations with the trimmed query', async () => {
+      store.searchWeb.mockResolvedValue([{ id: VALID_ID, title: 'Vague title', snippet: 'the refund window' }])
+
+      const res = await request(app).get('/').query({ q: '  refund window  ' })
+
+      expect(res.status).toBe(200)
+      expect(res.body.conversations).toEqual([{ id: VALID_ID, title: 'Vague title', snippet: 'the refund window' }])
+      expect(store.searchWeb).toHaveBeenCalledTimes(1)
+      expect(store.searchWeb).toHaveBeenCalledWith(1, 'refund window')
+      expect(store.listWeb).not.toHaveBeenCalled()
+    })
+
+    it('lists every conversation when the query is blank', async () => {
+      store.listWeb.mockResolvedValue([])
+
+      const res = await request(app).get('/').query({ q: '   ' })
+
+      expect(res.status).toBe(200)
+      expect(store.listWeb).toHaveBeenCalledWith(1)
+      expect(store.searchWeb).not.toHaveBeenCalled()
+    })
+
+    it('rejects a query that is too long', async () => {
+      const res = await request(app)
+        .get('/')
+        .query({ q: 'a'.repeat(201) })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toMatch(/too long/)
+      expect(store.searchWeb).not.toHaveBeenCalled()
+    })
+
+    it('rejects a repeated query parameter', async () => {
+      const res = await request(app).get('/?q=refund&q=payout')
+
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: 'Invalid search query.' })
+      expect(store.searchWeb).not.toHaveBeenCalled()
+    })
+
+    it('returns 500 when the search fails', async () => {
+      store.searchWeb.mockRejectedValue(new Error('boom'))
+
+      const res = await request(app).get('/').query({ q: 'refund' })
+
+      expect(res.status).toBe(500)
+      expect(res.body).toEqual({ error: 'Failed to list conversations.' })
     })
   })
 

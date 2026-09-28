@@ -158,4 +158,82 @@ describe('ConversationList', () => {
 
     expect(onSelect).toHaveBeenCalledWith('c1')
   })
+
+  it('offers a search box above the conversations', async () => {
+    const onQueryChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Auth question' }]}
+        query=""
+        onQueryChange={onQueryChange}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Search conversations' }), 'r')
+
+    expect(onQueryChange).toHaveBeenCalledTimes(1)
+    expect(onQueryChange).toHaveBeenCalledWith('r')
+  })
+
+  it('clears the search with escape', async () => {
+    const onQueryChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList
+        conversations={[{ id: 'c1', title: 'Refund report' }]}
+        query="refund"
+        searchedQuery="refund"
+        onQueryChange={onQueryChange}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'Search conversations' }), '{Escape}')
+
+    expect(onQueryChange).toHaveBeenCalledTimes(1)
+    expect(onQueryChange).toHaveBeenCalledWith('')
+  })
+
+  it('keeps the section and says so when nothing matches the search', () => {
+    render(
+      <ConversationList
+        conversations={[]}
+        query="payout"
+        searchedQuery="payout"
+        onQueryChange={vi.fn()}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Search conversations' })).toHaveValue('payout')
+    expect(screen.getByText('No conversations match "payout"')).toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+  })
+
+  it('shows why a conversation matched with the query highlighted in the snippet', () => {
+    const { container } = render(
+      <ConversationList
+        conversations={[
+          { id: 'c1', title: 'Vague title', snippet: '…we checked the Refund window…' },
+          { id: 'c2', title: 'Refund report' },
+        ]}
+        query="refund"
+        searchedQuery="refund"
+        onQueryChange={vi.fn()}
+        onSelect={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    const snippets = container.querySelectorAll('.sidebar__conversation-snippet')
+    expect(snippets).toHaveLength(1)
+    expect(snippets[0]).toHaveTextContent('…we checked the Refund window…')
+    expect(snippets[0].querySelector('mark')).toHaveTextContent('Refund')
+    expect(screen.getByText('Refund report')).toBeInTheDocument()
+  })
 })

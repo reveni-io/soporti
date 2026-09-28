@@ -1,13 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('drizzle-orm', () => ({
-  eq: (col, val) => ({ op: 'eq', col, val }),
-  and: (...preds) => ({ op: 'and', preds }),
-  desc: col => ({ dir: 'desc', col }),
-  gte: (col, val) => ({ op: 'gte', col, val }),
-  lt: (col, val) => ({ op: 'lt', col, val }),
-  sql: (strings, ...values) => ({ __sql: true, values }),
-}))
+vi.mock('drizzle-orm', () => {
+  function sql(strings, ...values) {
+    return { __sql: true, values, as: alias => ({ __sql: true, alias, values }) }
+  }
+  sql.identifier = name => ({ identifier: name })
+
+  return {
+    eq: (col, val) => ({ op: 'eq', col, val }),
+    and: (...preds) => ({ op: 'and', preds }),
+    or: (...preds) => ({ op: 'or', preds }),
+    ilike: (col, val) => ({ op: 'ilike', col, val }),
+    inArray: (col, vals) => ({ op: 'inArray', col, vals }),
+    isNotNull: col => ({ op: 'isNotNull', col }),
+    desc: col => ({ dir: 'desc', col }),
+    gte: (col, val) => ({ op: 'gte', col, val }),
+    lt: (col, val) => ({ op: 'lt', col, val }),
+    sql,
+  }
+})
 
 vi.mock('./postgres-session.js', () => ({
   PostgresSession: class {
@@ -189,6 +200,42 @@ function makeFakeDb() {
       }),
     }),
   }
+}
+
+function makeSearchDb(rows) {
+  const queries = []
+
+  function select(projection) {
+    const query = { projection }
+    queries.push(query)
+    const chain = {
+      from: source => {
+        query.from = source
+        return chain
+      },
+      leftJoinLateral: subquery => {
+        query.lateral = subquery
+        return chain
+      },
+      where: pred => {
+        query.where = pred
+        return chain
+      },
+      orderBy: (...cols) => {
+        query.orderBy = cols
+        return chain
+      },
+      limit: n => {
+        query.limit = n
+        return chain
+      },
+      as: alias => ({ alias, text: projection.text }),
+      then: (resolve, reject) => Promise.resolve(rows).then(resolve, reject),
+    }
+    return chain
+  }
+
+  return { queries, select }
 }
 
 describe('ConversationStore', () => {
@@ -471,6 +518,83 @@ describe('ConversationStore', () => {
 
     const list = await store.listWeb(5)
     expect(list).toHaveLength(0)
+  })
+
+  it('searchWeb attaches a snippet of the content match and none when only the title matched', async () => {
+    const updatedAt = new Date()
+    const searchStore = new ConversationStore(
+      makeSearchDb([
+        { id: 'a', title: 'Shopify refund', scheduleId: null, updatedAt, createdAt: updatedAt, matchedText: null },
+        {
+          id: 'b',
+          title: 'Vague title',
+          scheduleId: 3,
+          updatedAt,
+          createdAt: updatedAt,
+          matchedText: 'We checked the\n\nrefund window',
+        },
+      ])
+    )
+
+    const results = await searchStore.searchWeb(5, 'refund')
+
+    expect(results).toEqual([
+      { id: 'a', title: 'Shopify refund', scheduleId: null, updatedAt, createdAt: updatedAt },
+      {
+        id: 'b',
+        title: 'Vague title',
+        scheduleId: 3,
+        updatedAt,
+        createdAt: updatedAt,
+        snippet: 'We checked the refund window',
+      },
+    ])
+    searchStore.destroy()
+  })
+
+  it('searchWeb only searches the user web conversations inside the retention window, newest first', async () => {
+    const searchDb = makeSearchDb([])
+    const searchStore = new ConversationStore(searchDb)
+    const old = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
+
+    await searchStore.searchWeb(5, 'refund')
+
+    const outer = searchDb.queries.find(query => query.from === conversations)
+    expect(match({ userId: 5, source: 'web', updatedAt: new Date() }, outer.where)).toBe(true)
+    expect(match({ userId: 9, source: 'web', updatedAt: new Date() }, outer.where)).toBe(false)
+    expect(match({ userId: 5, source: 'slack', updatedAt: new Date() }, outer.where)).toBe(false)
+    expect(match({ userId: 5, source: 'web', updatedAt: old }, outer.where)).toBe(false)
+    expect(outer.orderBy).toEqual([{ dir: 'desc', col: conversations.updatedAt }])
+    searchStore.destroy()
+  })
+
+  it('searchWeb matches the title or the user and assistant text, with like wildcards escaped', async () => {
+    const searchDb = makeSearchDb([])
+    const searchStore = new ConversationStore(searchDb)
+
+    await searchStore.searchWeb(5, '50%_off')
+
+    const pattern = '%50\\%\\_off%'
+    const outer = searchDb.queries.find(query => query.from === conversations)
+    const inner = searchDb.queries.find(query => query.from !== conversations)
+    const titleOrContent = outer.where.preds.find(pred => pred.op === 'or')
+    expect(titleOrContent.preds).toEqual([
+      { op: 'ilike', col: conversations.title, val: pattern },
+      { op: 'isNotNull', col: outer.lateral.text },
+    ])
+    expect(inner.where.preds).toContainEqual({
+      op: 'eq',
+      col: conversationMessages.conversationId,
+      val: conversations.id,
+    })
+    expect(inner.where.preds).toContainEqual({
+      op: 'inArray',
+      col: conversationMessages.role,
+      vals: ['user', 'assistant'],
+    })
+    expect(inner.where.preds.some(pred => pred.__sql && pred.values.includes(pattern))).toBe(true)
+    expect(inner.limit).toBe(1)
+    searchStore.destroy()
   })
 
   it('getWebMessages returns null when the conversation is not owned by the user', async () => {

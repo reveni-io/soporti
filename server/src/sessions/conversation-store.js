@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto'
-import { eq, and, desc, gte, lt, sql } from 'drizzle-orm'
+import { eq, and, or, desc, gte, lt, ilike, inArray, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
-import { ownedWebConversation } from '../db/conversations.js'
+import { ownedWebConversation, ownedWebConversations } from '../db/conversations.js'
 import { toRenderMessage } from '../db/conversation-render.js'
+import { buildSnippet, toContainsPattern } from './conversation-search.js'
 import { PostgresSession } from './postgres-session.js'
 import { usesContinuationToken, wrapSession } from '../llm/model.js'
 
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000
 const TITLE_MAX_LENGTH = 120
+const SEARCHABLE_ROLES = ['user', 'assistant']
+const TEXT_PART = sql.identifier('part')
 
 export class ConversationStore {
   constructor(db = getDb()) {
@@ -182,6 +185,54 @@ export class ConversationStore {
         and(eq(conversations.userId, userId), eq(conversations.source, 'web'), gte(conversations.updatedAt, cutoff))
       )
       .orderBy(desc(conversations.updatedAt))
+  }
+
+  async searchWeb(userId, query) {
+    const cutoff = new Date(Date.now() - RETENTION_MS)
+    const pattern = toContainsPattern(query)
+    const firstMatch = this._firstMatchingText(pattern)
+
+    const rows = await this.db
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        scheduleId: conversations.scheduleId,
+        updatedAt: conversations.updatedAt,
+        createdAt: conversations.createdAt,
+        matchedText: firstMatch.text,
+      })
+      .from(conversations)
+      .leftJoinLateral(firstMatch, sql`true`)
+      .where(
+        and(
+          ownedWebConversations(userId),
+          gte(conversations.updatedAt, cutoff),
+          or(ilike(conversations.title, pattern), isNotNull(firstMatch.text))
+        )
+      )
+      .orderBy(desc(conversations.updatedAt))
+
+    return rows.map(({ matchedText, ...conversation }) => {
+      if (!matchedText) return conversation
+      return { ...conversation, snippet: buildSnippet(matchedText, query) }
+    })
+  }
+
+  _firstMatchingText(pattern) {
+    return this.db
+      .select({ text: sql`${TEXT_PART}->>'content'`.as('matched_text') })
+      .from(sql`${conversationMessages} cross join jsonb_array_elements(${conversationMessages.parts}) as ${TEXT_PART}`)
+      .where(
+        and(
+          eq(conversationMessages.conversationId, conversations.id),
+          inArray(conversationMessages.role, SEARCHABLE_ROLES),
+          sql`${TEXT_PART}->>'type' = 'text'`,
+          sql`${TEXT_PART}->>'content' ilike ${pattern}`
+        )
+      )
+      .orderBy(conversationMessages.createdAt, conversationMessages.id)
+      .limit(1)
+      .as('first_match')
   }
 
   async getWebMessages(conversationId, userId) {
