@@ -8,7 +8,6 @@ import { EMAIL_RE, MAX_EMAIL_LENGTH } from '../constants.js'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const API_TOKEN_RE = /^[A-Za-z0-9]{20,100}$/
-const VIEW_ID_RE = /^\d{1,20}$/
 const PROTOCOL_RE = /^https?:\/\//
 const ZENDESK_HOST_SUFFIX = '.zendesk.com'
 const CACHE_TTL_MS = 60_000
@@ -46,15 +45,6 @@ function parseZendeskCredentials({ subdomain, email, apiToken } = {}) {
   return { subdomain: normalizedSubdomain, email: trimmedEmail, apiToken: trimmedToken }
 }
 
-export function parseZendeskViewId(input) {
-  const trimmed = typeof input === 'string' ? input.trim() : ''
-
-  if (trimmed === '') return null
-  if (!VIEW_ID_RE.test(trimmed)) throw invalid('A Zendesk view id is a number, like the one at the end of its url.')
-
-  return trimmed
-}
-
 export async function getZendeskConnection(userId) {
   if (!userId) return null
 
@@ -68,14 +58,13 @@ export async function getZendeskConnection(userId) {
 }
 
 export function describeZendeskConnection(connection) {
-  if (!connection) return { connected: false, subdomain: null, email: null, writesEnabled: false, viewId: null }
+  if (!connection) return { connected: false, subdomain: null, email: null, writesEnabled: false }
 
   return {
     connected: true,
     subdomain: connection.subdomain,
     email: connection.email,
     writesEnabled: connection.writesEnabled,
-    viewId: connection.viewId,
   }
 }
 
@@ -91,19 +80,11 @@ export async function disconnectZendesk(userId) {
   cache.delete(userId)
 }
 
-async function updateOptions(userId, options) {
-  const connection = await updateZendeskOptions(userId, options)
+export async function setZendeskWrites(userId, enabled) {
+  const connection = await updateZendeskOptions(userId, { writesEnabled: enabled })
   cache.delete(userId)
 
   return connection
-}
-
-export async function setZendeskWrites(userId, enabled) {
-  return updateOptions(userId, { writesEnabled: enabled })
-}
-
-export async function setZendeskView(userId, input) {
-  return updateOptions(userId, { viewId: parseZendeskViewId(input) })
 }
 
 export async function isZendeskConfigured(userId) {

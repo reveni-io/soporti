@@ -14,45 +14,30 @@ vi.mock('../db/zendesk-connections.js', () => ({
 const settings = await import('./settings.js')
 const {
   INVALID_ZENDESK_CONNECTION,
-  parseZendeskViewId,
   describeZendeskConnection,
   connectZendesk,
   disconnectZendesk,
   setZendeskWrites,
-  setZendeskView,
   isZendeskConfigured,
   _resetZendeskSettingsCacheForTests,
 } = settings
 
 const API_TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789ABCD'
 const CREDENTIALS = { subdomain: 'acme', email: 'ana@acme.com', apiToken: API_TOKEN }
-const CONNECTION = { ...CREDENTIALS, writesEnabled: false, viewId: null }
+const CONNECTION = { ...CREDENTIALS, writesEnabled: false }
 
 beforeEach(() => {
   vi.clearAllMocks()
   _resetZendeskSettingsCacheForTests()
 })
 
-describe('parseZendeskViewId', () => {
-  it('returns the numeric id, or null for an empty value', () => {
-    expect(parseZendeskViewId(' 360001 ')).toBe('360001')
-    expect(parseZendeskViewId('')).toBeNull()
-    expect(parseZendeskViewId(null)).toBeNull()
-  })
-
-  it('rejects anything that is not a number', () => {
-    expect(() => parseZendeskViewId('my-view')).toThrow(expect.objectContaining({ code: INVALID_ZENDESK_CONNECTION }))
-  })
-})
-
 describe('describeZendeskConnection', () => {
   it('never exposes the API token', () => {
-    expect(describeZendeskConnection({ ...CONNECTION, viewId: '42' })).toEqual({
+    expect(describeZendeskConnection(CONNECTION)).toEqual({
       connected: true,
       subdomain: 'acme',
       email: 'ana@acme.com',
       writesEnabled: false,
-      viewId: '42',
     })
   })
 
@@ -62,7 +47,6 @@ describe('describeZendeskConnection', () => {
       subdomain: null,
       email: null,
       writesEnabled: false,
-      viewId: null,
     })
   })
 })
@@ -157,23 +141,6 @@ describe('setZendeskWrites', () => {
     updateZendeskOptions.mockResolvedValue(null)
 
     expect(await setZendeskWrites(7, true)).toBeNull()
-  })
-})
-
-describe('setZendeskView', () => {
-  it('stores the parsed view id, or clears it on an empty value', async () => {
-    updateZendeskOptions.mockResolvedValue(CONNECTION)
-
-    await setZendeskView(7, ' 42 ')
-    await setZendeskView(7, '')
-
-    expect(updateZendeskOptions).toHaveBeenNthCalledWith(1, 7, { viewId: '42' })
-    expect(updateZendeskOptions).toHaveBeenNthCalledWith(2, 7, { viewId: null })
-  })
-
-  it('rejects an invalid view id without writing anything', async () => {
-    await expect(setZendeskView(7, 'abc')).rejects.toThrow(/view id/)
-    expect(updateZendeskOptions).not.toHaveBeenCalled()
   })
 })
 

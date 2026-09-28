@@ -4,7 +4,6 @@ import {
   connectZendesk,
   disconnectZendesk,
   getZendeskConnection,
-  saveZendeskView,
   saveZendeskWrites,
 } from '../../../../services/services.js'
 
@@ -30,13 +29,9 @@ export function useZendeskConnection(token, onLogout, onConnectionsChange) {
     return apply(() => disconnectZendesk(token), { changesSources: true })
   }
 
-  function saveView(viewId) {
-    return apply(() => saveZendeskView(token, viewId))
-  }
-
   function saveWrites(enabled) {
     return apply(() => saveZendeskWrites(token, enabled))
   }
 
-  return { connection: config, loadError, saving, saveError, connect, disconnect, saveView, saveWrites }
+  return { connection: config, loadError, saving, saveError, connect, disconnect, saveWrites }
 }

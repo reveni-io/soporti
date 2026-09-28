@@ -230,7 +230,6 @@ export const zendeskConnections = pgTable('zendesk_connections', {
   email: text('email').notNull(),
   apiToken: text('api_token').notNull(),
   writesEnabled: boolean('writes_enabled').notNull().default(false),
-  viewId: text('view_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

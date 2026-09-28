@@ -1,0 +1,1 @@
+ALTER TABLE "zendesk_connections" DROP COLUMN "view_id";

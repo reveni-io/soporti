@@ -89,6 +89,14 @@ describe('buildBasePrompt', () => {
     expect(readOnly).not.toContain('### Posting internal notes')
   })
 
+  it('describes the Zendesk search and view tools without any view scope', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:zendesk']), { configured: ALL_CONFIGURED })
+
+    expect(prompt).toContain('zendesk_search_tickets')
+    expect(prompt).toContain('zendesk_list_views')
+    expect(prompt).not.toContain('scoped to one view')
+  })
+
   it('never mentions the Figma comment rules when Figma itself is not configured', () => {
     const prompt = buildBasePrompt(buildSourcePolicy(['integration:figma']), {
       configured: { sentryConfigured: true },

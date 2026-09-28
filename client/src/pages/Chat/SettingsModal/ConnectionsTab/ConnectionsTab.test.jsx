@@ -19,7 +19,6 @@ describe('ConnectionsTab', () => {
           subdomain: 'acme',
           email: 'ana@acme.com',
           writesEnabled: false,
-          viewId: null,
         })
       }
       return jsonResponse({ connected: false })

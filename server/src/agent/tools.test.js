@@ -109,7 +109,9 @@ vi.mock('../figma/client.js', () => ({
 
 vi.mock('../zendesk/client.js', () => ({
   getTicket: vi.fn(),
+  listViews: vi.fn(),
   listViewTickets: vi.fn(),
+  searchTickets: vi.fn(),
   postInternalNote: vi.fn(),
   isConfigured: vi.fn(async () => true),
 }))
@@ -1258,12 +1260,15 @@ describe('buildZendeskTools', () => {
   const names = tools => tools.map(t => t.name)
 
   it('builds only the read tools unless writes are enabled', () => {
-    expect(names(buildZendeskTools(7, false))).toEqual(['zendesk_get_ticket', 'zendesk_list_view_tickets'])
-    expect(names(buildZendeskTools(7, true))).toEqual([
+    const readTools = [
       'zendesk_get_ticket',
+      'zendesk_search_tickets',
+      'zendesk_list_views',
       'zendesk_list_view_tickets',
-      'zendesk_post_internal_note',
-    ])
+    ]
+
+    expect(names(buildZendeskTools(7, false))).toEqual(readTools)
+    expect(names(buildZendeskTools(7, true))).toEqual([...readTools, 'zendesk_post_internal_note'])
   })
 
   it('reads a ticket for the user the tools were built for', async () => {
@@ -1278,22 +1283,47 @@ describe('buildZendeskTools', () => {
     expect(zendeskMod.getTicket).toHaveBeenCalledWith(7, '#123')
   })
 
+  it('searches tickets with the query as given', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.searchTickets.mockResolvedValue({ query: 'tags:refund', count: 0, tickets: [], truncated: false })
+
+    const [, searchTickets] = buildZendeskTools(7, false)
+    const result = await searchTickets.execute({ query: 'tags:refund' })
+
+    expect(JSON.parse(result)).toEqual({ query: 'tags:refund', count: 0, tickets: [], truncated: false })
+    expect(zendeskMod.searchTickets).toHaveBeenCalledTimes(1)
+    expect(zendeskMod.searchTickets).toHaveBeenCalledWith(7, 'tags:refund')
+  })
+
+  it('lists the views of the user the tools were built for', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.listViews.mockResolvedValue({ views: [{ id: 42, title: 'Tier 2', personal: false }], truncated: false })
+
+    const [, , listViews] = buildZendeskTools(7, false)
+    const result = await listViews.execute({})
+
+    expect(JSON.parse(result).views).toEqual([{ id: 42, title: 'Tier 2', personal: false }])
+    expect(zendeskMod.listViews).toHaveBeenCalledTimes(1)
+    expect(zendeskMod.listViews).toHaveBeenCalledWith(7)
+  })
+
   it('lists the tickets of the requested view', async () => {
     const zendeskMod = await import('../zendesk/client.js')
     zendeskMod.listViewTickets.mockResolvedValue({ viewId: '42', tickets: [], truncated: false })
 
-    const [, listTickets] = buildZendeskTools(7, false)
-    const result = await listTickets.execute({ viewId: null })
+    const [, , , listTickets] = buildZendeskTools(7, false)
+    const result = await listTickets.execute({ viewId: '42' })
 
     expect(JSON.parse(result)).toEqual({ viewId: '42', tickets: [], truncated: false })
-    expect(zendeskMod.listViewTickets).toHaveBeenCalledWith(7, null)
+    expect(zendeskMod.listViewTickets).toHaveBeenCalledTimes(1)
+    expect(zendeskMod.listViewTickets).toHaveBeenCalledWith(7, '42')
   })
 
   it('posts the note body exactly as given', async () => {
     const zendeskMod = await import('../zendesk/client.js')
     zendeskMod.postInternalNote.mockResolvedValue({ ticketId: 123, noteId: 9, public: false })
 
-    const [, , postNote] = buildZendeskTools(7, true)
+    const [, , , , postNote] = buildZendeskTools(7, true)
     const result = await postNote.execute({ ticket: '123', body: 'Draft reply' })
 
     expect(JSON.parse(result)).toEqual({ ticketId: 123, noteId: 9, public: false })

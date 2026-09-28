@@ -800,7 +800,7 @@ export function buildZendeskTools(userId, writes) {
     tool({
       name: 'zendesk_get_ticket',
       description:
-        'Read a Zendesk ticket from the user\'s own Zendesk connection: subject, status, priority, tags, the requester and the full comment thread, oldest first, each comment with its author, the author\'s role (end-user, agent or admin) and whether it is public (seen by the requester) or an internal note. Accepts the ticket id or its url. A "notice" field means the thread was cut short — say so instead of treating it as the whole conversation. Cite the ticket url in your answer.',
+        'Read any Zendesk ticket the user\'s own Zendesk connection can see: subject, status, priority, tags, the requester and the full comment thread, oldest first, each comment with its author, the author\'s role (end-user, agent or admin) and whether it is public (seen by the requester) or an internal note. Accepts the ticket id or its url. A "notice" field means the thread was cut short — say so instead of treating it as the whole conversation. Cite the ticket url in your answer.',
       parameters: z.object({ ticket: ZENDESK_TICKET_PARAM }),
       execute: async input => {
         const ticket = await zendesk.getTicket(userId, input.ticket)
@@ -808,15 +808,37 @@ export function buildZendeskTools(userId, writes) {
       },
     }),
     tool({
+      name: 'zendesk_search_tickets',
+      description:
+        'Search the Zendesk tickets the user\'s connection can see with Zendesk search syntax, and get their id, url, subject, requester, status and last update. Combine free text with filters such as `status:open`, `status<solved`, `requester:carla@example.com`, `assignee:me`, `tags:refund`, `group:"Tier 2"`, `created>2026-09-01` or `updated<7days`, and sort with `order_by:updated_at sort:desc`. `count` is the total number of matches; at most 100 tickets are returned, and when `truncated` is true there are more, so narrow the query instead of presenting the list as complete. Read a ticket with zendesk_get_ticket before answering about it.',
+      parameters: z.object({
+        query: z
+          .string()
+          .describe(
+            'Zendesk search query without `type:ticket`, e.g. "refund status<solved order_by:updated_at sort:desc".'
+          ),
+      }),
+      execute: async input => {
+        const result = await zendesk.searchTickets(userId, input.query)
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'zendesk_list_views',
+      description:
+        "List the active Zendesk views the user's connection can see, with their id and title; `personal` marks a view restricted to the agent or their group. Use it to find a view by the name the user gives before listing its tickets.",
+      parameters: z.object({}),
+      execute: async () => {
+        const result = await zendesk.listViews(userId)
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
       name: 'zendesk_list_view_tickets',
       description:
-        "List the tickets in a Zendesk view with their id, url, subject, requester, status and last update. Omit viewId to use the view the user's connection is scoped to; when the connection is scoped, no other view can be listed. Returns at most 100 tickets: when `truncated` is true the view holds more, so do not present the list as complete.",
+        'List the tickets in a Zendesk view with their id, url, subject, requester, status and last update. Needs the numeric view id: when the user names a view, find its id with zendesk_list_views first. Returns at most 100 tickets: when `truncated` is true the view holds more, so do not present the list as complete.',
       parameters: z.object({
-        viewId: z
-          .string()
-          .nullable()
-          .default(null)
-          .describe("Numeric Zendesk view id. Null uses the view set in the user's connection."),
+        viewId: z.string().describe('Numeric Zendesk view id, e.g. "360001234567".'),
       }),
       execute: async input => {
         const result = await zendesk.listViewTickets(userId, input.viewId)
