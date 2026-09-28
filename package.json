@@ -33,7 +33,7 @@
     "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
+    "concurrently": "^10.0.5",
     "prettier": "^3.9.6"
   }
 }
