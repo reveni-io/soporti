@@ -6,6 +6,8 @@ import SchedulesModal from './SchedulesModal.jsx'
 const DAILY = {
   id: 1,
   question: 'Which payments failed?',
+  sources: ['reveni-io/soporti'],
+  profile: 'tech',
   frequency: 'daily',
   hour: 9,
   minute: 0,
@@ -19,11 +21,18 @@ const DAILY = {
 }
 
 function mockFetch(schedules, { deleteResponse } = {}) {
-  return vi.fn().mockImplementation((_url, options = {}) => {
-    if (options.method === 'DELETE') {
-      return Promise.resolve(deleteResponse ?? { ok: true, status: 200, json: async () => ({ ok: true }) })
+  let current = schedules
+
+  return vi.fn().mockImplementation((url, options = {}) => {
+    if (options.method === 'PUT') {
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedule: DAILY }) })
     }
-    return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedules }) })
+    if (options.method === 'DELETE') {
+      if (deleteResponse) return Promise.resolve(deleteResponse)
+      current = current.filter(schedule => !url.endsWith(`/api/schedules/${schedule.id}`))
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedules: current }) })
   })
 }
 
@@ -217,5 +226,76 @@ describe('SchedulesModal', () => {
     await waitFor(() =>
       expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'GET')).toHaveLength(2)
     )
+  })
+
+  it('edits a schedule in place and returns the form to create mode', async () => {
+    global.fetch = mockFetch([DAILY])
+    const user = userEvent.setup()
+
+    render(
+      <SchedulesModal
+        token="tok"
+        onClose={vi.fn()}
+        onLogout={vi.fn()}
+        selectedSources={['yolo']}
+        selectedProfile="support"
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: /edit/i }))
+
+    expect(screen.getByRole('heading', { name: 'Edit scheduled query' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(await screen.findByRole('heading', { name: 'New scheduled query' })).toBeInTheDocument()
+    const putCalls = global.fetch.mock.calls.filter(([, options]) => options?.method === 'PUT')
+    expect(putCalls).toHaveLength(1)
+    expect(putCalls[0][0]).toContain('/api/schedules/1')
+    expect(global.fetch.mock.calls.filter(([, options]) => options?.method === 'GET')).toHaveLength(2)
+    expect(screen.getByLabelText(/question/i)).toHaveValue('')
+  })
+
+  it('cancels an edit without saving and returns the form to create mode', async () => {
+    global.fetch = mockFetch([DAILY])
+    const user = userEvent.setup()
+
+    render(
+      <SchedulesModal
+        token="tok"
+        onClose={vi.fn()}
+        onLogout={vi.fn()}
+        selectedSources={['yolo']}
+        selectedProfile="support"
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+
+    expect(screen.getByRole('heading', { name: 'New scheduled query' })).toBeInTheDocument()
+    expect(screen.getByLabelText(/question/i)).toHaveValue('')
+    expect(global.fetch.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(false)
+  })
+
+  it('leaves edit mode when the schedule being edited is deleted', async () => {
+    global.fetch = mockFetch([DAILY])
+    const user = userEvent.setup()
+
+    render(
+      <SchedulesModal
+        token="tok"
+        onClose={vi.fn()}
+        onLogout={vi.fn()}
+        selectedSources={['yolo']}
+        selectedProfile="support"
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /confirm/i }))
+
+    expect(await screen.findByRole('heading', { name: 'New scheduled query' })).toBeInTheDocument()
   })
 })

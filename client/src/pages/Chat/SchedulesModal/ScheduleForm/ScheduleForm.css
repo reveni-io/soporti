@@ -43,6 +43,13 @@
   width: auto;
 }
 
+.schedule-form__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+}
+
 .schedule-form__hint {
   font-family: var(--font-body);
   font-size: var(--fs-sm);

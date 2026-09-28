@@ -46,8 +46,15 @@ const db = {
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
-const { listSchedules, countSchedules, createSchedule, deleteSchedule, claimDueSchedules, markScheduleRun } =
-  await import('./schedules.js')
+const {
+  listSchedules,
+  countSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+  claimDueSchedules,
+  markScheduleRun,
+} = await import('./schedules.js')
 
 const SCHEDULE_INPUT = {
   question: 'Failed payments in the last 24h',
@@ -100,6 +107,26 @@ describe('createSchedule', () => {
     expect(schedule).toEqual(created)
     const insert = calls.find(call => call.op === 'insert')
     expect(insert.steps.values).toEqual({ ...SCHEDULE_INPUT, userId: 7 })
+  })
+})
+
+describe('updateSchedule', () => {
+  it('updates the schedule and stamps updatedAt', async () => {
+    const updated = { id: 1, ...SCHEDULE_INPUT }
+    queue = [[updated]]
+
+    const schedule = await updateSchedule(1, 7, SCHEDULE_INPUT)
+
+    expect(schedule).toEqual(updated)
+    const update = calls.find(call => call.op === 'update')
+    expect(update.steps.set).toMatchObject(SCHEDULE_INPUT)
+    expect(update.steps.set.updatedAt).toBeInstanceOf(Date)
+  })
+
+  it('returns null when the schedule does not exist or is not owned', async () => {
+    queue = [[]]
+
+    expect(await updateSchedule(1, 7, SCHEDULE_INPUT)).toBeNull()
   })
 })
 

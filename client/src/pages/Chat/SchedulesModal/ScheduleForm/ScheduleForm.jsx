@@ -9,7 +9,7 @@ import {
   SCHEDULE_WEEKLY,
   WEEKDAY_LABELS,
 } from '../../../../constants.js'
-import { createSchedule, isUnauthorized } from '../../../../services/services.js'
+import { createSchedule, isUnauthorized, updateSchedule } from '../../../../services/services.js'
 import { describeSources } from '../describe-schedule.js'
 import './ScheduleForm.css'
 
@@ -25,39 +25,65 @@ function pad(value) {
   return String(value).padStart(2, '0')
 }
 
-export default function ScheduleForm({ token, onLogout, selectedSources, selectedProfile, onCreated }) {
-  const [question, setQuestion] = useState('')
-  const [frequency, setFrequency] = useState(SCHEDULE_DAILY)
-  const [hour, setHour] = useState(DEFAULT_HOUR)
-  const [minute, setMinute] = useState(0)
-  const [weekday, setWeekday] = useState(DEFAULT_WEEKDAY)
-  const [monthDay, setMonthDay] = useState(DEFAULT_MONTH_DAY)
+function submitLabel(isEditing, saving) {
+  if (isEditing) return saving ? 'Saving...' : 'Save changes'
+
+  return saving ? 'Creating...' : 'Create schedule'
+}
+
+export default function ScheduleForm({
+  token,
+  onLogout,
+  selectedSources,
+  selectedProfile,
+  schedule,
+  onSaved,
+  onCancel,
+}) {
+  const isEditing = Boolean(schedule)
+  const [question, setQuestion] = useState(schedule?.question ?? '')
+  const [frequency, setFrequency] = useState(schedule?.frequency ?? SCHEDULE_DAILY)
+  const [hour, setHour] = useState(schedule?.hour ?? DEFAULT_HOUR)
+  const [minute, setMinute] = useState(schedule?.minute ?? 0)
+  const [weekday, setWeekday] = useState(schedule?.weekday ?? DEFAULT_WEEKDAY)
+  const [monthDay, setMonthDay] = useState(schedule?.monthDay ?? DEFAULT_MONTH_DAY)
+  const [sources, setSources] = useState(schedule?.sources ?? selectedSources)
+  const [profile, setProfile] = useState(schedule?.profile ?? selectedProfile)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  const timezone = schedule?.timezone ?? BROWSER_TIMEZONE
   const canSave = question.trim().length > 0 && !saving
   const minuteLabel = frequency === SCHEDULE_HOURLY ? 'at minute' : 'minute'
+
+  function handleUseCurrentSelection() {
+    setSources(selectedSources)
+    setProfile(selectedProfile)
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
     if (!canSave) return
 
+    const input = {
+      question: question.trim(),
+      sources,
+      profile,
+      frequency,
+      minute,
+      hour,
+      weekday,
+      monthDay,
+      timezone,
+    }
+
     setSaving(true)
     setError(null)
     try {
-      await createSchedule(token, {
-        question: question.trim(),
-        sources: selectedSources,
-        profile: selectedProfile,
-        frequency,
-        minute,
-        hour,
-        weekday,
-        monthDay,
-        timezone: BROWSER_TIMEZONE,
-      })
+      if (isEditing) await updateSchedule(token, schedule.id, input)
+      else await createSchedule(token, input)
       setQuestion('')
-      await onCreated()
+      await onSaved()
     } catch (err) {
       if (isUnauthorized(err)) {
         onLogout?.()
@@ -71,7 +97,7 @@ export default function ScheduleForm({ token, onLogout, selectedSources, selecte
 
   return (
     <form className="schedule-form" onSubmit={handleSubmit}>
-      <h4 className="schedule-form__title">New scheduled query</h4>
+      <h4 className="schedule-form__title">{isEditing ? 'Edit scheduled query' : 'New scheduled query'}</h4>
 
       <label className="schedule-form__label">
         Question
@@ -174,15 +200,32 @@ export default function ScheduleForm({ token, onLogout, selectedSources, selecte
         </label>
       </div>
 
-      <span className="schedule-form__hint">
-        Uses {describeSources(selectedSources)} · {selectedProfile} profile · {BROWSER_TIMEZONE}
-      </span>
+      <div className="schedule-form__context">
+        <span className="schedule-form__hint">
+          Uses {describeSources(sources)} · {profile} profile · {timezone}
+        </span>
+        {isEditing && (
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={handleUseCurrentSelection}
+            disabled={saving}
+          >
+            Use current selection
+          </button>
+        )}
+      </div>
 
       {error && <span className="schedule-form__error">{error}</span>}
 
       <div className="modal__actions">
+        {isEditing && (
+          <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        )}
         <button type="submit" className="btn btn--primary" disabled={!canSave}>
-          {saving ? 'Creating...' : 'Create schedule'}
+          {submitLabel(isEditing, saving)}
         </button>
       </div>
     </form>

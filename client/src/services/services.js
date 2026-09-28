@@ -330,6 +330,15 @@ export function createSchedule(token, schedule) {
   })
 }
 
+export function updateSchedule(token, id, schedule) {
+  return request(`/api/schedules/${id}`, {
+    method: 'PUT',
+    token,
+    body: schedule,
+    errorMessage: 'Failed to update the scheduled query',
+  })
+}
+
 export function deleteSchedule(token, id) {
   return request(`/api/schedules/${id}`, {
     method: 'DELETE',

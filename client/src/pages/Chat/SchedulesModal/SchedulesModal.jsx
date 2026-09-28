@@ -11,9 +11,11 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
   const { schedules, loading, error: loadError, reload } = useSchedules(token, onLogout)
   const [deleteError, setDeleteError] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
   const overlayProps = useOverlayDismiss(onClose)
 
   const error = deleteError ?? loadError
+  const editingSchedule = schedules.find(schedule => schedule.id === editingId) ?? null
 
   async function handleDelete(id) {
     try {
@@ -28,6 +30,11 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
       }
       setDeleteError(err.message)
     }
+  }
+
+  async function handleSaved() {
+    setEditingId(null)
+    await reload()
   }
 
   return (
@@ -57,6 +64,7 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
               key={schedule.id}
               schedule={schedule}
               isConfirming={pendingDeleteId === schedule.id}
+              onEdit={() => setEditingId(schedule.id)}
               onAskDelete={() => setPendingDeleteId(schedule.id)}
               onCancelDelete={() => setPendingDeleteId(null)}
               onDelete={() => handleDelete(schedule.id)}
@@ -65,11 +73,14 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
         </ul>
 
         <ScheduleForm
+          key={editingSchedule?.id ?? 'new'}
           token={token}
           onLogout={onLogout}
           selectedSources={selectedSources}
           selectedProfile={selectedProfile}
-          onCreated={reload}
+          schedule={editingSchedule}
+          onSaved={handleSaved}
+          onCancel={() => setEditingId(null)}
         />
 
         <div className="modal__actions">
@@ -82,7 +93,7 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
   )
 }
 
-function ScheduleRow({ schedule, isConfirming, onAskDelete, onCancelDelete, onDelete }) {
+function ScheduleRow({ schedule, isConfirming, onEdit, onAskDelete, onCancelDelete, onDelete }) {
   const lastRun = formatRunTime(schedule.lastRunAt)
 
   return (
@@ -112,9 +123,14 @@ function ScheduleRow({ schedule, isConfirming, onAskDelete, onCancelDelete, onDe
             </button>
           </>
         ) : (
-          <button className="btn btn--danger btn--sm" onClick={onAskDelete}>
-            Delete
-          </button>
+          <>
+            <button className="btn btn--secondary btn--sm" onClick={onEdit}>
+              Edit
+            </button>
+            <button className="btn btn--danger btn--sm" onClick={onAskDelete}>
+              Delete
+            </button>
+          </>
         )}
       </div>
     </li>

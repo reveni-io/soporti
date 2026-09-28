@@ -45,6 +45,15 @@ export async function createSchedule(userId, schedule) {
   return row
 }
 
+export async function updateSchedule(id, userId, schedule) {
+  const [row] = await getDb()
+    .update(schedules)
+    .set({ ...schedule, updatedAt: new Date() })
+    .where(and(eq(schedules.id, id), eq(schedules.userId, userId)))
+    .returning(scheduleColumns)
+  return row ?? null
+}
+
 export async function deleteSchedule(id, userId) {
   const [row] = await getDb()
     .delete(schedules)
