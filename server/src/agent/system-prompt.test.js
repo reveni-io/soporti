@@ -334,11 +334,13 @@ describe('buildBasePrompt', () => {
       configured,
     })
     expect(withDatabase).toContain('use the database tools to search the stores table')
+    expect(withDatabase).toContain("get the store's ID (its UUID when the table has one)")
     expect(withDatabase).toContain('Fetch the same data from the backend using `query_database`')
 
     const withoutDatabase = buildBasePrompt(buildSourcePolicy(['integration:shopify']), { configured })
     expect(withoutDatabase).toContain('## Shopify integration')
     expect(withoutDatabase).toContain('The database tools are NOT available in this conversation')
+    expect(withoutDatabase).toContain("ask the user for the store's ID")
     expect(withoutDatabase).not.toContain('query_database')
   })
 })

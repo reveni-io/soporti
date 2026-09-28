@@ -12,7 +12,7 @@ export const INTEGRATIONS = [
   {
     id: 'shopify',
     name: 'Shopify',
-    desc: 'Looks up orders, fulfilments and products via the Admin API — with per-store tokens, so it can reconcile backend data against the real store.',
+    desc: "Looks up orders, fulfilments and products via the Admin API — fetching each store's expiring token from your own token service, so it can reconcile backend data against the real store.",
   },
   {
     id: 'sentry',

@@ -93,9 +93,10 @@ const setPostgresConnection = vi.fn()
 const getPostgresMaxRows = vi.fn()
 const setPostgresMaxRows = vi.fn()
 
-const getShopifyTokenQuery = vi.fn()
-const setShopifyTokenQuery = vi.fn()
-const draftShopifyTokenQuery = vi.fn()
+const getShopifyTokenUrl = vi.fn()
+const setShopifyTokenUrl = vi.fn()
+const getShopifyTokenAuthorization = vi.fn()
+const setShopifyTokenAuthorization = vi.fn()
 
 const getSlackBotToken = vi.fn()
 const setSlackBotToken = vi.fn()
@@ -190,11 +191,12 @@ vi.mock('../postgres/settings.js', () => ({
   isPostgresConfigured,
 }))
 vi.mock('../shopify/settings.js', () => ({
-  getShopifyTokenQuery,
-  setShopifyTokenQuery,
+  getShopifyTokenUrl,
+  setShopifyTokenUrl,
+  getShopifyTokenAuthorization,
+  setShopifyTokenAuthorization,
   STORE_PLACEHOLDER: '{{store}}',
 }))
-vi.mock('../shopify/query-drafter.js', () => ({ draftShopifyTokenQuery }))
 vi.mock('../slack/settings.js', () => ({
   getSlackBotToken,
   setSlackBotToken,
@@ -336,9 +338,10 @@ beforeEach(() => {
   getPostgresMaxRows.mockReset()
   getPostgresMaxRows.mockResolvedValue(100)
   setPostgresMaxRows.mockReset()
-  getShopifyTokenQuery.mockReset()
-  setShopifyTokenQuery.mockReset()
-  draftShopifyTokenQuery.mockReset()
+  getShopifyTokenUrl.mockReset()
+  setShopifyTokenUrl.mockReset()
+  getShopifyTokenAuthorization.mockReset()
+  setShopifyTokenAuthorization.mockReset()
   getSlackBotToken.mockReset()
   setSlackBotToken.mockReset()
   getSlackAppToken.mockReset()
@@ -1317,122 +1320,130 @@ describe('PUT /api/admin/config/postgres/max-rows', () => {
 })
 
 describe('GET /api/admin/config/shopify', () => {
-  it('returns the token query (it is SQL, not a secret) and the database status', async () => {
-    getShopifyTokenQuery.mockResolvedValue('SELECT domain, token FROM stores WHERE id::text = {{store}}')
-    getPostgresConnection.mockResolvedValue('postgresql://user:secret@host/db')
+  it('returns the token service URL and only whether the Authorization header is set', async () => {
+    getShopifyTokenUrl.mockResolvedValue('https://tokens.example.com/shopify/{{store}}')
+    getShopifyTokenAuthorization.mockResolvedValue('internal-secret')
 
     const res = await request(app).get('/api/admin/config/shopify')
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({
-      tokenQueryConfigured: true,
-      tokenQuery: 'SELECT domain, token FROM stores WHERE id::text = {{store}}',
-      databaseConfigured: true,
+      tokenUrl: 'https://tokens.example.com/shopify/{{store}}',
+      authorizationConfigured: true,
     })
+    expect(JSON.stringify(res.body)).not.toContain('internal-secret')
   })
 
   it('reports an unconfigured integration', async () => {
-    getShopifyTokenQuery.mockResolvedValue(null)
-    getPostgresConnection.mockResolvedValue(null)
+    getShopifyTokenUrl.mockResolvedValue(null)
+    getShopifyTokenAuthorization.mockResolvedValue(null)
 
     const res = await request(app).get('/api/admin/config/shopify')
 
-    expect(res.body).toEqual({ tokenQueryConfigured: false, tokenQuery: '', databaseConfigured: false })
-  })
-})
-
-describe('PUT /api/admin/config/shopify/token-query', () => {
-  it('saves a trimmed SELECT with the store placeholder', async () => {
-    const res = await request(app)
-      .put('/api/admin/config/shopify/token-query')
-      .send({ tokenQuery: '  SELECT domain, token FROM stores WHERE id::text = {{store}} LIMIT 1  ' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ tokenQueryConfigured: true })
-    expect(setShopifyTokenQuery).toHaveBeenCalledWith(
-      'SELECT domain, token FROM stores WHERE id::text = {{store}} LIMIT 1'
-    )
+    expect(res.body).toEqual({ tokenUrl: '', authorizationConfigured: false })
   })
 
-  it('clears the query with an empty string', async () => {
-    const res = await request(app).put('/api/admin/config/shopify/token-query').send({ tokenQuery: '' })
+  it('returns 500 when the settings cannot be read', async () => {
+    getShopifyTokenUrl.mockRejectedValue(new Error('db down'))
 
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ tokenQueryConfigured: false })
-    expect(setShopifyTokenQuery).toHaveBeenCalledWith('')
-  })
-
-  it('rejects non-strings, non-SELECT statements, and queries without the placeholder', async () => {
-    expect((await request(app).put('/api/admin/config/shopify/token-query').send({})).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/shopify/token-query').send({ tokenQuery: 42 })).status).toBe(400)
-    expect(
-      (
-        await request(app)
-          .put('/api/admin/config/shopify/token-query')
-          .send({ tokenQuery: 'DELETE FROM stores WHERE id::text = {{store}}' })
-      ).status
-    ).toBe(400)
-    expect(
-      (
-        await request(app)
-          .put('/api/admin/config/shopify/token-query')
-          .send({ tokenQuery: 'SELECT domain, token FROM stores LIMIT 1' })
-      ).status
-    ).toBe(400)
-    expect(
-      (
-        await request(app)
-          .put('/api/admin/config/shopify/token-query')
-          .send({ tokenQuery: `SELECT {{store}} ${'x'.repeat(10_001)}` })
-      ).status
-    ).toBe(400)
-    expect(setShopifyTokenQuery).not.toHaveBeenCalled()
-  })
-})
-
-describe('POST /api/admin/config/shopify/draft-token-query', () => {
-  it('returns the drafted query without saving anything', async () => {
-    getPostgresConnection.mockResolvedValue('postgresql://user:pass@host/db')
-    draftShopifyTokenQuery.mockResolvedValue({
-      found: true,
-      query: 'SELECT domain, token FROM stores WHERE id::text = {{store}} LIMIT 1',
-    })
-
-    const res = await request(app).post('/api/admin/config/shopify/draft-token-query')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ query: 'SELECT domain, token FROM stores WHERE id::text = {{store}} LIMIT 1' })
-    expect(setShopifyTokenQuery).not.toHaveBeenCalled()
-  })
-
-  it('rejects with 409 when the database connection is not configured', async () => {
-    getPostgresConnection.mockResolvedValue(null)
-
-    const res = await request(app).post('/api/admin/config/shopify/draft-token-query')
-
-    expect(res.status).toBe(409)
-    expect(res.body.error).toMatch(/Database integration/)
-    expect(draftShopifyTokenQuery).not.toHaveBeenCalled()
-  })
-
-  it('returns 422 when the assistant finds no credentials', async () => {
-    getPostgresConnection.mockResolvedValue('postgresql://user:pass@host/db')
-    draftShopifyTokenQuery.mockResolvedValue({ found: false, explanation: 'no token-like columns found.' })
-
-    const res = await request(app).post('/api/admin/config/shopify/draft-token-query')
-
-    expect(res.status).toBe(422)
-    expect(res.body.error).toContain('no token-like columns found.')
-  })
-
-  it('surfaces drafting errors (e.g. OpenAI not configured)', async () => {
-    getPostgresConnection.mockResolvedValue('postgresql://user:pass@host/db')
-    draftShopifyTokenQuery.mockRejectedValue(new Error('No OpenAI model configured — set it in /admin.'))
-
-    const res = await request(app).post('/api/admin/config/shopify/draft-token-query')
+    const res = await request(app).get('/api/admin/config/shopify')
 
     expect(res.status).toBe(500)
-    expect(res.body.error).toContain('No OpenAI model configured')
+    expect(res.body).toEqual({ error: 'Failed to read the Shopify settings.' })
+  })
+})
+
+describe('PUT /api/admin/config/shopify/token-url', () => {
+  it('saves a trimmed http(s) URL with the store placeholder', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/shopify/token-url')
+      .send({ tokenUrl: '  https://tokens.example.com/shopify/{{store}}  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tokenUrl: 'https://tokens.example.com/shopify/{{store}}' })
+    expect(setShopifyTokenUrl).toHaveBeenCalledTimes(1)
+    expect(setShopifyTokenUrl).toHaveBeenCalledWith('https://tokens.example.com/shopify/{{store}}')
+  })
+
+  it('clears the URL with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/shopify/token-url').send({ tokenUrl: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ tokenUrl: '' })
+    expect(setShopifyTokenUrl).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings, non-http URLs, URLs without the placeholder and overly long URLs', async () => {
+    const invalid = [
+      {},
+      { tokenUrl: 42 },
+      { tokenUrl: 'not a url {{store}}' },
+      { tokenUrl: 'ftp://tokens.example.com/{{store}}' },
+      { tokenUrl: 'https://tokens.example.com/stores/token' },
+      { tokenUrl: `https://tokens.example.com/{{store}}/${'x'.repeat(2000)}` },
+    ]
+
+    for (const body of invalid) {
+      const res = await request(app).put('/api/admin/config/shopify/token-url').send(body)
+      expect(res.status).toBe(400)
+    }
+    expect(setShopifyTokenUrl).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the URL cannot be saved', async () => {
+    setShopifyTokenUrl.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app)
+      .put('/api/admin/config/shopify/token-url')
+      .send({ tokenUrl: 'https://tokens.example.com/shopify/{{store}}' })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the Shopify token service URL.' })
+  })
+})
+
+describe('PUT /api/admin/config/shopify/token-authorization', () => {
+  it('saves a header value with spaces and never echoes it back', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/shopify/token-authorization')
+      .send({ authorization: '  Bearer internal-secret  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ authorizationConfigured: true })
+    expect(setShopifyTokenAuthorization).toHaveBeenCalledTimes(1)
+    expect(setShopifyTokenAuthorization).toHaveBeenCalledWith('Bearer internal-secret')
+  })
+
+  it('clears the header value with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/shopify/token-authorization').send({ authorization: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ authorizationConfigured: false })
+    expect(setShopifyTokenAuthorization).toHaveBeenCalledWith('')
+  })
+
+  it('rejects non-strings, line breaks and overly long values', async () => {
+    const invalid = [
+      {},
+      { authorization: 42 },
+      { authorization: 'secret\r\nX-Other: 1' },
+      { authorization: 'x'.repeat(2001) },
+    ]
+
+    for (const body of invalid) {
+      const res = await request(app).put('/api/admin/config/shopify/token-authorization').send(body)
+      expect(res.status).toBe(400)
+    }
+    expect(setShopifyTokenAuthorization).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the header value cannot be saved', async () => {
+    setShopifyTokenAuthorization.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/shopify/token-authorization').send({ authorization: 'x' })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the Shopify token service Authorization header.' })
   })
 })
 

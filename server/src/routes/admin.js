@@ -44,8 +44,13 @@ import {
   getPostgresMaxRows,
   setPostgresMaxRows,
 } from '../postgres/settings.js'
-import { getShopifyTokenQuery, setShopifyTokenQuery, STORE_PLACEHOLDER } from '../shopify/settings.js'
-import { draftShopifyTokenQuery } from '../shopify/query-drafter.js'
+import {
+  getShopifyTokenAuthorization,
+  getShopifyTokenUrl,
+  setShopifyTokenAuthorization,
+  setShopifyTokenUrl,
+  STORE_PLACEHOLDER,
+} from '../shopify/settings.js'
 import {
   getSlackBotToken,
   setSlackBotToken,
@@ -123,6 +128,10 @@ const ID_RE = /^\d{1,9}$/
 const API_KEY_MAX_LENGTH = 300
 const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
+const SHOPIFY_TOKEN_URL_MAX_LENGTH = 2000
+const SHOPIFY_TOKEN_AUTHORIZATION_MAX_LENGTH = 2000
+const HTTP_PROTOCOLS = ['http:', 'https:']
+const LINE_BREAK_RE = /[\r\n]/
 const INVALID_HOST_ERROR = 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").'
 const REPO_TOOL_GROUP = { id: 'repo', label: 'Repositories', tools: [...REPO_TOOL_NAMES] }
 const GLOBAL_MODEL_GETTERS = { openai: getOpenAIModel, anthropic: getAnthropicModel }
@@ -150,6 +159,39 @@ function parseSecret(value, { field, maxLength, message }) {
   const trimmed = value.trim()
   if (trimmed.length > 0 && (trimmed.length > maxLength || /\s/.test(trimmed))) {
     return { error: message }
+  }
+
+  return { value: trimmed }
+}
+
+function isHttpUrl(value) {
+  return URL.canParse(value) && HTTP_PROTOCOLS.includes(new URL(value).protocol)
+}
+
+function parseShopifyTokenUrl(value) {
+  if (typeof value !== 'string') return { error: '"tokenUrl" must be a string (empty to clear it).' }
+
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return { value: trimmed }
+  if (trimmed.length > SHOPIFY_TOKEN_URL_MAX_LENGTH) {
+    return { error: `The token service URL is too long (max ${SHOPIFY_TOKEN_URL_MAX_LENGTH} characters).` }
+  }
+  if (!isHttpUrl(trimmed)) {
+    return { error: 'The token service URL must be an http(s) URL.' }
+  }
+  if (!trimmed.includes(STORE_PLACEHOLDER)) {
+    return { error: `The token service URL must contain the ${STORE_PLACEHOLDER} placeholder.` }
+  }
+
+  return { value: trimmed }
+}
+
+function parseShopifyTokenAuthorization(value) {
+  if (typeof value !== 'string') return { error: '"authorization" must be a string (empty to clear it).' }
+
+  const trimmed = value.trim()
+  if (trimmed.length > SHOPIFY_TOKEN_AUTHORIZATION_MAX_LENGTH || LINE_BREAK_RE.test(trimmed)) {
+    return { error: 'That does not look like a valid Authorization header value.' }
   }
 
   return { value: trimmed }
@@ -1259,62 +1301,37 @@ router.put('/config/postgres/max-rows', async (req, res) => {
 
 router.get('/config/shopify', async (_req, res) => {
   try {
-    const [tokenQuery, postgresConnection] = await Promise.all([getShopifyTokenQuery(), getPostgresConnection()])
-    res.json({
-      tokenQueryConfigured: Boolean(tokenQuery),
-      tokenQuery: tokenQuery ?? '',
-      databaseConfigured: Boolean(postgresConnection),
-    })
+    const [tokenUrl, authorization] = await Promise.all([getShopifyTokenUrl(), getShopifyTokenAuthorization()])
+    res.json({ tokenUrl: tokenUrl ?? '', authorizationConfigured: Boolean(authorization) })
   } catch (err) {
     console.error('Admin get shopify config error:', err)
     res.status(500).json({ error: 'Failed to read the Shopify settings.' })
   }
 })
 
-router.put('/config/shopify/token-query', async (req, res) => {
-  const { tokenQuery } = req.body ?? {}
-
-  if (typeof tokenQuery !== 'string') {
-    return res.status(400).json({ error: '"tokenQuery" must be a string (empty to clear it).' })
-  }
-  const trimmed = tokenQuery.trim()
-  if (trimmed.length > 10_000) {
-    return res.status(400).json({ error: 'The token query is too long (max 10000 characters).' })
-  }
-  if (trimmed.length > 0 && !/^(select|with)\b/i.test(trimmed)) {
-    return res.status(400).json({ error: 'The token query must be a read-only SELECT (or WITH) statement.' })
-  }
-  if (trimmed.length > 0 && !trimmed.includes(STORE_PLACEHOLDER)) {
-    return res.status(400).json({ error: `The token query must contain the ${STORE_PLACEHOLDER} placeholder.` })
-  }
+router.put('/config/shopify/token-url', async (req, res) => {
+  const { value, error } = parseShopifyTokenUrl(req.body?.tokenUrl)
+  if (error) return res.status(400).json({ error })
 
   try {
-    await setShopifyTokenQuery(trimmed)
-    res.json({ tokenQueryConfigured: trimmed.length > 0 })
+    await setShopifyTokenUrl(value)
+    res.json({ tokenUrl: value })
   } catch (err) {
-    console.error('Admin set shopify token query error:', err)
-    res.status(500).json({ error: 'Failed to save the Shopify token query.' })
+    console.error('Admin set shopify token url error:', err)
+    res.status(500).json({ error: 'Failed to save the Shopify token service URL.' })
   }
 })
 
-router.post('/config/shopify/draft-token-query', async (_req, res) => {
-  try {
-    if (!(await getPostgresConnection())) {
-      return res.status(409).json({
-        error: 'Configure the Database integration first — the assistant needs it to explore the schema.',
-      })
-    }
+router.put('/config/shopify/token-authorization', async (req, res) => {
+  const { value, error } = parseShopifyTokenAuthorization(req.body?.authorization)
+  if (error) return res.status(400).json({ error })
 
-    const draft = await draftShopifyTokenQuery()
-    if (!draft.found) {
-      return res
-        .status(422)
-        .json({ error: `The assistant could not find Shopify credentials in the database: ${draft.explanation}` })
-    }
-    res.json({ query: draft.query })
+  try {
+    await setShopifyTokenAuthorization(value)
+    res.json({ authorizationConfigured: value.length > 0 })
   } catch (err) {
-    console.error('Admin draft shopify token query error:', err)
-    res.status(500).json({ error: err.message || 'Failed to draft the token query.' })
+    console.error('Admin set shopify token authorization error:', err)
+    res.status(500).json({ error: 'Failed to save the Shopify token service Authorization header.' })
   }
 })
 

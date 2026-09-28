@@ -666,7 +666,7 @@ const storeParams = {
   store: z
     .string()
     .describe(
-      'Store identifier: the Shopify store domain (e.g. "mystore" or "mystore.myshopify.com") or the store ID used by the connected database. NOT the store\'s commercial name — resolve a name to a domain/ID first (e.g. with the database tools).'
+      "Store identifier: the store's ID in the connected database (its UUID when the stores table has one). NOT the store's commercial name or domain — resolve those to the ID first (e.g. with the database tools)."
     ),
 }
 
