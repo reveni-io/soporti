@@ -625,20 +625,21 @@ export function getShopifyConfig(token) {
   return request('/api/admin/config/shopify', { token, errorMessage: 'Failed to load the Shopify settings' })
 }
 
-export function saveShopifyTokenQuery(token, tokenQuery) {
-  return request('/api/admin/config/shopify/token-query', {
+export function saveShopifyTokenUrl(token, tokenUrl) {
+  return request('/api/admin/config/shopify/token-url', {
     method: 'PUT',
     token,
-    body: { tokenQuery },
-    errorMessage: 'Failed to save the token query',
+    body: { tokenUrl },
+    errorMessage: 'Failed to save the token service URL',
   })
 }
 
-export function draftShopifyTokenQuery(token) {
-  return request('/api/admin/config/shopify/draft-token-query', {
-    method: 'POST',
+export function saveShopifyTokenAuthorization(token, authorization) {
+  return request('/api/admin/config/shopify/token-authorization', {
+    method: 'PUT',
     token,
-    errorMessage: 'Failed to draft the token query',
+    body: { authorization },
+    errorMessage: 'Failed to save the Authorization header',
   })
 }
 

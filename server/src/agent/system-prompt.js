@@ -324,11 +324,11 @@ You have tools to read **the user's own** Granola meeting notes — the notes of
   shopify: buildShopifySection,
 }
 
-const SHOPIFY_STORE_LOOKUP_WITH_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name, resolve it yourself FIRST: use the database tools to search the stores table by name (case-insensitive, partial match) and get the store's domain or ID.
+const SHOPIFY_STORE_LOOKUP_WITH_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name or a domain, resolve it yourself FIRST: use the database tools to search the stores table by name or domain (case-insensitive, partial match) and get the store's ID (its UUID when the table has one).
 - If the search returns exactly one store, proceed with it and mention which store you resolved. If it returns several, show them (name, domain, ID) and ask the user to pick one. If it returns none, say so and ask for more details.
 - The same applies when a Shopify tool fails to find the store: resolve the identifier in the database before asking the user.`
 
-const SHOPIFY_STORE_LOOKUP_WITHOUT_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. The database tools are NOT available in this conversation, so you cannot look a name up yourself: try the name as the domain first, and only if Shopify does not find the store, ask the user for its domain or ID.`
+const SHOPIFY_STORE_LOOKUP_WITHOUT_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its ID. The database tools are NOT available in this conversation, so you cannot look a name up yourself: ask the user for the store's ID, or suggest selecting the Database integration so you can resolve it.`
 
 const SHOPIFY_BACKEND_COMPARISON = `3. Fetch the same data from the backend using \`query_database\`.
 4. Compare and highlight any discrepancies clearly.`
@@ -347,7 +347,8 @@ You have tools to query the Shopify Admin API (read-only). Use them when the use
 - The shopify_graphql_query tool blocks mutations — only queries are allowed.
 
 ### How to identify the store
-- Every Shopify tool requires a \`store\`: the store's domain (e.g. "mystore" or "mystore.myshopify.com") or its ID in the connected database.
+- Every Shopify tool requires a \`store\`: the store's ID in the connected database (its UUID when the stores table has one). Its Shopify access token is fetched for you — never ask for one.
+- If a Shopify tool says the store must be reconnected to Shopify, report that to the user and stop: retrying will not help.
 ${hasDatabase ? SHOPIFY_STORE_LOOKUP_WITH_DATABASE : SHOPIFY_STORE_LOOKUP_WITHOUT_DATABASE}
 
 ### Tools

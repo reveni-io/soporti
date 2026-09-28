@@ -1,107 +1,157 @@
-import * as postgres from '../postgres/client.js'
-import { getShopifyTokenQuery, STORE_PLACEHOLDER } from './settings.js'
+import { getShopifyTokenAuthorization, getShopifyTokenUrl, isShopifyConfigured, STORE_PLACEHOLDER } from './settings.js'
 
 const LOG_PREFIX = '[shopify]'
 const REQUEST_TIMEOUT_MS = 15_000
-const API_VERSION = '2024-10'
-const TOKEN_CACHE_TTL_MS = 60_000
+const DEFAULT_API_VERSION = '2024-10'
+const DEFAULT_TOKEN_CACHE_TTL_MS = 60_000
+const TOKEN_EXPIRY_MARGIN_MS = 60_000
+const UNAUTHORIZED_STATUS = 401
+
+const TOKEN_SERVICE_REJECTED_STATUSES = [401, 403]
+const STORE_NOT_FOUND_STATUS = 404
+const REAUTH_REQUIRED_STATUS = 409
 
 const tokenCache = new Map()
 
 export async function isConfigured() {
-  const [postgresConfigured, tokenQuery] = await Promise.all([postgres.isConfigured(), getShopifyTokenQuery()])
-  return Boolean(postgresConfigured && tokenQuery)
+  return isShopifyConfigured()
 }
 
-function quoteSqlLiteral(value) {
-  return `'${String(value).replace(/'/g, "''")}'`
-}
-
-async function resolveStoreCredentials(store) {
+function parseStoreIdentifier(store) {
   const identifier = String(store ?? '').trim()
   if (!identifier) {
-    throw new Error('A store identifier (domain or ID) must be provided')
+    throw new Error('A store identifier must be provided')
   }
 
+  return identifier
+}
+
+function describeTokenServiceError(status, identifier) {
+  if (TOKEN_SERVICE_REJECTED_STATUSES.includes(status)) {
+    return 'The Shopify token service rejected the configured Authorization header. An admin must check it in /admin → Shopify.'
+  }
+  if (status === STORE_NOT_FOUND_STATUS) {
+    return `The Shopify token service does not know store "${identifier}". Pass the store identifier it expects (resolve the store's ID in the database first), not its commercial name or domain.`
+  }
+  if (status === REAUTH_REQUIRED_STATUS) {
+    return `Store "${identifier}" must be reconnected to Shopify by the merchant: its Shopify authorization is no longer valid, so its data cannot be read until then. Do not retry.`
+  }
+
+  return `The Shopify token service failed (${status}) for store "${identifier}". Try again in a moment.`
+}
+
+function cacheLifetimeMs(expiresAt) {
+  if (!expiresAt) return DEFAULT_TOKEN_CACHE_TTL_MS
+
+  return Math.max(0, Date.parse(expiresAt) - Date.now() - TOKEN_EXPIRY_MARGIN_MS)
+}
+
+async function fetchStoreCredentials(identifier) {
+  const [template, authorization] = await Promise.all([getShopifyTokenUrl(), getShopifyTokenAuthorization()])
+
+  if (!template) {
+    throw new Error('The Shopify token service is not configured. An admin must set it in /admin → Shopify.')
+  }
+
+  console.log(`${LOG_PREFIX} getStoreToken(${identifier})`)
+  const url = template.replaceAll(STORE_PLACEHOLDER, encodeURIComponent(identifier))
+  const headers = authorization ? { Authorization: authorization } : {}
+  const res = await fetch(url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+
+  if (!res.ok) {
+    throw new Error(describeTokenServiceError(res.status, identifier))
+  }
+
+  const body = await res.json()
+
+  if (!body?.access_token || !body?.shop_domain) {
+    throw new Error('The Shopify token service must return "access_token" and "shop_domain".')
+  }
+
+  return {
+    token: body.access_token,
+    domain: body.shop_domain,
+    apiVersion: body.api_version || DEFAULT_API_VERSION,
+    expiresAt: body.expires_at ?? null,
+  }
+}
+
+async function resolveStoreCredentials(identifier) {
   const cached = tokenCache.get(identifier)
-  if (cached && Date.now() - cached.ts < TOKEN_CACHE_TTL_MS) {
+
+  if (cached && cached.validUntil > Date.now()) {
     console.log(`${LOG_PREFIX} getStoreToken(${identifier}) (cached)`)
     return cached.value
   }
 
-  const template = await getShopifyTokenQuery()
-  if (!template) {
-    throw new Error('The Shopify store token query is not configured. An admin must set it in /admin → Shopify.')
-  }
+  const value = await fetchStoreCredentials(identifier)
+  tokenCache.set(identifier, { value, validUntil: Date.now() + cacheLifetimeMs(value.expiresAt) })
 
-  console.log(`${LOG_PREFIX} getStoreToken(${identifier})`)
-  const sql = template.replaceAll(STORE_PLACEHOLDER, quoteSqlLiteral(identifier))
-  const result = await postgres.runQuery(sql)
-  if (!result.rows.length) {
-    throw new Error(
-      `No Shopify credentials found for store "${identifier}". If this is the store's commercial name, resolve it to a domain or ID first (e.g. search the stores table by name with the database tools).`
-    )
-  }
-  const row = result.rows[0]
-  if (!row.domain || !row.token) {
-    throw new Error('The configured Shopify token query must return "domain" and "token" columns.')
-  }
-  const value = { token: row.token, domain: row.domain }
-  tokenCache.set(identifier, { value, ts: Date.now() })
   return value
 }
 
-function buildShopifyUrl(domain, path) {
+function buildShopifyUrl({ domain, apiVersion }, path) {
   const cleanDomain = domain.includes('.myshopify.com') ? domain : `${domain}.myshopify.com`
-  return `https://${cleanDomain}/admin/api/${API_VERSION}${path}`
+  return `https://${cleanDomain}/admin/api/${apiVersion}${path}`
 }
 
-async function shopifyFetch(token, domain, method, path, body) {
-  const url = buildShopifyUrl(domain, path)
+async function shopifyFetch(credentials, method, path, body) {
+  const url = buildShopifyUrl(credentials, path)
   console.log(`${LOG_PREFIX} ${method} ${url}`)
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-
-  try {
-    const opts = {
-      method,
-      signal: controller.signal,
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json',
-      },
-    }
-    if (body) opts.body = JSON.stringify(body)
-
-    const res = await fetch(url, opts)
-
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`Shopify API ${method} ${path} failed (${res.status}): ${text}`)
-    }
-
-    return res.json()
-  } finally {
-    clearTimeout(timer)
+  const opts = {
+    method,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    headers: {
+      'X-Shopify-Access-Token': credentials.token,
+      'Content-Type': 'application/json',
+    },
   }
+  if (body) opts.body = JSON.stringify(body)
+
+  const res = await fetch(url, opts)
+
+  if (res.status === UNAUTHORIZED_STATUS) return { unauthorized: true }
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Shopify API ${method} ${path} failed (${res.status}): ${text}`)
+  }
+
+  return { data: await res.json() }
 }
 
-async function request(token, domain, method, path) {
-  return shopifyFetch(token, domain, method, path)
+async function storeRequest(store, method, path, body) {
+  const identifier = parseStoreIdentifier(store)
+
+  const credentials = await resolveStoreCredentials(identifier)
+  const result = await shopifyFetch(credentials, method, path, body)
+
+  if (!result.unauthorized) return { data: result.data, domain: credentials.domain }
+
+  console.log(`${LOG_PREFIX} token for ${identifier} rejected, fetching a fresh one`)
+  tokenCache.delete(identifier)
+  const freshCredentials = await resolveStoreCredentials(identifier)
+  const retry = await shopifyFetch(freshCredentials, method, path, body)
+
+  if (retry.unauthorized) {
+    throw new Error(`Shopify API ${method} ${path} failed (401): the store's access token was rejected.`)
+  }
+
+  return { data: retry.data, domain: freshCredentials.domain }
 }
 
-async function graphqlRequest(token, domain, query, variables = {}) {
-  const data = await shopifyFetch(token, domain, 'POST', '/graphql.json', { query, variables })
+async function graphqlRequest(store, query, variables = {}) {
+  const { data, domain } = await storeRequest(store, 'POST', '/graphql.json', { query, variables })
+
   if (data.errors) {
     throw new Error(`Shopify GraphQL errors: ${JSON.stringify(data.errors)}`)
   }
-  return data.data
+
+  return { data: data.data, domain }
 }
 
 export async function getOrder(orderId, store) {
-  const { token, domain } = await resolveStoreCredentials(store)
-  const data = await request(token, domain, 'GET', `/orders/${orderId}.json`)
+  const { data, domain } = await storeRequest(store, 'GET', `/orders/${orderId}.json`)
   const o = data.order
   console.log(`${LOG_PREFIX} getOrder(${orderId}) → #${o.order_number}`)
   return {
@@ -160,7 +210,6 @@ export async function getOrder(orderId, store) {
 }
 
 export async function searchOrders(query, store) {
-  const { token, domain } = await resolveStoreCredentials(store)
   const params = new URLSearchParams({
     status: 'any',
     limit: '50',
@@ -172,7 +221,7 @@ export async function searchOrders(query, store) {
     params.set('name', query)
   }
 
-  const data = await request(token, domain, 'GET', `/orders.json?${params}`)
+  const { data, domain } = await storeRequest(store, 'GET', `/orders.json?${params}`)
   const orders = data.orders || []
   console.log(`${LOG_PREFIX} searchOrders("${query}") → ${orders.length} results`)
   return orders.map(o => ({
@@ -190,8 +239,7 @@ export async function searchOrders(query, store) {
 }
 
 export async function getProduct(productId, store) {
-  const { token, domain } = await resolveStoreCredentials(store)
-  const data = await request(token, domain, 'GET', `/products/${productId}.json`)
+  const { data, domain } = await storeRequest(store, 'GET', `/products/${productId}.json`)
   const p = data.product
   console.log(`${LOG_PREFIX} getProduct(${productId}) → "${p.title}"`)
   return {
@@ -219,8 +267,7 @@ export async function getProduct(productId, store) {
 }
 
 export async function getWebhooks(store) {
-  const { token, domain } = await resolveStoreCredentials(store)
-  const data = await request(token, domain, 'GET', '/webhooks.json')
+  const { data } = await storeRequest(store, 'GET', '/webhooks.json')
   const webhooks = data.webhooks || []
   console.log(`${LOG_PREFIX} getWebhooks() → ${webhooks.length} webhooks`)
   return webhooks.map(w => ({
@@ -238,9 +285,7 @@ export async function graphqlQuery(query, variables = {}, store) {
     throw new Error('Only read-only queries are allowed. Mutations are not permitted.')
   }
 
-  const { token, domain } = await resolveStoreCredentials(store)
-
-  const data = await graphqlRequest(token, domain, query, variables)
+  const { data, domain } = await graphqlRequest(store, query, variables)
   console.log(`${LOG_PREFIX} graphqlQuery() → OK`)
   return { data, storeDomain: domain }
 }

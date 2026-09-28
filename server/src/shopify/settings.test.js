@@ -4,10 +4,18 @@ const getConfigValue = vi.fn()
 const setConfigValue = vi.fn()
 vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 
-const { getShopifyTokenQuery, setShopifyTokenQuery, SHOPIFY_TOKEN_QUERY_KEY, _resetShopifySettingsCacheForTests } =
-  await import('./settings.js')
+const {
+  getShopifyTokenUrl,
+  setShopifyTokenUrl,
+  getShopifyTokenAuthorization,
+  setShopifyTokenAuthorization,
+  isShopifyConfigured,
+  SHOPIFY_TOKEN_URL_KEY,
+  SHOPIFY_TOKEN_AUTHORIZATION_KEY,
+  _resetShopifySettingsCacheForTests,
+} = await import('./settings.js')
 
-const QUERY = 'SELECT domain, token FROM stores WHERE domain = {{store}} LIMIT 1'
+const TOKEN_URL = 'https://tokens.example.com/shopify/{{store}}'
 
 beforeEach(() => {
   getConfigValue.mockReset()
@@ -15,51 +23,65 @@ beforeEach(() => {
   _resetShopifySettingsCacheForTests()
 })
 
-describe('getShopifyTokenQuery', () => {
-  it('returns the stored query template', async () => {
-    getConfigValue.mockResolvedValue(QUERY)
+describe('getShopifyTokenUrl', () => {
+  it('returns the stored URL template', async () => {
+    getConfigValue.mockResolvedValue(TOKEN_URL)
 
-    expect(await getShopifyTokenQuery()).toBe(QUERY)
-    expect(getConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_QUERY_KEY)
+    expect(await getShopifyTokenUrl()).toBe(TOKEN_URL)
+    expect(getConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_URL_KEY)
   })
 
   it('returns null when unset or empty', async () => {
     getConfigValue.mockResolvedValue(null)
-    expect(await getShopifyTokenQuery()).toBeNull()
+    expect(await getShopifyTokenUrl()).toBeNull()
 
     _resetShopifySettingsCacheForTests()
     getConfigValue.mockResolvedValue('')
-    expect(await getShopifyTokenQuery()).toBeNull()
+    expect(await getShopifyTokenUrl()).toBeNull()
   })
 
   it('caches the value between calls', async () => {
-    getConfigValue.mockResolvedValue(QUERY)
+    getConfigValue.mockResolvedValue(TOKEN_URL)
 
-    await getShopifyTokenQuery()
-    await getShopifyTokenQuery()
+    await getShopifyTokenUrl()
+    await getShopifyTokenUrl()
 
     expect(getConfigValue).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('setShopifyTokenQuery', () => {
-  it('stores the query template', async () => {
-    await setShopifyTokenQuery(QUERY)
-    expect(setConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_QUERY_KEY, QUERY)
-  })
-
-  it('clears the query on an empty string', async () => {
-    await setShopifyTokenQuery('')
-    expect(setConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_QUERY_KEY, '')
-  })
-
-  it('invalidates the cache so the next read reflects the save', async () => {
+describe('setShopifyTokenUrl', () => {
+  it('stores the URL and invalidates the cache', async () => {
     getConfigValue.mockResolvedValue(null)
-    expect(await getShopifyTokenQuery()).toBeNull()
+    expect(await getShopifyTokenUrl()).toBeNull()
 
-    await setShopifyTokenQuery(QUERY)
+    await setShopifyTokenUrl(TOKEN_URL)
 
-    getConfigValue.mockResolvedValue(QUERY)
-    expect(await getShopifyTokenQuery()).toBe(QUERY)
+    expect(setConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_URL_KEY, TOKEN_URL)
+    getConfigValue.mockResolvedValue(TOKEN_URL)
+    expect(await getShopifyTokenUrl()).toBe(TOKEN_URL)
+  })
+})
+
+describe('shopify token authorization', () => {
+  it('stores and reads the Authorization header value under its own key', async () => {
+    await setShopifyTokenAuthorization('Bearer secret')
+    expect(setConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_AUTHORIZATION_KEY, 'Bearer secret')
+
+    getConfigValue.mockResolvedValue('Bearer secret')
+    expect(await getShopifyTokenAuthorization()).toBe('Bearer secret')
+    expect(getConfigValue).toHaveBeenCalledWith(SHOPIFY_TOKEN_AUTHORIZATION_KEY)
+  })
+})
+
+describe('isShopifyConfigured', () => {
+  it('is true once the token service URL is set', async () => {
+    getConfigValue.mockResolvedValue(TOKEN_URL)
+    expect(await isShopifyConfigured()).toBe(true)
+  })
+
+  it('is false without a token service URL', async () => {
+    getConfigValue.mockResolvedValue(null)
+    expect(await isShopifyConfigured()).toBe(false)
   })
 })

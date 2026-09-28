@@ -1,118 +1,92 @@
-import { useState } from 'react'
-import { draftShopifyTokenQuery, getShopifyConfig, saveShopifyTokenQuery } from '../../../services/services.js'
+import { getShopifyConfig, saveShopifyTokenAuthorization, saveShopifyTokenUrl } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
-import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
+import ValueField from '../ValueField/ValueField.jsx'
+
+const TOKEN_URL_PLACEHOLDER = 'https://tokens.example.com/shopify/{{store}}'
 
 export default function AdminShopify({ token, onLogout }) {
   const { config, error, patchConfig } = useAuthedConfig(getShopifyConfig, token, onLogout)
-  const [editedQuery, setEditedQuery] = useState(null)
-  const { saving, error: saveError, savedAt, save } = useSaveField(onLogout)
-  const { saving: drafting, error: draftError, save: runDraft } = useSaveField(onLogout)
 
-  const savedQuery = config?.tokenQuery ?? ''
-  const tokenQuery = editedQuery ?? savedQuery
-
-  function persist(value) {
-    save(async () => {
-      const data = await saveShopifyTokenQuery(token, value)
-      patchConfig({
-        tokenQueryConfigured: data.tokenQueryConfigured,
-        tokenQuery: data.tokenQueryConfigured ? value.trim() : '',
-      })
-      setEditedQuery(null)
-    })
+  async function saveTokenUrl(value) {
+    const data = await saveShopifyTokenUrl(token, value)
+    patchConfig({ tokenUrl: data.tokenUrl })
   }
 
-  function draftQuery() {
-    runDraft(async () => {
-      const data = await draftShopifyTokenQuery(token)
-      setEditedQuery(data.query)
-    })
+  async function saveAuthorization(value) {
+    const data = await saveShopifyTokenAuthorization(token, value)
+    patchConfig({ authorizationConfigured: data.authorizationConfigured })
   }
 
   if (error || !config) return <AdminSectionStatus title="Shopify" error={error} />
-
-  const dirty = tokenQuery !== savedQuery
 
   return (
     <>
       <AdminSection title="Shopify integration">
         <p className="admin__muted">
-          Lets the assistant query the Shopify Admin API (read-only): orders, products, webhooks and GraphQL lookups. It
-          has no credentials of its own: it works when the Database integration is connected and your Shopify store
-          tokens live in that database — the assistant looks them up per store with the query below. Saving a query
-          enables the integration; removing it disables it.
+          Lets the assistant query the Shopify Admin API (read-only) across many stores: orders, products, webhooks and
+          GraphQL lookups. Soporti holds no Shopify credentials itself: it asks your own token service for a
+          store&apos;s access token whenever it needs one, so the service stays the single place that renews expiring
+          tokens.
         </p>
 
-        <StatusRow configured={config.tokenQueryConfigured && config.databaseConfigured} />
-
-        {!config.databaseConfigured && (
-          <p className="alert alert--warning">
-            The Shopify integration needs the Database integration: configure the read-only connection in the Database
-            section. The token query below runs against that database.
-          </p>
-        )}
+        <StatusRow configured={Boolean(config.tokenUrl)} />
+        <p className="admin__muted">The integration is enabled once the token service URL is set.</p>
       </AdminSection>
 
-      <AdminSection title="Store token query">
+      <AdminSection title="Token service contract">
+        <ol className="admin__steps">
+          <li>
+            Soporti sends a <code>GET</code> to the URL below, replacing <code>{'{{store}}'}</code> with the store
+            identifier (URL-encoded) and adding the <code>Authorization</code> header if one is set.
+          </li>
+          <li>
+            The service answers <code>200</code> with JSON: <code>access_token</code> and <code>shop_domain</code>, plus
+            optional <code>api_version</code> and <code>expires_at</code> (ISO 8601). Soporti reuses the token until
+            shortly before it expires, or for a minute when there is no expiry.
+          </li>
+          <li>
+            Any other status is reported to the assistant: <code>404</code> unknown store, <code>409</code> the store
+            must be reconnected to Shopify, <code>401</code>/<code>403</code> wrong Authorization header, anything else
+            a temporary failure. When Shopify rejects a token, Soporti asks the service for a fresh one and retries
+            once.
+          </li>
+        </ol>
+      </AdminSection>
+
+      <AdminSection title="Token service URL">
         <p className="admin__muted">
-          SQL that resolves a store to its Shopify Admin API credentials. Every occurrence of <code>{'{{store}}'}</code>{' '}
-          is replaced with the store identifier the assistant was given (a domain or an ID), safely quoted as a string
-          literal. The query must be a read-only <code>SELECT</code> returning one row with a <code>domain</code> column
-          (the <code>*.myshopify.com</code> domain) and a <code>token</code> column (the Admin API access token).
-        </p>
-        <p className="admin__muted">
-          Don&apos;t write it by hand: <strong>Draft with Soporti</strong> lets the assistant explore the database
-          schema (table and column names only — it never reads token values) and fill in the query for you to review and
-          save.
+          Must contain <code>{'{{store}}'}</code>. The assistant resolves stores to the identifier in your database (its
+          UUID when the stores table has one), so select the Database integration alongside Shopify.
         </p>
 
-        {(saveError || draftError) && <p className="alert alert--error">{saveError || draftError}</p>}
-
-        <textarea
-          className="textarea textarea--code"
-          placeholder={
-            "SELECT domain, token\nFROM shopify_stores\nWHERE domain ILIKE '%' || {{store}} || '%' OR id::text = {{store}}\nLIMIT 1"
-          }
-          value={tokenQuery}
-          onChange={event => setEditedQuery(event.target.value)}
-          disabled={saving || drafting}
-          rows={8}
+        <ValueField
+          savedValue={config.tokenUrl}
+          onSave={saveTokenUrl}
+          onLogout={onLogout}
+          placeholder={TOKEN_URL_PLACEHOLDER}
+          removable
         />
+      </AdminSection>
 
-        <div className="admin__form admin__form--row">
-          <button
-            className="btn btn--secondary"
-            type="button"
-            onClick={draftQuery}
-            disabled={!config.databaseConfigured || drafting || saving}
-            title={config.databaseConfigured ? undefined : 'Configure the Database integration first'}
-          >
-            {drafting ? 'Soporti is exploring the database...' : 'Draft with Soporti'}
-          </button>
-          <button
-            className="btn btn--primary"
-            type="button"
-            onClick={() => persist(tokenQuery)}
-            disabled={!dirty || saving || drafting || !tokenQuery.trim()}
-          >
-            {saving ? 'Saving...' : 'Save query'}
-          </button>
-          {config.tokenQueryConfigured && (
-            <button
-              className="btn btn--secondary"
-              type="button"
-              onClick={() => persist('')}
-              disabled={saving || drafting}
-            >
-              Remove
-            </button>
-          )}
-          {!saveError && savedAt && !dirty && <span className="admin__saved">Saved</span>}
-        </div>
+      <AdminSection title="Authorization header">
+        <p className="admin__muted">
+          Sent verbatim as the <code>Authorization</code> header (e.g. <code>Bearer …</code> or a shared secret).
+          Optional. Stored write-only and never shown again.
+        </p>
+
+        <StatusRow configured={config.authorizationConfigured} />
+
+        <SecretField
+          placeholder="Authorization header value"
+          configuredPlaceholder="Paste a new value to replace it"
+          configured={config.authorizationConfigured}
+          onSave={saveAuthorization}
+          onLogout={onLogout}
+        />
       </AdminSection>
     </>
   )

@@ -13,7 +13,6 @@ import {
   deleteSkill,
   deleteSubagent,
   decideOAuthAuthorization,
-  draftShopifyTokenQuery,
   getAdminStatus,
   getAuthConfig,
   getAuthMethods,
@@ -349,16 +348,6 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/admin/config/postgres/max-rows')
     expect(JSON.parse(options.body)).toEqual({ maxRows: 250 })
-  })
-
-  it('drafts the shopify token query without a body', async () => {
-    await draftShopifyTokenQuery('tok')
-
-    const [url, options] = lastCall()
-    expect(url).toBe('/api/admin/config/shopify/draft-token-query')
-    expect(options.method).toBe('POST')
-    expect(options.body).toBeUndefined()
-    expect(options.headers['Content-Type']).toBeUndefined()
   })
 
   it('reads the scheduled queries', async () => {
