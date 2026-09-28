@@ -1,12 +1,13 @@
 import config from '../config.js'
 import { MAX_ATTACHMENT_CHARS, MAX_ATTACHMENT_NAME_LENGTH } from '../constants.js'
 import { redactSecrets } from '../review/output-guard.js'
-import { parseDocx, parsePdf, parseXlsx } from './parsers.js'
+import { parseCsv, parseDocx, parsePdf, parseXlsx } from './parsers.js'
 import { acquireParseSlot } from './semaphore.js'
 
 const PDF_MIME = 'application/pdf'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const CSV_MIME = 'text/csv'
 const PNG_MIME = 'image/png'
 const JPEG_MIME = 'image/jpeg'
 const WEBP_MIME = 'image/webp'
@@ -16,6 +17,7 @@ const DOCUMENT_TYPES = {
   [PDF_MIME]: { extensions: ['.pdf'], parse: parsePdf },
   [DOCX_MIME]: { extensions: ['.docx'], parse: parseDocx },
   [XLSX_MIME]: { extensions: ['.xlsx'], parse: parseXlsx },
+  [CSV_MIME]: { extensions: ['.csv'], parse: parseCsv },
 }
 
 const IMAGE_TYPES = {

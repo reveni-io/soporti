@@ -172,6 +172,21 @@ describe('useAttachments', () => {
     expect(result.current.attachments).toHaveLength(1)
   })
 
+  it('uploads a csv as text/csv whatever type the browser reports', async () => {
+    global.fetch = vi.fn().mockResolvedValue(okResponse({ name: 'orders.csv', text: 'id,total', truncated: false }))
+    const file = new File(['id,total'], 'orders.csv', { type: 'application/vnd.ms-excel' })
+    const { result } = renderHook(() => useAttachments('tok'))
+
+    await act(async () => {
+      await result.current.addFiles([file])
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch.mock.calls[0][0]).toBe('/api/attachments?name=orders.csv')
+    expect(global.fetch.mock.calls[0][1].headers['Content-Type']).toBe('text/csv')
+    expect(result.current.attachments).toEqual([{ name: 'orders.csv', text: 'id,total', truncated: false }])
+  })
+
   it('rejects an unsupported extension without uploading', async () => {
     global.fetch = vi.fn()
     const file = new File(['x'], 'notes.txt', { type: 'text/plain' })

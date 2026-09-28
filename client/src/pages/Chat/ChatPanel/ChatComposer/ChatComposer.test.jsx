@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import ChatComposer from './ChatComposer.jsx'
 
 const DROP_HINT = 'Drop your files to attach them'
-const ATTACH_HINT = 'Attach a PDF, Word or Excel file, or an image'
+const ATTACH_HINT = 'Attach a PDF, Word, Excel or CSV file, or an image'
 
 const BASE_PROPS = {
   input: '',
@@ -176,7 +176,7 @@ describe('ChatComposer', () => {
 
     expect(screen.getByLabelText('Attach files')).toHaveAttribute(
       'accept',
-      '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.gif'
+      '.pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.webp,.gif'
     )
   })
 

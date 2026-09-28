@@ -8,9 +8,10 @@ vi.mock('./parsers.js', () => ({
   parsePdf: vi.fn(),
   parseDocx: vi.fn(),
   parseXlsx: vi.fn(),
+  parseCsv: vi.fn(),
 }))
 
-const { parsePdf, parseDocx, parseXlsx } = await import('./parsers.js')
+const { parsePdf, parseDocx, parseXlsx, parseCsv } = await import('./parsers.js')
 const { extractAttachmentText, isImageAttachment, isSupportedAttachment, isValidAttachmentName, looksLikeImage } =
   await import('./attachments.js')
 const { MAX_ATTACHMENT_CHARS } = await import('../constants.js')
@@ -18,6 +19,7 @@ const { MAX_ATTACHMENT_CHARS } = await import('../constants.js')
 const PDF = 'application/pdf'
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const CSV = 'text/csv'
 const PNG = 'image/png'
 const JPEG = 'image/jpeg'
 const WEBP = 'image/webp'
@@ -51,12 +53,14 @@ describe('attachments', () => {
       expect(isSupportedAttachment('spec.pdf', PDF)).toBe(true)
       expect(isSupportedAttachment('REQUIREMENTS.DOCX', DOCX)).toBe(true)
       expect(isSupportedAttachment('sales.xlsx', XLSX)).toBe(true)
+      expect(isSupportedAttachment('orders.CSV', CSV)).toBe(true)
     })
 
     it('rejects an unsupported mime type and a mime type the extension contradicts', () => {
       expect(isSupportedAttachment('deck.pptx', 'application/vnd.ms-powerpoint')).toBe(false)
       expect(isSupportedAttachment('invoice.exe', PDF)).toBe(false)
       expect(isSupportedAttachment('sheet.xlsx', DOCX)).toBe(false)
+      expect(isSupportedAttachment('orders.txt', CSV)).toBe(false)
     })
 
     it('accepts the image types, with either extension for a jpeg', () => {
@@ -111,9 +115,11 @@ describe('attachments', () => {
     it('routes each mime type to its own parser', async () => {
       parseDocx.mockResolvedValue('Docx body')
       parseXlsx.mockResolvedValue('Xlsx body')
+      parseCsv.mockResolvedValue('id,total')
 
       expect((await extractAttachmentText(Buffer.from('d'), DOCX)).text).toBe('Docx body')
       expect((await extractAttachmentText(Buffer.from('x'), XLSX)).text).toBe('Xlsx body')
+      expect((await extractAttachmentText(Buffer.from('c'), CSV)).text).toBe('id,total')
       expect(parsePdf).not.toHaveBeenCalled()
     })
 

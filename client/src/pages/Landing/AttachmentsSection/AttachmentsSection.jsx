@@ -10,7 +10,7 @@ export default function AttachmentsSection() {
         <span className="lp-eyebrow">Bring your own documents and screenshots</span>
         <h2 className="lp-h2">Show it instead of describing it.</h2>
         <p className="lp-lead">
-          Drag a PDF, a Word document or an Excel sheet onto the message box — or paste a screenshot with{' '}
+          Drag a PDF, a Word document, an Excel sheet or a CSV export onto the message box — or paste a screenshot with{' '}
           <code>Cmd+V</code> — and Soporti reads it as context for that conversation, tables and sheets included. The
           error screen, the broken checkout, the dashboard that looks wrong: it looks at the image itself, so you do not
           have to put it into words.
