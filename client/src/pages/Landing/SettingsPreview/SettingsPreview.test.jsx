@@ -49,34 +49,34 @@ describe('SettingsPreview', () => {
       })
     }
 
-    it('stays empty until the panel scrolls into view', () => {
+    it('stays empty until the panel scrolls into view', async () => {
       render(<SettingsPreview />)
       expect(screen.getByText('0 / 50,000 characters')).toBeInTheDocument()
 
       intersect(false)
-      act(() => {
-        vi.advanceTimersByTime(1000)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
       })
       expect(screen.getByText('0 / 50,000 characters')).toBeInTheDocument()
       expect(screen.queryByText('Saved')).not.toBeInTheDocument()
     })
 
-    it('types the example with a caret and live count once visible', () => {
+    it('types the example with a caret and live count once visible', async () => {
       const { container } = render(<SettingsPreview />)
       intersect(true)
-      act(() => {
-        vi.advanceTimersByTime(400)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
       })
       expect(screen.getByText('21 / 50,000 characters')).toBeInTheDocument()
       expect(container.querySelector('.lp-ci-caret')).toBeTruthy()
       expect(screen.queryByText('Saved')).not.toBeInTheDocument()
     })
 
-    it('finishes typing, hides the caret and shows Saved', () => {
+    it('finishes typing, hides the caret and shows Saved', async () => {
       const { container } = render(<SettingsPreview />)
       intersect(true)
-      act(() => {
-        vi.advanceTimersByTime(10000)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
       })
       expect(screen.getByText(/say so instead of guessing/i)).toBeInTheDocument()
       expect(screen.getByText('Saved')).toBeInTheDocument()

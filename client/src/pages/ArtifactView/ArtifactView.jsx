@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ArtifactBody from '../../common/ArtifactBody/ArtifactBody.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
-import ArtifactVersionSelect from '../../common/ArtifactVersionSelect/ArtifactVersionSelect.jsx'
+import ArtifactToolbar from '../../common/ArtifactToolbar/ArtifactToolbar.jsx'
 import ShareModal from '../../common/ShareModal/ShareModal.jsx'
 import Login from '../../common/Login/Login.jsx'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
@@ -30,19 +30,11 @@ export default function ArtifactView({ id }) {
   )
   const { shareUrl, error: shareError, share, dismiss } = useArtifactShare(token, logout)
   const frameRef = useRef(null)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
-  const versions = artifact?.versions ?? []
-  const canDeleteVersion = versions.length > 1 && version != null
   const actionError = shareError ?? deleteError
 
   function handleExportPdf() {
     frameRef.current?.print()
-  }
-
-  function handleConfirmDelete() {
-    setConfirmingDelete(false)
-    removeVersion(version)
   }
 
   if (!isAuthenticated) {
@@ -66,54 +58,15 @@ export default function ArtifactView({ id }) {
         </Link>
         <h1 className="artifact-view__title">{artifact?.title ?? 'Artifact'}</h1>
 
-        <ArtifactVersionSelect
-          versions={versions}
-          value={version ?? artifact?.latestVersion ?? ''}
-          onChange={selectVersion}
+        <ArtifactToolbar
+          artifact={artifact}
+          version={version}
+          hasHtml={Boolean(html)}
+          onSelectVersion={selectVersion}
+          onShare={() => share(id, version)}
+          onExportPdf={handleExportPdf}
+          onDeleteVersion={removeVersion}
         />
-
-        {confirmingDelete ? (
-          <>
-            <button type="button" className="btn btn--danger btn--sm" onClick={handleConfirmDelete}>
-              Confirm
-            </button>
-            <button type="button" className="btn btn--secondary btn--sm" onClick={() => setConfirmingDelete(false)}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            {canDeleteVersion && (
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => setConfirmingDelete(true)}
-                aria-label="Delete this version"
-              >
-                Delete
-              </button>
-            )}
-
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              onClick={() => share(id, version)}
-              disabled={!html}
-            >
-              Share
-            </button>
-
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              onClick={handleExportPdf}
-              disabled={!html}
-              aria-label="Export as PDF"
-            >
-              PDF
-            </button>
-          </>
-        )}
       </header>
 
       {actionError && <p className="alert alert--error artifact-view__alert">{actionError}</p>}

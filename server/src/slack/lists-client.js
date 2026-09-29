@@ -58,7 +58,7 @@ export function cellText(cell) {
   return ''
 }
 
-export function cellKey(cell) {
+function cellKey(cell) {
   return pickColId(cell)
 }
 

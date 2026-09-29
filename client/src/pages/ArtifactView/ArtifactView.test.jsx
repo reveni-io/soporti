@@ -92,8 +92,8 @@ describe('ArtifactView', () => {
       </MemoryRouter>
     )
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Share' })).toBeEnabled())
-    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Share artifact' })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: 'Share artifact' }))
 
     await waitFor(() => expect(screen.getByText('Share artifact')).toBeInTheDocument())
     const shareCall = global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')
@@ -112,7 +112,7 @@ describe('ArtifactView', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Artifact version')).toBeInTheDocument())
     await userEvent.selectOptions(screen.getByLabelText('Artifact version'), '1')
-    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Share artifact' }))
 
     await waitFor(() => {
       const shareCall = global.fetch.mock.calls.find(([, options]) => options?.method === 'POST')
@@ -186,7 +186,7 @@ describe('ArtifactView', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole('button', { name: 'Share' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Share artifact' })).toBeDisabled()
     expect(screen.getByText('Loading artifact...')).toBeInTheDocument()
   })
 
@@ -247,8 +247,8 @@ describe('ArtifactView', () => {
       </MemoryRouter>
     )
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Share' })).toBeEnabled())
-    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Share artifact' })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: 'Share artifact' }))
 
     await waitFor(() => expect(screen.getByText('Failed to share.')).toBeInTheDocument())
     expect(screen.getByTitle('Refund dashboard')).toBeInTheDocument()

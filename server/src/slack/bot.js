@@ -490,6 +490,72 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
   }
 }
 
+async function answerOrPromptSources({
+  client,
+  channelId,
+  threadTs,
+  question,
+  displayQuestion,
+  slackUserId,
+  teamId,
+  logContext,
+}) {
+  const threadKey = `${channelId}-${threadTs}`
+  const existingSources = threadSources.get(threadKey)
+
+  if (existingSources) {
+    await runAndReply({
+      client,
+      channelId,
+      threadTs,
+      question,
+      sources: existingSources,
+      profile: threadProfiles.get(threadKey) || DEFAULT_PROFILE,
+      slackUserId,
+      teamId,
+    })
+    return
+  }
+
+  try {
+    const repos = await listRepos()
+
+    if (repos.length === 0) {
+      await client.chat.postMessage({
+        channel: channelId,
+        thread_ts: threadTs,
+        text: 'No repositories found. Check the GitHub token configuration.',
+      })
+      return
+    }
+
+    const result = await client.chat.postMessage({
+      channel: channelId,
+      thread_ts: threadTs,
+      blocks: await buildSourceSelectorBlocks(displayQuestion, repos),
+      text: 'Select sources and profile to continue.',
+    })
+
+    pendingQuestions.set(result.ts, {
+      question,
+      displayQuestion,
+      channelId,
+      threadTs,
+      selectedProfile: DEFAULT_PROFILE,
+      slackUserId,
+      teamId,
+      createdAt: Date.now(),
+    })
+  } catch (err) {
+    console.error(`[slack] Error showing repo selector${logContext}:`, err)
+    await client.chat.postMessage({
+      channel: channelId,
+      thread_ts: threadTs,
+      text: '⚠️ Failed to load repositories.',
+    })
+  }
+}
+
 export async function startSlackBot(store) {
   if (store) conversationStore = store
 
@@ -527,61 +593,16 @@ export async function startSlackBot(store) {
       return
     }
 
-    const threadKey = `${channelId}-${threadTs}`
-    const existingSources = threadSources.get(threadKey)
-
-    if (existingSources) {
-      const existingProfile = threadProfiles.get(threadKey) || DEFAULT_PROFILE
-      await runAndReply({
-        client,
-        channelId,
-        threadTs,
-        question,
-        sources: existingSources,
-        profile: existingProfile,
-        slackUserId,
-        teamId,
-      })
-      return
-    }
-
-    try {
-      const repos = await listRepos()
-
-      if (repos.length === 0) {
-        await client.chat.postMessage({
-          channel: channelId,
-          thread_ts: threadTs,
-          text: 'No repositories found. Check the GitHub token configuration.',
-        })
-        return
-      }
-
-      const result = await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: threadTs,
-        blocks: await buildSourceSelectorBlocks(displayQuestion, repos),
-        text: 'Select sources and profile to continue.',
-      })
-
-      pendingQuestions.set(result.ts, {
-        question,
-        displayQuestion,
-        channelId,
-        threadTs,
-        selectedProfile: DEFAULT_PROFILE,
-        slackUserId,
-        teamId,
-        createdAt: Date.now(),
-      })
-    } catch (err) {
-      console.error('[slack] Error showing repo selector:', err)
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: threadTs,
-        text: '⚠️ Failed to load repositories.',
-      })
-    }
+    await answerOrPromptSources({
+      client,
+      channelId,
+      threadTs,
+      question,
+      displayQuestion,
+      slackUserId,
+      teamId,
+      logContext: '',
+    })
   })
 
   slackApp.action('select_profile', async ({ action, body, ack }) => {
@@ -735,60 +756,16 @@ export async function startSlackBot(store) {
 
     if (!question) return
 
-    const threadKey = `${channelId}-${threadTs}`
-    const existingSources = threadSources.get(threadKey)
-
-    if (existingSources) {
-      const existingProfile = threadProfiles.get(threadKey) || DEFAULT_PROFILE
-      await runAndReply({
-        client,
-        channelId,
-        threadTs,
-        question,
-        sources: existingSources,
-        profile: existingProfile,
-        slackUserId,
-        teamId,
-      })
-      return
-    }
-
-    try {
-      const repos = await listRepos()
-
-      if (repos.length === 0) {
-        await client.chat.postMessage({
-          channel: channelId,
-          thread_ts: threadTs,
-          text: 'No repositories found. Check the GitHub token configuration.',
-        })
-        return
-      }
-
-      const result = await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: threadTs,
-        blocks: await buildSourceSelectorBlocks(question, repos),
-        text: 'Select sources and profile to continue.',
-      })
-
-      pendingQuestions.set(result.ts, {
-        question,
-        channelId,
-        threadTs,
-        selectedProfile: DEFAULT_PROFILE,
-        slackUserId,
-        teamId,
-        createdAt: Date.now(),
-      })
-    } catch (err) {
-      console.error('[slack] Error showing repo selector in DM:', err)
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: threadTs,
-        text: '⚠️ Failed to load repositories.',
-      })
-    }
+    await answerOrPromptSources({
+      client,
+      channelId,
+      threadTs,
+      question,
+      displayQuestion: question,
+      slackUserId,
+      teamId,
+      logContext: ' in DM',
+    })
   })
 
   await slackApp.start()

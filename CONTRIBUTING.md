@@ -127,6 +127,11 @@ npm run lint
 
 Fix all warnings and errors before pushing.
 
+Besides ESLint and Prettier, `lint` runs two repo-wide checks you can also run on their own:
+
+- `npm run knip` fails on unused files, exports and dependencies across the root, `server/` and `client/` (config in `knip.json`). Delete what it reports instead of ignoring it.
+- `npm run jscpd` fails when duplicated code in `server/src` and `client/src` (tests excluded) goes over the `threshold` in `.jscpd.json`. If your change pushes it over, extract the shared piece instead of raising the threshold. If a refactor lowers the percentage, lower the threshold to match.
+
 ### 4. Run the formatter
 
 ```bash

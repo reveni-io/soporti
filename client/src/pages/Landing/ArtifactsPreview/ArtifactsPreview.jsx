@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
+import { usePlayOnView } from '../hooks/usePlayOnView/usePlayOnView.js'
 import './ArtifactsPreview.css'
 
 const STAGE_IDLE = 0
@@ -6,6 +7,7 @@ const STAGE_ASKED = 1
 const STAGE_PUBLISHED = 2
 const STAGE_ITERATED = 3
 const FINAL_STAGE = STAGE_ITERATED
+const VIEW_THRESHOLD = 0.3
 
 const FIRST_QUESTION = 'Turn this month’s tickets into a report I can share'
 const SECOND_QUESTION = 'Add the per-channel volume too'
@@ -13,64 +15,32 @@ const SECOND_QUESTION = 'Add the per-channel volume too'
 const V1_BARS = [35, 60, 45, 75, 55]
 const V2_BARS = [35, 60, 45, 75, 95]
 
+async function playStory({ show, sleep, isCancelled }) {
+  while (!isCancelled()) {
+    show(STAGE_IDLE)
+    await sleep(1100)
+    if (isCancelled()) return
+
+    show(STAGE_ASKED)
+    await sleep(1500)
+    if (isCancelled()) return
+
+    show(STAGE_PUBLISHED)
+    await sleep(3200)
+    if (isCancelled()) return
+
+    show(STAGE_ITERATED)
+    await sleep(4200)
+  }
+}
+
 export default function ArtifactsPreview() {
-  const [stage, setStage] = useState(STAGE_IDLE)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-    if (reduced || typeof IntersectionObserver === 'undefined') {
-      setStage(FINAL_STAGE)
-      return
-    }
-
-    let cancelled = false
-    let started = false
-    const timers = []
-    const sleep = ms => new Promise(resolve => timers.push(setTimeout(resolve, ms)))
-
-    async function play() {
-      while (!cancelled) {
-        setStage(STAGE_IDLE)
-        await sleep(1100)
-        if (cancelled) return
-
-        setStage(STAGE_ASKED)
-        await sleep(1500)
-        if (cancelled) return
-
-        setStage(STAGE_PUBLISHED)
-        await sleep(3200)
-        if (cancelled) return
-
-        setStage(STAGE_ITERATED)
-        await sleep(4200)
-      }
-    }
-
-    const io = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting && !started) {
-            started = true
-            io.unobserve(el)
-            play()
-          }
-        })
-      },
-      { threshold: 0.3 }
-    )
-    io.observe(el)
-
-    return () => {
-      cancelled = true
-      io.disconnect()
-      timers.forEach(clearTimeout)
-    }
-  }, [])
+  const { ref, frame: stage } = usePlayOnView({
+    play: playStory,
+    initialFrame: STAGE_IDLE,
+    finalFrame: FINAL_STAGE,
+    threshold: VIEW_THRESHOLD,
+  })
 
   const asked = stage >= STAGE_ASKED
   const published = stage >= STAGE_PUBLISHED
@@ -80,20 +50,10 @@ export default function ArtifactsPreview() {
 
   return (
     <div className="lp-artifacts-preview" ref={ref} aria-hidden="true">
-      <div className="lp-artifacts-preview__window">
-        <div className="lp-artifacts-preview__bar">
-          <span className="lp-artifacts-preview__dots">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className="lp-artifacts-preview__bar-title">Soporti</span>
-          {published && <span className="lp-artifacts-preview__chip">artifact published</span>}
-        </div>
-
+      <PreviewWindow className="lp-artifacts-preview__window" badge={published ? 'artifact published' : null}>
         <div className="lp-artifacts-preview__stage">
           <div className="lp-artifacts-preview__chat">
-            {!asked && <p className="lp-artifacts-preview__hint">Ask for a deliverable — a report, a runbook.</p>}
+            {!asked && <p className="lp-preview-window__hint">Ask for a deliverable — a report, a runbook.</p>}
             {asked && (
               <div className="message message--user">
                 <div className="message__bubble message__bubble--user">{FIRST_QUESTION}</div>
@@ -144,7 +104,7 @@ export default function ArtifactsPreview() {
             </div>
           )}
         </div>
-      </div>
+      </PreviewWindow>
     </div>
   )
 }

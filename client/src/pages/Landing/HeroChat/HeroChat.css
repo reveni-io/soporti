@@ -5,16 +5,10 @@
 }
 
 .hero-chat__window {
-  display: flex;
-  flex-direction: column;
   height: 430px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
   box-shadow:
     0 30px 70px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(var(--green-inverse-rgb), 0.06);
-  overflow: hidden;
   animation:
     heroChatIn 0.6s ease both,
     heroChatFloat 7s ease-in-out 0.6s infinite;
@@ -39,44 +33,6 @@
   50% {
     transform: translateY(-6px);
   }
-}
-
-.hero-chat__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp2);
-  padding: var(--sp3) var(--sp4);
-  border-bottom: 1px solid var(--border-default);
-  background: var(--bg-cool);
-}
-.hero-chat__dots {
-  display: flex;
-  gap: 6px;
-}
-.hero-chat__dots span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--border-strong);
-}
-.hero-chat__bar-title {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  margin-left: var(--sp2);
-}
-.hero-chat__badge {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--green-chart);
-  background: var(--success-low);
-  border: 1px solid var(--green-bright);
-  border-radius: var(--radius-pill);
-  padding: 0.15rem 0.5rem;
 }
 
 .hero-chat__scroll {

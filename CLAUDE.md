@@ -11,7 +11,9 @@ npm run dev                                    # server (3001) + client (5173, p
 npm test                                       # full suite (server + client)
 npm test --prefix server                       # one side only
 npm test --prefix server -- src/routes/skills.test.js   # a single file
-npm run lint                                   # eslint (both) + prettier --check
+npm run lint                                   # eslint (both) + prettier --check + knip + jscpd
+npm run knip                                   # unused files, exports and dependencies
+npm run jscpd                                  # duplicated code, fails over the .jscpd.json threshold
 npm run format                                 # prettier --write
 npm run test:coverage                          # 90% line threshold, enforced in CI
 npm run db:generate --prefix server            # regenerate migrations after editing db/schema.js
@@ -321,7 +323,7 @@ global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async ()
 Run these in order, from the repo root, and fix what they report:
 
 ```bash
-npm run lint     # eslint + prettier --check
+npm run lint     # eslint + prettier --check + knip + jscpd
 npm run format   # only if lint reported formatting issues, then re-run lint
 npm test         # the full suite, not just the files you touched
 ```
