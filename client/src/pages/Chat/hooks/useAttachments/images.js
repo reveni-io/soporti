@@ -69,7 +69,7 @@ export async function buildThumbnail(file) {
   }
 }
 
-export function needsShrinking(file, width, height) {
+function needsShrinking(file, width, height) {
   return file.size > MAX_IMAGE_BYTES || Math.max(width, height) > IMAGE_MAX_PIXELS
 }
 

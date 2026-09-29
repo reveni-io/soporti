@@ -1,4 +1,5 @@
 import Section from '../Section/Section.jsx'
+import PointList from '../PointList/PointList.jsx'
 import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
 import './SubagentsSection.css'
 
@@ -44,11 +45,7 @@ export default function SubagentsSection() {
         </p>
       </div>
 
-      <ul className="lp-points">
-        {POINTS.map(point => (
-          <li key={point}>{point}</li>
-        ))}
-      </ul>
+      <PointList points={POINTS} />
 
       <div className="lp-subagents__graph">
         <div className="lp-subagents__node lp-subagents__node--parent">

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
+import { usePlayOnView } from '../hooks/usePlayOnView/usePlayOnView.js'
 import './SkillsPreview.css'
 
 const SKILLS = [
@@ -11,77 +12,47 @@ const PARTIAL = '/tr'
 const COMMAND = '/triage-ticket'
 const REST = 'the customer says the refund never arrived'
 
+const INITIAL_FRAME = { typed: '', sent: false }
+const FINAL_FRAME = { typed: '', sent: true }
+const VIEW_THRESHOLD = 0.3
+
+async function playSkill({ show, sleep, isCancelled }) {
+  while (!isCancelled()) {
+    show(INITIAL_FRAME)
+    await sleep(900)
+
+    for (let i = 1; i <= PARTIAL.length; i++) {
+      if (isCancelled()) return
+      show({ typed: PARTIAL.slice(0, i), sent: false })
+      await sleep(160)
+    }
+    await sleep(1300)
+    if (isCancelled()) return
+
+    show({ typed: `${COMMAND} `, sent: false })
+    await sleep(700)
+
+    for (let i = 1; i <= REST.length; i++) {
+      if (isCancelled()) return
+      show({ typed: `${COMMAND} ${REST.slice(0, i)}`, sent: false })
+      await sleep(38)
+    }
+    await sleep(1200)
+    if (isCancelled()) return
+
+    show(FINAL_FRAME)
+    await sleep(4800)
+  }
+}
+
 export default function SkillsPreview() {
-  const [typed, setTyped] = useState('')
-  const [sent, setSent] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-    if (reduced || typeof IntersectionObserver === 'undefined') {
-      setSent(true)
-      return
-    }
-
-    let cancelled = false
-    let started = false
-    const timers = []
-    const sleep = ms => new Promise(resolve => timers.push(setTimeout(resolve, ms)))
-
-    async function play() {
-      while (!cancelled) {
-        setSent(false)
-        setTyped('')
-        await sleep(900)
-
-        for (let i = 1; i <= PARTIAL.length; i++) {
-          if (cancelled) return
-          setTyped(PARTIAL.slice(0, i))
-          await sleep(160)
-        }
-        await sleep(1300)
-        if (cancelled) return
-
-        setTyped(`${COMMAND} `)
-        await sleep(700)
-
-        for (let i = 1; i <= REST.length; i++) {
-          if (cancelled) return
-          setTyped(`${COMMAND} ${REST.slice(0, i)}`)
-          await sleep(38)
-        }
-        await sleep(1200)
-        if (cancelled) return
-
-        setSent(true)
-        setTyped('')
-        await sleep(4800)
-      }
-    }
-
-    const io = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting && !started) {
-            started = true
-            io.unobserve(el)
-            play()
-          }
-        })
-      },
-      { threshold: 0.3 }
-    )
-    io.observe(el)
-
-    return () => {
-      cancelled = true
-      io.disconnect()
-      timers.forEach(clearTimeout)
-    }
-  }, [])
+  const { ref, frame } = usePlayOnView({
+    play: playSkill,
+    initialFrame: INITIAL_FRAME,
+    finalFrame: FINAL_FRAME,
+    threshold: VIEW_THRESHOLD,
+  })
+  const { typed, sent } = frame
 
   const commandPrefix = typed.startsWith(COMMAND) ? COMMAND : ''
   const menuOpen = typed.startsWith('/') && !typed.includes(' ')
@@ -89,17 +60,7 @@ export default function SkillsPreview() {
 
   return (
     <div className="lp-skills-preview" ref={ref} aria-hidden="true">
-      <div className="lp-skills-preview__window">
-        <div className="lp-skills-preview__bar">
-          <span className="lp-skills-preview__dots">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className="lp-skills-preview__bar-title">Soporti</span>
-          <span className="lp-skills-preview__chip">{SKILLS.length} skills</span>
-        </div>
-
+      <PreviewWindow className="lp-skills-preview__window" badge={`${SKILLS.length} skills`}>
         <div className="lp-skills-preview__body">
           {sent ? (
             <div className="message message--user">
@@ -108,7 +69,7 @@ export default function SkillsPreview() {
               </div>
             </div>
           ) : (
-            <p className="lp-skills-preview__hint">Type “/” to run one of your skills.</p>
+            <p className="lp-preview-window__hint">Type “/” to run one of your skills.</p>
           )}
         </div>
 
@@ -139,7 +100,7 @@ export default function SkillsPreview() {
           </div>
           <span className="lp-skills-preview__send">&#8593;</span>
         </div>
-      </div>
+      </PreviewWindow>
     </div>
   )
 }

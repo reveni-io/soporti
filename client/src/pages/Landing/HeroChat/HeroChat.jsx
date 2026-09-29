@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useScenarioPlayer } from '../hooks/useScenarioPlayer/useScenarioPlayer.js'
 import { SCENARIOS } from './scenarios.js'
+import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
 import './HeroChat.css'
 
 export default function HeroChat() {
@@ -14,22 +15,13 @@ export default function HeroChat() {
 
   return (
     <div className="hero-chat" aria-hidden="true">
-      <div className="hero-chat__window">
-        <div className="hero-chat__bar">
-          <span className="hero-chat__dots">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span className="hero-chat__bar-title">Soporti</span>
-          <span className="hero-chat__badge">YOLO</span>
-        </div>
+      <PreviewWindow className="hero-chat__window" badge="YOLO">
         <div className="hero-chat__scroll" ref={scrollRef}>
           {messages.map((message, index) => (
             <ChatMessage key={index} message={message} />
           ))}
         </div>
-      </div>
+      </PreviewWindow>
     </div>
   )
 }

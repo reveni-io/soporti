@@ -1,4 +1,6 @@
 import Section from '../Section/Section.jsx'
+import PointList from '../PointList/PointList.jsx'
+import ConversationsPanel from '../ConversationsPanel/ConversationsPanel.jsx'
 import './ParallelSection.css'
 
 const ANSWERING_LABEL = 'Answering'
@@ -29,15 +31,10 @@ export default function ParallelSection() {
           have to sit and watch it. Send the question, open a new chat and ask something else — each conversation keeps
           its own answer coming, and none of them is interrupted by what you do next.
         </p>
-        <ul className="lp-points">
-          {POINTS.map(point => (
-            <li key={point}>{point}</li>
-          ))}
-        </ul>
+        <PointList points={POINTS} />
       </div>
 
-      <div className="lp-parallel__list">
-        <span className="lp-parallel__label">Conversations</span>
+      <ConversationsPanel>
         <ul className="lp-parallel__items">
           {CONVERSATIONS.map(conversation => (
             <li
@@ -55,7 +52,7 @@ export default function ParallelSection() {
             </li>
           ))}
         </ul>
-      </div>
+      </ConversationsPanel>
     </Section>
   )
 }

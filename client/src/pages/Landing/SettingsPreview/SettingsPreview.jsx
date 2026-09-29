@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { usePlayOnView } from '../hooks/usePlayOnView/usePlayOnView.js'
 import './SettingsPreview.css'
 
 const EXAMPLE = `I'm on the Support team, so keep answers non-technical and behaviour-focused.
@@ -6,57 +6,29 @@ Always mention the customer name and order id when they're relevant.
 Reply in Spanish, and prefer a small table when you show data.
 If something isn't in our docs, say so instead of guessing.`
 
+const INITIAL_FRAME = { typed: '', done: false }
+const FINAL_FRAME = { typed: EXAMPLE, done: true }
+const VIEW_THRESHOLD = 0.35
+const KEYSTROKE_MS = 20
+
+async function typeExample({ show, sleep, isCancelled }) {
+  for (let i = 1; i < EXAMPLE.length; i++) {
+    show({ typed: EXAMPLE.slice(0, i), done: false })
+    await sleep(KEYSTROKE_MS)
+    if (isCancelled()) return
+  }
+
+  show(FINAL_FRAME)
+}
+
 export default function SettingsPreview() {
-  const [typed, setTyped] = useState('')
-  const [done, setDone] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-    if (reduced || typeof IntersectionObserver === 'undefined') {
-      setTyped(EXAMPLE)
-      setDone(true)
-      return
-    }
-
-    let started = false
-    let timer
-    const type = () => {
-      let i = 0
-      const step = () => {
-        i += 1
-        setTyped(EXAMPLE.slice(0, i))
-        if (i < EXAMPLE.length) {
-          timer = setTimeout(step, 20)
-        } else {
-          setDone(true)
-        }
-      }
-      step()
-    }
-
-    const io = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting && !started) {
-            started = true
-            io.unobserve(el)
-            type()
-          }
-        })
-      },
-      { threshold: 0.35 }
-    )
-    io.observe(el)
-
-    return () => {
-      io.disconnect()
-      clearTimeout(timer)
-    }
-  }, [])
+  const { ref, frame } = usePlayOnView({
+    play: typeExample,
+    initialFrame: INITIAL_FRAME,
+    finalFrame: FINAL_FRAME,
+    threshold: VIEW_THRESHOLD,
+  })
+  const { typed, done } = frame
 
   return (
     <div className="lp-ci-preview" ref={ref} aria-hidden="true">

@@ -1,4 +1,6 @@
 import Section from '../Section/Section.jsx'
+import PointList from '../PointList/PointList.jsx'
+import ConversationsPanel from '../ConversationsPanel/ConversationsPanel.jsx'
 import './SearchSection.css'
 
 const QUERY = 'refund'
@@ -37,15 +39,10 @@ export default function SearchSection() {
           Titles are written from the first message, so they are rarely what you remember. Type what the conversation
           was about into the sidebar and it finds it by title or by content, showing you why each one matched.
         </p>
-        <ul className="lp-points">
-          {POINTS.map(point => (
-            <li key={point}>{point}</li>
-          ))}
-        </ul>
+        <PointList points={POINTS} />
       </div>
 
-      <div className="lp-search__panel">
-        <span className="lp-search__label">Conversations</span>
+      <ConversationsPanel>
         <div className="lp-search__box">{QUERY}</div>
         <ul className="lp-search__results">
           {RESULTS.map(result => (
@@ -61,7 +58,7 @@ export default function SearchSection() {
             </li>
           ))}
         </ul>
-      </div>
+      </ConversationsPanel>
     </Section>
   )
 }

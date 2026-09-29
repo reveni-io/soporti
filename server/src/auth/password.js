@@ -2,8 +2,8 @@ import bcrypt from 'bcryptjs'
 
 const COST = 12
 
-export const PASSWORD_MIN_LENGTH = 8
-export const PASSWORD_MAX_LENGTH = 72
+const PASSWORD_MIN_LENGTH = 8
+const PASSWORD_MAX_LENGTH = 72
 
 export function validatePassword(password) {
   if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) {
