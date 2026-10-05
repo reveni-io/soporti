@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRepo, sanitizePath, BLOCKED_PATHS } from './sanitize.js'
+import { parseRepo, sanitizePath, shortSha, BLOCKED_PATHS } from './sanitize.js'
 
 describe('parseRepo', () => {
   it('parses valid owner/repo format', () => {
@@ -92,5 +92,15 @@ describe('BLOCKED_PATHS', () => {
     expect(BLOCKED_PATHS).toContain('node_modules')
     expect(BLOCKED_PATHS).toContain('.aws')
     expect(BLOCKED_PATHS).toContain('.ssh')
+  })
+})
+
+describe('shortSha', () => {
+  it('shortens a commit sha to its first seven characters', () => {
+    expect(shortSha('abc1234def567')).toBe('abc1234')
+  })
+
+  it('returns an empty string when there is no sha', () => {
+    expect(shortSha(null)).toBe('')
   })
 })

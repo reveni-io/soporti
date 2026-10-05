@@ -11,17 +11,25 @@ const mockListReviewComments = vi.fn()
 const mockCreateReplyForReviewComment = vi.fn()
 const mockCreateForIssue = vi.fn()
 const mockDeleteForIssue = vi.fn()
+const mockListReviews = vi.fn()
+const mockGraphql = vi.fn()
+const mockCompareCommitsWithBasehead = vi.fn()
 
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
     constructor() {
-      this.repos = { listForAuthenticatedUser: mockListForAuthenticatedUser }
+      this.repos = {
+        listForAuthenticatedUser: mockListForAuthenticatedUser,
+        compareCommitsWithBasehead: mockCompareCommitsWithBasehead,
+      }
+      this.graphql = mockGraphql
       this.users = { getAuthenticated: mockGetAuthenticated }
       this.pulls = {
         get: mockPullsGet,
         listFiles: mockListFiles,
         createReview: mockCreateReview,
         listReviewComments: mockListReviewComments,
+        listReviews: mockListReviews,
         createReplyForReviewComment: mockCreateReplyForReviewComment,
       }
       this.issues = { createComment: mockCreateComment, listComments: mockListComments }
@@ -42,6 +50,9 @@ const {
   createIssueComment,
   listIssueComments,
   listReviewComments,
+  listPullRequestReviews,
+  listReviewThreads,
+  compareCommits,
   createReviewCommentReply,
   createIssueReaction,
   deleteIssueReaction,
@@ -236,6 +247,118 @@ describe('listReviewComments', () => {
       per_page: 100,
       page: 1,
     })
+  })
+})
+
+describe('listPullRequestReviews', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('fetches every review of the PR across pages', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, i) => ({ id: i }))
+    mockListReviews.mockResolvedValueOnce({ data: firstPage }).mockResolvedValueOnce({ data: [{ id: 100 }] })
+
+    const reviews = await listPullRequestReviews('acme-io/app', 7)
+
+    expect(reviews).toHaveLength(101)
+    expect(mockListReviews).toHaveBeenCalledTimes(2)
+    expect(mockListReviews).toHaveBeenLastCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      pull_number: 7,
+      per_page: 100,
+      page: 2,
+    })
+  })
+})
+
+describe('listReviewThreads', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns each thread with its resolution state, location and comments', async () => {
+    mockGraphql.mockResolvedValue({
+      repository: {
+        pullRequest: {
+          reviewThreads: {
+            nodes: [
+              {
+                isResolved: true,
+                isOutdated: false,
+                path: 'src/a.js',
+                line: 12,
+                originalLine: 10,
+                comments: {
+                  nodes: [
+                    { author: { login: 'soporti-bot' }, body: '**[major]** bug' },
+                    { author: { login: 'dev' }, body: 'fixed' },
+                  ],
+                },
+              },
+              {
+                isResolved: false,
+                isOutdated: true,
+                path: 'src/b.js',
+                line: null,
+                originalLine: 4,
+                comments: { nodes: [{ author: null, body: null }] },
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    const threads = await listReviewThreads('acme-io/app', 7)
+
+    expect(mockGraphql).toHaveBeenCalledTimes(1)
+    expect(mockGraphql).toHaveBeenCalledWith(expect.stringContaining('reviewThreads'), {
+      owner: 'acme-io',
+      repo: 'app',
+      number: 7,
+    })
+    expect(threads).toEqual([
+      {
+        isResolved: true,
+        isOutdated: false,
+        path: 'src/a.js',
+        line: 12,
+        comments: [
+          { author: 'soporti-bot', body: '**[major]** bug' },
+          { author: 'dev', body: 'fixed' },
+        ],
+      },
+      { isResolved: false, isOutdated: true, path: 'src/b.js', line: 4, comments: [{ author: '', body: '' }] },
+    ])
+  })
+
+  it('returns no threads when the PR cannot be found', async () => {
+    mockGraphql.mockResolvedValue({ repository: null })
+
+    expect(await listReviewThreads('acme-io/app', 7)).toEqual([])
+  })
+})
+
+describe('compareCommits', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('compares the two commits and returns the status and the changed files', async () => {
+    mockCompareCommitsWithBasehead.mockResolvedValue({
+      data: { status: 'ahead', files: [{ filename: 'src/a.js', patch: '@@' }], commits: [] },
+    })
+
+    const comparison = await compareCommits('acme-io/app', 'aaa111', 'bbb222')
+
+    expect(comparison).toEqual({ status: 'ahead', files: [{ filename: 'src/a.js', patch: '@@' }] })
+    expect(mockCompareCommitsWithBasehead).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      basehead: 'aaa111...bbb222',
+    })
+  })
+
+  it('returns no files when the comparison lists none', async () => {
+    mockCompareCommitsWithBasehead.mockResolvedValue({ data: { status: 'identical' } })
+
+    expect(await compareCommits('acme-io/app', 'aaa111', 'aaa111')).toEqual({ status: 'identical', files: [] })
   })
 })
 

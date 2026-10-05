@@ -2,6 +2,28 @@ import { Octokit } from '@octokit/rest'
 import { getGithubToken } from './settings.js'
 import { parseRepo } from './sanitize.js'
 
+const REVIEW_THREADS_QUERY = `query ($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(last: 100) {
+        nodes {
+          isResolved
+          isOutdated
+          path
+          line
+          originalLine
+          comments(first: 50) {
+            nodes {
+              author { login }
+              body
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
 let octokitInstance = null
 let octokitInstanceToken = null
 
@@ -88,6 +110,36 @@ export async function listReviewComments(repoFullName, prNumber) {
   const octokit = await getOctokit()
   const { owner, repo } = parseRepo(repoFullName)
   return paginate(page => octokit.pulls.listReviewComments({ owner, repo, pull_number: prNumber, per_page: 100, page }))
+}
+
+export async function listPullRequestReviews(repoFullName, prNumber) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  return paginate(page => octokit.pulls.listReviews({ owner, repo, pull_number: prNumber, per_page: 100, page }))
+}
+
+export async function listReviewThreads(repoFullName, prNumber) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const data = await octokit.graphql(REVIEW_THREADS_QUERY, { owner, repo, number: prNumber })
+
+  return (data.repository?.pullRequest?.reviewThreads?.nodes ?? []).map(thread => ({
+    isResolved: Boolean(thread.isResolved),
+    isOutdated: Boolean(thread.isOutdated),
+    path: thread.path,
+    line: thread.line ?? thread.originalLine ?? null,
+    comments: (thread.comments?.nodes ?? []).map(comment => ({
+      author: comment.author?.login ?? '',
+      body: comment.body ?? '',
+    })),
+  }))
+}
+
+export async function compareCommits(repoFullName, baseSha, headSha) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.repos.compareCommitsWithBasehead({ owner, repo, basehead: `${baseSha}...${headSha}` })
+  return { status: data.status, files: data.files ?? [] }
 }
 
 export async function createReviewCommentReply(repoFullName, prNumber, commentId, body) {

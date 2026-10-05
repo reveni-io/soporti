@@ -48,7 +48,8 @@ export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, 
 
     const result = queue.enqueue(job)
     if (result.accepted) {
-      logger.log(`[review] Queued ${job.kind} for ${job.dedupeKey}`)
+      const superseding = result.superseded ? ' (superseding an older review of this PR)' : ''
+      logger.log(`[review] Queued ${job.kind} for ${job.dedupeKey}${superseding}`)
       return res.status(202).json({ queued: true })
     }
 

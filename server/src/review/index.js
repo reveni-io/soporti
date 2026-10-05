@@ -31,7 +31,10 @@ export function setupReviewWebhook(app, { logger = console } = {}) {
   }
 
   const queue = new ReviewQueue({
-    processor: job => (job.kind === 'mention' ? runMention(job, { logger }) : runReview(job, { logger })),
+    processor: (job, { signal }) =>
+      job.kind === 'mention'
+        ? runMention(job, { logger })
+        : runReview(job, { logger, reviewerLogin: getReviewerLogin(), signal }),
     concurrency: config.review.concurrency,
   })
 

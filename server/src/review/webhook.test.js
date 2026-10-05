@@ -66,7 +66,11 @@ describe('POST /api/webhooks/github', () => {
     expect(res.status).toBe(202)
     expect(res.body).toEqual({ queued: true })
     expect(queue.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'review_requested', dedupeKey: 'acme-io/app#7@deadbeef' })
+      expect.objectContaining({
+        kind: 'review_requested',
+        dedupeKey: 'acme-io/app#7@deadbeef',
+        supersedeKey: 'acme-io/app#7',
+      })
     )
   })
 
@@ -85,6 +89,7 @@ describe('POST /api/webhooks/github', () => {
     expect(queue.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'mention', channel: 'issue', dedupeKey: 'acme-io/app#7@mention-100' })
     )
+    expect(queue.enqueue.mock.calls[0][0].supersedeKey).toBeUndefined()
   })
 
   it('accepts but does not queue comments without a mention', async () => {
