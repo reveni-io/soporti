@@ -131,7 +131,7 @@ describe('schedules routes', () => {
     it('rejects a question over the length limit', async () => {
       const res = await request(app)
         .post('/')
-        .send({ ...DAILY_BODY, question: 'x'.repeat(10_001) })
+        .send({ ...DAILY_BODY, question: 'x'.repeat(50_001) })
 
       expect(res.status).toBe(400)
       expect(res.body.error).toMatch(/too long/i)
