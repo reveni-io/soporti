@@ -71,7 +71,7 @@ export const SCHEDULE_FREQUENCY_OPTIONS = [
 export const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export const SCHEDULE_MONTH_DAY_MAX = 28
-export const SCHEDULE_QUESTION_MAX_LENGTH = 50_000
+export const SCHEDULE_QUESTION_MAX_LENGTH = 150_000
 export const SCHEDULE_STATUS_ERROR = 'error'
 
 export const EMPTY_CELL = '—'

@@ -33,7 +33,7 @@ describe('schedules routes', () => {
     countSchedules.mockResolvedValue(0)
     createSchedule.mockImplementation(async (userId, schedule) => ({ id: 1, ...schedule }))
     app = express()
-    app.use(express.json())
+    app.use(express.json({ limit: '2mb' }))
     app.use((req, _res, next) => {
       req.user = { id: 1 }
       next()
@@ -131,7 +131,7 @@ describe('schedules routes', () => {
     it('rejects a question over the length limit', async () => {
       const res = await request(app)
         .post('/')
-        .send({ ...DAILY_BODY, question: 'x'.repeat(50_001) })
+        .send({ ...DAILY_BODY, question: 'x'.repeat(150_001) })
 
       expect(res.status).toBe(400)
       expect(res.body.error).toMatch(/too long/i)
