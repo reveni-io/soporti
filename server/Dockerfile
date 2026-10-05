@@ -1,4 +1,7 @@
-FROM node:22-alpine
+# Overridable so a build can pull the same image from a mirror instead of
+# Docker Hub, which rate-limits anonymous pulls.
+ARG NODE_IMAGE=node:22-alpine
+FROM ${NODE_IMAGE}
 # The repo tools shell out to real GNU utilities. BusyBox's applets are not
 # supersets: its grep has no --exclude-dir/--include and exits 2 on them, which
 # made every search_code call fail in the deployed image.
