@@ -1,3 +1,5 @@
+const SHORT_SHA_LENGTH = 7
+
 export const BLOCKED_PATHS = ['.git', '.env', '.env.local', '.env.production', 'node_modules', '.aws', '.ssh']
 
 export function parseRepo(fullName) {
@@ -6,6 +8,10 @@ export function parseRepo(fullName) {
     throw new Error(`Invalid repository format: "${fullName}". Expected "owner/repo".`)
   }
   return { owner: parts[0], repo: parts[1] }
+}
+
+export function shortSha(sha) {
+  return String(sha ?? '').slice(0, SHORT_SHA_LENGTH)
 }
 
 export function sanitizePath(p) {

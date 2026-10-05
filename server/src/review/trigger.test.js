@@ -41,6 +41,7 @@ describe('detectTrigger', () => {
       authorLogin: 'dev-user',
       changedLines: 12,
       dedupeKey: 'acme-io/app#42@abc123',
+      supersedeKey: 'acme-io/app#42',
     })
   })
 

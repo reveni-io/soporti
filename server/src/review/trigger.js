@@ -39,5 +39,6 @@ function buildTrigger(kind, repoFullName, pr) {
     draft: Boolean(pr.draft),
     changedLines: (pr.additions ?? 0) + (pr.deletions ?? 0),
     dedupeKey: `${repoFullName}#${pr.number}@${pr.head.sha}`,
+    supersedeKey: `${repoFullName}#${pr.number}`,
   }
 }

@@ -14,7 +14,9 @@ import {
 } from '../github/client.js'
 import { selectFilesWithinBudget, partitionFindings } from './diff.js'
 import { runReviewerAgent } from './agent.js'
+import { loadReviewHistory } from './history.js'
 import { redactSecrets } from './output-guard.js'
+import { shortSha } from '../github/sanitize.js'
 
 const STANDARDS_PATTERNS = [
   'CLAUDE.md',
@@ -32,7 +34,7 @@ const MAX_STANDARDS_FILES = 30
 
 const STORY_REF = /\bsc-?(\d+)\b/i
 
-export async function runReview(trigger, { logger = console } = {}) {
+export async function runReview(trigger, { logger = console, reviewerLogin = null, signal } = {}) {
   const { repoFullName, prNumber, headSha, dedupeKey } = trigger
   logger.log(`[review] Reviewing ${dedupeKey} (${trigger.kind})`)
 
@@ -62,7 +64,7 @@ export async function runReview(trigger, { logger = console } = {}) {
     reviewedSha = current.headSha
     if (current.headSha !== headSha) {
       logger.log(
-        `[review] Head moved ${headSha.slice(0, 7)} → ${current.headSha.slice(0, 7)} on ${dedupeKey}; reviewing the current head`
+        `[review] Head moved ${shortSha(headSha)} → ${shortSha(current.headSha)} on ${dedupeKey}; reviewing the current head`
       )
     }
 
@@ -76,16 +78,29 @@ export async function runReview(trigger, { logger = console } = {}) {
 
     const latest = await getPullRequest(repoFullName, prNumber).catch(() => null)
     if (latest?.head?.sha && latest.head.sha !== reviewedSha) {
-      logger.log(`[review] Head moved to ${latest.head.sha.slice(0, 7)} during file fetch on ${dedupeKey}`)
+      logger.log(`[review] Head moved to ${shortSha(latest.head.sha)} during file fetch on ${dedupeKey}`)
       reviewedSha = latest.head.sha
     }
 
     const emptyFilenames = await findEmptyFiles(files, rootPath)
-    const { included, omitted, empty } = selectFilesWithinBudget(files, config.review.maxChangedLines, {
+    const { included, omitted, empty, usedLines } = selectFilesWithinBudget(files, config.review.maxChangedLines, {
       emptyFilenames,
     })
 
     const storyId = (await shortcut.isConfigured()) ? extractStoryId(current) : null
+    const history = await loadReviewHistory(
+      {
+        repoFullName,
+        prNumber,
+        headSha: reviewedSha,
+        reviewerLogin,
+        files,
+        diffBudget: config.review.maxChangedLines - usedLines,
+      },
+      { logger }
+    )
+
+    signal?.throwIfAborted()
 
     const output = await runReviewerAgent({
       trigger: { ...current, headSha: reviewedSha },
@@ -94,8 +109,12 @@ export async function runReview(trigger, { logger = console } = {}) {
       empty,
       standardsFiles,
       storyId,
+      history,
       rootPath,
+      signal,
     })
+
+    signal?.throwIfAborted()
 
     const { anchored, unanchored } = partitionFindings(output.findings, included)
     const event = resolveEvent(output, omitted)
@@ -109,7 +128,7 @@ export async function runReview(trigger, { logger = console } = {}) {
     try {
       await createPullRequestReview(repoFullName, prNumber, {
         commitId: reviewedSha,
-        body: buildReviewBody({ output, leftoverFindings: unanchored, omitted, trigger: current, event }),
+        body: buildReviewBody({ output, leftoverFindings: unanchored, omitted, trigger: current, event, history }),
         event,
         comments,
       })
@@ -124,6 +143,7 @@ export async function runReview(trigger, { logger = console } = {}) {
           omitted,
           trigger: current,
           event,
+          history,
         }),
         event,
       })
@@ -131,12 +151,17 @@ export async function runReview(trigger, { logger = console } = {}) {
 
     logger.log(`[review] Done ${dedupeKey}: ${event}, ${output.findings.length} finding(s)`)
   } catch (err) {
+    if (signal?.aborted) {
+      logger.log(`[review] Superseded ${dedupeKey}: a newer review request replaced it; posting nothing`)
+      return
+    }
+
     logger.error(`[review] Failed ${dedupeKey}:`, err)
     try {
       await createIssueComment(
         repoFullName,
         prNumber,
-        `⚠️ Soporti could not complete the review of this PR (commit \`${reviewedSha.slice(0, 7)}\`). ` +
+        `⚠️ Soporti could not complete the review of this PR (commit \`${shortSha(reviewedSha)}\`). ` +
           'Re-request the review (or re-add the label) to retry.'
       )
     } catch (commentErr) {
@@ -256,7 +281,7 @@ function buildVerdictHeader({ event, findings, omitted }) {
   return '### 👍 **LGTM** — no blocking issues; a human approval is still needed to merge'
 }
 
-function buildReviewBody({ output, leftoverFindings, omitted, trigger, event }) {
+function buildReviewBody({ output, leftoverFindings, omitted, trigger, event, history }) {
   const parts = [buildVerdictHeader({ event, findings: output.findings, omitted }), output.summary]
 
   if (leftoverFindings.length > 0) {
@@ -270,9 +295,14 @@ function buildReviewBody({ output, leftoverFindings, omitted, trigger, event }) 
     )
   }
 
-  parts.push(
-    `---\n_Automated review by Soporti · trigger: ${trigger.kind === 'labeled' ? 'label' : 'review request'}._`
-  )
+  const triggerLabel = trigger.kind === 'labeled' ? 'label' : 'review request'
+  parts.push(`---\n_Automated review by Soporti · trigger: ${triggerLabel}${describeReReview(history)}._`)
 
   return redactSecrets(parts.join('\n\n'))
+}
+
+function describeReReview(history) {
+  if (!history?.changes) return ''
+  if (history.changes.status === 'incremental') return ` · re-review since \`${shortSha(history.lastReviewedSha)}\``
+  return ' · re-review of the full diff'
 }

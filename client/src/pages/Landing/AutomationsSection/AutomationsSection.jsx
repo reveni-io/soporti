@@ -32,6 +32,7 @@ const AUTOMATIONS = [
     bullets: [
       'Correctness, standards (cites your CLAUDE.md & ADRs) and spec vs. the linked Shortcut story',
       'Posts inline comments; can approve trivial PRs, never blocks',
+      'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
       'Replies to @-mentions right in the PR thread',
     ],
   },

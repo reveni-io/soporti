@@ -23,6 +23,11 @@ vi.mock('./agent.js', () => ({
   runReviewerAgent: mockRunReviewerAgent,
 }))
 
+const mockLoadReviewHistory = vi.fn()
+vi.mock('./history.js', () => ({
+  loadReviewHistory: mockLoadReviewHistory,
+}))
+
 const mockFindFiles = vi.fn()
 const mockFindFilesAt = vi.fn()
 const mockAcquireWorktree = vi.fn()
@@ -112,6 +117,19 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData() } = 
   mockCreateIssueReaction.mockResolvedValue({ id: 9001, content: 'eyes' })
   mockDeleteIssueReaction.mockResolvedValue(undefined)
   mockStat.mockRejectedValue(new Error('ENOENT'))
+  mockLoadReviewHistory.mockResolvedValue(null)
+}
+
+function reReviewHistory(changes = { status: 'incremental', files: [], omitted: [] }) {
+  return {
+    lastReviewedSha: 'abc1234def',
+    ownReviews: [],
+    ownThreads: [],
+    humanReviews: [],
+    humanThreads: [],
+    conversation: [],
+    changes,
+  }
 }
 
 describe('runReview', () => {
@@ -547,6 +565,136 @@ describe('runReview', () => {
 
     const { body } = mockCreatePullRequestReview.mock.calls[0][2]
     expect(body).toContain('package-lock.json')
+  })
+})
+
+describe('re-reviews', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('loads the PR history for the reviewed head and hands it to the agent', async () => {
+    setupHappyPath({ pr: prData({ head: { sha: 'newhead1', ref: 'fix/totals' } }) })
+    const history = reReviewHistory()
+    mockLoadReviewHistory.mockResolvedValue(history)
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockLoadReviewHistory).toHaveBeenCalledTimes(1)
+    expect(mockLoadReviewHistory).toHaveBeenCalledWith(
+      {
+        repoFullName: 'acme-io/app',
+        prNumber: 7,
+        headSha: 'newhead1',
+        reviewerLogin: 'soporti-bot',
+        files: [expect.objectContaining({ filename: 'src/checkout.js' })],
+        diffBudget: 97,
+      },
+      { logger: silentLogger }
+    )
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ history }))
+  })
+
+  it('says in the footer that it re-reviewed the changes since the previous review', async () => {
+    setupHappyPath()
+    mockLoadReviewHistory.mockResolvedValue(reReviewHistory())
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
+      '_Automated review by Soporti · trigger: review request · re-review since `abc1234`._'
+    )
+  })
+
+  it('says in the footer that it re-reviewed the full diff after a force-push', async () => {
+    setupHappyPath()
+    mockLoadReviewHistory.mockResolvedValue(reReviewHistory({ status: 'diverged' }))
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
+      'trigger: review request · re-review of the full diff._'
+    )
+  })
+
+  it('keeps the re-review footer on the body-only fallback', async () => {
+    setupHappyPath({ findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', body: 'bug' }] })
+    mockLoadReviewHistory.mockResolvedValue(reReviewHistory())
+    mockCreatePullRequestReview
+      .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), { status: 422 }))
+      .mockResolvedValueOnce({ id: 2 })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(2)
+    expect(mockCreatePullRequestReview.mock.calls[1][2].body).toContain('re-review since `abc1234`')
+  })
+
+  it('posts a first-time footer when there is no previous review', async () => {
+    setupHappyPath()
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    const { body } = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(body).toContain('_Automated review by Soporti · trigger: review request._')
+    expect(body).not.toContain('re-review')
+  })
+})
+
+describe('superseded reviews', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('posts nothing when a newer request aborts the review mid-run, and still cleans up', async () => {
+    setupHappyPath()
+    const controller = new AbortController()
+    mockRunReviewerAgent.mockImplementation(async () => {
+      controller.abort()
+      throw new DOMException('This operation was aborted', 'AbortError')
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+    expect(mockDeleteIssueReaction).toHaveBeenCalledWith('acme-io/app', 7, 9001)
+    expect(mockWorktreeRelease).toHaveBeenCalledTimes(1)
+  })
+
+  it('posts nothing when the abort lands right after the agent finished', async () => {
+    setupHappyPath()
+    const controller = new AbortController()
+    mockRunReviewerAgent.mockImplementation(async () => {
+      controller.abort()
+      return { summary: 'late', verdict: 'approve', findings: [] }
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+  })
+
+  it('skips the agent when the review was aborted while it loaded the PR', async () => {
+    setupHappyPath()
+    const controller = new AbortController()
+    mockLoadReviewHistory.mockImplementation(async () => {
+      controller.abort()
+      return null
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockRunReviewerAgent).not.toHaveBeenCalled()
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+  })
+
+  it('hands the abort signal to the agent', async () => {
+    setupHappyPath()
+    const controller = new AbortController()
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ signal: controller.signal }))
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
   })
 })
 

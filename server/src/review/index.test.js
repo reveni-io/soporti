@@ -105,6 +105,8 @@ describe('setupReviewWebhook', () => {
     await tick()
     expect(mockRunReview).toHaveBeenCalledTimes(1)
     expect(mockRunReview.mock.calls[0][0]).toMatchObject({ dedupeKey: 'acme-io/app#3@cafe123' })
+    expect(mockRunReview.mock.calls[0][1]).toMatchObject({ reviewerLogin: 'soporti-bot' })
+    expect(mockRunReview.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
   })
 
   it('routes mentions to the mention responder, not the reviewer', async () => {

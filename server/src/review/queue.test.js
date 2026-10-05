@@ -44,13 +44,13 @@ describe('ReviewQueue', () => {
     const gate = deferred()
     const queue = new ReviewQueue({ processor: () => gate.promise })
 
-    expect(queue.enqueue({ dedupeKey: 'repo#1@sha' })).toEqual({ accepted: true })
+    expect(queue.enqueue({ dedupeKey: 'repo#1@sha' })).toEqual({ accepted: true, superseded: false })
     expect(queue.enqueue({ dedupeKey: 'repo#1@sha' })).toEqual({ accepted: false, reason: 'in-flight' })
 
     gate.resolve()
     await tick()
 
-    expect(queue.enqueue({ dedupeKey: 'repo#1@sha' })).toEqual({ accepted: true })
+    expect(queue.enqueue({ dedupeKey: 'repo#1@sha' })).toEqual({ accepted: true, superseded: false })
   })
 
   it('keeps processing after a job fails', async () => {
@@ -104,6 +104,109 @@ describe('ReviewQueue', () => {
     const queue = new ReviewQueue({ processor: async () => {} })
     expect(queue.enqueue({})).toEqual({ accepted: false, reason: 'invalid-job' })
     expect(queue.enqueue(null)).toEqual({ accepted: false, reason: 'invalid-job' })
+  })
+
+  it('hands each job an abort signal that starts unaborted', async () => {
+    const processor = vi.fn(async () => {})
+    const queue = new ReviewQueue({ processor })
+
+    queue.enqueue({ dedupeKey: 'a' })
+    await tick()
+
+    expect(processor).toHaveBeenCalledTimes(1)
+    expect(processor.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+    expect(processor.mock.calls[0][1].signal.aborted).toBe(false)
+  })
+
+  it('replaces a queued review of the same PR with the newer one', async () => {
+    const gate = deferred()
+    const processor = vi.fn(async job => {
+      if (job.dedupeKey === 'busy') await gate.promise
+    })
+    const queue = new ReviewQueue({ processor })
+
+    queue.enqueue({ dedupeKey: 'busy' })
+    queue.enqueue({ dedupeKey: 'repo#1@old', supersedeKey: 'repo#1' })
+    const result = queue.enqueue({ dedupeKey: 'repo#1@new', supersedeKey: 'repo#1' })
+
+    expect(result).toEqual({ accepted: true, superseded: true })
+    expect(queue.pendingCount()).toBe(2)
+
+    gate.resolve()
+    await tick()
+
+    expect(processor.mock.calls.map(([job]) => job.dedupeKey)).toEqual(['busy', 'repo#1@new'])
+    expect(queue.enqueue({ dedupeKey: 'repo#1@old', supersedeKey: 'repo#1' })).toEqual({
+      accepted: true,
+      superseded: false,
+    })
+  })
+
+  it('aborts a running review of the same PR and runs the newer one once it stops', async () => {
+    const order = []
+    const processor = vi.fn((job, { signal }) => {
+      order.push(`start:${job.dedupeKey}`)
+      if (job.dedupeKey !== 'repo#1@old') return Promise.resolve()
+      return new Promise(resolve => {
+        signal.addEventListener('abort', () => {
+          order.push('aborted:repo#1@old')
+          resolve()
+        })
+      })
+    })
+    const queue = new ReviewQueue({ processor, concurrency: 2 })
+
+    queue.enqueue({ dedupeKey: 'repo#1@old', supersedeKey: 'repo#1' })
+    await tick()
+    const result = queue.enqueue({ dedupeKey: 'repo#1@new', supersedeKey: 'repo#1' })
+
+    expect(result).toEqual({ accepted: true, superseded: true })
+    expect(order).toEqual(['start:repo#1@old', 'aborted:repo#1@old'])
+
+    await tick()
+
+    expect(order).toEqual(['start:repo#1@old', 'aborted:repo#1@old', 'start:repo#1@new'])
+    expect(processor.mock.calls[1][1].signal.aborted).toBe(false)
+  })
+
+  it('never runs two reviews of the same PR at once, even with spare concurrency', async () => {
+    const gate = deferred()
+    const processor = vi.fn(() => gate.promise)
+    const queue = new ReviewQueue({ processor, concurrency: 3 })
+
+    queue.enqueue({ dedupeKey: 'repo#1@old', supersedeKey: 'repo#1' })
+    await tick()
+    queue.enqueue({ dedupeKey: 'repo#1@new', supersedeKey: 'repo#1' })
+    queue.enqueue({ dedupeKey: 'repo#2@sha', supersedeKey: 'repo#2' })
+    await tick()
+
+    expect(processor.mock.calls.map(([job]) => job.dedupeKey)).toEqual(['repo#1@old', 'repo#2@sha'])
+
+    gate.resolve()
+    await tick()
+
+    expect(processor.mock.calls.map(([job]) => job.dedupeKey)).toEqual(['repo#1@old', 'repo#2@sha', 'repo#1@new'])
+  })
+
+  it('leaves jobs without a supersede key, like mentions, untouched', async () => {
+    const gate = deferred()
+    const processor = vi.fn(() => gate.promise)
+    const queue = new ReviewQueue({ processor, concurrency: 2 })
+
+    queue.enqueue({ dedupeKey: 'repo#1@mention-1' })
+    await tick()
+    const result = queue.enqueue({ dedupeKey: 'repo#1@sha', supersedeKey: 'repo#1' })
+    queue.enqueue({ dedupeKey: 'repo#1@mention-2' })
+    await tick()
+
+    expect(result).toEqual({ accepted: true, superseded: false })
+    expect(processor.mock.calls[0][1].signal.aborted).toBe(false)
+    expect(processor.mock.calls.map(([job]) => job.dedupeKey)).toEqual(['repo#1@mention-1', 'repo#1@sha'])
+
+    gate.resolve()
+    await tick()
+
+    expect(processor).toHaveBeenCalledTimes(3)
   })
 
   it('survives an onError callback that throws', async () => {
