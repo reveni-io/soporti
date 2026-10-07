@@ -19,6 +19,7 @@ import {
   AGENT_CHANNEL_WEB,
   MAX_ATTACHMENTS_PER_MESSAGE,
   MAX_ATTACHMENT_CHARS,
+  MAX_CHAT_MESSAGE_LENGTH,
   MAX_SKILLS_PER_REQUEST,
   RUN_STATUS_ERROR,
   RUN_STATUS_OK,
@@ -134,8 +135,8 @@ export default function chatRoute(conversationStore) {
     if (trimmedMessage.length === 0) {
       return res.status(400).json({ error: 'Message cannot be empty.' })
     }
-    if (trimmedMessage.length > 10_000) {
-      return res.status(400).json({ error: 'Message is too long (max 10,000 characters).' })
+    if (trimmedMessage.length > MAX_CHAT_MESSAGE_LENGTH) {
+      return res.status(400).json({ error: `Message is too long (max ${MAX_CHAT_MESSAGE_LENGTH} characters).` })
     }
 
     if (sessionId && !UUID_RE.test(sessionId)) {
