@@ -105,7 +105,7 @@ const conversationStore = {
   getInvokedSkillIds: vi.fn(),
 }
 const app = express()
-app.use(express.json())
+app.use(express.json({ limit: '2mb' }))
 app.use((req, _res, next) => {
   req.user = { id: 1, email: 'test@test.com', name: 'Test' }
   next()
@@ -133,8 +133,9 @@ describe('POST /api/chat', () => {
   it('returns 400 for too-long message', async () => {
     const res = await request(app)
       .post('/')
-      .send({ message: 'a'.repeat(10001) })
+      .send({ message: 'a'.repeat(150_001) })
     expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/too long/i)
   })
 
   it('returns 400 for invalid session ID format', async () => {
