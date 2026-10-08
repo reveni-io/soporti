@@ -33,6 +33,7 @@ const AUTOMATIONS = [
       'Correctness, standards (cites your CLAUDE.md & ADRs) and spec vs. the linked Shortcut story',
       'Posts inline comments; can approve trivial PRs, never blocks',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
+      'Keep the label on and every push gets re-reviewed — a burst of commits waits for the last one',
       'The review command is for your team only; any other @-mention gets a reply right in the PR thread',
     ],
   },

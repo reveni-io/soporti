@@ -15,6 +15,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByText('Learns from feedback')).toBeInTheDocument()
     expect(screen.getByText(/never blocks/i)).toBeInTheDocument()
     expect(screen.getByText(/never repeat resolved findings/i)).toBeInTheDocument()
+    expect(screen.getByText(/every push gets re-reviewed/i)).toBeInTheDocument()
     expect(screen.getByText(/comment “@soporti review” on the PR/i)).toBeInTheDocument()
     expect(screen.getByText(/any other @-mention gets a reply/i)).toBeInTheDocument()
     expect(screen.getByText(/hourly, daily, weekly or monthly/i)).toBeInTheDocument()

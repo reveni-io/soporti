@@ -93,6 +93,8 @@ const config = {
     maxChangedLines: parseInt(process.env.REVIEW_MAX_CHANGED_LINES || '4000', 10) || 4000,
     concurrency: parseInt(process.env.REVIEW_CONCURRENCY || '1', 10) || 1,
     maxTurns: parseInt(process.env.REVIEW_MAX_TURNS || '50', 10) || 50,
+    reviewOnPush: process.env.REVIEW_ON_PUSH !== 'false',
+    pushDebounceMs: parseInt(process.env.REVIEW_PUSH_DEBOUNCE_MS || '120000', 10) || 120000,
   },
 }
 

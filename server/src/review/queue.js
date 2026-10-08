@@ -1,5 +1,6 @@
 export class ReviewQueue {
   #items = []
+  #waiting = new Map()
   #keys = new Set()
   #running = new Map()
   #active = 0
@@ -17,29 +18,57 @@ export class ReviewQueue {
     if (!job || typeof job.dedupeKey !== 'string' || !job.dedupeKey) {
       return { accepted: false, reason: 'invalid-job' }
     }
-    if (this.#keys.has(job.dedupeKey)) {
+    if (this.#keys.has(job.dedupeKey) && !this.#waiting.has(job.dedupeKey)) {
       return { accepted: false, reason: 'in-flight' }
     }
 
-    const superseded = Boolean(job.supersedeKey) && this.#supersede(job.supersedeKey)
+    const replacedWaiting = this.#cancelWaiting(job.dedupeKey)
+    const superseded = (Boolean(job.supersedeKey) && this.#supersede(job.supersedeKey)) || replacedWaiting
 
     this.#keys.add(job.dedupeKey)
-    this.#items.push(job)
-    this.#pump()
+    this.#schedule(job)
 
     return { accepted: true, superseded }
   }
 
   pendingCount() {
-    return this.#items.length + this.#active
+    return this.#items.length + this.#waiting.size + this.#active
+  }
+
+  #schedule(job) {
+    if (!(job.delayMs > 0)) return this.#release(job)
+
+    const timer = setTimeout(() => {
+      this.#waiting.delete(job.dedupeKey)
+      this.#release(job)
+    }, job.delayMs)
+    this.#waiting.set(job.dedupeKey, { job, timer })
+  }
+
+  #release(job) {
+    this.#items.push(job)
+    this.#pump()
+  }
+
+  #cancelWaiting(dedupeKey) {
+    const waiting = this.#waiting.get(dedupeKey)
+    if (!waiting) return false
+
+    clearTimeout(waiting.timer)
+    this.#waiting.delete(dedupeKey)
+    this.#keys.delete(dedupeKey)
+    return true
   }
 
   #supersede(supersedeKey) {
     const running = this.#running.get(supersedeKey)
     running?.abort()
 
+    const waiting = [...this.#waiting.values()].find(entry => entry.job.supersedeKey === supersedeKey)
+    const replacedWaiting = Boolean(waiting) && this.#cancelWaiting(waiting.job.dedupeKey)
+
     const queuedIndex = this.#items.findIndex(item => item.supersedeKey === supersedeKey)
-    if (queuedIndex === -1) return Boolean(running)
+    if (queuedIndex === -1) return Boolean(running) || replacedWaiting
 
     const [queued] = this.#items.splice(queuedIndex, 1)
     this.#keys.delete(queued.dedupeKey)

@@ -832,4 +832,15 @@ describe('verdict header', () => {
       '_Automated review by Soporti · trigger: label._'
     )
   })
+
+  it('reports the push trigger in the footer of a re-review started by a push', async () => {
+    setupHappyPath()
+
+    await runReview({ ...trigger(), kind: 'synchronize' }, { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
+      '_Automated review by Soporti · trigger: push._'
+    )
+  })
 })

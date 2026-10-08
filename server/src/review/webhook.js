@@ -5,6 +5,8 @@ import { detectMention } from './mention-trigger.js'
 import { createIssueCommentReaction, createReviewCommentReaction } from '../github/client.js'
 import { REVIEW_KIND_MENTION_COMMAND } from '../constants.js'
 
+const MS_PER_SECOND = 1000
+
 function acknowledgeCommand(job, logger) {
   const react = job.channel === 'review_thread' ? createReviewCommentReaction : createIssueCommentReaction
   react(job.repoFullName, job.commentId, 'eyes').catch(err => {
@@ -12,7 +14,20 @@ function acknowledgeCommand(job, logger) {
   })
 }
 
-export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, queue, logger = console }) {
+function describeDelay(job) {
+  if (!(job.delayMs > 0)) return ''
+  return ` to start in ${Math.round(job.delayMs / MS_PER_SECOND)}s unless a newer push replaces it`
+}
+
+export function createGithubWebhookRouter({
+  getSecret,
+  label,
+  reviewOnPush = false,
+  pushDebounceMs = 0,
+  getReviewerLogin,
+  queue,
+  logger = console,
+}) {
   const router = express.Router()
 
   router.post('/', express.raw({ type: 'application/json', limit: '2mb' }), async (req, res) => {
@@ -48,7 +63,7 @@ export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, 
     const reviewerLogin = getReviewerLogin()
 
     const job =
-      detectTrigger({ eventName, payload, reviewerLogin, label }) ??
+      detectTrigger({ eventName, payload, reviewerLogin, label, reviewOnPush, pushDebounceMs }) ??
       detectMention({ eventName, payload, reviewerLogin })
 
     if (!job) {
@@ -60,7 +75,7 @@ export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, 
       if (job.kind === REVIEW_KIND_MENTION_COMMAND) acknowledgeCommand(job, logger)
 
       const superseding = result.superseded ? ' (superseding an older review of this PR)' : ''
-      logger.log(`[review] Queued ${job.kind} for ${job.dedupeKey}${superseding}`)
+      logger.log(`[review] Queued ${job.kind} for ${job.dedupeKey}${describeDelay(job)}${superseding}`)
       return res.status(202).json({ queued: true })
     }
 
