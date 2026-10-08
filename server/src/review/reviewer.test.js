@@ -25,6 +25,11 @@ vi.mock('./agent.js', () => ({
   runReviewerAgent: mockRunReviewerAgent,
 }))
 
+const mockVerifyFindings = vi.fn()
+vi.mock('./verify.js', () => ({
+  verifyFindings: mockVerifyFindings,
+}))
+
 const mockLoadReviewHistory = vi.fn()
 vi.mock('./history.js', () => ({
   loadReviewHistory: mockLoadReviewHistory,
@@ -119,6 +124,7 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), rev
   mockFindFilesAt.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
   mockShortcutConfigured.mockReturnValue(false)
   mockRunReviewerAgent.mockResolvedValue(reviewed({ summary: 'Looks reasonable.', verdict, findings }, reviewedPaths))
+  mockVerifyFindings.mockImplementation(async proposed => proposed)
   mockCreatePullRequestReview.mockResolvedValue({ id: 1 })
   mockCreateIssueReaction.mockResolvedValue({ id: 9001, content: 'eyes' })
   mockDeleteIssueReaction.mockResolvedValue(undefined)
@@ -871,6 +877,126 @@ describe('CI status', () => {
 
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus: null }))
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+  })
+})
+
+describe('finding verification', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const MAJOR = {
+    path: 'src/checkout.js',
+    line: 11,
+    severity: 'major',
+    axis: 'correctness',
+    body: 'sumItems may throw',
+  }
+  const MINOR = { path: 'src/checkout.js', line: 12, severity: 'minor', axis: 'standards', body: 'rename total' }
+
+  it('verifies the proposed findings against the reviewed checkout before posting', async () => {
+    setupHappyPath({ findings: [MAJOR, MINOR] })
+    const controller = new AbortController()
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockVerifyFindings).toHaveBeenCalledTimes(1)
+    expect(mockVerifyFindings).toHaveBeenCalledWith([MAJOR, MINOR], {
+      trigger: expect.objectContaining({ repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef' }),
+      files: [expect.objectContaining({ filename: 'src/checkout.js', generated: false })],
+      rootPath: '/tmp/wt-pr-7',
+      diffBaseSha: null,
+      signal: controller.signal,
+      logger: silentLogger,
+    })
+  })
+
+  it('does not post a refuted finding', async () => {
+    setupHappyPath({ findings: [MAJOR, MINOR] })
+    mockVerifyFindings.mockResolvedValue([MINOR])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.comments).toEqual([expect.objectContaining({ line: 12, body: expect.stringContaining('rename') })])
+    expect(review.body).not.toContain('sumItems may throw')
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
+  })
+
+  it('posts a downgraded finding with its new severity in the comment and the verdict header', async () => {
+    setupHappyPath({ findings: [MAJOR] })
+    mockVerifyFindings.mockResolvedValue([{ ...MAJOR, severity: 'minor' }])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.comments[0].body).toBe('**[minor]** sumItems may throw')
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
+  })
+
+  it('never approves once the reviewer proposed a blocking finding, even when verification refuted it', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [MAJOR] })
+    mockVerifyFindings.mockResolvedValue([])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('COMMENT')
+    expect(review.comments).toEqual([])
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — no blocking issues/)
+  })
+
+  it('never approves when verification downgraded every blocking finding, but posts the lower severities', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [{ ...MAJOR, severity: 'critical' }, MAJOR] })
+    mockVerifyFindings.mockResolvedValue([
+      { ...MAJOR, severity: 'minor' },
+      { ...MAJOR, severity: 'nit' },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('COMMENT')
+    expect(review.comments.map(comment => comment.body)).toEqual([
+      '**[minor]** sumItems may throw',
+      '**[nit]** sumItems may throw',
+    ])
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor · 1 nit/)
+  })
+
+  it('still approves an approved review whose findings were only minor or nit', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [MINOR] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
+  })
+
+  it('posts nothing when a newer request supersedes the review during verification', async () => {
+    setupHappyPath({ findings: [MAJOR] })
+    const controller = new AbortController()
+    mockVerifyFindings.mockImplementation(async () => {
+      controller.abort()
+      throw new DOMException('This operation was aborted', 'AbortError')
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+    expect(mockWorktreeRelease).toHaveBeenCalledTimes(1)
+  })
+
+  it('posts nothing when the abort lands right after verification finished', async () => {
+    setupHappyPath({ findings: [MAJOR] })
+    const controller = new AbortController()
+    mockVerifyFindings.mockImplementation(async proposed => {
+      controller.abort()
+      return proposed
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
     expect(mockCreateIssueComment).not.toHaveBeenCalled()
   })
 })

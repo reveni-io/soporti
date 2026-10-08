@@ -16,6 +16,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByText(/never blocks/i)).toBeInTheDocument()
     expect(screen.getByText(/big PRs get a full review; lockfiles never block an approval/i)).toBeInTheDocument()
     expect(screen.getByText(/never repeat resolved findings/i)).toBeInTheDocument()
+    expect(screen.getByText(/tries to refute every critical or major finding/i)).toBeInTheDocument()
     expect(screen.getByText(/every push gets re-reviewed/i)).toBeInTheDocument()
     expect(screen.getByText(/ties a broken test to the line that broke it/i)).toBeInTheDocument()
     expect(screen.getByText(/comment “@soporti review” on the PR/i)).toBeInTheDocument()

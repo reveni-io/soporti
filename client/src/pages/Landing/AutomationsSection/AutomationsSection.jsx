@@ -34,6 +34,7 @@ const AUTOMATIONS = [
       'Reads every changed file itself, so big PRs get a full review; lockfiles never block an approval',
       'Posts inline comments; can approve trivial PRs, never blocks',
       'Reads the head commit’s CI: ties a broken test to the line that broke it, never repeats the linter',
+      'A second agent tries to refute every critical or major finding before it is posted',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
       'Keep the label on and every push gets re-reviewed — a burst of commits waits for the last one',
       'The review command is for your team only; any other @-mention gets a reply right in the PR thread',

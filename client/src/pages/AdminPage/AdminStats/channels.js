@@ -4,6 +4,7 @@ const CHANNEL_LABELS = {
   schedule: 'Schedules',
   pr_review: 'PR reviews',
   pr_mention: 'PR mentions',
+  pr_review_verify: 'PR review verification',
   auto_diagnose: 'Ticket auto-diagnose',
   mcp: 'MCP',
 }

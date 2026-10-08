@@ -14,6 +14,7 @@ import {
 } from '../github/client.js'
 import { partitionFindings, buildGeneratedMatcher, classifyFiles, findUnreviewedFiles } from './diff.js'
 import { runReviewerAgent } from './agent.js'
+import { verifyFindings } from './verify.js'
 import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
 import { redactSecrets } from './output-guard.js'
@@ -109,7 +110,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     signal?.throwIfAborted()
 
-    const { output, reviewedPaths } = await runReviewerAgent({
+    const { output: proposed, reviewedPaths } = await runReviewerAgent({
       trigger: { ...current, headSha: reviewedSha },
       files: changedFiles,
       standardsFiles,
@@ -123,9 +124,21 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     signal?.throwIfAborted()
 
+    const findings = await verifyFindings(proposed.findings, {
+      trigger: { ...current, headSha: reviewedSha },
+      files: changedFiles,
+      rootPath,
+      diffBaseSha,
+      signal,
+      logger,
+    })
+    const output = { ...proposed, findings }
+
+    signal?.throwIfAborted()
+
     const notReviewed = findUnreviewedFiles(changedFiles, reviewedPaths)
     const { anchored, unanchored } = partitionFindings(output.findings, files)
-    const event = resolveEvent(output, notReviewed)
+    const event = resolveEvent(proposed, notReviewed)
     const comments = anchored.map(f => ({
       path: f.path,
       line: f.line,
@@ -286,9 +299,9 @@ function extractStoryId({ headRef, title, body }) {
   return null
 }
 
-function resolveEvent(output, notReviewed) {
-  const hasBlocking = output.findings.some(f => f.severity === 'critical' || f.severity === 'major')
-  return output.verdict === 'approve' && !hasBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
+function resolveEvent(proposed, notReviewed) {
+  const hasProposedBlocking = proposed.findings.some(f => f.severity === 'critical' || f.severity === 'major')
+  return proposed.verdict === 'approve' && !hasProposedBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
 }
 
 function formatFinding(finding, { withLocation = true } = {}) {
