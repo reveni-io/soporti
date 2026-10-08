@@ -130,54 +130,76 @@ function sampleTrigger() {
   }
 }
 
+function reviewOutput(overrides = {}) {
+  return {
+    walkthrough: 'Rounds refunds to cents before persisting them.',
+    changes: [{ label: 'Refund rounding', files: ['src/refunds.js'], summary: 'Rounds before saving.' }],
+    effort: 2,
+    reviewMinutes: 10,
+    diagram: null,
+    standards: 'Follows CLAUDE.md.',
+    spec: 'No spec available',
+    previousFindings: null,
+    verdict: 'comment',
+    findings: [],
+    ...overrides,
+  }
+}
+
+function finding(overrides = {}) {
+  return {
+    path: 'src/refunds.js',
+    startLine: null,
+    line: 12,
+    severity: 'minor',
+    category: 'bug',
+    title: 'Rounding drops the last cent.',
+    body: 'Math.floor truncates negative amounts.',
+    suggestion: null,
+    fixPrompt: 'Use Math.round in roundToCents and add a test for -0.005.',
+    ...overrides,
+  }
+}
+
 describe('reviewOutputSchema', () => {
-  it('accepts a well-formed review output', () => {
-    const parsed = reviewOutputSchema.parse({
-      summary: 'Solid small fix.',
+  it('accepts a review with its overview, verdict and findings', () => {
+    const output = reviewOutput({
       verdict: 'approve',
-      findings: [
-        { path: 'src/refunds.js', line: 12, severity: 'nit', axis: 'correctness', body: 'Consider a constant.' },
-      ],
+      diagram: 'sequenceDiagram\n  A->>B: refund',
+      previousFindings: '- Fixed: rounding',
+      findings: [finding({ startLine: 10, suggestion: 'const cents = Math.round(amount * 100)' })],
     })
-    expect(parsed.verdict).toBe('approve')
+
+    expect(reviewOutputSchema.parse(output)).toEqual(output)
   })
 
-  it('accepts findings without a line (null)', () => {
-    const parsed = reviewOutputSchema.parse({
-      summary: 'ok',
-      verdict: 'comment',
-      findings: [{ path: 'src/refunds.js', line: null, severity: 'major', axis: 'spec', body: 'Missing migration.' }],
-    })
+  it('accepts a finding outside the diff, with no line and no suggestion', () => {
+    const parsed = reviewOutputSchema.parse(reviewOutput({ findings: [finding({ line: null, severity: 'major' })] }))
+
     expect(parsed.findings[0].line).toBeNull()
+    expect(parsed.findings[0].suggestion).toBeNull()
   })
 
-  it('tags every finding with a review axis', () => {
-    for (const axis of ['correctness', 'standards', 'spec']) {
-      const parsed = reviewOutputSchema.parse({
-        summary: 'x',
-        verdict: 'comment',
-        findings: [{ path: 'a.js', line: 1, severity: 'minor', axis, body: 'b' }],
-      })
-      expect(parsed.findings[0].axis).toBe(axis)
+  it('tags every finding with one of the review categories', () => {
+    for (const category of ['bug', 'security', 'performance', 'maintainability', 'tests', 'standards', 'spec']) {
+      const parsed = reviewOutputSchema.parse(reviewOutput({ findings: [finding({ category })] }))
+      expect(parsed.findings[0].category).toBe(category)
     }
   })
 
-  it('rejects unknown verdicts, severities and axes', () => {
-    expect(() => reviewOutputSchema.parse({ summary: 'x', verdict: 'request_changes', findings: [] })).toThrow()
-    expect(() =>
-      reviewOutputSchema.parse({
-        summary: 'x',
-        verdict: 'comment',
-        findings: [{ path: 'a', line: 1, severity: 'blocker', axis: 'correctness', body: 'b' }],
-      })
-    ).toThrow()
-    expect(() =>
-      reviewOutputSchema.parse({
-        summary: 'x',
-        verdict: 'comment',
-        findings: [{ path: 'a', line: 1, severity: 'minor', axis: 'vibes', body: 'b' }],
-      })
-    ).toThrow()
+  it('leaves the effort unbounded so the server can clamp it', () => {
+    expect(reviewOutputSchema.parse(reviewOutput({ effort: 9 })).effort).toBe(9)
+  })
+
+  it('rejects unknown verdicts, severities and categories', () => {
+    expect(() => reviewOutputSchema.parse(reviewOutput({ verdict: 'request_changes' }))).toThrow()
+    expect(() => reviewOutputSchema.parse(reviewOutput({ findings: [finding({ severity: 'blocker' })] }))).toThrow()
+    expect(() => reviewOutputSchema.parse(reviewOutput({ findings: [finding({ category: 'vibes' })] }))).toThrow()
+  })
+
+  it('rejects a finding without a title or a fix prompt', () => {
+    expect(() => reviewOutputSchema.parse(reviewOutput({ findings: [finding({ title: undefined })] }))).toThrow()
+    expect(() => reviewOutputSchema.parse(reviewOutput({ findings: [finding({ fixPrompt: undefined })] }))).toThrow()
   })
 })
 
@@ -349,7 +371,26 @@ describe('createReviewerAgent', () => {
     expect(instructions).toMatch(/reasoned explanation/i)
     expect(instructions).toMatch(/now fixed/i)
     expect(instructions).toMatch(/human reviewer already made/i)
-    expect(instructions).toContain('**Since last review:**')
+    expect(instructions).toMatch(/say in `previousFindings` which ones are now fixed and which are still open/)
+  })
+
+  it('tells the reviewer how to write each finding and the overview', async () => {
+    await createReviewerAgent('acme-io/app')
+
+    const { instructions } = MockAgent.mock.calls[0][0]
+    expect(instructions).toContain('## Findings')
+    expect(instructions).toMatch(/one problem per finding/i)
+    expect(instructions).toMatch(/never phrase a finding as a question/i)
+    expect(instructions).toMatch(/`startLine`: the RIGHT-side number of the first line/)
+    expect(instructions).toMatch(/`suggestion`: the full replacement for lines `startLine`..`line`/)
+    expect(instructions).toMatch(/`fixPrompt`: a self-contained instruction for a coding agent/)
+    expect(instructions).toMatch(/nits are collapsed/i)
+    expect(instructions).toContain('## Overview')
+    expect(instructions).toMatch(/`walkthrough`: 2-4 sentences/)
+    expect(instructions).toMatch(/`diagram`: Mermaid `sequenceDiagram`/)
+    expect(instructions).toMatch(/"No spec available"/)
+    expect(instructions).not.toMatch(/is prepended to your review/)
+    expect(instructions).not.toContain('`axis`')
   })
 
   it('hardens the reviewer against prompt injection and secret leaks', async () => {
@@ -687,7 +728,7 @@ describe('buildReviewInput', () => {
     const input = buildReviewInput({ trigger: sampleTrigger(), files: [], spec })
 
     expect(input).toContain(
-      '## Spec\n\nThis PR references sc-1, sc-2, but Shortcut is not configured, so the stories cannot be read. Skip the spec axis and say so in your summary.'
+      '## Spec\n\nThis PR references sc-1, sc-2, but Shortcut is not configured, so the stories cannot be read. Skip the spec axis and say so in the `spec` field.'
     )
   })
 

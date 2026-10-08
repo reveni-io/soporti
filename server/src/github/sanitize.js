@@ -1,4 +1,5 @@
 const SHORT_SHA_LENGTH = 7
+const BOT_SUFFIX = /\[bot\]$/i
 
 export const BLOCKED_PATHS = ['.git', '.env', '.env.local', '.env.production', 'node_modules', '.aws', '.ssh']
 
@@ -12,6 +13,16 @@ export function parseRepo(fullName) {
 
 export function shortSha(sha) {
   return String(sha ?? '').slice(0, SHORT_SHA_LENGTH)
+}
+
+export function isSameLogin(login, other) {
+  return normalizeLogin(login) === normalizeLogin(other)
+}
+
+function normalizeLogin(login) {
+  return String(login ?? '')
+    .toLowerCase()
+    .replace(BOT_SUFFIX, '')
 }
 
 export function sanitizePath(p) {

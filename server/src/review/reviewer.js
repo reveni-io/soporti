@@ -18,17 +18,12 @@ import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
 import { loadStandards } from './standards.js'
 import { loadSpec } from './spec.js'
-import { redactSecrets } from './output-guard.js'
+import { renderInlineComment, renderReviewBody, renderWalkthrough } from './render.js'
+import { upsertWalkthrough } from './walkthrough.js'
 import { shortSha } from '../github/sanitize.js'
-import {
-  PR_HEAD_PLACEHOLDER,
-  REVIEW_KIND_MENTION_COMMAND,
-  REVIEW_KIND_SYNCHRONIZE,
-  REVIEW_TURN_LIMIT_ERROR,
-} from '../constants.js'
+import { PR_HEAD_PLACEHOLDER, REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
 
-const TRIGGER_LABELS = { labeled: 'label', [REVIEW_KIND_MENTION_COMMAND]: 'mention', [REVIEW_KIND_SYNCHRONIZE]: 'push' }
-const DEFAULT_TRIGGER_LABEL = 'review request'
+const NIT_SEVERITY = 'nit'
 
 export async function runReview(trigger, { logger = console, reviewerLogin = null, signal } = {}) {
   const { repoFullName, prNumber, headSha, dedupeKey } = trigger
@@ -129,35 +124,34 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     signal?.throwIfAborted()
 
     const notReviewed = findUnreviewedFiles(changedFiles, reviewedPaths)
-    const { anchored, unanchored } = partitionFindings(output.findings, files)
+    const placed = placeFindings(output.findings, files)
     const event = resolveEvent(proposed, notReviewed)
-    const comments = anchored.map(f => ({
-      path: f.path,
-      line: f.line,
-      side: 'RIGHT',
-      body: redactSecrets(formatFinding(f, { withLocation: false })),
-    }))
+    const review = {
+      event,
+      findings: placed,
+      output,
+      coverage: { files: changedFiles, reviewedPaths, notReviewed },
+      context: { trigger: current, history, headSha: reviewedSha, standards, spec },
+    }
+
+    const walkthrough = renderWalkthrough({ ...review, ciStatus, reviewerLogin })
+    await upsertWalkthrough({ repoFullName, prNumber, reviewerLogin, body: walkthrough }, { logger })
+
+    signal?.throwIfAborted()
 
     try {
       await createPullRequestReview(repoFullName, prNumber, {
         commitId: reviewedSha,
-        body: buildReviewBody({ output, leftoverFindings: unanchored, notReviewed, trigger: current, event, history }),
+        body: renderReviewBody(review),
         event,
-        comments,
+        comments: placed.inline.map(toReviewComment),
       })
     } catch (err) {
       if (err.status !== 422) throw err
       logger.warn(`[review] Inline review rejected for ${dedupeKey} (${err.message}); retrying body-only`)
       await createPullRequestReview(repoFullName, prNumber, {
         commitId: reviewedSha,
-        body: buildReviewBody({
-          output,
-          leftoverFindings: [...anchored, ...unanchored],
-          notReviewed,
-          trigger: current,
-          event,
-          history,
-        }),
+        body: renderReviewBody({ ...review, isInlineInBody: true }),
         event,
       })
     }
@@ -298,59 +292,17 @@ function resolveEvent(proposed, notReviewed) {
   return proposed.verdict === 'approve' && !hasProposedBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
 }
 
-function formatFinding(finding, { withLocation = true } = {}) {
-  const axis = finding.axis && finding.axis !== 'correctness' ? ` · ${finding.axis}` : ''
-  const location = withLocation ? `\`${finding.path}${finding.line ? `:${finding.line}` : ''}\` — ` : ''
-  return `**[${finding.severity}${axis}]** ${location}${finding.body}`
+function placeFindings(findings, files) {
+  const nits = findings.filter(finding => finding.severity === NIT_SEVERITY)
+  const actionable = findings.filter(finding => finding.severity !== NIT_SEVERITY)
+  const { anchored, unanchored } = partitionFindings(actionable, files)
+
+  return { inline: anchored, outside: unanchored, nits }
 }
 
-function buildVerdictHeader({ event, findings, notReviewed }) {
-  const counts = { critical: 0, major: 0, minor: 0, nit: 0 }
-  for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
-  const rollup = ['critical', 'major', 'minor', 'nit']
-    .filter(severity => counts[severity] > 0)
-    .map(severity => `${counts[severity]} ${severity}`)
-    .join(' · ')
-  const hasBlocking = counts.critical + counts.major > 0
-  const partial = notReviewed.length > 0
-  const notReviewedNote = ' · some files not reviewed (see below)'
+function toReviewComment(finding) {
+  const comment = { path: finding.path, line: finding.line, side: 'RIGHT', body: renderInlineComment(finding) }
+  if (finding.anchorStartLine === null) return comment
 
-  if (event === 'APPROVE') {
-    return '### ✅ **Approved** — trivial change, safe to merge'
-  }
-  if (hasBlocking) {
-    return `### 🔎 **Review needed** — ${rollup} worth a look before merging${partial ? notReviewedNote : ''}`
-  }
-  if (partial) {
-    const found = rollup ? `${rollup} found; ` : ''
-    return `### 🔎 **Partial review** — ${found}some files not reviewed (see below); a human needs to check the rest and approve`
-  }
-  if (rollup) {
-    return `### 👍 **LGTM** — only ${rollup}; a human approval is still needed to merge`
-  }
-  return '### 👍 **LGTM** — no blocking issues; a human approval is still needed to merge'
-}
-
-function buildReviewBody({ output, leftoverFindings, notReviewed, trigger, event, history }) {
-  const parts = [buildVerdictHeader({ event, findings: output.findings, notReviewed }), output.summary]
-
-  if (leftoverFindings.length > 0) {
-    parts.push(`---\n\n**Findings**\n\n${leftoverFindings.map(f => `- ${formatFinding(f)}`).join('\n')}`)
-  }
-
-  if (notReviewed.length > 0) {
-    const list = notReviewed.map(filename => `\`${filename}\``).join(', ')
-    parts.push(`> ⚠️ Not reviewed (not opened by the reviewer): ${list}`)
-  }
-
-  const triggerLabel = TRIGGER_LABELS[trigger.kind] ?? DEFAULT_TRIGGER_LABEL
-  parts.push(`---\n_Automated review by Soporti · trigger: ${triggerLabel}${describeReReview(history)}._`)
-
-  return redactSecrets(parts.join('\n\n'))
-}
-
-function describeReReview(history) {
-  if (!history?.changes) return ''
-  if (history.changes.status === 'incremental') return ` · re-review since \`${shortSha(history.lastReviewedSha)}\``
-  return ' · re-review of the full diff'
+  return { ...comment, start_line: finding.anchorStartLine, start_side: 'RIGHT' }
 }

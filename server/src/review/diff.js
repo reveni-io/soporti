@@ -29,19 +29,14 @@ const LEADING_SLASH = /^\//
 const LINGUIST_GENERATED = /^linguist-generated(=true)?$/
 const DEFAULT_GENERATED_MATCHERS = GENERATED_PATTERNS.map(pattern => globToRegExp(pattern, { isAnchored: false }))
 
-export function commentableLines(files) {
+export function commentableRanges(files) {
   const result = new Map()
 
   for (const file of files ?? []) {
     if (!file?.filename || typeof file.patch !== 'string') continue
 
-    const lines = new Set(
-      numberPatchLines(file.patch)
-        .map(row => row.line)
-        .filter(line => line !== null)
-    )
-
-    if (lines.size > 0) result.set(file.filename, lines)
+    const ranges = hunkRanges(file.patch)
+    if (ranges.length > 0) result.set(file.filename, ranges)
   }
 
   return result
@@ -74,17 +69,18 @@ function numberPatchLines(patch) {
 }
 
 export function partitionFindings(findings, files) {
-  const valid = commentableLines(files)
+  const ranges = commentableRanges(files)
   const anchored = []
   const unanchored = []
 
-  for (const finding of findings ?? []) {
-    const line = Number.isInteger(finding?.line) ? finding.line : null
-    if (finding?.path && line !== null && valid.get(finding.path)?.has(line)) {
-      anchored.push(finding)
-    } else if (finding) {
+  for (const finding of findings) {
+    const hunk = findHunk(ranges.get(finding.path), finding.line)
+    if (!hunk) {
       unanchored.push(finding)
+      continue
     }
+
+    anchored.push({ ...finding, anchorStartLine: resolveAnchorStartLine(finding, hunk) })
   }
 
   return { anchored, unanchored }
@@ -106,6 +102,29 @@ export function findUnreviewedFiles(files, reviewedPaths) {
   return files
     .filter(file => !file.generated && !file.empty && !reviewedPaths.has(file.filename))
     .map(file => file.filename)
+}
+
+function hunkRanges(patch) {
+  const hunks = []
+
+  for (const row of numberPatchLines(patch)) {
+    if (row.isHunk) hunks.push([])
+    if (row.line !== null) hunks.at(-1).push(row.line)
+  }
+
+  return hunks.filter(lines => lines.length > 0).map(lines => ({ start: lines[0], end: lines.at(-1) }))
+}
+
+function findHunk(hunks, line) {
+  if (!Number.isInteger(line)) return null
+
+  return hunks?.find(hunk => line >= hunk.start && line <= hunk.end) ?? null
+}
+
+function resolveAnchorStartLine({ startLine, line }, hunk) {
+  if (!Number.isInteger(startLine) || startLine >= line) return null
+
+  return startLine >= hunk.start ? startLine : null
 }
 
 function parseLinguistGenerated(gitattributes) {

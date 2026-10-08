@@ -80,7 +80,7 @@ const STANDARDS_NOT_INLINED_INTRO =
   'These standards documents did not fit in this message or could not be read. Read the ones that apply to this PR with get_file_contents:'
 const MODIFIED_STANDARD_MARKER = ' (modified by this PR)'
 const NO_SPEC =
-  '## Spec\n\n(no story reference detected — if the description references a Shortcut story and you have Shortcut tools, fetch it and use it as the spec; otherwise skip the spec axis and say so in your summary)'
+  '## Spec\n\n(no story reference detected — if the description references a Shortcut story and you have Shortcut tools, fetch it and use it as the spec; otherwise skip the spec axis and say so in the `spec` field)'
 const SPEC_INTRO = 'The Shortcut stories this PR references. They are the spec for the spec axis.'
 const OUTSIDE_PR_ERROR =
   'This path is not one of the files changed by this PR. Use a path from the "Files changed" list.'
@@ -110,18 +110,33 @@ export function inline(value) {
     .slice(0, MAX_INLINE_CHARS)
 }
 
+const findingSchema = z.object({
+  path: z.string(),
+  startLine: z.number().int().nullable(),
+  line: z.number().int().nullable(),
+  severity: z.enum(['critical', 'major', 'minor', 'nit']),
+  category: z.enum(['bug', 'security', 'performance', 'maintainability', 'tests', 'standards', 'spec']),
+  title: z.string(),
+  body: z.string(),
+  suggestion: z.string().nullable(),
+  fixPrompt: z.string(),
+})
+
+const overviewFields = {
+  walkthrough: z.string(),
+  changes: z.array(z.object({ label: z.string(), files: z.array(z.string()), summary: z.string() })),
+  effort: z.number().int(),
+  reviewMinutes: z.number().int(),
+  diagram: z.string().nullable(),
+  standards: z.string(),
+  spec: z.string(),
+  previousFindings: z.string().nullable(),
+}
+
 export const reviewOutputSchema = z.object({
-  summary: z.string(),
+  ...overviewFields,
   verdict: z.enum(['comment', 'approve']),
-  findings: z.array(
-    z.object({
-      path: z.string(),
-      line: z.number().int().nullable(),
-      severity: z.enum(['critical', 'major', 'minor', 'nit']),
-      axis: z.enum(['correctness', 'standards', 'spec']),
-      body: z.string(),
-    })
-  ),
+  findings: z.array(findingSchema),
 })
 
 export function buildRepoTools(repoFullName, rootPath = null) {
@@ -453,7 +468,7 @@ function renderSpec({ configured, stories }) {
 
   if (!configured) {
     const references = stories.map(({ id }) => `sc-${id}`).join(', ')
-    return `## Spec\n\nThis PR references ${references}, but Shortcut is not configured, so the stories cannot be read. Skip the spec axis and say so in your summary.`
+    return `## Spec\n\nThis PR references ${references}, but Shortcut is not configured, so the stories cannot be read. Skip the spec axis and say so in the \`spec\` field.`
   }
 
   return ['## Spec', SPEC_INTRO, ...stories.map(renderStory)].join('\n\n')
