@@ -171,6 +171,9 @@ describe('buildFinderTask', () => {
     const task = buildFinderTask('correctness', { index: 2, count: 3, focusFiles: ['src/a.js', 'src/b.js'] })
 
     expect(task).toContain('you are shard 2 of 3. Your focus files:\n\n- src/a.js\n- src/b.js')
+    expect(task).toContain(
+      'Read with get_file_diff those of your focus files that are listed under "Not inlined"; the other shards read their own focus files.'
+    )
     expect(task).toMatch(/You still see the whole diff/)
     expect(buildFinderTask('correctness')).not.toMatch(/shard/)
   })

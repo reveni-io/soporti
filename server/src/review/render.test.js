@@ -52,7 +52,7 @@ function review(overrides = {}) {
     findings: { inline: [], outside: [], nits: [] },
     output: output(),
     passes: PASSES,
-    verification: { proposed: 0, confirmed: 0, downgraded: 0, dropped: 0, unverified: 0 },
+    verification: { proposed: 0, confirmed: 0, downgraded: 0, dropped: 0, unverified: 0, skipped: 0 },
     coverage: {
       files: [{ filename: 'src/checkout.js', generated: false, empty: false }],
       reviewedPaths: new Set(['src/checkout.js']),
@@ -433,14 +433,14 @@ describe('renderReviewBody', () => {
           pass('correctness'),
           pass('security', { status: 'failed' }),
         ],
-        verification: { proposed: 5, confirmed: 2, downgraded: 1, dropped: 1, unverified: 1 },
+        verification: { proposed: 7, confirmed: 2, downgraded: 1, dropped: 1, unverified: 1, skipped: 2 },
       })
     )
 
     expect(body).toContain(
       [
         '- **Passes:** overview, correctness ×3 (❌ 1 failed), security (❌ failed)',
-        '- **Verification:** 5 proposed · 2 confirmed · 1 downgraded · 1 dropped · 1 unverified',
+        '- **Verification:** 7 proposed · 2 confirmed · 1 downgraded · 1 dropped · 1 unverified · 2 skipped (over the verification limit)',
       ].join('\n')
     )
   })

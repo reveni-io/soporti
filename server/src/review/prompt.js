@@ -248,5 +248,5 @@ function teamIntro(repoFullName, role) {
 function renderShardFocus({ index, count, focusFiles }) {
   const files = focusFiles.map(file => `- ${file}`).join('\n')
 
-  return `This PR is large, so the correctness pass runs as ${count} shards in parallel and you are shard ${index} of ${count}. Your focus files:\n\n${files}\n\nLook for problems in these files, and read the ones listed under "Not inlined" with get_file_diff; the other shards cover the rest. You still see the whole diff: a problem that spans files is yours to report when it involves one of your focus files.`
+  return `This PR is large, so the correctness pass runs as ${count} shards in parallel and you are shard ${index} of ${count}. Your focus files:\n\n${files}\n\nLook for problems in these files. Read with get_file_diff those of your focus files that are listed under "Not inlined"; the other shards read their own focus files. You still see the whole diff: a problem that spans files is yours to report when it involves one of your focus files.`
 }

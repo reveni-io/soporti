@@ -163,6 +163,7 @@ function verified(findings, stats = {}) {
       downgraded: 0,
       dropped: 0,
       unverified: 0,
+      skipped: 0,
       ...stats,
     },
   }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import config from '../config.js'
-import { AGENT_CHANNEL_PR_REVIEW_VERIFY, REVIEW_SEVERITIES } from '../constants.js'
+import { AGENT_CHANNEL_PR_REVIEW_VERIFY, REVIEW_BLOCKING_SEVERITIES, REVIEW_SEVERITIES } from '../constants.js'
 import { buildDiffTools, buildRepoTools, runReviewAgent } from './agent.js'
 import { fenced, inline } from './context.js'
 import { buildVerifierInstructions, buildVerifierTask } from './prompt.js'
@@ -14,6 +14,7 @@ const CONFIRMED = 'confirmed'
 const DOWNGRADED = 'downgraded'
 const DROPPED = 'dropped'
 const UNVERIFIED = 'unverified'
+const SKIPPED = 'skipped'
 const CLUSTER_LINE_GAP = 3
 const MAX_VERIFIED_CLUSTERS = 30
 const MAX_VERIFIER_TURNS = 15
@@ -40,20 +41,14 @@ export async function verifyFindings(candidates, { logger = console, ...options 
     .filter(finding => VERIFIED_SEVERITIES.has(finding.severity))
     .map((finding, index) => ({ id: `F${index + 1}`, finding }))
   const clusters = clusterEntries(entries).sort(compareClusters)
-  const skipped = clusters.slice(MAX_VERIFIED_CLUSTERS).flat()
-
-  if (skipped.length > 0) {
-    logger.warn(
-      `[review] Skipped the verification of ${describeEntries(skipped)}: over the limit of ${MAX_VERIFIED_CLUSTERS} clusters; posting them unverified`
-    )
-  }
+  const skipped = skipOverflow(clusters.slice(MAX_VERIFIED_CLUSTERS).flat(), logger)
 
   const verified = await mapWithConcurrency(
     clusters.slice(0, MAX_VERIFIED_CLUSTERS),
     MAX_PARALLEL_VERIFICATIONS,
     cluster => verifyCluster(cluster, scope)
   )
-  const outcomes = [...verified.flat(), ...skipped.map(({ finding }) => ({ finding, outcome: UNVERIFIED }))]
+  const outcomes = [...verified.flat(), ...skipped]
   const countOutcome = outcome => outcomes.filter(result => result.outcome === outcome).length
 
   return {
@@ -64,8 +59,29 @@ export async function verifyFindings(candidates, { logger = console, ...options 
       downgraded: countOutcome(DOWNGRADED),
       dropped: countOutcome(DROPPED),
       unverified: countOutcome(UNVERIFIED),
+      skipped: countOutcome(SKIPPED),
     },
   }
+}
+
+function skipOverflow(entries, logger) {
+  const blocking = entries.filter(({ finding }) => REVIEW_BLOCKING_SEVERITIES.has(finding.severity))
+  const minors = entries.filter(({ finding }) => !REVIEW_BLOCKING_SEVERITIES.has(finding.severity))
+  const overLimit = `over the limit of ${MAX_VERIFIED_CLUSTERS} clusters`
+
+  if (blocking.length > 0) {
+    logger.warn(
+      `[review] Skipped the verification of ${describeEntries(blocking)}: ${overLimit}; posting them unverified`
+    )
+  }
+  if (minors.length > 0) {
+    logger.warn(`[review] Skipped the verification of ${describeEntries(minors)}: ${overLimit}; dropping them`)
+  }
+
+  return [
+    ...blocking.map(({ finding }) => ({ finding, outcome: UNVERIFIED })),
+    ...minors.map(() => ({ finding: null, outcome: SKIPPED })),
+  ]
 }
 
 function clusterEntries(entries) {

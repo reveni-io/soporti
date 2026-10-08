@@ -108,7 +108,7 @@ describe('verifyFindings', () => {
       { ...candidates[1], evidence: 'F2 is real: src/checkout.js:11 has no guard.' },
       nit,
     ])
-    expect(stats).toEqual({ proposed: 2, confirmed: 2, downgraded: 0, dropped: 0, unverified: 0 })
+    expect(stats).toEqual({ proposed: 2, confirmed: 2, downgraded: 0, dropped: 0, unverified: 0, skipped: 0 })
   })
 
   it('skips the verifier when every finding is a nit', async () => {
@@ -116,7 +116,7 @@ describe('verifyFindings', () => {
 
     expect(mockRunReviewAgent).not.toHaveBeenCalled()
     expect(findings).toEqual([finding({ severity: 'nit' })])
-    expect(stats).toEqual({ proposed: 0, confirmed: 0, downgraded: 0, dropped: 0, unverified: 0 })
+    expect(stats).toEqual({ proposed: 0, confirmed: 0, downgraded: 0, dropped: 0, unverified: 0, skipped: 0 })
   })
 
   it('clusters the findings of one file whose lines are within 3 of each other, transitively', async () => {
@@ -168,7 +168,7 @@ describe('verifyFindings', () => {
     expect(findings).toEqual([
       { ...finding({ path: 'src/cart.js' }), evidence: 'F3 is real: src/checkout.js:11 has no guard.' },
     ])
-    expect(stats).toEqual({ proposed: 3, confirmed: 1, downgraded: 0, dropped: 2, unverified: 0 })
+    expect(stats).toEqual({ proposed: 3, confirmed: 1, downgraded: 0, dropped: 2, unverified: 0, skipped: 0 })
     expect(options.logger.log.mock.calls.map(([message]) => message)).toEqual([
       '[review] Dropped the major finding at src/checkout.js:11: refuted (cart.js:20 guards it with [redacted])',
       '[review] Dropped the minor finding at src/checkout.js:40: pre_existing (Unchanged since 2023.)',
@@ -194,7 +194,7 @@ describe('verifyFindings', () => {
       [40, 'major'],
       [80, 'minor'],
     ])
-    expect(stats).toEqual({ proposed: 3, confirmed: 2, downgraded: 1, dropped: 0, unverified: 0 })
+    expect(stats).toEqual({ proposed: 3, confirmed: 2, downgraded: 1, dropped: 0, unverified: 0, skipped: 0 })
     expect(options.logger.log).toHaveBeenCalledTimes(1)
     expect(options.logger.log).toHaveBeenCalledWith(
       '[review] Downgraded the critical finding at src/checkout.js:11 to minor (Only on a dead path.)'
@@ -213,7 +213,7 @@ describe('verifyFindings', () => {
 
     expect(clustersVerified()).toEqual([['F1', 'F2']])
     expect(findings).toEqual([{ ...security, severity: 'major', evidence: 'cart.js:4 trusts the client total.' }])
-    expect(stats).toEqual({ proposed: 2, confirmed: 1, downgraded: 0, dropped: 1, unverified: 0 })
+    expect(stats).toEqual({ proposed: 2, confirmed: 1, downgraded: 0, dropped: 1, unverified: 0, skipped: 0 })
   })
 
   it('never lets a duplicate raise the kept finding above what the duplicate deserves', async () => {
@@ -245,7 +245,7 @@ describe('verifyFindings', () => {
     )
 
     expect(findings.map(({ title }) => title)).toEqual(['Kept.'])
-    expect(stats).toEqual({ proposed: 5, confirmed: 1, downgraded: 0, dropped: 4, unverified: 0 })
+    expect(stats).toEqual({ proposed: 5, confirmed: 1, downgraded: 0, dropped: 4, unverified: 0, skipped: 0 })
   })
 
   it('keeps a duplicate whose target is not in the cluster or loops back to it', async () => {
@@ -284,7 +284,7 @@ describe('verifyFindings', () => {
       { ...finding(), evidence: 'F1 is real: src/checkout.js:11 has no guard.' },
       finding({ line: 12, severity: 'minor' }),
     ])
-    expect(stats).toEqual({ proposed: 2, confirmed: 1, downgraded: 0, dropped: 0, unverified: 1 })
+    expect(stats).toEqual({ proposed: 2, confirmed: 1, downgraded: 0, dropped: 0, unverified: 1, skipped: 0 })
     expect(options.logger.warn).toHaveBeenCalledWith(
       '[review] The verifier gave no verdict for the minor finding at src/checkout.js:12; keeping it as proposed'
     )
@@ -297,7 +297,7 @@ describe('verifyFindings', () => {
     const { findings, stats } = await verifyFindings([finding(), finding({ line: null })], options)
 
     expect(findings).toEqual([finding({ line: null }), finding()])
-    expect(stats).toEqual({ proposed: 2, confirmed: 0, downgraded: 0, dropped: 0, unverified: 2 })
+    expect(stats).toEqual({ proposed: 2, confirmed: 0, downgraded: 0, dropped: 0, unverified: 2, skipped: 0 })
     expect(options.logger.warn).toHaveBeenCalledTimes(2)
     expect(options.logger.warn).toHaveBeenCalledWith(
       '[review] Could not verify the major finding at src/checkout.js:11 (model unavailable); keeping it as proposed'
@@ -307,7 +307,7 @@ describe('verifyFindings', () => {
     )
   })
 
-  it('verifies the most severe clusters first and at most 30, posting the rest unverified', async () => {
+  it('verifies the most severe clusters first and at most 30, dropping the minor findings left over', async () => {
     const minors = Array.from({ length: 31 }, (_, index) => finding({ severity: 'minor', line: 10 * (index + 1) }))
     const critical = finding({ path: 'src/auth.js', severity: 'critical', title: 'Skips the auth check.' })
     const options = scope()
@@ -316,10 +316,33 @@ describe('verifyFindings', () => {
 
     expect(mockRunReviewAgent).toHaveBeenCalledTimes(30)
     expect(clustersVerified()[0]).toEqual(['F32'])
-    expect(stats).toEqual({ proposed: 32, confirmed: 30, downgraded: 0, dropped: 0, unverified: 2 })
-    expect(findings).toHaveLength(32)
+    expect(stats).toEqual({ proposed: 32, confirmed: 30, downgraded: 0, dropped: 0, unverified: 0, skipped: 2 })
+    expect(findings).toHaveLength(30)
+    expect(findings.map(({ line }) => line)).not.toContain(300)
+    expect(findings.map(({ line }) => line)).not.toContain(310)
+    expect(options.logger.warn).toHaveBeenCalledTimes(1)
     expect(options.logger.warn).toHaveBeenCalledWith(
-      '[review] Skipped the verification of the minor finding at src/checkout.js:300, the minor finding at src/checkout.js:310: over the limit of 30 clusters; posting them unverified'
+      '[review] Skipped the verification of the minor finding at src/checkout.js:300, the minor finding at src/checkout.js:310: over the limit of 30 clusters; dropping them'
+    )
+  })
+
+  it('still posts a critical or major finding left over the verification limit, unverified', async () => {
+    const majors = Array.from({ length: 31 }, (_, index) => finding({ line: 10 * (index + 1) }))
+    const minor = finding({ path: 'src/cart.js', severity: 'minor' })
+    const options = scope()
+
+    const { findings, stats } = await verifyFindings([...majors, minor], options)
+
+    expect(mockRunReviewAgent).toHaveBeenCalledTimes(30)
+    expect(stats).toEqual({ proposed: 32, confirmed: 30, downgraded: 0, dropped: 0, unverified: 1, skipped: 1 })
+    expect(findings).toHaveLength(31)
+    expect(findings).toContainEqual(finding({ line: 310 }))
+    expect(findings).not.toContainEqual(minor)
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      '[review] Skipped the verification of the major finding at src/checkout.js:310: over the limit of 30 clusters; posting them unverified'
+    )
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      '[review] Skipped the verification of the minor finding at src/cart.js:11: over the limit of 30 clusters; dropping them'
     )
   })
 

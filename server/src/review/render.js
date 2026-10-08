@@ -323,13 +323,14 @@ function describePasses(passes) {
     .join(', ')
 }
 
-function describeVerification({ proposed, confirmed, downgraded, dropped, unverified }) {
+function describeVerification({ proposed, confirmed, downgraded, dropped, unverified, skipped }) {
   const counts = [
     `${proposed} proposed`,
     `${confirmed} confirmed`,
     `${downgraded} downgraded`,
     `${dropped} dropped`,
     unverified > 0 && `${unverified} unverified`,
+    skipped > 0 && `${skipped} skipped (over the verification limit)`,
   ]
 
   return counts.filter(Boolean).join(' · ')
