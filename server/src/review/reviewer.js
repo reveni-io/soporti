@@ -138,7 +138,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     const notReviewed = findUnreviewedFiles(changedFiles, reviewedPaths)
     const { anchored, unanchored } = partitionFindings(output.findings, files)
-    const event = resolveEvent(output, notReviewed)
+    const event = resolveEvent(proposed, notReviewed)
     const comments = anchored.map(f => ({
       path: f.path,
       line: f.line,
@@ -299,9 +299,9 @@ function extractStoryId({ headRef, title, body }) {
   return null
 }
 
-function resolveEvent(output, notReviewed) {
-  const hasBlocking = output.findings.some(f => f.severity === 'critical' || f.severity === 'major')
-  return output.verdict === 'approve' && !hasBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
+function resolveEvent(proposed, notReviewed) {
+  const hasProposedBlocking = proposed.findings.some(f => f.severity === 'critical' || f.severity === 'major')
+  return proposed.verdict === 'approve' && !hasProposedBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
 }
 
 function formatFinding(finding, { withLocation = true } = {}) {

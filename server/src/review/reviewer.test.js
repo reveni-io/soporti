@@ -933,15 +933,42 @@ describe('finding verification', () => {
     expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
   })
 
-  it('approves once verification removed the only blocking finding of an approved review', async () => {
+  it('never approves once the reviewer proposed a blocking finding, even when verification refuted it', async () => {
     setupHappyPath({ verdict: 'approve', findings: [MAJOR] })
     mockVerifyFindings.mockResolvedValue([])
 
     await runReview(trigger(), { logger: silentLogger })
 
     const review = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(review.event).toBe('APPROVE')
+    expect(review.event).toBe('COMMENT')
     expect(review.comments).toEqual([])
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — no blocking issues/)
+  })
+
+  it('never approves when verification downgraded every blocking finding, but posts the lower severities', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [{ ...MAJOR, severity: 'critical' }, MAJOR] })
+    mockVerifyFindings.mockResolvedValue([
+      { ...MAJOR, severity: 'minor' },
+      { ...MAJOR, severity: 'nit' },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('COMMENT')
+    expect(review.comments.map(comment => comment.body)).toEqual([
+      '**[minor]** sumItems may throw',
+      '**[nit]** sumItems may throw',
+    ])
+    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor · 1 nit/)
+  })
+
+  it('still approves an approved review whose findings were only minor or nit', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [MINOR] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
   })
 
   it('posts nothing when a newer request supersedes the review during verification', async () => {
