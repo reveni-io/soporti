@@ -1,4 +1,4 @@
-import { Agent, run, tool } from '@openai/agents'
+import { Agent, MaxTurnsExceededError, run, tool } from '@openai/agents'
 import { z } from 'zod'
 import config from '../config.js'
 import {
@@ -40,6 +40,7 @@ import {
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
+  REVIEW_TURN_LIMIT_ERROR,
 } from '../constants.js'
 import { shortSha } from '../github/sanitize.js'
 import { buildReviewerInstructions } from './prompt.js'
@@ -50,7 +51,8 @@ const FULL_DIFF_FALLBACKS = {
   diverged: 'That commit is no longer in this branch (force-push or rebase).',
   unavailable: 'The changes since that commit could not be loaded.',
 }
-const NO_OUTPUT_ERROR = 'The reviewer produced no output — the run most likely hit the turn limit.'
+const NO_OUTPUT_ERROR =
+  'The reviewer produced no output — the run most likely hit the review turn limit (REVIEW_MAX_TURNS).'
 
 export function inline(value) {
   return String(value ?? '')
@@ -352,15 +354,29 @@ export async function runReviewerAgent({
   const agent = await createReviewerAgent(trigger.repoFullName, { rootPath })
   const input = buildReviewInput({ trigger, files, omitted, empty, standardsFiles, storyId, history })
   const subject = `${trigger.repoFullName}#${trigger.prNumber}`
+  const maxTurns = config.review.maxTurns
 
-  const { result } = await trackAgentRun(
-    {
-      channel: AGENT_CHANNEL_PR_REVIEW,
-      subject,
-      failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR),
-    },
-    () => run(agent, input, { maxTurns: config.agent.maxIterations, signal })
-  )
+  try {
+    const { result } = await trackAgentRun(
+      {
+        channel: AGENT_CHANNEL_PR_REVIEW,
+        subject,
+        failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR),
+      },
+      () => run(agent, input, { maxTurns, signal })
+    )
 
-  return result.finalOutput
+    return result.finalOutput
+  } catch (err) {
+    if (err instanceof MaxTurnsExceededError) throw turnLimitError(maxTurns, err)
+    throw err
+  }
+}
+
+function turnLimitError(maxTurns, cause) {
+  const err = new Error(`The review hit the turn limit of ${maxTurns} turns.`, { cause })
+  err.code = REVIEW_TURN_LIMIT_ERROR
+  err.maxTurns = maxTurns
+
+  return err
 }

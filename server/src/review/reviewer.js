@@ -17,6 +17,7 @@ import { runReviewerAgent } from './agent.js'
 import { loadReviewHistory } from './history.js'
 import { redactSecrets } from './output-guard.js'
 import { shortSha } from '../github/sanitize.js'
+import { REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
 
 const STANDARDS_PATTERNS = [
   'CLAUDE.md',
@@ -156,14 +157,12 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       return
     }
 
-    logger.error(`[review] Failed ${dedupeKey}:`, err)
+    const turnLimit = err.code === REVIEW_TURN_LIMIT_ERROR ? err.maxTurns : null
+    const logCause = turnLimit ? ` hit the turn limit (${turnLimit} turns)` : ''
+    logger.error(`[review] Failed ${dedupeKey}:${logCause}`, err)
+
     try {
-      await createIssueComment(
-        repoFullName,
-        prNumber,
-        `⚠️ Soporti could not complete the review of this PR (commit \`${shortSha(reviewedSha)}\`). ` +
-          'Re-request the review (or re-add the label) to retry.'
-      )
+      await createIssueComment(repoFullName, prNumber, buildFailureComment(reviewedSha, turnLimit))
     } catch (commentErr) {
       logger.error(`[review] Could not post the failure comment for ${dedupeKey}:`, commentErr)
     }
@@ -171,6 +170,14 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     await removeEyes(repoFullName, prNumber, eyesId, logger)
     await workspace?.release()
   }
+}
+
+function buildFailureComment(sha, turnLimit) {
+  const cause = turnLimit
+    ? ` It hit the turn limit (${turnLimit} turns): the PR may be too large for one review, \`REVIEW_MAX_TURNS\` can be raised.`
+    : ''
+
+  return `⚠️ Soporti could not complete the review of this PR (commit \`${shortSha(sha)}\`).${cause} Re-request the review (or re-add the label) to retry.`
 }
 
 async function addEyes(repoFullName, prNumber, logger) {

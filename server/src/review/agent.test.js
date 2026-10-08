@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockRun = vi.fn()
+class MockMaxTurnsExceededError extends Error {}
 const MockAgent = vi.fn(function (options) {
   this.options = options
 })
 
 vi.mock('@openai/agents', () => ({
   Agent: MockAgent,
+  MaxTurnsExceededError: MockMaxTurnsExceededError,
   run: mockRun,
   tool: def => def,
 }))
@@ -83,7 +85,7 @@ vi.mock('../github/client.js', () => ({ listRepos: vi.fn() }))
 vi.mock('../config.js', () => ({
   default: {
     agent: { maxIterations: 7 },
-    review: { reasoningEffort: 'high' },
+    review: { reasoningEffort: 'high', maxTurns: 42 },
   },
 }))
 
@@ -655,7 +657,7 @@ describe('runReviewerAgent', () => {
     const [agentArg, inputArg, optionsArg] = mockRun.mock.calls[0]
     expect(agentArg).toBeInstanceOf(MockAgent)
     expect(typeof inputArg).toBe('string')
-    expect(optionsArg).toEqual({ maxTurns: 7 })
+    expect(optionsArg).toEqual({ maxTurns: 42 })
     expect(result).toEqual(output)
   })
 
@@ -675,15 +677,41 @@ describe('runReviewerAgent', () => {
     await runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [], signal: controller.signal })
 
     expect(mockRun).toHaveBeenCalledTimes(1)
-    expect(mockRun.mock.calls[0][2]).toEqual({ maxTurns: 7, signal: controller.signal })
+    expect(mockRun.mock.calls[0][2]).toEqual({ maxTurns: 42, signal: controller.signal })
   })
 
   it('throws instead of returning nothing when the run produces no final output', async () => {
     mockRun.mockResolvedValue({ finalOutput: undefined })
 
     await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toThrow(
-      /no output.*turn limit/i
+      /no output.*review turn limit \(REVIEW_MAX_TURNS\)/i
     )
+  })
+
+  it('reports the review turn limit when the run exceeds it', async () => {
+    const cause = new MockMaxTurnsExceededError('Max turns (42) exceeded')
+    mockRun.mockRejectedValue(cause)
+
+    const err = await runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] }).catch(e => e)
+
+    expect(err.message).toBe('The review hit the turn limit of 42 turns.')
+    expect(err.code).toBe('REVIEW_TURN_LIMIT')
+    expect(err.maxTurns).toBe(42)
+    expect(err.cause).toBe(cause)
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'error',
+      subject: 'acme-io/app#7',
+      userId: null,
+    })
+  })
+
+  it('rethrows any other run failure unchanged', async () => {
+    const failure = new Error('model unavailable')
+    mockRun.mockRejectedValue(failure)
+
+    await expect(runReviewerAgent({ trigger: sampleTrigger(), files: [], omitted: [] })).rejects.toBe(failure)
   })
 
   it('records the review against the PR it reviewed', async () => {
