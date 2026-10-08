@@ -5,6 +5,7 @@ import {
   buildGeneratedMatcher,
   classifyFiles,
   findUnreviewedFiles,
+  renderNumberedPatch,
 } from './diff.js'
 
 const PATCH = [
@@ -49,6 +50,86 @@ describe('commentableLines', () => {
   it('returns an empty map for empty input', () => {
     expect(commentableLines([]).size).toBe(0)
     expect(commentableLines(undefined).size).toBe(0)
+  })
+})
+
+describe('renderNumberedPatch', () => {
+  it('prefixes every line with its RIGHT-side number and leaves removed lines unnumbered', () => {
+    const patch = [
+      '@@ -8,4 +10,5 @@ function checkout() {',
+      '   const cart = getCart()',
+      '-  const total = sum(cart)',
+      '+  const total = sumItems(cart)',
+      '+  validate(total)',
+      '   return total',
+    ].join('\n')
+
+    expect(renderNumberedPatch(patch)).toBe(
+      [
+        '@@ -8,4 +10,5 @@ function checkout() {',
+        '10    const cart = getCart()',
+        '   -  const total = sum(cart)',
+        '11 +  const total = sumItems(cart)',
+        '12 +  validate(total)',
+        '13    return total',
+      ].join('\n')
+    )
+  })
+
+  it('restarts the numbering at every hunk and pads the column to the widest number', () => {
+    const patch = ['@@ -1,2 +1,2 @@', ' one', '-two', '+2', '@@ -98,2 +98,3 @@', ' ctx', '+added', ' ctx2'].join('\n')
+
+    expect(renderNumberedPatch(patch)).toBe(
+      [
+        '@@ -1,2 +1,2 @@',
+        '  1  one',
+        '    -two',
+        '  2 +2',
+        '@@ -98,2 +98,3 @@',
+        ' 98  ctx',
+        ' 99 +added',
+        '100  ctx2',
+      ].join('\n')
+    )
+  })
+
+  it('leaves the headers of a local git diff and the no-newline marker unnumbered and drops its trailing newline', () => {
+    const patch = [
+      'diff --git a/db/seed.sql b/db/seed.sql',
+      '--- a/db/seed.sql',
+      '+++ b/db/seed.sql',
+      '@@ -1 +1 @@',
+      '-old',
+      '+new',
+      '\\ No newline at end of file',
+      '',
+    ].join('\n')
+
+    expect(renderNumberedPatch(patch)).toBe(
+      [
+        '  diff --git a/db/seed.sql b/db/seed.sql',
+        '  --- a/db/seed.sql',
+        '  +++ b/db/seed.sql',
+        '@@ -1 +1 @@',
+        '  -old',
+        '1 +new',
+        '  \\ No newline at end of file',
+      ].join('\n')
+    )
+  })
+
+  it('prints exactly the line numbers an inline comment can anchor on', () => {
+    const printed = renderNumberedPatch(PATCH)
+      .split('\n')
+      .map(line => parseInt(line, 10))
+      .filter(Number.isInteger)
+    const findings = printed.map(line => ({ path: 'src/checkout.js', line, severity: 'minor', body: 'x' }))
+
+    const { anchored, unanchored } = partitionFindings(findings, FILES)
+
+    expect(printed).toEqual([10, 11, 12, 13])
+    expect(anchored).toEqual(findings)
+    expect(unanchored).toEqual([])
   })
 })
 

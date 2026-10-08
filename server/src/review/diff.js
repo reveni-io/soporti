@@ -1,4 +1,5 @@
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/
+const TRAILING_NEWLINE = /\n$/
 const GENERATED_PATTERNS = [
   'package-lock.json',
   'yarn.lock',
@@ -34,27 +35,42 @@ export function commentableLines(files) {
   for (const file of files ?? []) {
     if (!file?.filename || typeof file.patch !== 'string') continue
 
-    const lines = new Set()
-    let rightLine = null
-
-    for (const raw of file.patch.split('\n')) {
-      const hunk = raw.match(HUNK_HEADER)
-      if (hunk) {
-        rightLine = parseInt(hunk[1], 10)
-        continue
-      }
-      if (rightLine === null) continue
-
-      if (raw.startsWith('+') || raw.startsWith(' ') || raw === '') {
-        lines.add(rightLine)
-        rightLine++
-      }
-    }
+    const lines = new Set(
+      numberPatchLines(file.patch)
+        .map(row => row.line)
+        .filter(line => line !== null)
+    )
 
     if (lines.size > 0) result.set(file.filename, lines)
   }
 
   return result
+}
+
+export function renderNumberedPatch(patch) {
+  const rows = numberPatchLines(patch)
+  const width = String(rows.reduce((max, row) => Math.max(max, row.line ?? 0), 0)).length
+
+  return rows.map(row => (row.isHunk ? row.text : `${String(row.line ?? '').padStart(width)} ${row.text}`)).join('\n')
+}
+
+function numberPatchLines(patch) {
+  const rows = []
+  let rightLine = null
+
+  for (const text of patch.replace(TRAILING_NEWLINE, '').split('\n')) {
+    const hunk = text.match(HUNK_HEADER)
+    if (hunk) {
+      rightLine = parseInt(hunk[1], 10)
+      rows.push({ text, line: null, isHunk: true })
+      continue
+    }
+
+    const isRightSide = rightLine !== null && (text.startsWith('+') || text.startsWith(' ') || text === '')
+    rows.push({ text, line: isRightSide ? rightLine++ : null, isHunk: false })
+  }
+
+  return rows
 }
 
 export function partitionFindings(findings, files) {
