@@ -345,7 +345,7 @@ describe('renderReviewBody', () => {
           history: { lastReviewedSha: 'abc1234def', changes: { status: 'diverged' } },
           headSha: 'deadbeef',
           standards: { documents: [], notInlined: [] },
-          spec: { configured: false, stories: [{ id: 42, story: null }] },
+          spec: { configured: true, stories: [] },
         },
       })
     )
@@ -581,6 +581,20 @@ describe('renderWalkthrough', () => {
     expect(comment).toContain('| Standards | ⚠️ Warning | Follows CLAUDE.md. |')
     expect(comment).toContain('| Spec | ⚠️ Warning | Implements sc-42. |')
     expect(comment).toContain('| CI | ❌ Failed | 1 failed: test (server) |')
+  })
+
+  it('lists and checks every detected story, even when Shortcut is not configured', () => {
+    const spec = {
+      configured: false,
+      stories: [
+        { id: 42, story: null },
+        { id: 43, story: null },
+      ],
+    }
+    const context = { ...review().context, spec }
+
+    expect(renderReviewBody(review({ context }))).toContain('- **Spec:** sc-42, sc-43')
+    expect(renderWalkthrough(walkthrough({ context }))).toContain('| Spec | ✅ Passed | Implements sc-42. |')
   })
 
   it('skips the spec check without a story and reports pending or missing CI', () => {

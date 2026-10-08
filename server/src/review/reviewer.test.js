@@ -1247,9 +1247,18 @@ describe('review body header', () => {
     expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | No spec available |')
   })
 
-  it('reports no spec when Shortcut is not configured, even with story references', async () => {
+  it('lists the detected stories even when Shortcut is not configured', async () => {
     setupHappyPath()
     mockLoadSpec.mockResolvedValue({ configured: false, stories: [{ id: 1234, story: null }] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(body()).toContain('- **Spec:** sc-1234')
+    expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | No spec available |')
+  })
+
+  it('reports no standards and skips the spec check when nothing was found or detected', async () => {
+    setupHappyPath()
 
     await runReview(trigger(), { logger: silentLogger })
 

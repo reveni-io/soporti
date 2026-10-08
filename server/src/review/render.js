@@ -266,7 +266,7 @@ function renderReviewInfo(coverage, { trigger, history, headSha, standards, spec
 }
 
 function specStoryIds(spec) {
-  return spec.configured ? spec.stories.map(story => story.id) : []
+  return spec.stories.map(story => story.id)
 }
 
 function splitCoverage({ files, reviewedPaths, notReviewed }) {
