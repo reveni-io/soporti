@@ -17,7 +17,12 @@ import { runReviewerAgent } from './agent.js'
 import { loadReviewHistory } from './history.js'
 import { redactSecrets } from './output-guard.js'
 import { shortSha } from '../github/sanitize.js'
-import { PR_HEAD_PLACEHOLDER, REVIEW_KIND_MENTION_COMMAND, REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
+import {
+  PR_HEAD_PLACEHOLDER,
+  REVIEW_KIND_MENTION_COMMAND,
+  REVIEW_KIND_SYNCHRONIZE,
+  REVIEW_TURN_LIMIT_ERROR,
+} from '../constants.js'
 
 const STANDARDS_PATTERNS = [
   'CLAUDE.md',
@@ -35,7 +40,7 @@ const MAX_STANDARDS_FILES = 30
 
 const STORY_REF = /\bsc-?(\d+)\b/i
 
-const TRIGGER_LABELS = { labeled: 'label', [REVIEW_KIND_MENTION_COMMAND]: 'mention' }
+const TRIGGER_LABELS = { labeled: 'label', [REVIEW_KIND_MENTION_COMMAND]: 'mention', [REVIEW_KIND_SYNCHRONIZE]: 'push' }
 const DEFAULT_TRIGGER_LABEL = 'review request'
 
 export async function runReview(trigger, { logger = console, reviewerLogin = null, signal } = {}) {

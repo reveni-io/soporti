@@ -43,6 +43,8 @@ export function setupReviewWebhook(app, { logger = console } = {}) {
     createGithubWebhookRouter({
       getSecret: getWebhookSecret,
       label: config.review.label,
+      reviewOnPush: config.review.reviewOnPush,
+      pushDebounceMs: config.review.pushDebounceMs,
       getReviewerLogin,
       queue,
       logger,

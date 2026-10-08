@@ -3,6 +3,7 @@ import { detectTrigger } from './trigger.js'
 
 const REVIEWER = 'soporti-bot'
 const LABEL = 'soporti-review'
+const DEBOUNCE_MS = 120_000
 
 function basePayload(overrides = {}) {
   return {
@@ -27,6 +28,22 @@ function basePayload(overrides = {}) {
 
 function detect(payload, eventName = 'pull_request') {
   return detectTrigger({ eventName, payload, reviewerLogin: REVIEWER, label: LABEL })
+}
+
+function pushPayload({ labels = [{ name: LABEL }], draft = false } = {}) {
+  const payload = basePayload({ action: 'synchronize', requested_reviewer: undefined })
+  return { ...payload, pull_request: { ...payload.pull_request, head: { sha: 'def456' }, labels, draft } }
+}
+
+function detectPush(payload, { reviewOnPush = true } = {}) {
+  return detectTrigger({
+    eventName: 'pull_request',
+    payload,
+    reviewerLogin: REVIEWER,
+    label: LABEL,
+    reviewOnPush,
+    pushDebounceMs: DEBOUNCE_MS,
+  })
 }
 
 describe('detectTrigger', () => {
@@ -72,7 +89,7 @@ describe('detectTrigger', () => {
   })
 
   it('ignores other pull_request actions', () => {
-    for (const action of ['opened', 'synchronize', 'closed', 'unlabeled', 'review_request_removed']) {
+    for (const action of ['opened', 'closed', 'unlabeled', 'review_request_removed']) {
       expect(detect(basePayload({ action }))).toBeNull()
     }
   })
@@ -120,5 +137,40 @@ describe('detectTrigger', () => {
     ]) {
       expect(detect(basePayload({ repository: { full_name: name } }))).toBeNull()
     }
+  })
+
+  it('detects a push to a labeled PR as a delayed re-review of the new head', () => {
+    expect(detectPush(pushPayload())).toMatchObject({
+      kind: 'synchronize',
+      prNumber: 42,
+      headSha: 'def456',
+      dedupeKey: 'acme-io/app#42@def456',
+      supersedeKey: 'acme-io/app#42',
+      delayMs: DEBOUNCE_MS,
+    })
+  })
+
+  it('matches the review label on a push case-insensitively among other labels', () => {
+    const payload = pushPayload({ labels: [{ name: 'bug' }, { name: 'Soporti-Review' }] })
+    expect(detectPush(payload)).toMatchObject({ kind: 'synchronize' })
+  })
+
+  it('ignores a push to a PR without the review label', () => {
+    expect(detectPush(pushPayload({ labels: [{ name: 'bug' }] }))).toBeNull()
+    expect(detectPush(pushPayload({ labels: null }))).toBeNull()
+  })
+
+  it('ignores a push to a draft PR even when it carries the label', () => {
+    expect(detectPush(pushPayload({ draft: true }))).toBeNull()
+  })
+
+  it('ignores pushes when review on push is turned off', () => {
+    expect(detectPush(pushPayload(), { reviewOnPush: false })).toBeNull()
+    expect(detect(pushPayload())).toBeNull()
+  })
+
+  it('ignores a push when no review label is configured', () => {
+    const trigger = detectTrigger({ eventName: 'pull_request', payload: pushPayload(), reviewOnPush: true })
+    expect(trigger).toBeNull()
   })
 })

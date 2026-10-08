@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ReviewQueue } from './queue.js'
 
 function deferred() {
@@ -222,5 +222,124 @@ describe('ReviewQueue', () => {
     queue.enqueue({ dedupeKey: 'y' })
     await tick()
     expect(queue.pendingCount()).toBe(0)
+  })
+
+  describe('delayed jobs', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('waits for the delay before running a job', async () => {
+      vi.useFakeTimers()
+      const processor = vi.fn(async () => {})
+      const queue = new ReviewQueue({ processor })
+
+      const result = queue.enqueue({ dedupeKey: 'repo#1@a', supersedeKey: 'repo#1', delayMs: 1000 })
+      await vi.advanceTimersByTimeAsync(999)
+
+      expect(result).toEqual({ accepted: true, superseded: false })
+      expect(processor).not.toHaveBeenCalled()
+      expect(queue.pendingCount()).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][0]).toMatchObject({ dedupeKey: 'repo#1@a' })
+      expect(queue.pendingCount()).toBe(0)
+    })
+
+    it('replaces a waiting job with a newer one for the same PR and restarts the wait', async () => {
+      vi.useFakeTimers()
+      const processor = vi.fn(async () => {})
+      const queue = new ReviewQueue({ processor })
+
+      queue.enqueue({ dedupeKey: 'repo#1@a', supersedeKey: 'repo#1', delayMs: 1000 })
+      await vi.advanceTimersByTimeAsync(600)
+      const result = queue.enqueue({ dedupeKey: 'repo#1@b', supersedeKey: 'repo#1', delayMs: 1000 })
+      await vi.advanceTimersByTimeAsync(600)
+
+      expect(result).toEqual({ accepted: true, superseded: true })
+      expect(processor).not.toHaveBeenCalled()
+      expect(queue.pendingCount()).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(400)
+
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][0]).toMatchObject({ dedupeKey: 'repo#1@b' })
+
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(processor).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets an immediate job for the same PR replace a waiting one', async () => {
+      vi.useFakeTimers()
+      const processor = vi.fn(async () => {})
+      const queue = new ReviewQueue({ processor })
+
+      queue.enqueue({ dedupeKey: 'repo#1@a', supersedeKey: 'repo#1', delayMs: 1000 })
+      const result = queue.enqueue({ dedupeKey: 'repo#1@b', supersedeKey: 'repo#1' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(result).toEqual({ accepted: true, superseded: true })
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][0]).toMatchObject({ dedupeKey: 'repo#1@b' })
+
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(processor).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets a job with the same dedupe key replace a waiting one instead of rejecting it', async () => {
+      vi.useFakeTimers()
+      const processor = vi.fn(async () => {})
+      const queue = new ReviewQueue({ processor })
+
+      queue.enqueue({ dedupeKey: 'repo#1@a', kind: 'synchronize', delayMs: 1000 })
+      const result = queue.enqueue({ dedupeKey: 'repo#1@a', kind: 'labeled' })
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(result).toEqual({ accepted: true, superseded: true })
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][0]).toMatchObject({ kind: 'labeled' })
+    })
+
+    it('aborts a running review of the same PR as soon as a delayed job arrives, then runs it after the wait', async () => {
+      vi.useFakeTimers()
+      const processor = vi.fn((job, { signal }) => {
+        if (job.dedupeKey !== 'repo#1@old') return Promise.resolve()
+        return new Promise(resolve => signal.addEventListener('abort', resolve))
+      })
+      const queue = new ReviewQueue({ processor })
+
+      queue.enqueue({ dedupeKey: 'repo#1@old', supersedeKey: 'repo#1' })
+      await vi.advanceTimersByTimeAsync(0)
+      const result = queue.enqueue({ dedupeKey: 'repo#1@new', supersedeKey: 'repo#1', delayMs: 1000 })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(result).toEqual({ accepted: true, superseded: true })
+      expect(processor.mock.calls[0][1].signal.aborted).toBe(true)
+      expect(processor).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(processor).toHaveBeenCalledTimes(2)
+      expect(processor.mock.calls[1][0]).toMatchObject({ dedupeKey: 'repo#1@new' })
+      expect(processor.mock.calls[1][1].signal.aborted).toBe(false)
+    })
+
+    it('rejects a duplicate of a delayed job once it has started running', async () => {
+      vi.useFakeTimers()
+      const gate = deferred()
+      const queue = new ReviewQueue({ processor: () => gate.promise })
+
+      queue.enqueue({ dedupeKey: 'repo#1@a', supersedeKey: 'repo#1', delayMs: 1000 })
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(queue.enqueue({ dedupeKey: 'repo#1@a', supersedeKey: 'repo#1' })).toEqual({
+        accepted: false,
+        reason: 'in-flight',
+      })
+    })
   })
 })

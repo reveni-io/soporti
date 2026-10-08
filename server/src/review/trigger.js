@@ -1,6 +1,8 @@
+import { REVIEW_KIND_SYNCHRONIZE } from '../constants.js'
+
 const REPO_FULL_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 
-export function detectTrigger({ eventName, payload, reviewerLogin, label }) {
+export function detectTrigger({ eventName, payload, reviewerLogin, label, reviewOnPush = false, pushDebounceMs = 0 }) {
   if (eventName !== 'pull_request') return null
 
   const pr = payload?.pull_request
@@ -23,7 +25,19 @@ export function detectTrigger({ eventName, payload, reviewerLogin, label }) {
     return buildTrigger('labeled', repoFullName, pr)
   }
 
+  if (payload.action === 'synchronize') {
+    if (!reviewOnPush || pr.draft || !hasLabel(pr, label)) return null
+    return { ...buildTrigger(REVIEW_KIND_SYNCHRONIZE, repoFullName, pr), delayMs: pushDebounceMs }
+  }
+
   return null
+}
+
+function hasLabel(pr, label) {
+  if (!label || !Array.isArray(pr.labels)) return false
+
+  const wanted = label.toLowerCase()
+  return pr.labels.some(candidate => candidate?.name?.toLowerCase() === wanted)
 }
 
 export function buildTrigger(kind, repoFullName, pr) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHmac } from 'node:crypto'
 import express from 'express'
 import request from 'supertest'
@@ -26,6 +26,8 @@ vi.mock('../config.js', () => ({
       reviewerLogin: '',
       maxChangedLines: 4000,
       concurrency: 1,
+      reviewOnPush: true,
+      pushDebounceMs: 1000,
     },
   },
 }))
@@ -73,6 +75,10 @@ describe('setupReviewWebhook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetWebhookSecret.mockResolvedValue('hook-secret')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('mounts the webhook but rejects deliveries with 503 while no secret is stored', async () => {
@@ -188,5 +194,33 @@ describe('setupReviewWebhook', () => {
     const res = await signedPost(app, payload)
     expect(res.status).toBe(202)
     expect(res.body).toEqual({ queued: true })
+  })
+
+  it('re-reviews a labeled PR after the configured debounce when new commits are pushed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    mockGetAuthenticatedLogin.mockResolvedValue('soporti-bot')
+    mockRunReview.mockResolvedValue(undefined)
+
+    const app = express()
+    setupReviewWebhook(app, { logger: silentLogger })
+    await tick()
+
+    const base = reviewRequestedPayload('soporti-bot')
+    const payload = {
+      ...base,
+      action: 'synchronize',
+      requested_reviewer: undefined,
+      pull_request: { ...base.pull_request, labels: [{ name: 'soporti-review' }] },
+    }
+    const res = await signedPost(app, payload)
+    await vi.advanceTimersByTimeAsync(999)
+
+    expect(res.body).toEqual({ queued: true })
+    expect(mockRunReview).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(mockRunReview).toHaveBeenCalledTimes(1)
+    expect(mockRunReview.mock.calls[0][0]).toMatchObject({ kind: 'synchronize', dedupeKey: 'acme-io/app#3@cafe123' })
   })
 })

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHmac } from 'node:crypto'
 import express from 'express'
 import request from 'supertest'
@@ -15,6 +15,7 @@ const { createGithubWebhookRouter } = await import('./webhook.js')
 const { ReviewQueue } = await import('./queue.js')
 
 const SECRET = 'webhook-secret'
+const DEBOUNCE_MS = 120_000
 
 function sign(body) {
   return `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`
@@ -48,13 +49,25 @@ function commandPayload({ association = 'MEMBER', body = '@soporti-bot review' }
   }
 }
 
-function buildApp(queue, { getSecret = async () => SECRET, logger = console } = {}) {
+function pushPayload(sha, { labels = [{ name: 'soporti-review' }] } = {}) {
+  const payload = triggerPayload()
+  return {
+    ...payload,
+    action: 'synchronize',
+    requested_reviewer: undefined,
+    pull_request: { ...payload.pull_request, head: { sha }, labels },
+  }
+}
+
+function buildApp(queue, { getSecret = async () => SECRET, logger = console, reviewOnPush = true } = {}) {
   const app = express()
   app.use(
     '/api/webhooks/github',
     createGithubWebhookRouter({
       getSecret,
       label: 'soporti-review',
+      reviewOnPush,
+      pushDebounceMs: DEBOUNCE_MS,
       getReviewerLogin: () => 'soporti-bot',
       queue,
       logger,
@@ -270,7 +283,7 @@ describe('POST /api/webhooks/github', () => {
   })
 
   it('accepts but does not queue non-trigger events', async () => {
-    const payload = { ...triggerPayload(), action: 'synchronize' }
+    const payload = { ...triggerPayload(), action: 'opened' }
     const res = await post(buildApp(queue), payload)
 
     expect(res.status).toBe(202)
@@ -324,5 +337,95 @@ describe('POST /api/webhooks/github', () => {
 
     expect(res.status).toBe(503)
     expect(queue.enqueue).not.toHaveBeenCalled()
+  })
+
+  describe('review on push', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('queues a delayed re-review for a push to a PR carrying the review label', async () => {
+      const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+      const res = await post(buildApp(queue, { logger }), pushPayload('f00d'))
+
+      expect(res.status).toBe(202)
+      expect(res.body).toEqual({ queued: true })
+      expect(queue.enqueue).toHaveBeenCalledTimes(1)
+      expect(queue.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'synchronize',
+          headSha: 'f00d',
+          dedupeKey: 'acme-io/app#7@f00d',
+          supersedeKey: 'acme-io/app#7',
+          delayMs: DEBOUNCE_MS,
+        })
+      )
+      expect(logger.log).toHaveBeenCalledWith(
+        '[review] Queued synchronize for acme-io/app#7@f00d to start in 120s unless a newer push replaces it'
+      )
+    })
+
+    it('does nothing for a push to a PR without the review label', async () => {
+      const res = await post(buildApp(queue), pushPayload('f00d', { labels: [{ name: 'bug' }] }))
+
+      expect(res.status).toBe(202)
+      expect(res.body).toEqual({ queued: false })
+      expect(queue.enqueue).not.toHaveBeenCalled()
+    })
+
+    it('does nothing for a push when review on push is turned off', async () => {
+      const res = await post(buildApp(queue, { reviewOnPush: false }), pushPayload('f00d'))
+
+      expect(res.body).toEqual({ queued: false })
+      expect(queue.enqueue).not.toHaveBeenCalled()
+    })
+
+    it('reviews only the latest head after several pushes within the debounce window', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const processor = vi.fn(async () => {})
+      const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+      const app = buildApp(new ReviewQueue({ processor }), { logger })
+
+      await post(app, pushPayload('aaa1'))
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS / 2)
+      await post(app, pushPayload('bbb2'))
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS / 2)
+      await post(app, pushPayload('ccc3'))
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS - 1)
+
+      expect(processor).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][0]).toMatchObject({ kind: 'synchronize', headSha: 'ccc3' })
+      expect(logger.log).toHaveBeenCalledWith(
+        '[review] Queued synchronize for acme-io/app#7@ccc3 to start in 120s unless a newer push replaces it ' +
+          '(superseding an older review of this PR)'
+      )
+    })
+
+    it('aborts a running review when a push lands and reviews the new head after the debounce', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const processor = vi.fn((job, { signal }) => {
+        if (job.kind === 'synchronize') return Promise.resolve()
+        return new Promise(resolve => signal.addEventListener('abort', resolve))
+      })
+      const app = buildApp(new ReviewQueue({ processor }))
+
+      await post(app, triggerPayload())
+      await vi.advanceTimersByTimeAsync(0)
+      await post(app, pushPayload('f00d'))
+
+      expect(processor).toHaveBeenCalledTimes(1)
+      expect(processor.mock.calls[0][1].signal.aborted).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(DEBOUNCE_MS)
+
+      expect(processor).toHaveBeenCalledTimes(2)
+      expect(processor.mock.calls[1][0]).toMatchObject({ kind: 'synchronize', headSha: 'f00d' })
+      expect(processor.mock.calls[1][1].signal.aborted).toBe(false)
+    })
   })
 })

@@ -108,4 +108,5 @@ export const MAX_EMAIL_LENGTH = 254
 
 export const REVIEW_TURN_LIMIT_ERROR = 'REVIEW_TURN_LIMIT'
 export const REVIEW_KIND_MENTION_COMMAND = 'mention_command'
+export const REVIEW_KIND_SYNCHRONIZE = 'synchronize'
 export const PR_HEAD_PLACEHOLDER = 'HEAD'
