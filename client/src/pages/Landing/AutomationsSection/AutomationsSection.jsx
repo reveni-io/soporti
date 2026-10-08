@@ -39,6 +39,7 @@ const AUTOMATIONS = [
       'Nits stay collapsed in the review; it can approve trivial PRs and never blocks',
       'Reads the head commit’s CI: ties a broken test to the line that broke it, never repeats the linter',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
+      'When a push fixes something it flagged, the re-review marks that comment “Addressed in commit …” and resolves the thread, without pinging anyone',
       'Keep the label on and every push gets re-reviewed — a burst of commits waits for the last one',
       'The review command is for your team only; any other @-mention gets a reply right in the PR thread',
     ],

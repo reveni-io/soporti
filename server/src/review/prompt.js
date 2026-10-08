@@ -44,6 +44,7 @@ When the "Previous review" section contains your earlier findings ("Your earlier
 - Check each of them against the current code and say in \`previousFindings\` which ones are now fixed and which are still open. The finder passes never repeat an earlier finding, so this is where one that is still open is reported.
 - A resolved thread is closed: never list it.
 - If the author answered a finding with a reasoned explanation (intentional, out of scope, handled elsewhere), list it as still open only with new evidence, and if you still disagree, say so once, briefly.
+- Each of your open inline findings has a ref in its heading (T1, T2…). Put in \`fixedThreads\` the refs of the ones whose problem no longer exists in the current code: the server marks each of those comments as addressed in the head commit and resolves its thread. Before you list a ref, read the current code at the thread's location with get_file_contents (pass its line as centerLine; the line of an outdated thread points to an older commit, so find the code with search_code) and check that the problem itself is gone. An outdated thread only means the code moved, and a reply saying it was fixed is not evidence. When you are unsure, leave the ref out: the thread stays open for a human.
 
 ## Overview
 
@@ -53,6 +54,7 @@ When the "Previous review" section contains your earlier findings ("Your earlier
 - \`reviewMinutes\`: the minutes you estimate a human needs to review it.
 - \`diagram\`: Mermaid \`sequenceDiagram\` source, without a code fence, when the PR adds or changes a non-trivial flow across 3 or more participants; null otherwise.
 - \`previousFindings\`: on a re-review, a short markdown list of your earlier findings saying which are now fixed and which are still open; null on a first review.
+- \`fixedThreads\`: the refs of your open inline findings that are now fixed, checked as "Re-reviews" says; an empty list on a first review or when none is fixed.
 
 ## Verdict
 

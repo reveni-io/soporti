@@ -21,6 +21,7 @@ import { loadStandards } from './standards.js'
 import { loadSpec } from './spec.js'
 import { renderInlineComment, renderReviewBody, renderWalkthrough } from './render.js'
 import { upsertWalkthrough } from './walkthrough.js'
+import { resolveFixedThreads, selectFixedThreads } from './fixed-threads.js'
 import { shortSha } from '../github/sanitize.js'
 import {
   PR_HEAD_PLACEHOLDER,
@@ -136,9 +137,11 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const notReviewed = findUnreviewedFiles(changedFiles, team.reviewedPaths)
     const placed = placeFindings(findings, files)
     const event = resolveEvent(team, notReviewed)
+    const fixedThreads = selectFixedThreads(team.overview, history)
     const review = {
       event,
       findings: placed,
+      fixedThreads,
       output: { overview: team.overview, findings },
       passes: team.passes,
       verification: verification.stats,
@@ -167,6 +170,11 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
         event,
       })
     }
+
+    await resolveFixedThreads(
+      { repoFullName, prNumber, headSha: reviewedSha, threads: fixedThreads },
+      { logger, signal }
+    )
 
     logger.log(`[review] Done ${dedupeKey}: ${event}, ${findings.length} finding(s)`)
   } catch (err) {

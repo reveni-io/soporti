@@ -50,6 +50,7 @@ function overviewOutput(overrides = {}) {
     reviewMinutes: 10,
     diagram: null,
     previousFindings: null,
+    fixedThreads: [],
     verdict: 'comment',
     ...overrides,
   }

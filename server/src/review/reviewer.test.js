@@ -9,6 +9,8 @@ const mockListIssueComments = vi.fn()
 const mockUpdateIssueComment = vi.fn()
 const mockCreateIssueReaction = vi.fn()
 const mockDeleteIssueReaction = vi.fn()
+const mockUpdateReviewComment = vi.fn()
+const mockResolveReviewThread = vi.fn()
 const mockRunReviewTeam = vi.fn()
 const mockAcquire = vi.fn()
 const mockRelease = vi.fn()
@@ -23,6 +25,8 @@ vi.mock('../github/client.js', () => ({
   updateIssueComment: mockUpdateIssueComment,
   createIssueReaction: mockCreateIssueReaction,
   deleteIssueReaction: mockDeleteIssueReaction,
+  updateReviewComment: mockUpdateReviewComment,
+  resolveReviewThread: mockResolveReviewThread,
 }))
 
 vi.mock('./team.js', () => ({
@@ -139,6 +143,7 @@ function overviewOutput(overrides = {}) {
     reviewMinutes: 10,
     diagram: null,
     previousFindings: null,
+    fixedThreads: [],
     verdict: 'comment',
     ...overrides,
   }
@@ -204,13 +209,16 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), rev
   mockCompareCommits.mockResolvedValue({ status: 'ahead', files: [], mergeBaseSha: 'merge000' })
   mockLoadReviewHistory.mockResolvedValue(null)
   mockLoadCiStatus.mockResolvedValue(null)
+  mockUpdateReviewComment.mockResolvedValue({})
+  mockResolveReviewThread.mockResolvedValue(undefined)
 }
 
-function reReviewHistory(changes = { status: 'incremental', files: [] }) {
+function reReviewHistory(changes = { status: 'incremental', files: [] }, openThreads = []) {
   return {
     lastReviewedSha: 'abc1234def',
     ownReviews: [],
     ownThreads: [],
+    openThreads,
     humanReviews: [],
     humanThreads: [],
     conversation: [],
@@ -914,6 +922,93 @@ describe('re-reviews', () => {
     expect(body).toContain('- **Commits:** `base000..deadbee`\n- **Trigger:** review request')
     expect(body).not.toContain('re-review')
     expect(body.endsWith('<sub>Automated review by Soporti</sub>')).toBe(true)
+  })
+})
+
+describe('fixed threads', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const OPEN_THREADS = [
+    { ref: 'T1', id: 'PRRT_one', commentId: '4224005529', body: '**🐛 Bug** | **🟠 Major**\n\n**Crashes on empty.**' },
+    { ref: 'T2', id: 'PRRT_two', commentId: '4224005530', body: '**🐛 Bug** | **🟡 Minor**\n\n**Wrong label.**' },
+  ]
+
+  function setupReReview({ fixedThreads, controller = null }) {
+    setupHappyPath()
+    mockLoadReviewHistory.mockResolvedValue(reReviewHistory(undefined, OPEN_THREADS))
+    mockRunReviewTeam.mockResolvedValue(reviewed({ fixedThreads }))
+    if (controller) {
+      mockCreatePullRequestReview.mockImplementation(async () => {
+        controller.abort()
+        return { id: 1 }
+      })
+    }
+  }
+
+  it('marks the own threads the overview found fixed as addressed and resolves them after posting the review', async () => {
+    setupReReview({ fixedThreads: ['T2'] })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockUpdateReviewComment).toHaveBeenCalledTimes(1)
+    expect(mockUpdateReviewComment).toHaveBeenCalledWith(
+      'acme-io/app',
+      '4224005530',
+      '**🐛 Bug** | **🟡 Minor**\n\n**Wrong label.**\n\n✅ Addressed in commit `deadbee`'
+    )
+    expect(mockResolveReviewThread).toHaveBeenCalledTimes(1)
+    expect(mockResolveReviewThread).toHaveBeenCalledWith('PRRT_two')
+    expect(postedReview().body).toContain('✅ Resolved 1 thread that is now fixed.')
+    expect(mockCreatePullRequestReview.mock.invocationCallOrder[0]).toBeLessThan(
+      mockUpdateReviewComment.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('ignores refs that are not open threads of the reviewer', async () => {
+    setupReReview({ fixedThreads: ['T9', 'H1'] })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockUpdateReviewComment).not.toHaveBeenCalled()
+    expect(mockResolveReviewThread).not.toHaveBeenCalled()
+    expect(postedReview().body).not.toContain('Resolved')
+  })
+
+  it('still posts the review and reports no failure when a thread cannot be resolved', async () => {
+    setupReReview({ fixedThreads: ['T1', 'T2'] })
+    mockResolveReviewThread.mockRejectedValueOnce(new Error('Resource not accessible by integration'))
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockResolveReviewThread).toHaveBeenCalledTimes(2)
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
+    expect(postedWalkthrough()).toBeDefined()
+    expect(silentLogger.error).not.toHaveBeenCalled()
+    expect(silentLogger.warn).toHaveBeenCalledWith(
+      '[review] Could not resolve the fixed thread T1 on acme-io/app#7 (Resource not accessible by integration)'
+    )
+  })
+
+  it('resolves nothing when the review cannot be posted', async () => {
+    setupReReview({ fixedThreads: ['T1'] })
+    mockCreatePullRequestReview.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 500 }))
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockUpdateReviewComment).not.toHaveBeenCalled()
+    expect(mockResolveReviewThread).not.toHaveBeenCalled()
+  })
+
+  it('resolves nothing when a newer request supersedes the review while it is posted', async () => {
+    const controller = new AbortController()
+    setupReReview({ fixedThreads: ['T1'], controller })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot', signal: controller.signal })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockUpdateReviewComment).not.toHaveBeenCalled()
+    expect(mockResolveReviewThread).not.toHaveBeenCalled()
   })
 })
 

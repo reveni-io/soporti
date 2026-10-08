@@ -46,6 +46,17 @@ describe('buildOverviewInstructions', () => {
     expect(instructions).toMatch(/say so in the walkthrough and point to the change behind it/)
   })
 
+  it('lists the refs of the open threads it found fixed only after reading the current code, and keeps the rest open', () => {
+    const reReviews = section(buildOverviewInstructions('acme-io/app'), 'Re-reviews')
+
+    expect(reReviews).toMatch(/Put in `fixedThreads` the refs of the ones whose problem no longer exists/)
+    expect(reReviews).toMatch(/read the current code at the thread's location with get_file_contents/)
+    expect(reReviews).toMatch(/An outdated thread only means the code moved/)
+    expect(reReviews).toMatch(/a reply saying it was fixed is not evidence/)
+    expect(reReviews).toMatch(/When you are unsure, leave the ref out: the thread stays open/)
+    expect(buildOverviewInstructions('acme-io/app')).toMatch(/`fixedThreads`: the refs of your open inline findings/)
+  })
+
   it('has no data tools to describe', () => {
     expect(buildOverviewInstructions('acme-io/app')).not.toMatch(/data tools/)
   })

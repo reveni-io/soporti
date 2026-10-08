@@ -9,6 +9,7 @@ const mockCreateComment = vi.fn()
 const mockUpdateComment = vi.fn()
 const mockListComments = vi.fn()
 const mockListReviewComments = vi.fn()
+const mockUpdateReviewComment = vi.fn()
 const mockCreateReplyForReviewComment = vi.fn()
 const mockCreateForIssue = vi.fn()
 const mockDeleteForIssue = vi.fn()
@@ -36,6 +37,7 @@ vi.mock('@octokit/rest', () => ({
         listFiles: mockListFiles,
         createReview: mockCreateReview,
         listReviewComments: mockListReviewComments,
+        updateReviewComment: mockUpdateReviewComment,
         listReviews: mockListReviews,
         createReplyForReviewComment: mockCreateReplyForReviewComment,
       }
@@ -69,6 +71,8 @@ const {
   listReviewComments,
   listPullRequestReviews,
   listReviewThreads,
+  updateReviewComment,
+  resolveReviewThread,
   compareCommits,
   listCheckRuns,
   listCommitStatuses,
@@ -321,6 +325,7 @@ describe('listReviewThreads', () => {
           reviewThreads: {
             nodes: [
               {
+                id: 'PRRT_a',
                 isResolved: true,
                 isOutdated: false,
                 path: 'src/a.js',
@@ -328,12 +333,13 @@ describe('listReviewThreads', () => {
                 originalLine: 10,
                 comments: {
                   nodes: [
-                    { author: { login: 'soporti-bot' }, body: '**[major]** bug' },
-                    { author: { login: 'dev' }, body: 'fixed' },
+                    { fullDatabaseId: '4224005529', author: { login: 'soporti-bot' }, body: '**[major]** bug' },
+                    { fullDatabaseId: '4224005530', author: { login: 'dev' }, body: 'fixed' },
                   ],
                 },
               },
               {
+                id: 'PRRT_b',
                 isResolved: false,
                 isOutdated: true,
                 path: 'src/b.js',
@@ -357,16 +363,24 @@ describe('listReviewThreads', () => {
     })
     expect(threads).toEqual([
       {
+        id: 'PRRT_a',
         isResolved: true,
         isOutdated: false,
         path: 'src/a.js',
         line: 12,
         comments: [
-          { author: 'soporti-bot', body: '**[major]** bug' },
-          { author: 'dev', body: 'fixed' },
+          { databaseId: '4224005529', author: 'soporti-bot', body: '**[major]** bug' },
+          { databaseId: '4224005530', author: 'dev', body: 'fixed' },
         ],
       },
-      { isResolved: false, isOutdated: true, path: 'src/b.js', line: 4, comments: [{ author: '', body: '' }] },
+      {
+        id: 'PRRT_b',
+        isResolved: false,
+        isOutdated: true,
+        path: 'src/b.js',
+        line: 4,
+        comments: [{ databaseId: null, author: '', body: '' }],
+      },
     ])
   })
 
@@ -374,6 +388,46 @@ describe('listReviewThreads', () => {
     mockGraphql.mockResolvedValue({ repository: null })
 
     expect(await listReviewThreads('acme-io/app', 7)).toEqual([])
+  })
+})
+
+describe('updateReviewComment', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('edits an inline review comment in place, by its 64-bit id', async () => {
+    mockUpdateReviewComment.mockResolvedValue({ data: { id: 4224005529, body: 'Edited finding' } })
+
+    const comment = await updateReviewComment('acme-io/app', '4224005529', 'Edited finding')
+
+    expect(comment).toEqual({ id: 4224005529, body: 'Edited finding' })
+    expect(mockUpdateReviewComment).toHaveBeenCalledTimes(1)
+    expect(mockUpdateReviewComment).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      comment_id: '4224005529',
+      body: 'Edited finding',
+    })
+  })
+})
+
+describe('resolveReviewThread', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('resolves a review thread by its node id', async () => {
+    mockGraphql.mockResolvedValue({ resolveReviewThread: { thread: { id: 'PRRT_a' } } })
+
+    await resolveReviewThread('PRRT_a')
+
+    expect(mockGraphql).toHaveBeenCalledTimes(1)
+    expect(mockGraphql).toHaveBeenCalledWith(expect.stringContaining('resolveReviewThread(input: { threadId'), {
+      threadId: 'PRRT_a',
+    })
+  })
+
+  it('surfaces a mutation failure to the caller', async () => {
+    mockGraphql.mockRejectedValue(new Error('Resource not accessible by integration'))
+
+    await expect(resolveReviewThread('PRRT_a')).rejects.toThrow('Resource not accessible by integration')
   })
 })
 

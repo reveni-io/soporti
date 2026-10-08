@@ -27,6 +27,7 @@ function output({ findings = [], ...overrides } = {}) {
       reviewMinutes: 15,
       diagram: null,
       previousFindings: null,
+      fixedThreads: [],
       verdict: 'comment',
       ...overrides,
     },
@@ -348,6 +349,25 @@ describe('renderReviewBody', () => {
     expect(body).toContain(
       '<details>\n<summary>♻️ Since the last review</summary>\n\n- Fixed: the negative total\n\n</details>'
     )
+  })
+
+  it('says how many earlier threads it resolved after what changed since the last review', () => {
+    const body = renderReviewBody(
+      review({
+        fixedThreads: [{ ref: 'T1' }, { ref: 'T3' }],
+        output: output({ previousFindings: '- Fixed: the negative total\n- Fixed: the missing await' }),
+      })
+    )
+
+    expect(body).toContain(
+      '<summary>♻️ Since the last review</summary>\n\n- Fixed: the negative total\n- Fixed: the missing await\n\n✅ Resolved 2 threads that are now fixed.\n\n</details>'
+    )
+  })
+
+  it('reports a single resolved thread even when the overview wrote nothing about earlier findings', () => {
+    const body = renderReviewBody(review({ fixedThreads: [{ ref: 'T1' }] }))
+
+    expect(body).toContain('<summary>♻️ Since the last review</summary>\n\n✅ Resolved 1 thread that is now fixed.\n')
   })
 
   it('aggregates every fix prompt for AI agents by section and file', () => {

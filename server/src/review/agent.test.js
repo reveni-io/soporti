@@ -118,6 +118,7 @@ function overview(overrides = {}) {
     reviewMinutes: 10,
     diagram: null,
     previousFindings: null,
+    fixedThreads: [],
     verdict: 'comment',
     ...overrides,
   }
@@ -163,6 +164,7 @@ describe('overviewOutputSchema', () => {
       verdict: 'approve',
       diagram: 'sequenceDiagram\n  A->>B: refund',
       previousFindings: '- Fixed',
+      fixedThreads: ['T1', 'T3'],
     })
 
     expect(overviewOutputSchema.parse(output)).toEqual(output)
@@ -175,6 +177,10 @@ describe('overviewOutputSchema', () => {
 
   it('rejects an unknown verdict', () => {
     expect(() => overviewOutputSchema.parse(overview({ verdict: 'request_changes' }))).toThrow()
+  })
+
+  it('requires the list of fixed threads', () => {
+    expect(() => overviewOutputSchema.parse(overview({ fixedThreads: undefined }))).toThrow()
   })
 })
 

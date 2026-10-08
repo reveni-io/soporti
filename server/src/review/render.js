@@ -73,6 +73,7 @@ export function renderInlineComment(finding) {
 export function renderReviewBody({
   event,
   findings,
+  fixedThreads = [],
   isInlineInBody = false,
   output,
   passes,
@@ -91,7 +92,7 @@ export function renderReviewBody({
     isInlineInBody && renderFindingsSection('💬 Actionable comments', inline, { open: true }),
     renderFindingsSection('⚠️ Outside diff range comments', outside, { open: outside.shown.some(isBlocking) }),
     renderFindingsSection('🧹 Nitpick comments', nits),
-    renderPreviousFindings(output.overview?.previousFindings),
+    renderPreviousFindings(output.overview?.previousFindings, fixedThreads.length),
     renderAllAgentPrompts([
       { title: inlineTitle, findings: inline.shown },
       { title: 'Outside diff range comments', findings: outside.shown },
@@ -255,10 +256,17 @@ function renderMore(total, shownCount) {
   return `…and ${total - shownCount} more`
 }
 
-function renderPreviousFindings(previousFindings) {
-  if (!previousFindings?.trim()) return null
+function renderPreviousFindings(previousFindings, resolvedCount) {
+  const content = [previousFindings?.trim(), describeResolvedThreads(resolvedCount)].filter(Boolean)
+  if (content.length === 0) return null
 
-  return renderDetails('♻️ Since the last review', previousFindings.trim())
+  return renderDetails('♻️ Since the last review', content.join(SECTION_SEPARATOR))
+}
+
+function describeResolvedThreads(count) {
+  if (count === 0) return null
+
+  return `✅ Resolved ${count} ${count === 1 ? 'thread that is' : 'threads that are'} now fixed.`
 }
 
 function renderAllAgentPrompts(groups) {

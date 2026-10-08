@@ -74,6 +74,7 @@ export const overviewOutputSchema = z.object({
   reviewMinutes: z.number().int(),
   diagram: z.string().nullable(),
   previousFindings: z.string().nullable(),
+  fixedThreads: z.array(z.string()),
   verdict: z.enum(['comment', 'approve']),
 })
 
