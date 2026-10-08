@@ -1,6 +1,5 @@
 import { listPullRequestReviews, listReviewThreads, listIssueComments, compareCommits } from '../github/client.js'
 import { shortSha } from '../github/sanitize.js'
-import { selectFilesWithinBudget } from './diff.js'
 
 const MAX_OWN_REVIEWS = 3
 const MAX_HUMAN_REVIEWS = 10
@@ -13,7 +12,7 @@ const ANCESTOR_STATUSES = new Set(['ahead', 'identical'])
 const BOT_SUFFIX = /\[bot\]$/i
 
 export async function loadReviewHistory(
-  { repoFullName, prNumber, headSha, reviewerLogin, files, diffBudget },
+  { repoFullName, prNumber, headSha, reviewerLogin, files },
   { logger = console }
 ) {
   const subject = `${repoFullName}#${prNumber}`
@@ -32,7 +31,7 @@ export async function loadReviewHistory(
 
     const history = buildHistory({ reviews, threads, comments, reviewerLogin })
     const changes = history.lastReviewedSha
-      ? await loadChangesSince({ repoFullName, baseSha: history.lastReviewedSha, headSha, files, diffBudget }, logger)
+      ? await loadChangesSince({ repoFullName, baseSha: history.lastReviewedSha, headSha, files }, logger)
       : null
 
     return { ...history, changes }
@@ -74,16 +73,15 @@ function buildHistory({ reviews, threads, comments, reviewerLogin }) {
   }
 }
 
-async function loadChangesSince({ repoFullName, baseSha, headSha, files, diffBudget }, logger) {
+async function loadChangesSince({ repoFullName, baseSha, headSha, files }, logger) {
   try {
     const comparison = await compareCommits(repoFullName, baseSha, headSha)
     if (!ANCESTOR_STATUSES.has(comparison.status)) return { status: 'diverged' }
 
     const prFilenames = new Set(files.map(file => file.filename))
     const changed = comparison.files.filter(file => prFilenames.has(file.filename))
-    const { included, omitted } = selectFilesWithinBudget(changed, diffBudget)
 
-    return { status: 'incremental', files: included, omitted: omitted.map(file => file.filename) }
+    return { status: 'incremental', files: changed }
   } catch (err) {
     logger.warn(`[review] Could not compare ${shortSha(baseSha)}...${shortSha(headSha)} (${err.message})`)
     return { status: 'unavailable' }

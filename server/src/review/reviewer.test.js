@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGetPullRequest = vi.fn()
 const mockListPullRequestFiles = vi.fn()
+const mockCompareCommits = vi.fn()
 const mockCreatePullRequestReview = vi.fn()
 const mockCreateIssueComment = vi.fn()
 const mockCreateIssueReaction = vi.fn()
@@ -13,6 +14,7 @@ const mockRelease = vi.fn()
 vi.mock('../github/client.js', () => ({
   getPullRequest: mockGetPullRequest,
   listPullRequestFiles: mockListPullRequestFiles,
+  compareCommits: mockCompareCommits,
   createPullRequestReview: mockCreatePullRequestReview,
   createIssueComment: mockCreateIssueComment,
   createIssueReaction: mockCreateIssueReaction,
@@ -49,14 +51,9 @@ vi.mock('../shortcut/client.js', () => ({
   getStory: (...args) => mockGetStory(...args),
 }))
 
-vi.mock('../config.js', () => ({
-  default: {
-    review: { maxChangedLines: 100 },
-  },
-}))
-
 const mockStat = vi.fn()
-vi.mock('node:fs/promises', () => ({ stat: mockStat }))
+const mockReadFile = vi.fn()
+vi.mock('node:fs/promises', () => ({ stat: mockStat, readFile: mockReadFile }))
 
 const { runReview } = await import('./reviewer.js')
 
@@ -95,14 +92,18 @@ function prData(overrides = {}) {
     draft: false,
     user: { login: 'dev' },
     head: { sha: 'deadbeef', ref: 'fix/totals' },
-    base: { ref: 'main' },
+    base: { ref: 'main', sha: 'base0001' },
     additions: 2,
     deletions: 1,
     ...overrides,
   }
 }
 
-function setupHappyPath({ verdict = 'comment', findings = [], pr = prData() } = {}) {
+function reviewed(output, reviewedPaths = ['src/checkout.js']) {
+  return { output, reviewedPaths: new Set(reviewedPaths) }
+}
+
+function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), reviewedPaths } = {}) {
   mockGetPullRequest.mockResolvedValue(pr)
   mockListPullRequestFiles.mockResolvedValue([
     { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
@@ -112,15 +113,17 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData() } = 
   mockFindFiles.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
   mockFindFilesAt.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
   mockShortcutConfigured.mockReturnValue(false)
-  mockRunReviewerAgent.mockResolvedValue({ summary: 'Looks reasonable.', verdict, findings })
+  mockRunReviewerAgent.mockResolvedValue(reviewed({ summary: 'Looks reasonable.', verdict, findings }, reviewedPaths))
   mockCreatePullRequestReview.mockResolvedValue({ id: 1 })
   mockCreateIssueReaction.mockResolvedValue({ id: 9001, content: 'eyes' })
   mockDeleteIssueReaction.mockResolvedValue(undefined)
   mockStat.mockRejectedValue(new Error('ENOENT'))
+  mockReadFile.mockRejectedValue(new Error('ENOENT'))
+  mockCompareCommits.mockResolvedValue({ status: 'ahead', files: [], mergeBaseSha: 'merge000' })
   mockLoadReviewHistory.mockResolvedValue(null)
 }
 
-function reReviewHistory(changes = { status: 'incremental', files: [], omitted: [] }) {
+function reReviewHistory(changes = { status: 'incremental', files: [] }) {
   return {
     lastReviewedSha: 'abc1234def',
     ownReviews: [],
@@ -208,16 +211,176 @@ describe('runReview', () => {
     expect(second.body).toContain('sumItems may throw')
   })
 
-  it('never approves when some changed files were left out of the review', async () => {
+  it('never approves when the reviewer did not read the diff of a changed source file', async () => {
     setupHappyPath({ verdict: 'approve', findings: [] })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
-      { filename: 'package-lock.json', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+      { filename: 'src/cart.js', status: 'modified', additions: 4, deletions: 0, patch: PATCH },
     ])
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('COMMENT')
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('COMMENT')
+    expect(review.body).toMatch(/^### 🔎 \*\*Partial review\*\*/)
+    expect(review.body).toContain('> ⚠️ Not reviewed (not opened by the reviewer): `src/cart.js`')
+    expect(review.body).not.toContain('`src/checkout.js`')
+  })
+
+  it('approves a PR whose only unread changes are generated files', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [] })
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'package-lock.json', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+      { filename: 'server/drizzle/meta/0007_snapshot.json', status: 'added', additions: 900, deletions: 0 },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('APPROVE')
+    expect(review.body).not.toMatch(/Partial review/)
+    expect(review.body).not.toMatch(/Not reviewed/)
+  })
+
+  it('reviews a PR over 4000 changed lines in full when the reviewer reads every diff', async () => {
+    const files = Array.from({ length: 6 }, (_, i) => ({
+      filename: `src/module-${i}.js`,
+      status: 'added',
+      additions: 1000,
+      deletions: 0,
+      patch: '@@ -0,0 +1,1000 @@\n+x',
+    }))
+    setupHappyPath({ verdict: 'approve', findings: [], reviewedPaths: files.map(file => file.filename) })
+    mockListPullRequestFiles.mockResolvedValue(files)
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockRunReviewerAgent).toHaveBeenCalledTimes(1)
+    expect(mockRunReviewerAgent.mock.calls[0][0].files.map(file => file.filename)).toEqual(
+      files.map(file => file.filename)
+    )
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('APPROVE')
+    expect(review.body).not.toMatch(/Partial review|Not reviewed/)
+  })
+
+  it('hands every changed file to the agent, flagged as generated or not', async () => {
+    setupHappyPath()
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'yarn.lock', status: 'modified', additions: 30, deletions: 2, patch: '@@ -1 +1 @@' },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockRunReviewerAgent.mock.calls[0][0].files).toEqual([
+      expect.objectContaining({ filename: 'src/checkout.js', generated: false, empty: false }),
+      expect.objectContaining({ filename: 'yarn.lock', generated: true, empty: false }),
+    ])
+  })
+
+  it('treats the linguist-generated paths of the checkout .gitattributes as generated', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [] })
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'api/schema.pb.go', status: 'modified', additions: 300, deletions: 120, patch: PATCH },
+    ])
+    mockReadFile.mockResolvedValue('*.pb.go linguist-generated=true\n')
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockReadFile).toHaveBeenCalledWith('/tmp/wt-pr-7/.gitattributes', 'utf-8')
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
+      expect.objectContaining({ filename: 'api/schema.pb.go', generated: true })
+    )
+    expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
+  })
+
+  it('anchors findings on any file with a patch, not only the ones that once fit a budget', async () => {
+    setupHappyPath({
+      findings: [{ path: 'src/cart.js', line: 11, severity: 'minor', axis: 'correctness', body: 'rename' }],
+      reviewedPaths: ['src/checkout.js', 'src/cart.js'],
+    })
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'src/cart.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].comments).toEqual([
+      expect.objectContaining({ path: 'src/cart.js', line: 11, side: 'RIGHT' }),
+    ])
+  })
+
+  it('resolves the merge base so the agent can diff patch-less files in the PR-head checkout', async () => {
+    setupHappyPath()
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'db/seed.sql', status: 'modified', additions: 9000, deletions: 0 },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCompareCommits).toHaveBeenCalledTimes(1)
+    expect(mockCompareCommits).toHaveBeenCalledWith('acme-io/app', 'base0001', 'deadbeef')
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ rootPath: '/tmp/wt-pr-7', diffBaseSha: 'merge000' })
+    )
+  })
+
+  it('compares against the base branch name when GitHub gives no base sha', async () => {
+    setupHappyPath({ pr: prData({ base: { ref: 'main' } }) })
+    mockListPullRequestFiles.mockResolvedValue([{ filename: 'db/seed.sql', status: 'modified', additions: 9000 }])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCompareCommits).toHaveBeenCalledWith('acme-io/app', 'main', 'deadbeef')
+  })
+
+  it('skips the merge base when every file has a patch', async () => {
+    setupHappyPath()
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCompareCommits).not.toHaveBeenCalled()
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ diffBaseSha: null }))
+  })
+
+  it('never diffs locally on a default-branch clone, so a patch-less file stays not reviewed', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [] })
+    mockAcquireWorktree.mockRejectedValue(new Error('fetch failed'))
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'db/seed.sql', status: 'modified', additions: 9000, deletions: 0 },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCompareCommits).not.toHaveBeenCalled()
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ rootPath: '/tmp/x', diffBaseSha: null })
+    )
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.event).toBe('COMMENT')
+    expect(review.body).toContain('Not reviewed (not opened by the reviewer): `db/seed.sql`')
+  })
+
+  it('still reviews without the local diff fallback when the merge base cannot be resolved', async () => {
+    setupHappyPath()
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'db/seed.sql', status: 'modified', additions: 9000, deletions: 0 },
+    ])
+    mockCompareCommits.mockRejectedValue(new Error('Not Found'))
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    await runReview(trigger(), { logger })
+
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ diffBaseSha: null }))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Not Found'))
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
   })
 
   it('only retries body-only on a 422; other errors surface as a failure comment', async () => {
@@ -304,7 +467,7 @@ describe('runReview', () => {
     )
   })
 
-  it('treats verified-empty files as reviewed: no omission, no partial verdict, APPROVE still possible', async () => {
+  it('treats verified-empty files as reviewed: no partial verdict, APPROVE still possible', async () => {
     setupHappyPath({ verdict: 'approve', findings: [] })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
@@ -315,11 +478,8 @@ describe('runReview', () => {
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockStat).toHaveBeenCalledWith('/tmp/wt-pr-7/apps/coverage/__init__.py')
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        omitted: [],
-        empty: [{ filename: 'apps/coverage/__init__.py', status: 'added' }],
-      })
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
+      expect.objectContaining({ filename: 'apps/coverage/__init__.py', empty: true })
     )
     const review = mockCreatePullRequestReview.mock.calls[0][2]
     expect(review.event).toBe('APPROVE')
@@ -327,7 +487,7 @@ describe('runReview', () => {
     expect(review.body).not.toMatch(/Not reviewed/)
   })
 
-  it('keeps a patch-less 0/0 file omitted when it cannot be verified empty (binary or stat failure)', async () => {
+  it('keeps a patch-less 0/0 file required when it cannot be verified empty (binary or stat failure)', async () => {
     setupHappyPath({ verdict: 'approve', findings: [] })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
@@ -337,15 +497,13 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        omitted: [{ filename: 'assets/logo.png', reason: 'no-patch' }],
-        empty: [],
-      })
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
+      expect.objectContaining({ filename: 'assets/logo.png', empty: false })
     )
     const review = mockCreatePullRequestReview.mock.calls[0][2]
     expect(review.event).toBe('COMMENT')
     expect(review.body).toMatch(/Partial review/)
+    expect(review.body).toContain('`assets/logo.png`')
   })
 
   it('never stats author-controlled paths that escape the checkout', async () => {
@@ -358,8 +516,8 @@ describe('runReview', () => {
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockStat).not.toHaveBeenCalled()
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ omitted: [{ filename: '../../../etc/passwd', reason: 'no-patch' }] })
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
+      expect.objectContaining({ filename: '../../../etc/passwd', empty: false })
     )
   })
 
@@ -554,19 +712,21 @@ describe('runReview', () => {
         },
       ],
     })
-    mockRunReviewerAgent.mockResolvedValue({
-      summary: 'Connects with postgres://app:s3cr3t@db.internal/soporti which leaks credentials.',
-      verdict: 'comment',
-      findings: [
-        {
-          path: 'src/checkout.js',
-          line: 11,
-          severity: 'major',
-          axis: 'correctness',
-          body: 'Hardcoded token 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 must move to env.',
-        },
-      ],
-    })
+    mockRunReviewerAgent.mockResolvedValue(
+      reviewed({
+        summary: 'Connects with postgres://app:s3cr3t@db.internal/soporti which leaks credentials.',
+        verdict: 'comment',
+        findings: [
+          {
+            path: 'src/checkout.js',
+            line: 11,
+            severity: 'major',
+            axis: 'correctness',
+            body: 'Hardcoded token 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 must move to env.',
+          },
+        ],
+      })
+    )
 
     await runReview(trigger(), { logger: silentLogger })
 
@@ -577,19 +737,17 @@ describe('runReview', () => {
     expect(review.comments[0].body).toContain('[redacted]')
   })
 
-  it('reports files left out of the review in the body', async () => {
+  it('reports a patch-less file the reviewer never opened in the body', async () => {
+    setupHappyPath()
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
-      { filename: 'package-lock.json', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+      { filename: 'db/seed.sql', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
     ])
-    mockAcquire.mockResolvedValue({ localPath: '/tmp/x', release: mockRelease })
-    mockRunReviewerAgent.mockResolvedValue({ summary: 'ok', verdict: 'comment', findings: [] })
-    mockCreatePullRequestReview.mockResolvedValue({ id: 1 })
 
     await runReview(trigger(), { logger: silentLogger })
 
     const { body } = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(body).toContain('package-lock.json')
+    expect(body).toContain('> ⚠️ Not reviewed (not opened by the reviewer): `db/seed.sql`')
   })
 })
 
@@ -611,7 +769,6 @@ describe('re-reviews', () => {
         headSha: 'newhead1',
         reviewerLogin: 'soporti-bot',
         files: [expect.objectContaining({ filename: 'src/checkout.js' })],
-        diffBudget: 97,
       },
       { logger: silentLogger }
     )
@@ -688,7 +845,7 @@ describe('superseded reviews', () => {
     const controller = new AbortController()
     mockRunReviewerAgent.mockImplementation(async () => {
       controller.abort()
-      return { summary: 'late', verdict: 'approve', findings: [] }
+      return reviewed({ summary: 'late', verdict: 'approve', findings: [] })
     })
 
     await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
@@ -776,7 +933,7 @@ describe('verdict header', () => {
     setupHappyPath({ verdict: 'comment', findings: [] })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
-      { filename: 'package-lock.json', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+      { filename: 'db/seed.sql', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
     ])
 
     await runReview(trigger(), { logger: silentLogger })
@@ -786,14 +943,14 @@ describe('verdict header', () => {
     expect(body()).not.toContain('LGTM')
   })
 
-  it('keeps "review needed" (not partial) but still flags omitted files when a blocking finding exists', async () => {
+  it('keeps "review needed" (not partial) but still flags unreviewed files when a blocking finding exists', async () => {
     setupHappyPath({
       verdict: 'comment',
       findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', axis: 'correctness', body: 'boom' }],
     })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
-      { filename: 'package-lock.json', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+      { filename: 'db/seed.sql', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
     ])
 
     await runReview(trigger(), { logger: silentLogger })

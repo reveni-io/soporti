@@ -31,6 +31,7 @@ const AUTOMATIONS = [
       'Request a review, add a label or just comment “@soporti review” on the PR — Soporti reviews the code with your changes actually applied, on three axes.',
     bullets: [
       'Correctness, standards (cites your CLAUDE.md & ADRs) and spec vs. the linked Shortcut story',
+      'Reads every changed file itself, so big PRs get a full review; lockfiles never block an approval',
       'Posts inline comments; can approve trivial PRs, never blocks',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
       'Keep the label on and every push gets re-reviewed — a burst of commits waits for the last one',

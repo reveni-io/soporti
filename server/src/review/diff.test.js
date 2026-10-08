@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { commentableLines, partitionFindings, selectFilesWithinBudget } from './diff.js'
+import {
+  commentableLines,
+  partitionFindings,
+  buildGeneratedMatcher,
+  classifyFiles,
+  findUnreviewedFiles,
+} from './diff.js'
 
 const PATCH = [
   '@@ -8,4 +10,5 @@ function checkout() {',
@@ -68,67 +74,122 @@ describe('partitionFindings', () => {
   })
 })
 
-describe('selectFilesWithinBudget', () => {
-  it('includes files until the changed-line budget is exhausted', () => {
+describe('buildGeneratedMatcher', () => {
+  it('flags lockfiles at any depth', () => {
+    const isGenerated = buildGeneratedMatcher()
+
+    for (const filename of [
+      'package-lock.json',
+      'client/package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml',
+      'api/poetry.lock',
+      'Pipfile.lock',
+      'Cargo.lock',
+      'go.sum',
+      'composer.lock',
+      'Gemfile.lock',
+    ]) {
+      expect(isGenerated(filename)).toBe(true)
+    }
+  })
+
+  it('flags minified bundles, source maps, snapshots and drizzle metadata', () => {
+    const isGenerated = buildGeneratedMatcher()
+
+    expect(isGenerated('public/vendor.min.js')).toBe(true)
+    expect(isGenerated('public/site.min.css')).toBe(true)
+    expect(isGenerated('dist/app.js.map')).toBe(true)
+    expect(isGenerated('src/__snapshots__/Button.test.jsx.snap')).toBe(true)
+    expect(isGenerated('__snapshots__/a.snap')).toBe(true)
+    expect(isGenerated('server/drizzle/meta/0007_snapshot.json')).toBe(true)
+  })
+
+  it('leaves source files, migrations and look-alike names alone', () => {
+    const isGenerated = buildGeneratedMatcher()
+
+    expect(isGenerated('src/checkout.js')).toBe(false)
+    expect(isGenerated('server/drizzle/0007_add_orders.sql')).toBe(false)
+    expect(isGenerated('package.json')).toBe(false)
+    expect(isGenerated('src/package-lock.json.js')).toBe(false)
+    expect(isGenerated('src/minjs.js')).toBe(false)
+    expect(isGenerated('docs/roadmap')).toBe(false)
+  })
+
+  it('adds the linguist-generated paths of .gitattributes', () => {
+    const isGenerated = buildGeneratedMatcher(
+      [
+        '# generated code',
+        '*.pb.go linguist-generated=true',
+        '/api/schema.graphql linguist-generated',
+        'src/gen/** linguist-generated',
+        'docs/*.md linguist-documentation',
+        '*.svg -linguist-generated',
+        '',
+      ].join('\n')
+    )
+
+    expect(isGenerated('proto/user.pb.go')).toBe(true)
+    expect(isGenerated('api/schema.graphql')).toBe(true)
+    expect(isGenerated('src/gen/client/index.ts')).toBe(true)
+    expect(isGenerated('nested/api/schema.graphql')).toBe(false)
+    expect(isGenerated('lib/src/gen/index.ts')).toBe(false)
+    expect(isGenerated('docs/readme.md')).toBe(false)
+    expect(isGenerated('logo.svg')).toBe(false)
+  })
+
+  it('treats regex characters in .gitattributes patterns literally', () => {
+    const isGenerated = buildGeneratedMatcher('src/(gen)+.js linguist-generated')
+
+    expect(isGenerated('src/(gen)+.js')).toBe(true)
+    expect(isGenerated('src/gengen.js')).toBe(false)
+  })
+})
+
+describe('classifyFiles', () => {
+  it('marks each changed file as generated and empty or not, skipping entries without a name', () => {
     const files = [
-      { filename: 'a.js', patch: 'x', additions: 30, deletions: 0 },
-      { filename: 'b.js', patch: 'x', additions: 50, deletions: 10 },
-      { filename: 'c.js', patch: 'x', additions: 40, deletions: 0 },
+      { filename: 'src/checkout.js', status: 'modified', patch: PATCH },
+      { filename: 'package-lock.json', status: 'modified' },
+      { filename: 'app/__init__.py', status: 'added' },
+      { status: 'modified' },
+      null,
     ]
-    const { included, omitted, usedLines } = selectFilesWithinBudget(files, 100)
-    expect(included.map(f => f.filename)).toEqual(['a.js', 'b.js'])
-    expect(omitted).toEqual([{ filename: 'c.js', reason: 'budget' }])
-    expect(usedLines).toBe(90)
-  })
 
-  it('always includes at least the first patchable file even over budget', () => {
-    const files = [{ filename: 'big.js', patch: 'x', additions: 5000, deletions: 0 }]
-    const { included, omitted } = selectFilesWithinBudget(files, 100)
-    expect(included.map(f => f.filename)).toEqual(['big.js'])
-    expect(omitted).toEqual([])
-  })
-
-  it('reports files without a patch as omitted', () => {
-    const { included, omitted, empty } = selectFilesWithinBudget(FILES, 1000)
-    expect(included.map(f => f.filename)).toEqual(['src/checkout.js'])
-    expect(omitted).toEqual([{ filename: 'assets/logo.png', reason: 'no-patch' }])
-    expect(empty).toEqual([])
-  })
-
-  it('routes verified-empty patch-less files to the empty bucket instead of omitting them', () => {
-    const files = [
-      { filename: 'src/checkout.js', patch: PATCH, additions: 2, deletions: 1 },
-      { filename: 'apps/coverage/__init__.py', additions: 0, deletions: 0, status: 'added' },
-      { filename: 'assets/logo.png', additions: 0, deletions: 0, status: 'added' },
-    ]
-    const { included, omitted, empty } = selectFilesWithinBudget(files, 1000, {
-      emptyFilenames: new Set(['apps/coverage/__init__.py']),
+    const classified = classifyFiles(files, {
+      emptyFilenames: new Set(['app/__init__.py']),
+      isGenerated: buildGeneratedMatcher(),
     })
-    expect(included.map(f => f.filename)).toEqual(['src/checkout.js'])
-    expect(empty).toEqual([{ filename: 'apps/coverage/__init__.py', status: 'added' }])
-    expect(omitted).toEqual([{ filename: 'assets/logo.png', reason: 'no-patch' }])
-  })
 
-  it('never treats a file with changed lines as empty, even when listed as verified empty', () => {
-    const files = [{ filename: 'huge.sql', additions: 900, deletions: 400 }]
-    const { omitted, empty } = selectFilesWithinBudget(files, 1000, {
-      emptyFilenames: new Set(['huge.sql']),
-    })
-    expect(empty).toEqual([])
-    expect(omitted).toEqual([{ filename: 'huge.sql', reason: 'no-patch' }])
-  })
-
-  it('keeps the budget strict after the first patchable file, even when earlier files had no patch', () => {
-    const files = [
-      { filename: 'binary.png', additions: 0, deletions: 0 },
-      { filename: 'huge.js', patch: 'x', additions: 5000, deletions: 0 },
-      { filename: 'small.js', patch: 'x', additions: 10, deletions: 0 },
-    ]
-    const { included, omitted } = selectFilesWithinBudget(files, 100)
-    expect(included.map(f => f.filename)).toEqual(['huge.js'])
-    expect(omitted).toEqual([
-      { filename: 'binary.png', reason: 'no-patch' },
-      { filename: 'small.js', reason: 'budget' },
+    expect(classified).toEqual([
+      { filename: 'src/checkout.js', status: 'modified', patch: PATCH, generated: false, empty: false },
+      { filename: 'package-lock.json', status: 'modified', generated: true, empty: false },
+      { filename: 'app/__init__.py', status: 'added', generated: false, empty: true },
     ])
+  })
+
+  it('returns an empty list when there are no files', () => {
+    expect(classifyFiles(undefined, { emptyFilenames: new Set(), isGenerated: () => false })).toEqual([])
+  })
+})
+
+describe('findUnreviewedFiles', () => {
+  const files = [
+    { filename: 'src/checkout.js', generated: false, empty: false },
+    { filename: 'src/cart.js', generated: false, empty: false },
+    { filename: 'package-lock.json', generated: true, empty: false },
+    { filename: 'app/__init__.py', generated: false, empty: true },
+  ]
+
+  it('reports every source file whose diff the reviewer did not read', () => {
+    expect(findUnreviewedFiles(files, new Set(['src/checkout.js']))).toEqual(['src/cart.js'])
+  })
+
+  it('never requires generated or verified-empty files', () => {
+    expect(findUnreviewedFiles(files, new Set(['src/checkout.js', 'src/cart.js']))).toEqual([])
+  })
+
+  it('reports every source file when nothing was read', () => {
+    expect(findUnreviewedFiles(files, new Set())).toEqual(['src/checkout.js', 'src/cart.js'])
   })
 })

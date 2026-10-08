@@ -25,7 +25,6 @@ function request(overrides = {}) {
     headSha: 'head9999',
     reviewerLogin: 'soporti-bot',
     files: PR_FILES,
-    diffBudget: 10,
     ...overrides,
   }
 }
@@ -171,14 +170,14 @@ describe('loadReviewHistory', () => {
     expect(history.conversation[0].body).toBe('c5')
   })
 
-  it('loads the changes since the last review, limited to the PR files and the diff budget', async () => {
+  it('loads every PR file changed since the last review with its patch, however large', async () => {
     setup({
       reviews: [review('soporti-bot', { commit_id: 'old1111' })],
       comparison: {
         status: 'ahead',
         files: [
           { filename: 'src/checkout.js', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' },
-          { filename: 'src/cart.js', additions: 20, deletions: 0, patch: '@@ -1 +1,20 @@' },
+          { filename: 'src/cart.js', additions: 6000, deletions: 0, patch: '@@ -1 +1,6000 @@' },
           { filename: 'merged-from-main.js', additions: 1, deletions: 0, patch: '@@' },
         ],
       },
@@ -186,11 +185,14 @@ describe('loadReviewHistory', () => {
 
     const history = await loadReviewHistory(request(), { logger: silentLogger })
 
+    expect(mockCompareCommits).toHaveBeenCalledTimes(1)
     expect(mockCompareCommits).toHaveBeenCalledWith('acme-io/app', 'old1111', 'head9999')
     expect(history.changes).toEqual({
       status: 'incremental',
-      files: [{ filename: 'src/checkout.js', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' }],
-      omitted: ['src/cart.js'],
+      files: [
+        { filename: 'src/checkout.js', additions: 2, deletions: 1, patch: '@@ -1 +1 @@' },
+        { filename: 'src/cart.js', additions: 6000, deletions: 0, patch: '@@ -1 +1,6000 @@' },
+      ],
     })
   })
 
@@ -202,7 +204,7 @@ describe('loadReviewHistory', () => {
 
     const history = await loadReviewHistory(request(), { logger: silentLogger })
 
-    expect(history.changes).toEqual({ status: 'incremental', files: [], omitted: [] })
+    expect(history.changes).toEqual({ status: 'incremental', files: [] })
   })
 
   it('reports a diverged history when the last reviewed commit is no longer an ancestor of the head', async () => {

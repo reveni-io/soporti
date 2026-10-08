@@ -1,18 +1,18 @@
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
-import config from '../config.js'
 import { findFiles, findFilesAt } from '../repo-pool/index.js'
 import { acquireWorkspace } from './workspace.js'
 import * as shortcut from '../shortcut/client.js'
 import {
   getPullRequest,
   listPullRequestFiles,
+  compareCommits,
   createPullRequestReview,
   createIssueComment,
   createIssueReaction,
   deleteIssueReaction,
 } from '../github/client.js'
-import { selectFilesWithinBudget, partitionFindings } from './diff.js'
+import { partitionFindings, buildGeneratedMatcher, classifyFiles, findUnreviewedFiles } from './diff.js'
 import { runReviewerAgent } from './agent.js'
 import { loadReviewHistory } from './history.js'
 import { redactSecrets } from './output-guard.js'
@@ -64,6 +64,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       headSha: pr.head?.sha ?? headSha,
       headRef: pr.head?.ref ?? '',
       baseRef: pr.base?.ref ?? trigger.baseRef,
+      baseSha: pr.base?.sha ?? null,
       title: pr.title ?? trigger.title,
       body: pr.body ?? '',
       draft: Boolean(pr.draft),
@@ -80,9 +81,10 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     workspace = await acquireWorkspace(repoFullName, prNumber, logger)
     const rootPath = workspace?.localPath ?? null
 
-    const [files, standardsFiles] = await Promise.all([
+    const [files, standardsFiles, gitattributes] = await Promise.all([
       listPullRequestFiles(repoFullName, prNumber),
       discoverStandardsFiles(repoFullName, rootPath, logger),
+      readGitattributes(rootPath),
     ])
 
     const latest = await getPullRequest(repoFullName, prNumber).catch(() => null)
@@ -92,41 +94,36 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     }
 
     const emptyFilenames = await findEmptyFiles(files, rootPath)
-    const { included, omitted, empty, usedLines } = selectFilesWithinBudget(files, config.review.maxChangedLines, {
-      emptyFilenames,
-    })
+    const changedFiles = classifyFiles(files, { emptyFilenames, isGenerated: buildGeneratedMatcher(gitattributes) })
 
     const storyId = (await shortcut.isConfigured()) ? extractStoryId(current) : null
     const history = await loadReviewHistory(
-      {
-        repoFullName,
-        prNumber,
-        headSha: reviewedSha,
-        reviewerLogin,
-        files,
-        diffBudget: config.review.maxChangedLines - usedLines,
-      },
+      { repoFullName, prNumber, headSha: reviewedSha, reviewerLogin, files },
       { logger }
+    )
+    const diffBaseSha = await resolveDiffBase(
+      { workspace, files: changedFiles, repoFullName, base: current.baseSha ?? current.baseRef, headSha: reviewedSha },
+      logger
     )
 
     signal?.throwIfAborted()
 
-    const output = await runReviewerAgent({
+    const { output, reviewedPaths } = await runReviewerAgent({
       trigger: { ...current, headSha: reviewedSha },
-      files: included,
-      omitted,
-      empty,
+      files: changedFiles,
       standardsFiles,
       storyId,
       history,
       rootPath,
+      diffBaseSha,
       signal,
     })
 
     signal?.throwIfAborted()
 
-    const { anchored, unanchored } = partitionFindings(output.findings, included)
-    const event = resolveEvent(output, omitted)
+    const notReviewed = findUnreviewedFiles(changedFiles, reviewedPaths)
+    const { anchored, unanchored } = partitionFindings(output.findings, files)
+    const event = resolveEvent(output, notReviewed)
     const comments = anchored.map(f => ({
       path: f.path,
       line: f.line,
@@ -137,7 +134,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     try {
       await createPullRequestReview(repoFullName, prNumber, {
         commitId: reviewedSha,
-        body: buildReviewBody({ output, leftoverFindings: unanchored, omitted, trigger: current, event, history }),
+        body: buildReviewBody({ output, leftoverFindings: unanchored, notReviewed, trigger: current, event, history }),
         event,
         comments,
       })
@@ -149,7 +146,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
         body: buildReviewBody({
           output,
           leftoverFindings: [...anchored, ...unanchored],
-          omitted,
+          notReviewed,
           trigger: current,
           event,
           history,
@@ -207,6 +204,35 @@ async function removeEyes(repoFullName, prNumber, reactionId, logger) {
   }
 }
 
+async function readGitattributes(rootPath) {
+  if (!rootPath) return ''
+
+  try {
+    return await readFile(path.join(rootPath, '.gitattributes'), 'utf-8')
+  } catch {
+    return ''
+  }
+}
+
+async function resolveDiffBase({ workspace, files, repoFullName, base, headSha }, logger) {
+  if (!workspace?.isPrHead) return null
+  if (!files.some(needsLocalDiff)) return null
+
+  try {
+    const { mergeBaseSha } = await compareCommits(repoFullName, base, headSha)
+    return mergeBaseSha
+  } catch (err) {
+    logger.warn(
+      `[review] Could not resolve the merge base of ${repoFullName}@${shortSha(headSha)} (${err.message}); files without a GitHub patch cannot be diffed`
+    )
+    return null
+  }
+}
+
+function needsLocalDiff(file) {
+  return typeof file.patch !== 'string' && !file.empty
+}
+
 async function findEmptyFiles(files, rootPath) {
   const empty = new Set()
   if (!rootPath) return empty
@@ -258,9 +284,9 @@ function extractStoryId({ headRef, title, body }) {
   return null
 }
 
-function resolveEvent(output, omitted = []) {
+function resolveEvent(output, notReviewed) {
   const hasBlocking = output.findings.some(f => f.severity === 'critical' || f.severity === 'major')
-  return output.verdict === 'approve' && !hasBlocking && omitted.length === 0 ? 'APPROVE' : 'COMMENT'
+  return output.verdict === 'approve' && !hasBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
 }
 
 function formatFinding(finding, { withLocation = true } = {}) {
@@ -269,7 +295,7 @@ function formatFinding(finding, { withLocation = true } = {}) {
   return `**[${finding.severity}${axis}]** ${location}${finding.body}`
 }
 
-function buildVerdictHeader({ event, findings, omitted }) {
+function buildVerdictHeader({ event, findings, notReviewed }) {
   const counts = { critical: 0, major: 0, minor: 0, nit: 0 }
   for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
   const rollup = ['critical', 'major', 'minor', 'nit']
@@ -277,14 +303,14 @@ function buildVerdictHeader({ event, findings, omitted }) {
     .map(severity => `${counts[severity]} ${severity}`)
     .join(' · ')
   const hasBlocking = counts.critical + counts.major > 0
-  const partial = omitted.length > 0
-  const notReviewed = ' · some files not reviewed (see below)'
+  const partial = notReviewed.length > 0
+  const notReviewedNote = ' · some files not reviewed (see below)'
 
   if (event === 'APPROVE') {
     return '### ✅ **Approved** — trivial change, safe to merge'
   }
   if (hasBlocking) {
-    return `### 🔎 **Review needed** — ${rollup} worth a look before merging${partial ? notReviewed : ''}`
+    return `### 🔎 **Review needed** — ${rollup} worth a look before merging${partial ? notReviewedNote : ''}`
   }
   if (partial) {
     const found = rollup ? `${rollup} found; ` : ''
@@ -296,18 +322,16 @@ function buildVerdictHeader({ event, findings, omitted }) {
   return '### 👍 **LGTM** — no blocking issues; a human approval is still needed to merge'
 }
 
-function buildReviewBody({ output, leftoverFindings, omitted, trigger, event, history }) {
-  const parts = [buildVerdictHeader({ event, findings: output.findings, omitted }), output.summary]
+function buildReviewBody({ output, leftoverFindings, notReviewed, trigger, event, history }) {
+  const parts = [buildVerdictHeader({ event, findings: output.findings, notReviewed }), output.summary]
 
   if (leftoverFindings.length > 0) {
     parts.push(`---\n\n**Findings**\n\n${leftoverFindings.map(f => `- ${formatFinding(f)}`).join('\n')}`)
   }
 
-  if (omitted.length > 0) {
-    const list = omitted.map(o => `\`${o.filename}\``).join(', ')
-    parts.push(
-      `> ⚠️ Not reviewed (${omitted.map(o => o.reason).includes('budget') ? 'diff budget' : 'no patch'}): ${list}`
-    )
+  if (notReviewed.length > 0) {
+    const list = notReviewed.map(filename => `\`${filename}\``).join(', ')
+    parts.push(`> ⚠️ Not reviewed (not opened by the reviewer): ${list}`)
   }
 
   const triggerLabel = TRIGGER_LABELS[trigger.kind] ?? DEFAULT_TRIGGER_LABEL

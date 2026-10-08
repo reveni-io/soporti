@@ -24,7 +24,6 @@ vi.mock('../config.js', () => ({
     review: {
       label: 'soporti-review',
       reviewerLogin: '',
-      maxChangedLines: 4000,
       concurrency: 1,
       reviewOnPush: true,
       pushDebounceMs: 1000,
