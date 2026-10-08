@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  commentableLines,
+  commentableRanges,
   partitionFindings,
   buildGeneratedMatcher,
   classifyFiles,
@@ -22,34 +22,44 @@ const FILES = [
   { filename: 'assets/logo.png', patch: undefined, additions: 0, deletions: 0 },
 ]
 
-describe('commentableLines', () => {
-  it('maps context and added lines to RIGHT-side line numbers', () => {
-    const lines = commentableLines(FILES)
-    expect([...lines.get('src/checkout.js')].sort((a, b) => a - b)).toEqual([10, 11, 12, 13])
+const MULTI_HUNK_PATCH = [
+  '@@ -1,2 +1,2 @@',
+  ' line one',
+  '-old two',
+  '+new two',
+  '@@ -10,2 +20,3 @@',
+  ' ctx',
+  '+added',
+  ' ctx2',
+].join('\n')
+
+describe('commentableRanges', () => {
+  it('maps each hunk to the RIGHT-side line range it covers', () => {
+    expect(commentableRanges(FILES).get('src/checkout.js')).toEqual([{ start: 10, end: 13 }])
+  })
+
+  it('keeps one range per hunk', () => {
+    const ranges = commentableRanges([{ filename: 'a.js', patch: MULTI_HUNK_PATCH }])
+
+    expect(ranges.get('a.js')).toEqual([
+      { start: 1, end: 2 },
+      { start: 20, end: 22 },
+    ])
   })
 
   it('skips files without a patch (binary or too large)', () => {
-    expect(commentableLines(FILES).has('assets/logo.png')).toBe(false)
+    expect(commentableRanges(FILES).has('assets/logo.png')).toBe(false)
   })
 
-  it('handles multiple hunks in one file', () => {
-    const multi = [
-      '@@ -1,2 +1,2 @@',
-      ' line one',
-      '-old two',
-      '+new two',
-      '@@ -10,2 +20,3 @@',
-      ' ctx',
-      '+added',
-      ' ctx2',
-    ].join('\n')
-    const lines = commentableLines([{ filename: 'a.js', patch: multi }])
-    expect([...lines.get('a.js')].sort((a, b) => a - b)).toEqual([1, 2, 20, 21, 22])
+  it('skips a hunk with no RIGHT-side lines, like a deleted file', () => {
+    const deleted = ['@@ -1,2 +0,0 @@', '-gone', '-also gone'].join('\n')
+
+    expect(commentableRanges([{ filename: 'old.js', patch: deleted }]).has('old.js')).toBe(false)
   })
 
   it('returns an empty map for empty input', () => {
-    expect(commentableLines([]).size).toBe(0)
-    expect(commentableLines(undefined).size).toBe(0)
+    expect(commentableRanges([]).size).toBe(0)
+    expect(commentableRanges(undefined).size).toBe(0)
   })
 })
 
@@ -128,7 +138,7 @@ describe('renderNumberedPatch', () => {
     const { anchored, unanchored } = partitionFindings(findings, FILES)
 
     expect(printed).toEqual([10, 11, 12, 13])
-    expect(anchored).toEqual(findings)
+    expect(anchored).toEqual(findings.map(finding => ({ ...finding, anchorStartLine: null })))
     expect(unanchored).toEqual([])
   })
 })
@@ -136,21 +146,59 @@ describe('renderNumberedPatch', () => {
 describe('partitionFindings', () => {
   it('separates findings on diff lines from the rest', () => {
     const findings = [
-      { path: 'src/checkout.js', line: 11, severity: 'high', body: 'sumItems can throw' },
-      { path: 'src/checkout.js', line: 500, severity: 'low', body: 'outside the diff' },
-      { path: 'src/other.js', line: 11, severity: 'low', body: 'file not in PR' },
-      { path: 'src/checkout.js', line: null, severity: 'low', body: 'no line at all' },
+      { path: 'src/checkout.js', line: 11, severity: 'major', body: 'sumItems can throw' },
+      { path: 'src/checkout.js', line: 500, severity: 'minor', body: 'outside the diff' },
+      { path: 'src/other.js', line: 11, severity: 'minor', body: 'file not in PR' },
+      { path: 'src/checkout.js', line: null, severity: 'minor', body: 'no line at all' },
     ]
 
     const { anchored, unanchored } = partitionFindings(findings, FILES)
-    expect(anchored).toEqual([findings[0]])
+
+    expect(anchored).toEqual([{ ...findings[0], anchorStartLine: null }])
     expect(unanchored).toEqual([findings[1], findings[2], findings[3]])
   })
 
+  it('anchors a multi-line range whose start and end share a hunk', () => {
+    const findings = [{ path: 'src/checkout.js', startLine: 10, line: 12, severity: 'major', body: 'range' }]
+
+    const { anchored } = partitionFindings(findings, FILES)
+
+    expect(anchored).toEqual([{ ...findings[0], anchorStartLine: 10 }])
+  })
+
+  it('falls back to a single line when the range starts in another hunk or outside the diff', () => {
+    const files = [{ filename: 'a.js', patch: MULTI_HUNK_PATCH }]
+    const findings = [
+      { path: 'a.js', startLine: 2, line: 21, severity: 'minor', body: 'spans two hunks' },
+      { path: 'a.js', startLine: 15, line: 21, severity: 'minor', body: 'starts before the hunk' },
+    ]
+
+    const { anchored, unanchored } = partitionFindings(findings, files)
+
+    expect(anchored.map(finding => [finding.line, finding.anchorStartLine])).toEqual([
+      [21, null],
+      [21, null],
+    ])
+    expect(unanchored).toEqual([])
+  })
+
+  it('treats a start line equal to or after the end line as a single line', () => {
+    const findings = [
+      { path: 'src/checkout.js', startLine: 12, line: 12, severity: 'minor', body: 'same line' },
+      { path: 'src/checkout.js', startLine: 13, line: 11, severity: 'minor', body: 'reversed' },
+    ]
+
+    const { anchored } = partitionFindings(findings, FILES)
+
+    expect(anchored.map(finding => finding.anchorStartLine)).toEqual([null, null])
+  })
+
   it('does not mutate its inputs', () => {
-    const findings = [{ path: 'src/checkout.js', line: 10, severity: 'low', body: 'ok' }]
+    const findings = [{ path: 'src/checkout.js', startLine: 10, line: 11, severity: 'minor', body: 'ok' }]
     const copy = structuredClone(findings)
+
     partitionFindings(findings, FILES)
+
     expect(findings).toEqual(copy)
   })
 })

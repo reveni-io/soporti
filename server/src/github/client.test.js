@@ -6,6 +6,7 @@ const mockPullsGet = vi.fn()
 const mockListFiles = vi.fn()
 const mockCreateReview = vi.fn()
 const mockCreateComment = vi.fn()
+const mockUpdateComment = vi.fn()
 const mockListComments = vi.fn()
 const mockListReviewComments = vi.fn()
 const mockCreateReplyForReviewComment = vi.fn()
@@ -38,7 +39,11 @@ vi.mock('@octokit/rest', () => ({
         listReviews: mockListReviews,
         createReplyForReviewComment: mockCreateReplyForReviewComment,
       }
-      this.issues = { createComment: mockCreateComment, listComments: mockListComments }
+      this.issues = {
+        createComment: mockCreateComment,
+        updateComment: mockUpdateComment,
+        listComments: mockListComments,
+      }
       this.reactions = {
         createForIssue: mockCreateForIssue,
         deleteForIssue: mockDeleteForIssue,
@@ -59,6 +64,7 @@ const {
   listPullRequestFiles,
   createPullRequestReview,
   createIssueComment,
+  updateIssueComment,
   listIssueComments,
   listReviewComments,
   listPullRequestReviews,
@@ -222,6 +228,25 @@ describe('createIssueComment', () => {
       repo: 'app',
       issue_number: 7,
       body: 'Could not complete the review.',
+    })
+  })
+})
+
+describe('updateIssueComment', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('edits an existing PR conversation comment in place', async () => {
+    mockUpdateComment.mockResolvedValue({ data: { id: 55, body: 'Updated walkthrough' } })
+
+    const comment = await updateIssueComment('acme-io/app', 55, 'Updated walkthrough')
+
+    expect(comment).toEqual({ id: 55, body: 'Updated walkthrough' })
+    expect(mockUpdateComment).toHaveBeenCalledTimes(1)
+    expect(mockUpdateComment).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      comment_id: 55,
+      body: 'Updated walkthrough',
     })
   })
 })

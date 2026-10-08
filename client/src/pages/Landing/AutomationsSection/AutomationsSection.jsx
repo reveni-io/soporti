@@ -32,7 +32,9 @@ const AUTOMATIONS = [
     bullets: [
       'Correctness, standards (cites your REVIEW.md, CLAUDE.md & ADRs) and spec vs. the linked Shortcut stories',
       'Starts with the whole diff, your standards and the stories already loaded, so nothing goes unread; lockfiles never block an approval',
-      'Posts inline comments; can approve trivial PRs, never blocks',
+      'One walkthrough per PR, updated in place: merge risk, review effort, changes and checks',
+      'Inline comments with severity badges, one-click suggestions and a prompt for your AI agent',
+      'Nits stay collapsed in the review; it can approve trivial PRs and never blocks',
       'Reads the head commit’s CI: ties a broken test to the line that broke it, never repeats the linter',
       'A second agent tries to refute every critical or major finding before it is posted',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',

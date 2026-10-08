@@ -5,6 +5,8 @@ const mockListPullRequestFiles = vi.fn()
 const mockCompareCommits = vi.fn()
 const mockCreatePullRequestReview = vi.fn()
 const mockCreateIssueComment = vi.fn()
+const mockListIssueComments = vi.fn()
+const mockUpdateIssueComment = vi.fn()
 const mockCreateIssueReaction = vi.fn()
 const mockDeleteIssueReaction = vi.fn()
 const mockRunReviewerAgent = vi.fn()
@@ -17,6 +19,8 @@ vi.mock('../github/client.js', () => ({
   compareCommits: mockCompareCommits,
   createPullRequestReview: mockCreatePullRequestReview,
   createIssueComment: mockCreateIssueComment,
+  listIssueComments: mockListIssueComments,
+  updateIssueComment: mockUpdateIssueComment,
   createIssueReaction: mockCreateIssueReaction,
   deleteIssueReaction: mockDeleteIssueReaction,
 }))
@@ -110,8 +114,49 @@ function prData(overrides = {}) {
   }
 }
 
+const WALKTHROUGH_MARKER = '<!-- soporti:walkthrough -->'
+
+function finding(overrides = {}) {
+  return {
+    path: 'src/checkout.js',
+    startLine: null,
+    line: 11,
+    severity: 'major',
+    category: 'bug',
+    title: 'sumItems throws on an empty cart.',
+    body: 'sumItems may throw on an empty cart',
+    suggestion: null,
+    fixPrompt: 'Return 0 from sumItems for an empty cart.',
+    ...overrides,
+  }
+}
+
+function reviewerOutput(overrides = {}) {
+  return {
+    walkthrough: 'Recomputes the checkout total from the cart items.',
+    changes: [{ label: 'Checkout', files: ['src/checkout.js'], summary: 'Sums the items.' }],
+    effort: 2,
+    reviewMinutes: 10,
+    diagram: null,
+    standards: 'Follows CLAUDE.md.',
+    spec: 'No spec available',
+    previousFindings: null,
+    verdict: 'comment',
+    findings: [],
+    ...overrides,
+  }
+}
+
 function reviewed(output, reviewedPaths = ['src/checkout.js']) {
-  return { output, reviewedPaths: new Set(reviewedPaths) }
+  return { output: reviewerOutput(output), reviewedPaths: new Set(reviewedPaths) }
+}
+
+function postedReview(call = 0) {
+  return mockCreatePullRequestReview.mock.calls[call][2]
+}
+
+function postedWalkthrough() {
+  return mockCreateIssueComment.mock.calls.find(([, , body]) => body.startsWith(WALKTHROUGH_MARKER))?.[2]
 }
 
 function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), reviewedPaths } = {}) {
@@ -124,9 +169,12 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), rev
   mockLoadStandards.mockResolvedValue({ documents: [], notInlined: [] })
   mockLoadSpec.mockResolvedValue({ configured: false, stories: [] })
   mockGitDiffAt.mockResolvedValue('@@ -0,0 +1 @@\n+local')
-  mockRunReviewerAgent.mockResolvedValue(reviewed({ summary: 'Looks reasonable.', verdict, findings }, reviewedPaths))
+  mockRunReviewerAgent.mockResolvedValue(reviewed({ verdict, findings }, reviewedPaths))
   mockVerifyFindings.mockImplementation(async proposed => proposed)
   mockCreatePullRequestReview.mockResolvedValue({ id: 1 })
+  mockCreateIssueComment.mockResolvedValue({ id: 50 })
+  mockListIssueComments.mockResolvedValue([])
+  mockUpdateIssueComment.mockResolvedValue({ id: 50 })
   mockCreateIssueReaction.mockResolvedValue({ id: 9001, content: 'eyes' })
   mockDeleteIssueReaction.mockResolvedValue(undefined)
   mockStat.mockRejectedValue(new Error('ENOENT'))
@@ -155,14 +203,8 @@ describe('runReview', () => {
     setupHappyPath({
       verdict: 'comment',
       findings: [
-        {
-          path: 'src/checkout.js',
-          line: 11,
-          severity: 'major',
-          axis: 'correctness',
-          body: 'sumItems may throw on empty cart',
-        },
-        { path: 'src/checkout.js', line: 500, severity: 'minor', axis: 'standards', body: 'outside the diff' },
+        finding(),
+        finding({ line: 500, severity: 'minor', category: 'standards', title: 'Adds a code comment.' }),
       ],
     })
 
@@ -175,17 +217,58 @@ describe('runReview', () => {
     expect(review.event).toBe('COMMENT')
     expect(review.commitId).toBe('deadbeef')
     expect(review.comments).toEqual([
-      expect.objectContaining({
+      {
         path: 'src/checkout.js',
         line: 11,
         side: 'RIGHT',
-        body: expect.stringContaining('sumItems may throw'),
-      }),
+        body: expect.stringMatching(
+          /^\*\*🐛 Bug\*\* \| \*\*🟠 Major\*\*\n\n\*\*sumItems throws on an empty cart\.\*\*/
+        ),
+      },
     ])
-    expect(review.body).toContain('Looks reasonable.')
-    expect(review.body).toContain('outside the diff')
-    expect(review.body).toContain('src/checkout.js')
-    expect(review.body).toContain('standards')
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 1** · 🟠 1 major · 🟡 1 minor')
+    expect(review.body).toContain('<summary>⚠️ Outside diff range comments (1)</summary>')
+    expect(review.body).toContain('`500`: **📏 Standards** | **🟡 Minor**\n\n**Adds a code comment.**')
+  })
+
+  it('anchors a multi-line finding to its range with a committable suggestion', async () => {
+    setupHappyPath({
+      findings: [
+        finding({ startLine: 10, line: 12, suggestion: 'const cart = getCart()\nconst total = sumItems(cart)' }),
+      ],
+    })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const [comment] = postedReview().comments
+    expect(comment).toEqual(
+      expect.objectContaining({ path: 'src/checkout.js', start_line: 10, start_side: 'RIGHT', line: 12, side: 'RIGHT' })
+    )
+    expect(comment.body).toContain('```suggestion\nconst cart = getCart()\nconst total = sumItems(cart)\n```')
+  })
+
+  it('falls back to a single-line comment with a proposed fix when the range leaves the hunk', async () => {
+    setupHappyPath({ findings: [finding({ startLine: 3, line: 12, suggestion: 'const total = 0' })] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const [comment] = postedReview().comments
+    expect(comment).toEqual(expect.objectContaining({ line: 12, side: 'RIGHT' }))
+    expect(comment).not.toHaveProperty('start_line')
+    expect(comment.body).toContain('<summary>🛠️ Proposed fix</summary>')
+    expect(comment.body).not.toContain('```suggestion')
+  })
+
+  it('never posts a nit inline, even on a commentable line', async () => {
+    setupHappyPath({ findings: [finding({ severity: 'nit', line: 12, title: 'Rename total.' })] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = postedReview()
+    expect(review.comments).toEqual([])
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 0**')
+    expect(review.body).toContain('<summary>🧹 Nitpick comments (1)</summary>')
+    expect(review.body).toContain('`12`: **🐛 Bug** | **🔵 Nit**\n\n**Rename total.**')
   })
 
   it('posts an APPROVE review when the agent approves without blocking findings', async () => {
@@ -197,21 +280,15 @@ describe('runReview', () => {
   })
 
   it('downgrades an approve to COMMENT when a critical or major finding exists', async () => {
-    setupHappyPath({
-      verdict: 'approve',
-      findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', body: 'bug' }],
-    })
+    setupHappyPath({ verdict: 'approve', findings: [finding()] })
 
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('COMMENT')
   })
 
-  it('falls back to a body-only review when GitHub rejects the inline comments', async () => {
-    setupHappyPath({
-      verdict: 'comment',
-      findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', body: 'sumItems may throw' }],
-    })
+  it('falls back to a body-only review that lists the actionable findings when GitHub rejects the inline comments', async () => {
+    setupHappyPath({ verdict: 'comment', findings: [finding()] })
     mockCreatePullRequestReview
       .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), { status: 422 }))
       .mockResolvedValueOnce({ id: 2 })
@@ -219,9 +296,12 @@ describe('runReview', () => {
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(2)
-    const second = mockCreatePullRequestReview.mock.calls[1][2]
+    const second = postedReview(1)
     expect(second.comments).toBeUndefined()
-    expect(second.body).toContain('sumItems may throw')
+    expect(second.body.split('\n')[0]).toBe('**Actionable comments posted: 1** · 🟠 1 major')
+    expect(second.body).toContain('<details open>\n<summary>💬 Actionable comments (1)</summary>')
+    expect(second.body).toContain('`11`: **🐛 Bug** | **🟠 Major**\n\n**sumItems throws on an empty cart.**')
+    expect(second.body).toContain('Actionable comments:\nIn @src/checkout.js:\n- At line 11: Return 0 from sumItems')
   })
 
   it('never approves when the reviewer did not read the diff of a changed source file', async () => {
@@ -233,11 +313,11 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('COMMENT')
-    expect(review.body).toMatch(/^### 🔎 \*\*Partial review\*\*/)
-    expect(review.body).toContain('> ⚠️ Not reviewed (not opened by the reviewer): `src/cart.js`')
-    expect(review.body).not.toContain('`src/checkout.js`')
+    expect(review.body).toContain('> ⚠️ **Partial review**: 1 file(s) were not reviewed')
+    expect(review.body).toContain('<summary>⚠️ Files not reviewed (1)</summary>\n\n- `src/cart.js`\n')
+    expect(review.body).toContain('<summary>📒 Files reviewed (1)</summary>\n\n- `src/checkout.js`\n')
   })
 
   it('approves a PR whose only unread changes are generated files', async () => {
@@ -250,10 +330,10 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('APPROVE')
-    expect(review.body).not.toMatch(/Partial review/)
-    expect(review.body).not.toMatch(/Not reviewed/)
+    expect(review.body).not.toMatch(/Partial review|Files not reviewed/)
+    expect(review.body).toContain('<summary>⏭️ Files skipped (2)</summary>')
   })
 
   it('reviews a PR over 4000 changed lines in full when the reviewer reads every diff', async () => {
@@ -273,9 +353,9 @@ describe('runReview', () => {
     expect(mockRunReviewerAgent.mock.calls[0][0].files.map(file => file.filename)).toEqual(
       files.map(file => file.filename)
     )
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('APPROVE')
-    expect(review.body).not.toMatch(/Partial review|Not reviewed/)
+    expect(review.body).not.toMatch(/Partial review|Files not reviewed/)
   })
 
   it('hands every changed file to the agent, flagged as generated or not', async () => {
@@ -312,7 +392,7 @@ describe('runReview', () => {
 
   it('anchors findings on any file with a patch, not only the ones that once fit a budget', async () => {
     setupHappyPath({
-      findings: [{ path: 'src/cart.js', line: 11, severity: 'minor', axis: 'correctness', body: 'rename' }],
+      findings: [finding({ path: 'src/cart.js', severity: 'minor' })],
       reviewedPaths: ['src/checkout.js', 'src/cart.js'],
     })
     mockListPullRequestFiles.mockResolvedValue([
@@ -345,7 +425,7 @@ describe('runReview', () => {
 
   it('loads the diff of a patch-less file from the PR-head checkout once, for the reviewer and the verifier', async () => {
     setupHappyPath({
-      findings: [{ path: 'db/seed.sql', line: 1, severity: 'major', axis: 'correctness', body: 'drops a table' }],
+      findings: [finding({ path: 'db/seed.sql', line: 1, title: 'Drops the orders table.', body: 'drops a table' })],
       reviewedPaths: ['src/checkout.js', 'db/seed.sql'],
     })
     mockListPullRequestFiles.mockResolvedValue([
@@ -366,9 +446,9 @@ describe('runReview', () => {
     expect(files[2]).toEqual(expect.objectContaining({ filename: 'yarn.lock', generated: true }))
     expect(files[2].patch).toBeUndefined()
     expect(mockVerifyFindings.mock.calls[0][1].files).toBe(files)
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.comments).toEqual([])
-    expect(review.body).toContain('drops a table')
+    expect(review.body).toContain('<summary>db/seed.sql (1)</summary><blockquote>\n\n`1`: **🐛 Bug** | **🟠 Major**')
   })
 
   it('leaves a file for get_file_diff when its local diff fails', async () => {
@@ -422,9 +502,9 @@ describe('runReview', () => {
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(
       expect.objectContaining({ rootPath: '/tmp/x', diffBaseSha: null })
     )
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('COMMENT')
-    expect(review.body).toContain('Not reviewed (not opened by the reviewer): `db/seed.sql`')
+    expect(review.body).toContain('<summary>⚠️ Files not reviewed (1)</summary>\n\n- `db/seed.sql`\n')
   })
 
   it('still reviews without the local diff fallback when the merge base cannot be resolved', async () => {
@@ -444,18 +524,15 @@ describe('runReview', () => {
   })
 
   it('only retries body-only on a 422; other errors surface as a failure comment', async () => {
-    setupHappyPath({
-      verdict: 'comment',
-      findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', body: 'sumItems may throw' }],
-    })
+    setupHappyPath({ verdict: 'comment', findings: [finding()] })
     mockCreatePullRequestReview.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 503 }))
-    mockCreateIssueComment.mockResolvedValue({ id: 3 })
 
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
-    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
-    expect(mockCreateIssueComment.mock.calls[0][2]).toMatch(/could not complete/i)
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(2)
+    expect(mockCreateIssueComment.mock.calls[0][2]).toContain(WALKTHROUGH_MARKER)
+    expect(mockCreateIssueComment.mock.calls[1][2]).toMatch(/could not complete/i)
   })
 
   it('anchors the review to the freshest head when a push lands during file fetch', async () => {
@@ -517,10 +594,10 @@ describe('runReview', () => {
     expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
       expect.objectContaining({ filename: 'apps/coverage/__init__.py', empty: true })
     )
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('APPROVE')
-    expect(review.body).not.toMatch(/Partial review/)
-    expect(review.body).not.toMatch(/Not reviewed/)
+    expect(review.body).not.toMatch(/Partial review|Files not reviewed/)
+    expect(review.body).toContain('- `apps/coverage/__init__.py` (empty)')
   })
 
   it('keeps a patch-less 0/0 file required when it cannot be verified empty (binary or stat failure)', async () => {
@@ -536,10 +613,10 @@ describe('runReview', () => {
     expect(mockRunReviewerAgent.mock.calls[0][0].files[1]).toEqual(
       expect.objectContaining({ filename: 'assets/logo.png', empty: false })
     )
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('COMMENT')
     expect(review.body).toMatch(/Partial review/)
-    expect(review.body).toContain('`assets/logo.png`')
+    expect(review.body).toContain('<summary>⚠️ Files not reviewed (1)</summary>\n\n- `assets/logo.png`\n')
   })
 
   it('never stats author-controlled paths that escape the checkout', async () => {
@@ -713,38 +790,23 @@ describe('runReview', () => {
     expect(mockWorktreeRelease).toHaveBeenCalledTimes(1)
   })
 
-  it('redacts credentials from the review body and inline comments before posting', async () => {
-    setupHappyPath({
-      verdict: 'comment',
-      findings: [
-        {
-          path: 'src/checkout.js',
-          line: 11,
-          severity: 'major',
-          axis: 'correctness',
-          body: 'Hardcoded token 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 must move to env.',
-        },
-      ],
-    })
+  it('redacts credentials from the walkthrough, the review body and the inline comments before posting', async () => {
+    setupHappyPath()
     mockRunReviewerAgent.mockResolvedValue(
       reviewed({
-        summary: 'Connects with postgres://app:s3cr3t@db.internal/soporti which leaks credentials.',
-        verdict: 'comment',
+        walkthrough: 'Connects with postgres://app:s3cr3t@db.internal/soporti which leaks credentials.',
         findings: [
-          {
-            path: 'src/checkout.js',
-            line: 11,
-            severity: 'major',
-            axis: 'correctness',
-            body: 'Hardcoded token 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 must move to env.',
-          },
+          finding({ body: 'Hardcoded token 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 must move to env.' }),
+          finding({ line: null, severity: 'minor', body: 'Also in postgres://app:s3cr3t@db.internal/soporti.' }),
         ],
       })
     )
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
+    expect(postedWalkthrough()).not.toContain('s3cr3t')
+    expect(postedWalkthrough()).toContain('postgres://[redacted]@db.internal/soporti')
     expect(review.body).not.toContain('s3cr3t')
     expect(review.body).toContain('postgres://[redacted]@db.internal/soporti')
     expect(review.comments[0].body).not.toContain('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')
@@ -760,8 +822,8 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const { body } = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(body).toContain('> ⚠️ Not reviewed (not opened by the reviewer): `db/seed.sql`')
+    const { body } = postedReview()
+    expect(body).toContain('<summary>⚠️ Files not reviewed (1)</summary>\n\n- `db/seed.sql`\n')
   })
 })
 
@@ -789,30 +851,38 @@ describe('re-reviews', () => {
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ history }))
   })
 
-  it('says in the footer that it re-reviewed the changes since the previous review', async () => {
+  it('says in the review info that it re-reviewed the changes since the previous review', async () => {
     setupHappyPath()
     mockLoadReviewHistory.mockResolvedValue(reReviewHistory())
 
     await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
-    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
-      '_Automated review by Soporti · trigger: review request · re-review since `abc1234`._'
-    )
+    expect(postedReview().body).toContain('- **Commits:** `base000..deadbee` (re-review since `abc1234`)')
   })
 
-  it('says in the footer that it re-reviewed the full diff after a force-push', async () => {
+  it('says in the review info that it re-reviewed the full diff after a force-push', async () => {
     setupHappyPath()
     mockLoadReviewHistory.mockResolvedValue(reReviewHistory({ status: 'diverged' }))
 
     await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
-    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
-      'trigger: review request · re-review of the full diff._'
+    expect(postedReview().body).toContain('- **Commits:** `base000..deadbee` (re-review of the full diff)')
+  })
+
+  it('collapses what changed since the last review', async () => {
+    setupHappyPath()
+    mockLoadReviewHistory.mockResolvedValue(reReviewHistory())
+    mockRunReviewerAgent.mockResolvedValue(reviewed({ previousFindings: '- Fixed: the empty cart crash' }))
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(postedReview().body).toContain(
+      '<summary>♻️ Since the last review</summary>\n\n- Fixed: the empty cart crash\n'
     )
   })
 
-  it('keeps the re-review footer on the body-only fallback', async () => {
-    setupHappyPath({ findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', body: 'bug' }] })
+  it('keeps the re-review info on the body-only fallback', async () => {
+    setupHappyPath({ findings: [finding()] })
     mockLoadReviewHistory.mockResolvedValue(reReviewHistory())
     mockCreatePullRequestReview
       .mockRejectedValueOnce(Object.assign(new Error('Validation Failed'), { status: 422 }))
@@ -821,17 +891,18 @@ describe('re-reviews', () => {
     await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(2)
-    expect(mockCreatePullRequestReview.mock.calls[1][2].body).toContain('re-review since `abc1234`')
+    expect(postedReview(1).body).toContain('re-review since `abc1234`')
   })
 
-  it('posts a first-time footer when there is no previous review', async () => {
+  it('reports a first review in the review info and ends with the footer', async () => {
     setupHappyPath()
 
     await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
-    const { body } = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(body).toContain('_Automated review by Soporti · trigger: review request._')
+    const { body } = postedReview()
+    expect(body).toContain('- **Commits:** `base000..deadbee`\n- **Trigger:** review request')
     expect(body).not.toContain('re-review')
+    expect(body.endsWith('<sub>Automated review by Soporti</sub>')).toBe(true)
   })
 })
 
@@ -855,6 +926,7 @@ describe('CI status', () => {
     )
     expect(mockRunReviewerAgent).toHaveBeenCalledTimes(1)
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus }))
+    expect(postedWalkthrough()).toContain('| CI | ❌ Failed | 1 failed: lint |')
   })
 
   it('reviews without waiting while CI is still running', async () => {
@@ -879,21 +951,16 @@ describe('CI status', () => {
 
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus: null }))
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
-    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
+    expect(postedWalkthrough()).toContain('| CI | ➖ Skipped | The CI status could not be loaded |')
   })
 })
 
 describe('finding verification', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  const MAJOR = {
-    path: 'src/checkout.js',
-    line: 11,
-    severity: 'major',
-    axis: 'correctness',
-    body: 'sumItems may throw',
-  }
-  const MINOR = { path: 'src/checkout.js', line: 12, severity: 'minor', axis: 'standards', body: 'rename total' }
+  const MAJOR = finding()
+  const MINOR = finding({ line: 12, severity: 'minor', category: 'standards', title: 'Rename total.' })
 
   it('verifies the proposed findings against the reviewed checkout before posting', async () => {
     setupHappyPath({ findings: [MAJOR, MINOR] })
@@ -918,21 +985,27 @@ describe('finding verification', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(review.comments).toEqual([expect.objectContaining({ line: 12, body: expect.stringContaining('rename') })])
-    expect(review.body).not.toContain('sumItems may throw')
-    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
+    const review = postedReview()
+    expect(review.comments).toEqual([
+      expect.objectContaining({ line: 12, body: expect.stringContaining('Rename total.') }),
+    ])
+    expect(review.body).not.toContain('sumItems throws on an empty cart.')
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 1** · 🟡 1 minor')
+    expect(postedWalkthrough()).toContain('**Merge risk:** 🟢 Low · no blocking issues found')
   })
 
-  it('posts a downgraded finding with its new severity in the comment and the verdict header', async () => {
+  it('posts a downgraded finding with its new severity in the comment, the header and the merge risk', async () => {
     setupHappyPath({ findings: [MAJOR] })
     mockVerifyFindings.mockResolvedValue([{ ...MAJOR, severity: 'minor' }])
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
-    expect(review.comments[0].body).toBe('**[minor]** sumItems may throw')
-    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
+    const review = postedReview()
+    expect(
+      review.comments[0].body.startsWith('**🐛 Bug** | **🟡 Minor**\n\n**sumItems throws on an empty cart.**')
+    ).toBe(true)
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 1** · 🟡 1 minor')
+    expect(postedWalkthrough()).toContain('**Merge risk:** 🟢 Low · no blocking issues found')
   })
 
   it('never approves once the reviewer proposed a blocking finding, even when verification refuted it', async () => {
@@ -941,10 +1014,10 @@ describe('finding verification', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('COMMENT')
     expect(review.comments).toEqual([])
-    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — no blocking issues/)
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 0**')
   })
 
   it('never approves when verification downgraded every blocking finding, but posts the lower severities', async () => {
@@ -956,13 +1029,11 @@ describe('finding verification', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    const review = postedReview()
     expect(review.event).toBe('COMMENT')
-    expect(review.comments.map(comment => comment.body)).toEqual([
-      '**[minor]** sumItems may throw',
-      '**[nit]** sumItems may throw',
-    ])
-    expect(review.body).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor · 1 nit/)
+    expect(review.comments).toEqual([expect.objectContaining({ line: 11, body: expect.stringContaining('🟡 Minor') })])
+    expect(review.body.split('\n')[0]).toBe('**Actionable comments posted: 1** · 🟡 1 minor')
+    expect(review.body).toContain('<summary>🧹 Nitpick comments (1)</summary>')
   })
 
   it('still approves an approved review whose findings were only minor or nit', async () => {
@@ -1027,7 +1098,7 @@ describe('superseded reviews', () => {
     const controller = new AbortController()
     mockRunReviewerAgent.mockImplementation(async () => {
       controller.abort()
-      return reviewed({ summary: 'late', verdict: 'approve', findings: [] })
+      return reviewed({ verdict: 'approve', findings: [] })
     })
 
     await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
@@ -1062,56 +1133,47 @@ describe('superseded reviews', () => {
   })
 })
 
-describe('verdict header', () => {
+describe('review body header', () => {
   beforeEach(() => vi.clearAllMocks())
 
   function body() {
-    return mockCreatePullRequestReview.mock.calls[0][2].body
+    return postedReview().body
   }
 
-  it('leads an approved review with a clear approval line', async () => {
+  it('leads an approved review with the approval line', async () => {
     setupHappyPath({ verdict: 'approve', findings: [] })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(body()).toMatch(/^### ✅ \*\*Approved\*\*/)
+    expect(body().split('\n')[0]).toBe('✅ **Approved**: trivial change, safe to merge')
   })
 
-  it('leads a clean comment review with LGTM and the human-approval reminder', async () => {
+  it('leads a clean comment review with no actionable comments', async () => {
     setupHappyPath({ verdict: 'comment', findings: [] })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(body()).toMatch(/^### 👍 \*\*LGTM\*\*/)
-    expect(body()).toContain('human approval is still needed')
+    expect(body().split('\n')[0]).toBe('**Actionable comments posted: 0**')
+    expect(body()).not.toMatch(/Partial review|Outside diff range|Nitpick/)
   })
 
-  it('leads with "review needed" and a severity rollup when there is a blocking finding', async () => {
+  it('rolls up the severities of the actionable findings', async () => {
     setupHappyPath({
       verdict: 'comment',
       findings: [
-        { path: 'src/checkout.js', line: 11, severity: 'major', axis: 'correctness', body: 'sumItems may throw' },
-        { path: 'src/checkout.js', line: 11, severity: 'minor', axis: 'correctness', body: 'rename' },
+        finding({ severity: 'critical' }),
+        finding({ severity: 'minor', line: 12 }),
+        finding({ severity: 'minor', line: null }),
+        finding({ severity: 'nit', line: 13 }),
       ],
     })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(body()).toMatch(/^### 🔎 \*\*Review needed\*\* — 1 major · 1 minor/)
+    expect(body().split('\n')[0]).toBe('**Actionable comments posted: 2** · 🔴 1 critical · 🟡 2 minor')
   })
 
-  it('stays at LGTM (not "review needed") when findings are only minor or nit', async () => {
-    setupHappyPath({
-      verdict: 'comment',
-      findings: [{ path: 'src/checkout.js', line: 11, severity: 'minor', axis: 'standards', body: 'rename' }],
-    })
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(body()).toMatch(/^### 👍 \*\*LGTM\*\* — only 1 minor/)
-  })
-
-  it('never dresses an incomplete review as LGTM, even with no findings', async () => {
+  it('never hides an incomplete review, even with no findings', async () => {
     setupHappyPath({ verdict: 'comment', findings: [] })
     mockListPullRequestFiles.mockResolvedValue([
       { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
@@ -1120,25 +1182,11 @@ describe('verdict header', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(body()).toMatch(/^### 🔎 \*\*Partial review\*\*/)
-    expect(body()).toContain('some files not reviewed')
-    expect(body()).not.toContain('LGTM')
-  })
-
-  it('keeps "review needed" (not partial) but still flags unreviewed files when a blocking finding exists', async () => {
-    setupHappyPath({
-      verdict: 'comment',
-      findings: [{ path: 'src/checkout.js', line: 11, severity: 'major', axis: 'correctness', body: 'boom' }],
-    })
-    mockListPullRequestFiles.mockResolvedValue([
-      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
-      { filename: 'db/seed.sql', status: 'modified', additions: 5000, deletions: 4000, patch: undefined },
+    expect(body().split('\n\n').slice(0, 2)).toEqual([
+      '**Actionable comments posted: 0**',
+      '> ⚠️ **Partial review**: 1 file(s) were not reviewed (listed under Review info). A human needs to check them.',
     ])
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(body()).toMatch(/^### 🔎 \*\*Review needed\*\* — 1 major/)
-    expect(body()).toContain('some files not reviewed')
+    expect(postedWalkthrough()).toContain('**Merge risk:** ⚪ Unknown · 1 file(s) not reviewed')
   })
 
   it('reviews the current head and reports the mention trigger for a review command', async () => {
@@ -1158,28 +1206,120 @@ describe('verdict header', () => {
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
     const [repo, prNumber, review] = mockCreatePullRequestReview.mock.calls[0]
     expect([repo, prNumber, review.commitId]).toEqual(['acme-io/app', 7, 'cafe1234'])
-    expect(review.body).toContain('_Automated review by Soporti · trigger: mention._')
+    expect(review.body).toContain('- **Trigger:** mention')
     expect(logger.log).not.toHaveBeenCalledWith(expect.stringContaining('Head moved'))
   })
 
-  it('reports the label trigger in the footer', async () => {
+  it('reports the label trigger in the review info', async () => {
     setupHappyPath()
 
     await runReview({ ...trigger(), kind: 'labeled' }, { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
-    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
-      '_Automated review by Soporti · trigger: label._'
-    )
+    expect(body()).toContain('- **Trigger:** label')
   })
 
-  it('reports the push trigger in the footer of a re-review started by a push', async () => {
+  it('reports the push trigger in the review info of a re-review started by a push', async () => {
     setupHappyPath()
 
     await runReview({ ...trigger(), kind: 'synchronize' }, { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
     expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
-    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
-      '_Automated review by Soporti · trigger: push._'
+    expect(body()).toContain('- **Trigger:** push')
+  })
+
+  it('reports the standards documents and the stories it applied', async () => {
+    setupHappyPath()
+    mockLoadStandards.mockResolvedValue({
+      documents: [{ path: 'REVIEW.md', modified: false, content: 'Flag N+1 queries.', truncated: false }],
+      notInlined: [{ path: 'docs/adr/0001-x.md', modified: false }],
+    })
+    mockLoadSpec.mockResolvedValue({
+      configured: true,
+      stories: [
+        { id: 1234, story: null },
+        { id: 1235, story: null },
+      ],
+    })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(body()).toContain('- **Standards:** `REVIEW.md`, `docs/adr/0001-x.md`\n- **Spec:** sc-1234, sc-1235')
+    expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | No spec available |')
+  })
+
+  it('reports no spec when Shortcut is not configured, even with story references', async () => {
+    setupHappyPath()
+    mockLoadSpec.mockResolvedValue({ configured: false, stories: [{ id: 1234, story: null }] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(body()).toContain('- **Standards:** none found\n- **Spec:** none')
+    expect(postedWalkthrough()).toContain('| Spec | ➖ Skipped | No spec available |')
+  })
+})
+
+describe('walkthrough comment', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('posts the walkthrough before the review', async () => {
+    setupHappyPath({ findings: [finding({ severity: 'critical', title: 'Charges the wrong customer.' })] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
+    const [repo, prNumber, walkthrough] = mockCreateIssueComment.mock.calls[0]
+    expect([repo, prNumber]).toEqual(['acme-io/app', 7])
+    expect(walkthrough).toMatch(/^<!-- soporti:walkthrough -->\n## 📝 Walkthrough\n\nRecomputes the checkout total/)
+    expect(walkthrough).toContain('**Merge risk:** 🔴 High · Charges the wrong customer.')
+    expect(walkthrough).toContain('Last reviewed commit: `deadbee`')
+    expect(mockCreateIssueComment.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCreatePullRequestReview.mock.invocationCallOrder[0]
     )
+  })
+
+  it('edits its own walkthrough on a re-review instead of posting another one', async () => {
+    setupHappyPath()
+    mockListIssueComments.mockResolvedValue([
+      { id: 77, user: { login: 'soporti-bot' }, body: `${WALKTHROUGH_MARKER}\n## 📝 Walkthrough\n\nOld.` },
+    ])
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockUpdateIssueComment).toHaveBeenCalledTimes(1)
+    expect(mockUpdateIssueComment).toHaveBeenCalledWith(
+      'acme-io/app',
+      77,
+      expect.stringContaining('comment `@soporti-bot review` to request a new one')
+    )
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('still posts the review when the walkthrough cannot be posted', async () => {
+    setupHappyPath()
+    mockCreateIssueComment.mockRejectedValue(new Error('Forbidden'))
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    await runReview(trigger(), { logger })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[review] Could not post the walkthrough on acme-io/app#7 (Forbidden); posting the review anyway'
+    )
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('posts no review when a newer request supersedes the run while the walkthrough is posted', async () => {
+    setupHappyPath()
+    const controller = new AbortController()
+    mockCreateIssueComment.mockImplementation(async () => {
+      controller.abort()
+      return { id: 50 }
+    })
+
+    await runReview(trigger(), { logger: silentLogger, signal: controller.signal })
+
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
   })
 })

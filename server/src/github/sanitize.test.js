@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRepo, sanitizePath, shortSha, BLOCKED_PATHS } from './sanitize.js'
+import { parseRepo, sanitizePath, shortSha, isSameLogin, BLOCKED_PATHS } from './sanitize.js'
 
 describe('parseRepo', () => {
   it('parses valid owner/repo format', () => {
@@ -102,5 +102,17 @@ describe('shortSha', () => {
 
   it('returns an empty string when there is no sha', () => {
     expect(shortSha(null)).toBe('')
+  })
+})
+
+describe('isSameLogin', () => {
+  it('matches logins regardless of case and of the [bot] suffix of GitHub App accounts', () => {
+    expect(isSameLogin('Soporti-Bot[bot]', 'soporti-bot')).toBe(true)
+    expect(isSameLogin('soporti-bot', 'SOPORTI-BOT')).toBe(true)
+  })
+
+  it('tells different logins apart, including a missing one', () => {
+    expect(isSameLogin('soporti-bot', 'dev')).toBe(false)
+    expect(isSameLogin(undefined, 'soporti-bot')).toBe(false)
   })
 })

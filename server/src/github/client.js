@@ -100,6 +100,13 @@ export async function createIssueComment(repoFullName, issueNumber, body) {
   return data
 }
 
+export async function updateIssueComment(repoFullName, commentId, body) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.issues.updateComment({ owner, repo, comment_id: commentId, body })
+  return data
+}
+
 export async function listIssueComments(repoFullName, issueNumber) {
   const octokit = await getOctokit()
   const { owner, repo } = parseRepo(repoFullName)

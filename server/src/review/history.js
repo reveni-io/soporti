@@ -1,5 +1,5 @@
 import { listPullRequestReviews, listReviewThreads, listIssueComments, compareCommits } from '../github/client.js'
-import { shortSha } from '../github/sanitize.js'
+import { isSameLogin, shortSha } from '../github/sanitize.js'
 
 const MAX_OWN_REVIEWS = 3
 const MAX_HUMAN_REVIEWS = 10
@@ -9,7 +9,6 @@ const MAX_CONVERSATION_COMMENTS = 20
 const MAX_REVIEW_BODY_CHARS = 3000
 const MAX_COMMENT_CHARS = 1000
 const ANCESTOR_STATUSES = new Set(['ahead', 'identical'])
-const BOT_SUFFIX = /\[bot\]$/i
 
 export async function loadReviewHistory(
   { repoFullName, prNumber, headSha, reviewerLogin, files },
@@ -42,7 +41,7 @@ export async function loadReviewHistory(
 }
 
 function buildHistory({ reviews, threads, comments, reviewerLogin }) {
-  const isOwn = login => normalizeLogin(login) === normalizeLogin(reviewerLogin)
+  const isOwn = login => isSameLogin(login, reviewerLogin)
   const submitted = reviews.filter(review => review.state !== 'PENDING')
   const ownReviews = submitted.filter(review => isOwn(review.user?.login))
   const startedThreads = threads.filter(thread => thread.comments.length > 0)
@@ -102,12 +101,6 @@ function capThreads(threads) {
 
 function withBody(entries) {
   return entries.filter(entry => entry.body)
-}
-
-function normalizeLogin(login) {
-  return String(login ?? '')
-    .toLowerCase()
-    .replace(BOT_SUFFIX, '')
 }
 
 function truncate(text, limit) {
