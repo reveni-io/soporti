@@ -41,7 +41,7 @@ const BACKTICK_RUN = /`+/g
 const WHITESPACE_RUN = /\s+/g
 const TRAILING_NEWLINES = /\n+$/
 const LINE_BREAK = /\r?\n/g
-const TABLE_PIPE = /\|/g
+const TABLE_SPECIAL_CHARACTER = /[\\|]/g
 const TRUNCATION_NOTE = "> ✂️ **Truncated**: some sections were left out to stay under GitHub's comment size limit."
 const REVIEW_FOOTER = '<sub>Automated review by Soporti</sub>'
 const AGENT_PROMPT_INTRO = 'Verify this finding against the current code and only fix it if it is still valid.'
@@ -464,6 +464,6 @@ function singleLine(text) {
 function tableCell(text) {
   return String(text ?? '')
     .trim()
-    .replace(TABLE_PIPE, '\\|')
+    .replace(TABLE_SPECIAL_CHARACTER, '\\$&')
     .replace(LINE_BREAK, '<br>')
 }

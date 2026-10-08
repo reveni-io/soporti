@@ -491,9 +491,13 @@ describe('renderWalkthrough', () => {
     )
   })
 
-  it('collapses the changes table, escaping pipes and newlines in its cells', () => {
+  it('collapses the changes table, escaping backslashes, pipes and newlines in its cells', () => {
     const changes = [
-      { label: 'Totals | math', files: ['src/checkout.js', 'src/cart.js'], summary: 'Sums items.\nValidates them.' },
+      {
+        label: 'Totals | math',
+        files: ['src/checkout.js', 'src/cart.js'],
+        summary: 'Sums items.\nMatches \\| literally.',
+      },
     ]
 
     const comment = renderWalkthrough(walkthrough({ output: output({ changes }) }))
@@ -503,7 +507,7 @@ describe('renderWalkthrough', () => {
         '<details>\n<summary>📂 Changes</summary>\n',
         '| Cohort / File(s) | Summary |',
         '| :--- | :--- |',
-        '| **Totals \\| math**<br>`src/checkout.js`, `src/cart.js` | Sums items.<br>Validates them. |\n',
+        '| **Totals \\| math**<br>`src/checkout.js`, `src/cart.js` | Sums items.<br>Matches \\\\\\| literally. |\n',
         '</details>',
       ].join('\n')
     )
