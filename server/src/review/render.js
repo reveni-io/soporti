@@ -1,15 +1,21 @@
 import { shortSha } from '../github/sanitize.js'
-import { REVIEW_KIND_MENTION_COMMAND, REVIEW_KIND_SYNCHRONIZE, REVIEW_WALKTHROUGH_MARKER } from '../constants.js'
+import {
+  REVIEW_KIND_MENTION_COMMAND,
+  REVIEW_KIND_SYNCHRONIZE,
+  REVIEW_OVERVIEW_PASS,
+  REVIEW_PASS_FAILED,
+  REVIEW_SEVERITIES,
+  REVIEW_BLOCKING_SEVERITIES,
+  REVIEW_WALKTHROUGH_MARKER,
+} from '../constants.js'
 import { redactSecrets } from './output-guard.js'
 
-const SEVERITY_ORDER = ['critical', 'major', 'minor', 'nit']
 const SEVERITIES = {
   critical: { icon: '🔴', label: 'Critical' },
   major: { icon: '🟠', label: 'Major' },
   minor: { icon: '🟡', label: 'Minor' },
   nit: { icon: '🔵', label: 'Nit' },
 }
-const BLOCKING_SEVERITIES = new Set(['critical', 'major'])
 const CATEGORY_LABELS = {
   bug: '🐛 Bug',
   security: '🔒 Security',
@@ -44,6 +50,10 @@ const LINE_BREAK = /\r?\n/g
 const TABLE_SPECIAL_CHARACTER = /[\\|]/g
 const TRUNCATION_NOTE = "> ✂️ **Truncated**: some sections were left out to stay under GitHub's comment size limit."
 const REVIEW_FOOTER = '<sub>Automated review by Soporti</sub>'
+const MISSING_OVERVIEW_NOTE =
+  '> ⚠️ The overview is unavailable for this review: its pass did not complete. The findings are in the review.'
+const NO_STANDARDS_DETAILS = 'No standards documents found'
+const NO_SPEC_DETAILS = 'No spec available'
 const AGENT_PROMPT_INTRO = 'Verify this finding against the current code and only fix it if it is still valid.'
 const ALL_AGENT_PROMPTS_INTRO = 'Verify each finding against the current code and only fix it if needed.'
 
@@ -52,6 +62,7 @@ export function renderInlineComment(finding) {
     renderBadges(finding),
     `**${singleLine(finding.title)}**`,
     finding.body.trim(),
+    renderEvidence(finding),
     renderSuggestion(finding),
     renderDetails('🤖 Prompt for AI Agents', fence(`${AGENT_PROMPT_INTRO}\n\n${renderAgentPrompt(finding)}`)),
   ]
@@ -59,7 +70,16 @@ export function renderInlineComment(finding) {
   return redactSecrets(sections.filter(Boolean).join(SECTION_SEPARATOR))
 }
 
-export function renderReviewBody({ event, findings, isInlineInBody = false, output, coverage, context }) {
+export function renderReviewBody({
+  event,
+  findings,
+  isInlineInBody = false,
+  output,
+  passes,
+  verification,
+  coverage,
+  context,
+}) {
   const inline = capFindings(findings.inline, MAX_LIST_ENTRIES)
   const outside = capFindings(findings.outside, MAX_LIST_ENTRIES)
   const nits = capFindings(findings.nits, MAX_NITS)
@@ -67,35 +87,37 @@ export function renderReviewBody({ event, findings, isInlineInBody = false, outp
 
   const sections = [
     renderHeader(event, findings),
-    renderPartialNote(coverage.notReviewed),
+    renderPartialNote(coverage.notReviewed, passes),
     isInlineInBody && renderFindingsSection('💬 Actionable comments', inline, { open: true }),
     renderFindingsSection('⚠️ Outside diff range comments', outside, { open: outside.shown.some(isBlocking) }),
     renderFindingsSection('🧹 Nitpick comments', nits),
-    renderPreviousFindings(output.previousFindings),
+    renderPreviousFindings(output.overview?.previousFindings),
     renderAllAgentPrompts([
       { title: inlineTitle, findings: inline.shown },
       { title: 'Outside diff range comments', findings: outside.shown },
       { title: 'Nitpick comments', findings: nits.shown },
     ]),
-    renderReviewInfo(coverage, context),
+    renderReviewInfo({ coverage, context, passes, verification }),
     REVIEW_FOOTER,
   ]
 
   return redactSecrets(fitSections(sections))
 }
 
-export function renderWalkthrough({ event, output, coverage, context, ciStatus, reviewerLogin }) {
-  const { findings } = output
+export function renderWalkthrough({ event, output, passes, coverage, context, ciStatus, reviewerLogin }) {
+  const { overview, findings } = output
   const sections = [
     `${REVIEW_WALKTHROUGH_MARKER}\n## 📝 Walkthrough`,
-    output.walkthrough.trim(),
+    overview ? overview.walkthrough.trim() : `**${singleLine(context.trigger.title)}**\n\n${MISSING_OVERVIEW_NOTE}`,
     [
-      `**Merge risk:** ${describeMergeRisk(findings, coverage.notReviewed, event)}`,
-      `**Estimated review effort:** ${describeEffort(output)}`,
-    ].join('\n'),
-    renderChanges(output.changes),
-    renderDiagram(output.diagram),
-    renderChecks({ output, spec: context.spec, ciStatus }),
+      `**Merge risk:** ${describeMergeRisk(findings, coverage.notReviewed, passes, event)}`,
+      overview && `**Estimated review effort:** ${describeEffort(overview)}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    overview && renderChanges(overview.changes),
+    overview && renderDiagram(overview.diagram),
+    renderChecks({ findings, passes, ciStatus }),
     renderWalkthroughFooter(context.headSha, reviewerLogin),
   ]
 
@@ -106,6 +128,12 @@ function renderBadges(finding) {
   const severity = SEVERITIES[finding.severity]
 
   return `**${CATEGORY_LABELS[finding.category]}** | **${severity.icon} ${severity.label}**`
+}
+
+function renderEvidence(finding) {
+  if (!finding.evidence?.trim()) return null
+
+  return renderDetails('🔍 Why this was flagged', finding.evidence.trim())
 }
 
 function renderSuggestion(finding) {
@@ -162,17 +190,31 @@ function renderHeader(event, { inline, outside }) {
   if (event === 'APPROVE') return '✅ **Approved**: trivial change, safe to merge'
 
   const actionable = [...inline, ...outside]
-  const rollup = SEVERITY_ORDER.map(severity => [severity, actionable.filter(f => f.severity === severity).length])
+  const rollup = REVIEW_SEVERITIES.map(severity => [severity, actionable.filter(f => f.severity === severity).length])
     .filter(([, count]) => count > 0)
     .map(([severity, count]) => `${SEVERITIES[severity].icon} ${count} ${severity}`)
 
   return [`**Actionable comments posted: ${inline.length}**`, ...rollup].join(' · ')
 }
 
-function renderPartialNote(notReviewed) {
-  if (notReviewed.length === 0) return null
+function renderPartialNote(notReviewed, passes) {
+  const gaps = [
+    notReviewed.length > 0 && `${notReviewed.length} file(s) were not reviewed (listed under Review info)`,
+    describeFailedFinders(passes),
+  ].filter(Boolean)
+  if (gaps.length === 0) return null
 
-  return `> ⚠️ **Partial review**: ${notReviewed.length} file(s) were not reviewed (listed under Review info). A human needs to check them.`
+  return `> ⚠️ **Partial review**: ${gaps.join(' and ')}. A human needs to check what was not covered.`
+}
+
+function describeFailedFinders(passes) {
+  const failed = groupByLens(passes.filter(pass => pass.lens !== REVIEW_OVERVIEW_PASS))
+    .map(([lens, runs]) => ({ lens, total: runs.length, failed: runs.filter(isFailedPass).length }))
+    .filter(group => group.failed > 0)
+    .map(group => (group.total > 1 ? `${group.lens} (${group.failed} of ${group.total} shards)` : group.lens))
+  if (failed.length === 0) return null
+
+  return `the ${joinWithAnd(failed)} ${failed.length === 1 ? 'pass' : 'passes'} failed`
 }
 
 function capFindings(findings, limit) {
@@ -196,6 +238,7 @@ function renderEntry(finding) {
     `${location}${renderBadges(finding)}`,
     `**${singleLine(finding.title)}**`,
     finding.body.trim(),
+    renderEvidence(finding),
     renderProposedFix(finding),
   ]
 
@@ -244,7 +287,8 @@ function renderAgentPromptItem(finding) {
   return `${lines.charAt(0).toUpperCase()}${lines.slice(1)}: ${prompt}`
 }
 
-function renderReviewInfo(coverage, { trigger, history, headSha, standards, spec }) {
+function renderReviewInfo({ coverage, context, passes, verification }) {
+  const { trigger, history, headSha, standards, spec } = context
   const base = trigger.baseSha ? shortSha(trigger.baseSha) : trigger.baseRef
   const standardsPaths = [...standards.documents, ...standards.notInlined].map(document => codeSpan(document.path))
   const storyIds = specStoryIds(spec)
@@ -255,6 +299,8 @@ function renderReviewInfo(coverage, { trigger, history, headSha, standards, spec
     `- **Trigger:** ${TRIGGER_LABELS[trigger.kind] ?? DEFAULT_TRIGGER_LABEL}`,
     `- **Standards:** ${standardsPaths.length > 0 ? standardsPaths.join(', ') : 'none found'}`,
     `- **Spec:** ${storyIds.length > 0 ? storyIds.map(id => `sc-${id}`).join(', ') : 'none'}`,
+    `- **Passes:** ${describePasses(passes)}`,
+    `- **Verification:** ${describeVerification(verification)}`,
   ]
   const fileLists = [
     renderFileList('📒 Files reviewed', reviewed.map(describeFile)),
@@ -263,6 +309,30 @@ function renderReviewInfo(coverage, { trigger, history, headSha, standards, spec
   ]
 
   return renderDetails('ℹ️ Review info', [facts.join('\n'), ...fileLists].filter(Boolean).join(SECTION_SEPARATOR))
+}
+
+function describePasses(passes) {
+  return groupByLens(passes)
+    .map(([lens, runs]) => {
+      const name = runs.length > 1 ? `${lens} ×${runs.length}` : lens
+      const failed = runs.filter(isFailedPass).length
+      if (failed === 0) return name
+
+      return runs.length > 1 ? `${name} (❌ ${failed} failed)` : `${name} (❌ failed)`
+    })
+    .join(', ')
+}
+
+function describeVerification({ proposed, confirmed, downgraded, dropped, unverified }) {
+  const counts = [
+    `${proposed} proposed`,
+    `${confirmed} confirmed`,
+    `${downgraded} downgraded`,
+    `${dropped} dropped`,
+    unverified > 0 && `${unverified} unverified`,
+  ]
+
+  return counts.filter(Boolean).join(' · ')
 }
 
 function specStoryIds(spec) {
@@ -305,12 +375,14 @@ function renderFileList(title, entries) {
   return renderDetails(`${title} (${entries.length})`, lines.join('\n'))
 }
 
-function describeMergeRisk(findings, notReviewed, event) {
+function describeMergeRisk(findings, notReviewed, passes, event) {
   const [mostSevere] = sortBySeverity(findings)
+  const failedFinders = describeFailedFinders(passes)
 
   if (mostSevere?.severity === 'critical') return `🔴 High · ${singleLine(mostSevere.title)}`
   if (mostSevere?.severity === 'major') return `🟠 Medium · ${singleLine(mostSevere.title)}`
   if (notReviewed.length > 0) return `⚪ Unknown · ${notReviewed.length} file(s) not reviewed`
+  if (failedFinders) return `⚪ Unknown · ${failedFinders}`
   if (event === 'APPROVE') return '🟢 Low · trivial change, approved'
 
   return '🟢 Low · no blocking issues found'
@@ -348,11 +420,10 @@ function renderDiagram(diagram) {
   return renderDetails('📊 Sequence diagram', fence(diagram.trim(), 'mermaid'))
 }
 
-function renderChecks({ output, spec, ciStatus }) {
-  const { findings } = output
+function renderChecks({ findings, passes, ciStatus }) {
   const checks = [
-    { name: 'Standards', status: hasCategory(findings, 'standards') ? 'warning' : 'passed', details: output.standards },
-    { name: 'Spec', status: describeSpecStatus(findings, spec), details: output.spec },
+    { name: 'Standards', ...describeLensCheck({ findings, passes }, 'standards', NO_STANDARDS_DETAILS) },
+    { name: 'Spec', ...describeLensCheck({ findings, passes }, 'spec', NO_SPEC_DETAILS) },
     { name: 'CI', ...describeCi(ciStatus) },
   ]
   const tally = Object.entries(CHECK_STATUSES)
@@ -370,18 +441,17 @@ function renderChecks({ output, spec, ciStatus }) {
   )
 }
 
+function describeLensCheck({ findings, passes }, lens, skippedDetails) {
+  const pass = passes.find(candidate => candidate.lens === lens)
+
+  if (!pass) return { status: 'skipped', details: skippedDetails }
+  if (isFailedPass(pass)) return { status: 'warning', details: `The ${lens} pass did not complete` }
+
+  return { status: hasCategory(findings, lens) ? 'warning' : 'passed', details: pass.note }
+}
+
 function hasCategory(findings, category) {
   return findings.some(finding => finding.category === category)
-}
-
-function describeSpecStatus(findings, spec) {
-  if (!hasLoadedStory(spec)) return 'skipped'
-
-  return hasCategory(findings, 'spec') ? 'warning' : 'passed'
-}
-
-function hasLoadedStory(spec) {
-  return spec.configured && spec.stories.some(entry => entry.story !== null)
 }
 
 function describeCi(ciStatus) {
@@ -445,16 +515,34 @@ function fitSections(sections) {
 }
 
 function sortBySeverity(findings) {
-  return [...findings].sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+  return [...findings].sort((a, b) => REVIEW_SEVERITIES.indexOf(a.severity) - REVIEW_SEVERITIES.indexOf(b.severity))
 }
 
 function isBlocking(finding) {
-  return BLOCKING_SEVERITIES.has(finding.severity)
+  return REVIEW_BLOCKING_SEVERITIES.has(finding.severity)
+}
+
+function isFailedPass(pass) {
+  return pass.status === REVIEW_PASS_FAILED
+}
+
+function joinWithAnd(items) {
+  if (items.length === 1) return items[0]
+
+  return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
 }
 
 function groupByPath(findings) {
+  return groupBy(findings, finding => finding.path)
+}
+
+function groupByLens(passes) {
+  return groupBy(passes, pass => pass.lens)
+}
+
+function groupBy(items, keyOf) {
   const groups = new Map()
-  for (const finding of findings) groups.set(finding.path, [...(groups.get(finding.path) ?? []), finding])
+  for (const item of items) groups.set(keyOf(item), [...(groups.get(keyOf(item)) ?? []), item])
 
   return [...groups]
 }
