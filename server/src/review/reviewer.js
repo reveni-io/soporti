@@ -15,6 +15,7 @@ import {
 import { partitionFindings, buildGeneratedMatcher, classifyFiles, findUnreviewedFiles } from './diff.js'
 import { runReviewerAgent } from './agent.js'
 import { loadReviewHistory } from './history.js'
+import { loadCiStatus } from './ci-status.js'
 import { redactSecrets } from './output-guard.js'
 import { shortSha } from '../github/sanitize.js'
 import {
@@ -97,10 +98,10 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const changedFiles = classifyFiles(files, { emptyFilenames, isGenerated: buildGeneratedMatcher(gitattributes) })
 
     const storyId = (await shortcut.isConfigured()) ? extractStoryId(current) : null
-    const history = await loadReviewHistory(
-      { repoFullName, prNumber, headSha: reviewedSha, reviewerLogin, files },
-      { logger }
-    )
+    const [history, ciStatus] = await Promise.all([
+      loadReviewHistory({ repoFullName, prNumber, headSha: reviewedSha, reviewerLogin, files }, { logger }),
+      loadCiStatus({ repoFullName, headSha: reviewedSha }, { logger }),
+    ])
     const diffBaseSha = await resolveDiffBase(
       { workspace, files: changedFiles, repoFullName, base: current.baseSha ?? current.baseRef, headSha: reviewedSha },
       logger
@@ -114,6 +115,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       standardsFiles,
       storyId,
       history,
+      ciStatus,
       rootPath,
       diffBaseSha,
       signal,

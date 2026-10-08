@@ -59,6 +59,11 @@ export default function AdminGithub({ token, onLogout }) {
           Personal access token used by every GitHub feature: repository tools, clones and PR reviews. It is stored in
           the database and never shown again after saving.
         </p>
+        <p className="admin__muted">
+          A classic token with the <code>repo</code> scope covers everything. A fine-grained token also needs{' '}
+          <strong>Checks: read</strong> and <strong>Commit statuses: read</strong> so PR reviews can see the CI results;
+          without them, reviews run without the CI section.
+        </p>
 
         <StatusRow configured={config.tokenConfigured} />
 

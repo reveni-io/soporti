@@ -142,6 +142,32 @@ export async function compareCommits(repoFullName, baseSha, headSha) {
   return { status: data.status, files: data.files ?? [], mergeBaseSha: data.merge_base_commit?.sha ?? null }
 }
 
+export async function listCheckRuns(repoFullName, ref) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.checks.listForRef({ owner, repo, ref, per_page: 100 })
+
+  return (data.check_runs ?? []).map(run => ({
+    name: run.name,
+    status: run.status,
+    conclusion: run.conclusion ?? null,
+    title: run.output?.title ?? '',
+    summary: run.output?.summary ?? '',
+  }))
+}
+
+export async function listCommitStatuses(repoFullName, ref) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.repos.getCombinedStatusForRef({ owner, repo, ref, per_page: 100 })
+
+  return (data.statuses ?? []).map(status => ({
+    context: status.context,
+    state: status.state,
+    description: status.description ?? '',
+  }))
+}
+
 export async function createReviewCommentReply(repoFullName, prNumber, commentId, body) {
   const octokit = await getOctokit()
   const { owner, repo } = parseRepo(repoFullName)

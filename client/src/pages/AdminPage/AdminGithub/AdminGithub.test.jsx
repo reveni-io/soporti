@@ -21,6 +21,16 @@ describe('AdminGithub', () => {
     expect(screen.getByDisplayValue(/org\/api/)).toBeInTheDocument()
   })
 
+  it('lists the token permissions PR reviews need to read the CI status', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGet())
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByText('Checks: read')).toBeInTheDocument()
+    expect(screen.getByText('Commit statuses: read')).toBeInTheDocument()
+    expect(screen.getByText(/reviews run without the CI section/i)).toBeInTheDocument()
+  })
+
   it('shows not configured when there is no token', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet())
 

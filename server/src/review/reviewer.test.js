@@ -30,6 +30,11 @@ vi.mock('./history.js', () => ({
   loadReviewHistory: mockLoadReviewHistory,
 }))
 
+const mockLoadCiStatus = vi.fn()
+vi.mock('./ci-status.js', () => ({
+  loadCiStatus: mockLoadCiStatus,
+}))
+
 const mockFindFiles = vi.fn()
 const mockFindFilesAt = vi.fn()
 const mockAcquireWorktree = vi.fn()
@@ -121,6 +126,7 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), rev
   mockReadFile.mockRejectedValue(new Error('ENOENT'))
   mockCompareCommits.mockResolvedValue({ status: 'ahead', files: [], mergeBaseSha: 'merge000' })
   mockLoadReviewHistory.mockResolvedValue(null)
+  mockLoadCiStatus.mockResolvedValue(null)
 }
 
 function reReviewHistory(changes = { status: 'incremental', files: [] }) {
@@ -818,6 +824,54 @@ describe('re-reviews', () => {
     const { body } = mockCreatePullRequestReview.mock.calls[0][2]
     expect(body).toContain('_Automated review by Soporti · trigger: review request._')
     expect(body).not.toContain('re-review')
+  })
+})
+
+describe('CI status', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('loads the CI status of the reviewed head and hands it to the agent', async () => {
+    setupHappyPath({ pr: prData({ head: { sha: 'newhead1', ref: 'fix/totals' } }) })
+    const ciStatus = {
+      checks: [{ name: 'lint', state: 'failed', result: 'failure', details: '2 problems' }],
+      incomplete: false,
+    }
+    mockLoadCiStatus.mockResolvedValue(ciStatus)
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockLoadCiStatus).toHaveBeenCalledTimes(1)
+    expect(mockLoadCiStatus).toHaveBeenCalledWith(
+      { repoFullName: 'acme-io/app', headSha: 'newhead1' },
+      { logger: silentLogger }
+    )
+    expect(mockRunReviewerAgent).toHaveBeenCalledTimes(1)
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus }))
+  })
+
+  it('reviews without waiting while CI is still running', async () => {
+    setupHappyPath()
+    const ciStatus = {
+      checks: [{ name: 'test', state: 'pending', result: 'pending (in_progress)', details: '' }],
+      incomplete: false,
+    }
+    mockLoadCiStatus.mockResolvedValue(ciStatus)
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus }))
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockCreatePullRequestReview.mock.calls[0][2].commitId).toBe('deadbeef')
+  })
+
+  it('still posts the review when the CI status could not be loaded', async () => {
+    setupHappyPath()
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ ciStatus: null }))
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockCreateIssueComment).not.toHaveBeenCalled()
   })
 })
 
