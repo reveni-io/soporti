@@ -36,7 +36,7 @@ function output({ findings = [], ...overrides } = {}) {
 }
 
 function pass(lens, overrides = {}) {
-  return { lens, status: 'completed', note: null, ...overrides }
+  return { lens, status: 'completed', wrappedUp: false, note: null, ...overrides }
 }
 
 const PASSES = [
@@ -462,6 +462,27 @@ describe('renderReviewBody', () => {
         '- **Passes:** overview, correctness ×3 (❌ 1 failed), security (❌ failed)',
         '- **Verification:** 7 proposed · 2 confirmed · 1 downgraded · 1 dropped · 1 unverified · 2 skipped (over the verification limit)',
       ].join('\n')
+    )
+  })
+
+  it('marks the passes that stopped at the turn limit in the review info, without calling the review partial', () => {
+    const body = renderReviewBody(
+      review({
+        passes: [
+          pass('overview', { wrappedUp: true }),
+          pass('correctness', { wrappedUp: true }),
+          pass('correctness', { status: 'failed' }),
+          pass('correctness'),
+          pass('security'),
+        ],
+      })
+    )
+
+    expect(body).toContain(
+      '- **Passes:** overview (⏱️ stopped at the turn limit), correctness ×3 (❌ 1 failed, ⏱️ 1 stopped at the turn limit), security\n'
+    )
+    expect(body).toContain(
+      '> ⚠️ **Partial review**: the correctness (1 of 3 shards) pass failed. A human needs to check what was not covered.'
     )
   })
 

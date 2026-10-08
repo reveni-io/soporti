@@ -243,6 +243,12 @@ export function buildVerifierTask(findings) {
   return ['## Your task: verify these findings', VERIFIER_TASK_INTRO, ...findings].join('\n\n')
 }
 
+export function buildTurnLimitMessage(maxTurns) {
+  return `## Turn limit reached
+
+You have used all ${maxTurns} turns of this run, so you cannot call any more tools. Stop exploring and return your final output now, in the format you were asked for. Include only what you have already verified with your tools, and leave out anything you had not finished checking. This is your last turn.`
+}
+
 function teamIntro(repoFullName, role) {
   return `You are Soporti, the team's automated code reviewer. A team of agents reviews one pull request in the GitHub repository \`${repoFullName}\`: an overview agent describes the PR, finder passes look for problems, each through its own lens, and verifiers check the findings before they are posted. ${role}`
 }

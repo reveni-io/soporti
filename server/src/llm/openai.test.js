@@ -187,6 +187,12 @@ describe('modelSettings', () => {
   })
 })
 
+describe('finalAnswerSettings', () => {
+  it('forbids tool calls while keeping the tool definitions a history of tool calls needs', () => {
+    expect(provider.finalAnswerSettings()).toEqual({ toolChoice: 'none' })
+  })
+})
+
 describe('wrapSession', () => {
   it('wraps the session in the compaction session when a client is available', async () => {
     getOpenAIApiKey.mockResolvedValue('sk-abc')

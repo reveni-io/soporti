@@ -27,8 +27,9 @@ export async function isConfigured() {
 export async function resolveModelForAgent({ provider: providerId = null, model: modelId = null } = {}) {
   const provider = providerId ? getProvider(providerId) : await resolveProvider()
   const [{ modelId: resolved, model }, effort] = await Promise.all([provider.buildModel({ modelId }), resolveEffort()])
+  const modelSettings = provider.modelSettings(resolved, { effort })
 
-  return { model, modelSettings: provider.modelSettings(resolved, { effort }) }
+  return { model, modelSettings, finalAnswerModelSettings: { ...modelSettings, ...provider.finalAnswerSettings() } }
 }
 
 export async function isProviderConfigured(providerId, { model = null } = {}) {

@@ -201,6 +201,12 @@ describe('retryPolicy', () => {
   })
 })
 
+describe('finalAnswerSettings', () => {
+  it('leaves the tool choice alone, because the ai-sdk adapter drops every tool definition for none', () => {
+    expect(provider.finalAnswerSettings()).toEqual({})
+  })
+})
+
 describe('wrapSession', () => {
   it('returns the session untouched because compaction is an openai responses feature', () => {
     const underlying = { id: 'postgres-session' }

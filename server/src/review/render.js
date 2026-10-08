@@ -54,6 +54,10 @@ const MISSING_OVERVIEW_NOTE =
   '> ⚠️ The overview is unavailable for this review: its pass did not complete. The findings are in the review.'
 const NO_STANDARDS_DETAILS = 'No standards documents found'
 const NO_SPEC_DETAILS = 'No spec available'
+const PASS_MARKS = [
+  { matches: isFailedPass, icon: '❌', label: 'failed' },
+  { matches: isWrappedUpPass, icon: '⏱️', label: 'stopped at the turn limit' },
+]
 const AGENT_PROMPT_INTRO = 'Verify this finding against the current code and only fix it if it is still valid.'
 const ALL_AGENT_PROMPTS_INTRO = 'Verify each finding against the current code and only fix it if needed.'
 
@@ -323,12 +327,19 @@ function describePasses(passes) {
   return groupByLens(passes)
     .map(([lens, runs]) => {
       const name = runs.length > 1 ? `${lens} ×${runs.length}` : lens
-      const failed = runs.filter(isFailedPass).length
-      if (failed === 0) return name
+      const marks = PASS_MARKS.map(mark => describePassMark(runs, mark)).filter(Boolean)
+      if (marks.length === 0) return name
 
-      return runs.length > 1 ? `${name} (❌ ${failed} failed)` : `${name} (❌ failed)`
+      return `${name} (${marks.join(', ')})`
     })
     .join(', ')
+}
+
+function describePassMark(runs, { matches, icon, label }) {
+  const count = runs.filter(matches).length
+  if (count === 0) return null
+
+  return runs.length > 1 ? `${icon} ${count} ${label}` : `${icon} ${label}`
 }
 
 function describeVerification({ proposed, confirmed, downgraded, dropped, unverified, skipped }) {
@@ -533,6 +544,10 @@ function isBlocking(finding) {
 
 function isFailedPass(pass) {
   return pass.status === REVIEW_PASS_FAILED
+}
+
+function isWrappedUpPass(pass) {
+  return pass.wrappedUp === true
 }
 
 function joinWithAnd(items) {

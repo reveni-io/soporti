@@ -47,6 +47,10 @@ export function modelSettings(_modelId, { effort } = {}) {
   }
 }
 
+export function finalAnswerSettings() {
+  return {}
+}
+
 export function wrapSession(underlyingSession) {
   return underlyingSession
 }

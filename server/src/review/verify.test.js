@@ -72,12 +72,16 @@ function clustersVerified() {
 }
 
 function confirmEverything() {
-  mockRunReviewAgent.mockImplementation(async ({ task }) => ({ verdicts: idsOf(task).map(id => verdict(id)) }))
+  mockRunReviewAgent.mockImplementation(async ({ task }) => ({
+    output: { verdicts: idsOf(task).map(id => verdict(id)) },
+    wrappedUp: false,
+  }))
 }
 
 function respondWith(verdicts) {
   mockRunReviewAgent.mockImplementation(async ({ task }) => ({
-    verdicts: idsOf(task).flatMap(id => verdicts[id] ?? []),
+    output: { verdicts: idsOf(task).flatMap(id => verdicts[id] ?? []) },
+    wrappedUp: false,
   }))
 }
 
@@ -290,6 +294,18 @@ describe('verifyFindings', () => {
     )
   })
 
+  it('applies the verdicts of a verifier that wrapped up and keeps the findings it did not check as proposed', async () => {
+    mockRunReviewAgent.mockResolvedValue({ output: { verdicts: [verdict('F1')] }, wrappedUp: true })
+
+    const { findings, stats } = await verifyFindings([finding(), finding({ line: 12 })], scope())
+
+    expect(findings).toEqual([
+      { ...finding(), evidence: 'F1 is real: src/checkout.js:11 has no guard.' },
+      finding({ line: 12 }),
+    ])
+    expect(stats).toEqual({ proposed: 2, confirmed: 1, downgraded: 0, dropped: 0, unverified: 1, skipped: 0 })
+  })
+
   it('keeps the findings of a cluster as proposed when its verification fails', async () => {
     mockRunReviewAgent.mockRejectedValue(new Error('model unavailable'))
     const options = scope()
@@ -349,7 +365,9 @@ describe('verifyFindings', () => {
   it('runs at most 4 verifications at once', async () => {
     const pending = []
     mockRunReviewAgent.mockImplementation(({ task }) => {
-      return new Promise(resolve => pending.push(() => resolve({ verdicts: idsOf(task).map(id => verdict(id)) })))
+      return new Promise(resolve =>
+        pending.push(() => resolve({ output: { verdicts: idsOf(task).map(id => verdict(id)) }, wrappedUp: false }))
+      )
     })
     const candidates = [10, 20, 30, 40, 50].map(line => finding({ line }))
 
@@ -383,6 +401,7 @@ describe('verifyFindings', () => {
         channel: 'pr_review_verify',
         subject: 'acme-io/app#7',
         maxTurns: 15,
+        logger: options.logger,
       })
     )
     expect(run.signal).toBeInstanceOf(AbortSignal)

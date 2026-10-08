@@ -28,6 +28,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByText(/split the correctness pass across up to four agents/i)).toBeInTheDocument()
     expect(screen.getByText(/tries to refute every actionable finding/i)).toBeInTheDocument()
     expect(screen.getByText(/folds duplicates into one comment/i)).toBeInTheDocument()
+    expect(screen.getByText(/at the turn limit it hands in what it already verified/i)).toBeInTheDocument()
     expect(screen.getByText(/why each one was flagged/i)).toBeInTheDocument()
     expect(screen.getByText(/every push gets re-reviewed/i)).toBeInTheDocument()
     expect(screen.getByText(/ties a broken test to the line that broke it/i)).toBeInTheDocument()

@@ -34,6 +34,7 @@ const AUTOMATIONS = [
       'Starts with the whole diff, your standards and the stories already loaded, so nothing goes unread; lockfiles never block an approval',
       'Big PRs split the correctness pass across up to four agents, so no file gets skimmed',
       'A verifier tries to refute every actionable finding against the code before it is posted, and folds duplicates into one comment',
+      'A pass that runs long never loses its work: at the turn limit it hands in what it already verified',
       'One walkthrough per PR, updated in place: merge risk, review effort, changes and checks',
       'Inline comments with severity badges, why each one was flagged, one-click suggestions and a prompt for your AI agent',
       'Nits stay collapsed in the review; it can approve trivial PRs and never blocks',
