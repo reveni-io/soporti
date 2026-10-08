@@ -28,12 +28,12 @@ const AUTOMATIONS = [
     icon: '🔍',
     title: 'Automated PR reviews',
     description:
-      'Request a review (or add a label) and Soporti reviews the code with your changes actually applied, on three axes.',
+      'Request a review, add a label or just comment “@soporti review” on the PR — Soporti reviews the code with your changes actually applied, on three axes.',
     bullets: [
       'Correctness, standards (cites your CLAUDE.md & ADRs) and spec vs. the linked Shortcut story',
       'Posts inline comments; can approve trivial PRs, never blocks',
       'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
-      'Replies to @-mentions right in the PR thread',
+      'The review command is for your team only; any other @-mention gets a reply right in the PR thread',
     ],
   },
   {

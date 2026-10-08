@@ -108,4 +108,85 @@ describe('detectMention', () => {
     expect(detectMention({ eventName: 'issue_comment', payload, reviewerLogin: 'soporti-bot' })).toBeNull()
     expect(detectMention({ eventName: 'push', payload: issuePayload(), reviewerLogin: 'soporti-bot' })).toBeNull()
   })
+
+  it('turns a review command from a collaborator into a review of the current head', () => {
+    const payload = issuePayload()
+    payload.comment.body = '@soporti-bot review'
+    payload.comment.author_association = 'COLLABORATOR'
+
+    const job = detectMention({ eventName: 'issue_comment', payload, reviewerLogin: 'soporti-bot' })
+
+    expect(job).toEqual({
+      kind: 'mention_command',
+      channel: 'issue',
+      commentId: 100,
+      repoFullName: 'acme-io/app',
+      prNumber: 7,
+      headSha: 'HEAD',
+      baseRef: '',
+      title: '',
+      body: '',
+      authorLogin: '',
+      draft: false,
+      changedLines: 0,
+      dedupeKey: 'acme-io/app#7@HEAD',
+      supersedeKey: 'acme-io/app#7',
+    })
+  })
+
+  it('accepts the review command in a review thread, case-insensitively and with trailing text', () => {
+    const payload = reviewCommentPayload()
+    payload.comment.body = '  @Soporti-Bot REVIEW please, I pushed the fix'
+    payload.comment.author_association = 'OWNER'
+
+    const job = detectMention({ eventName: 'pull_request_review_comment', payload, reviewerLogin: 'soporti-bot' })
+
+    expect(job).toMatchObject({
+      kind: 'mention_command',
+      channel: 'review_thread',
+      commentId: 200,
+      prNumber: 7,
+      dedupeKey: 'acme-io/app#7@HEAD',
+      supersedeKey: 'acme-io/app#7',
+    })
+  })
+
+  it('accepts the review command from an organization member', () => {
+    const payload = issuePayload()
+    payload.comment.body = '@soporti-bot review\nthe second commit fixes the rounding'
+    payload.comment.author_association = 'MEMBER'
+
+    expect(detectMention({ eventName: 'issue_comment', payload, reviewerLogin: 'soporti-bot' }).kind).toBe(
+      'mention_command'
+    )
+  })
+
+  it('sends the review command to the mention responder when the author is not a collaborator', () => {
+    for (const association of ['CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'NONE', undefined]) {
+      const payload = issuePayload()
+      payload.comment.body = '@soporti-bot review'
+      payload.comment.author_association = association
+
+      expect(detectMention({ eventName: 'issue_comment', payload, reviewerLogin: 'soporti-bot' })).toMatchObject({
+        kind: 'mention',
+        dedupeKey: 'acme-io/app#7@mention-100',
+      })
+    }
+  })
+
+  it('sends mentions that are not the exact command to the mention responder', () => {
+    for (const body of [
+      '@soporti-bot can you review the rounding?',
+      'please @soporti-bot review this',
+      '@soporti-bot reviewer?',
+      '@soporti-bot reviewed it already?',
+      '@soporti-bot review-ish question',
+    ]) {
+      const payload = issuePayload()
+      payload.comment.body = body
+      payload.comment.author_association = 'OWNER'
+
+      expect(detectMention({ eventName: 'issue_comment', payload, reviewerLogin: 'soporti-bot' }).kind).toBe('mention')
+    }
+  })
 })

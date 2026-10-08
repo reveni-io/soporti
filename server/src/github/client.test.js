@@ -11,6 +11,8 @@ const mockListReviewComments = vi.fn()
 const mockCreateReplyForReviewComment = vi.fn()
 const mockCreateForIssue = vi.fn()
 const mockDeleteForIssue = vi.fn()
+const mockCreateForIssueComment = vi.fn()
+const mockCreateForPullRequestReviewComment = vi.fn()
 const mockListReviews = vi.fn()
 const mockGraphql = vi.fn()
 const mockCompareCommitsWithBasehead = vi.fn()
@@ -33,7 +35,12 @@ vi.mock('@octokit/rest', () => ({
         createReplyForReviewComment: mockCreateReplyForReviewComment,
       }
       this.issues = { createComment: mockCreateComment, listComments: mockListComments }
-      this.reactions = { createForIssue: mockCreateForIssue, deleteForIssue: mockDeleteForIssue }
+      this.reactions = {
+        createForIssue: mockCreateForIssue,
+        deleteForIssue: mockDeleteForIssue,
+        createForIssueComment: mockCreateForIssueComment,
+        createForPullRequestReviewComment: mockCreateForPullRequestReviewComment,
+      }
     }
   },
 }))
@@ -56,6 +63,8 @@ const {
   createReviewCommentReply,
   createIssueReaction,
   deleteIssueReaction,
+  createIssueCommentReaction,
+  createReviewCommentReaction,
 } = await import('./client.js')
 
 describe('listRepos', () => {
@@ -393,6 +402,44 @@ describe('deleteIssueReaction', () => {
       repo: 'app',
       issue_number: 7,
       reaction_id: 9001,
+    })
+  })
+})
+
+describe('createIssueCommentReaction', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('adds the reaction to a PR conversation comment and returns it', async () => {
+    mockCreateForIssueComment.mockResolvedValue({ data: { id: 31, content: 'eyes' } })
+
+    const reaction = await createIssueCommentReaction('acme-io/app', 300, 'eyes')
+
+    expect(reaction).toEqual({ id: 31, content: 'eyes' })
+    expect(mockCreateForIssueComment).toHaveBeenCalledTimes(1)
+    expect(mockCreateForIssueComment).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      comment_id: 300,
+      content: 'eyes',
+    })
+  })
+})
+
+describe('createReviewCommentReaction', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('adds the reaction to a review thread comment and returns it', async () => {
+    mockCreateForPullRequestReviewComment.mockResolvedValue({ data: { id: 32, content: 'eyes' } })
+
+    const reaction = await createReviewCommentReaction('acme-io/app', 400, 'eyes')
+
+    expect(reaction).toEqual({ id: 32, content: 'eyes' })
+    expect(mockCreateForPullRequestReviewComment).toHaveBeenCalledTimes(1)
+    expect(mockCreateForPullRequestReviewComment).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      comment_id: 400,
+      content: 'eyes',
     })
   })
 })

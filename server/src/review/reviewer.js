@@ -17,7 +17,7 @@ import { runReviewerAgent } from './agent.js'
 import { loadReviewHistory } from './history.js'
 import { redactSecrets } from './output-guard.js'
 import { shortSha } from '../github/sanitize.js'
-import { REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
+import { PR_HEAD_PLACEHOLDER, REVIEW_KIND_MENTION_COMMAND, REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
 
 const STANDARDS_PATTERNS = [
   'CLAUDE.md',
@@ -34,6 +34,9 @@ const STANDARDS_PATTERNS = [
 const MAX_STANDARDS_FILES = 30
 
 const STORY_REF = /\bsc-?(\d+)\b/i
+
+const TRIGGER_LABELS = { labeled: 'label', [REVIEW_KIND_MENTION_COMMAND]: 'mention' }
+const DEFAULT_TRIGGER_LABEL = 'review request'
 
 export async function runReview(trigger, { logger = console, reviewerLogin = null, signal } = {}) {
   const { repoFullName, prNumber, headSha, dedupeKey } = trigger
@@ -63,7 +66,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       changedLines: (pr.additions ?? 0) + (pr.deletions ?? 0),
     }
     reviewedSha = current.headSha
-    if (current.headSha !== headSha) {
+    if (headSha !== PR_HEAD_PLACEHOLDER && current.headSha !== headSha) {
       logger.log(
         `[review] Head moved ${shortSha(headSha)} → ${shortSha(current.headSha)} on ${dedupeKey}; reviewing the current head`
       )
@@ -302,7 +305,7 @@ function buildReviewBody({ output, leftoverFindings, omitted, trigger, event, hi
     )
   }
 
-  const triggerLabel = trigger.kind === 'labeled' ? 'label' : 'review request'
+  const triggerLabel = TRIGGER_LABELS[trigger.kind] ?? DEFAULT_TRIGGER_LABEL
   parts.push(`---\n_Automated review by Soporti · trigger: ${triggerLabel}${describeReReview(history)}._`)
 
   return redactSecrets(parts.join('\n\n'))

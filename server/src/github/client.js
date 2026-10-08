@@ -168,6 +168,25 @@ export async function deleteIssueReaction(repoFullName, issueNumber, reactionId)
   await octokit.reactions.deleteForIssue({ owner, repo, issue_number: issueNumber, reaction_id: reactionId })
 }
 
+export async function createIssueCommentReaction(repoFullName, commentId, content) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.reactions.createForIssueComment({ owner, repo, comment_id: commentId, content })
+  return data
+}
+
+export async function createReviewCommentReaction(repoFullName, commentId, content) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.reactions.createForPullRequestReviewComment({
+    owner,
+    repo,
+    comment_id: commentId,
+    content,
+  })
+  return data
+}
+
 async function paginate(fetchPage) {
   const results = []
   const perPage = 100
