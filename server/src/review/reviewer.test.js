@@ -150,7 +150,7 @@ function overviewOutput(overrides = {}) {
 }
 
 function pass(lens, overrides = {}) {
-  return { lens, status: 'completed', note: null, ...overrides }
+  return { lens, status: 'completed', wrappedUp: false, note: null, ...overrides }
 }
 
 const PASSES = [pass('overview'), pass('correctness', { note: 'No bugs.' }), pass('security', { note: 'No holes.' })]
@@ -1099,6 +1099,23 @@ describe('review team', () => {
     expect(review.body).toContain('> ⚠️ **Partial review**: the security pass failed.')
     expect(review.body).toContain('- **Passes:** overview, correctness, security (❌ failed)')
     expect(postedWalkthrough()).toContain('**Merge risk:** ⚪ Unknown · the security pass failed')
+  })
+
+  it('never approves when a pass stopped at the turn limit, and marks it in the review info', async () => {
+    setupHappyPath()
+    mockRunReviewTeam.mockResolvedValue(
+      reviewed({
+        verdict: 'approve',
+        passes: [pass('overview'), pass('correctness', { wrappedUp: true }), pass('security')],
+      })
+    )
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    const review = postedReview()
+    expect(review.event).toBe('COMMENT')
+    expect(review.body).toContain('- **Passes:** overview, correctness (⏱️ stopped at the turn limit), security')
+    expect(review.body).not.toContain('Partial review')
   })
 
   it('never approves without an overview and posts a minimal walkthrough instead', async () => {

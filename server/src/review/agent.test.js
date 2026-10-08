@@ -4,6 +4,7 @@ const mockRun = vi.fn()
 class MockMaxTurnsExceededError extends Error {}
 const MockAgent = vi.fn(function (options) {
   this.options = options
+  this.clone = config => new MockAgent({ ...options, ...config })
 })
 
 vi.mock('@openai/agents', () => ({
@@ -93,17 +94,12 @@ vi.mock('../config.js', () => ({
   },
 }))
 
-const mockResolveModel = vi.fn(async () => ({
-  provider: 'openai',
-  modelId: 'test-model',
-  model: 'test-model',
-  modelSettings: {},
-}))
+const mockResolveModel = vi.fn(async () => resolvedModel({}))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: (...a) => mockResolveModel(...a) }))
 vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 
-function resolvedModel(modelSettings) {
-  return { provider: 'openai', modelId: 'test-model', model: 'test-model', modelSettings }
+function resolvedModel(modelSettings, finalAnswerModelSettings = { ...modelSettings, toolChoice: 'none' }) {
+  return { model: 'test-model', modelSettings, finalAnswerModelSettings }
 }
 
 const { recordAgentRun } = await import('../db/agent-runs.js')
@@ -143,6 +139,33 @@ function toolNames(tools) {
   return tools.map(t => t.name)
 }
 
+const HISTORY = [
+  { role: 'user', content: '# Pull Request #7 — Fix rounding\n\n## Your task: the security pass' },
+  { type: 'function_call', name: 'get_file_contents', callId: 'call-1', arguments: '{"path":"src/refunds.js"}' },
+  { type: 'function_call_result', name: 'get_file_contents', callId: 'call-1', output: 'export function round() {}' },
+]
+
+const WRAPPED_UP_OUTPUT = { findings: [finding()], note: 'Stopped at the turn limit after reading src/refunds.js.' }
+
+function runContext() {
+  return { usage: { requests: 42, inputTokens: 850_000, outputTokens: 10_000 } }
+}
+
+function hitTurnLimit(context = runContext()) {
+  return async (agent, input, options) => {
+    const error = new MockMaxTurnsExceededError('Max turns (42) exceeded')
+
+    const handled = await options.errorHandlers.maxTurns({ error, context, runData: { history: HISTORY } })
+    if (!handled) throw error
+
+    return {
+      finalOutput: handled.finalOutput,
+      state: { usage: context.usage },
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'get_file_contents' } }],
+    }
+  }
+}
+
 function agentRun(overrides = {}) {
   return {
     name: 'Soporti Review Finder (security)',
@@ -154,6 +177,7 @@ function agentRun(overrides = {}) {
     channel: 'pr_review',
     subject: 'acme-io/app#7',
     maxTurns: 42,
+    logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
     ...overrides,
   }
 }
@@ -349,9 +373,9 @@ describe('runReviewAgent', () => {
     mockRun.mockResolvedValue({ finalOutput: { findings: [], note: 'ok' } })
     const controller = new AbortController()
 
-    const output = await runReviewAgent(agentRun({ signal: controller.signal }))
+    const result = await runReviewAgent(agentRun({ signal: controller.signal }))
 
-    expect(output).toEqual({ findings: [], note: 'ok' })
+    expect(result).toEqual({ output: { findings: [], note: 'ok' }, wrappedUp: false })
     expect(MockAgent).toHaveBeenCalledTimes(1)
     expect(MockAgent.mock.calls[0][0]).toEqual({
       name: 'Soporti Review Finder (security)',
@@ -365,7 +389,11 @@ describe('runReviewAgent', () => {
     const [agentArg, inputArg, optionsArg] = mockRun.mock.calls[0]
     expect(agentArg).toBeInstanceOf(MockAgent)
     expect(inputArg).toBe('# Pull Request #7 — Fix rounding\n\n## Your task: the security pass')
-    expect(optionsArg).toEqual({ maxTurns: 42, signal: controller.signal })
+    expect(optionsArg).toEqual({
+      maxTurns: 42,
+      signal: controller.signal,
+      errorHandlers: { maxTurns: expect.any(Function) },
+    })
   })
 
   it('records the run on its channel against the PR it reviewed', async () => {
@@ -427,6 +455,96 @@ describe('runReviewAgent', () => {
       subject: 'acme-io/app#7',
       userId: null,
     })
+  })
+
+  it('wraps up at the turn limit with one more call to the same agent, without tools, on the history so far', async () => {
+    mockResolveModel.mockResolvedValueOnce(resolvedModel({ reasoning: { effort: 'high' } }))
+    const context = runContext()
+    mockRun.mockImplementationOnce(hitTurnLimit(context)).mockResolvedValueOnce({ finalOutput: WRAPPED_UP_OUTPUT })
+    const controller = new AbortController()
+    const options = agentRun({ signal: controller.signal })
+
+    const result = await runReviewAgent(options)
+
+    expect(result).toEqual({ output: WRAPPED_UP_OUTPUT, wrappedUp: true })
+    expect(mockRun).toHaveBeenCalledTimes(2)
+    const [wrapUpAgent, wrapUpInput, wrapUpOptions] = mockRun.mock.calls[1]
+    expect(wrapUpAgent.options).toEqual({
+      name: 'Soporti Review Finder (security)',
+      model: 'test-model',
+      instructions: 'Find vulnerabilities.',
+      tools: [{ name: 'get_file_diff' }],
+      outputType: finderOutputSchema,
+      modelSettings: { reasoning: { effort: 'high' }, toolChoice: 'none' },
+    })
+    expect(wrapUpInput).toEqual([
+      ...HISTORY,
+      { role: 'user', content: expect.stringMatching(/^## Turn limit reached\n\nYou have used all 42 turns/) },
+    ])
+    expect(wrapUpOptions).toEqual({ context, maxTurns: 1, signal: controller.signal })
+    expect(wrapUpOptions.context).toBe(context)
+    expect(options.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('records the tokens of the wrap-up call with the run it belongs to', async () => {
+    mockRun.mockImplementationOnce(hitTurnLimit()).mockImplementationOnce(async (agent, input, { context }) => {
+      context.usage.requests += 1
+      context.usage.inputTokens += 90_000
+      context.usage.outputTokens += 2000
+      return { finalOutput: WRAPPED_UP_OUTPUT }
+    })
+
+    await runReviewAgent(agentRun())
+
+    expect(recordAgentRun).toHaveBeenCalledTimes(1)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'ok',
+      subject: 'acme-io/app#7',
+      userId: null,
+      usage: { requests: 43, inputTokens: 940_000, outputTokens: 12_000, cachedInputTokens: 0, cacheWriteTokens: 0 },
+      durationMs: expect.any(Number),
+      tools: ['get_file_contents'],
+    })
+  })
+
+  it('fails with the turn limit exactly as before when the wrap-up call fails', async () => {
+    mockRun.mockImplementationOnce(hitTurnLimit()).mockRejectedValueOnce(new Error('model unavailable'))
+    const options = agentRun()
+
+    const err = await runReviewAgent(options).catch(e => e)
+
+    expect(err.message).toBe('The run hit the turn limit of 42 turns.')
+    expect(err.code).toBe('REVIEW_TURN_LIMIT')
+    expect(err.cause).toBeInstanceOf(MockMaxTurnsExceededError)
+    expect(recordAgentRun).toHaveBeenCalledWith({
+      channel: 'pr_review',
+      status: 'error',
+      subject: 'acme-io/app#7',
+      userId: null,
+    })
+    expect(options.logger.warn).toHaveBeenCalledTimes(1)
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      '[review] Soporti Review Finder (security) could not wrap up at the turn limit on acme-io/app#7 (model unavailable)'
+    )
+  })
+
+  it('aborts the wrap-up call when the review is superseded', async () => {
+    const controller = new AbortController()
+    mockRun.mockImplementationOnce(hitTurnLimit()).mockImplementationOnce(
+      (agent, input, { signal }) =>
+        new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        })
+    )
+    const options = agentRun({ signal: controller.signal })
+
+    const running = runReviewAgent(options)
+    await vi.waitFor(() => expect(mockRun).toHaveBeenCalledTimes(2))
+    controller.abort()
+
+    await expect(running).rejects.toThrow('aborted')
+    expect(options.logger.warn).not.toHaveBeenCalled()
   })
 
   it('rethrows any other run failure unchanged and records it', async () => {

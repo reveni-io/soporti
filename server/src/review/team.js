@@ -63,7 +63,12 @@ export async function runReviewTeam({
   return {
     overview: overview.status === REVIEW_PASS_COMPLETED ? overview.output : null,
     candidates: completed.flatMap(collectFindings),
-    passes: results.map(({ lens, status, output }) => ({ lens, status, note: output?.note ?? null })),
+    passes: results.map(({ lens, status, wrappedUp = false, output }) => ({
+      lens,
+      status,
+      wrappedUp,
+      note: output?.note ?? null,
+    })),
     reviewedPaths: new Set(completed.flatMap(result => [...result.reviewedPaths])),
   }
 }
@@ -146,7 +151,7 @@ async function runPass(pass, scope) {
   signal?.throwIfAborted()
 
   try {
-    const output = await runReviewAgent({
+    const { output, wrappedUp } = await runReviewAgent({
       name: pass.name,
       instructions: pass.instructions,
       tools: [...repoTools, ...diff.tools, ...(pass.withDataTools ? dataTools : [])],
@@ -157,9 +162,11 @@ async function runPass(pass, scope) {
       subject,
       maxTurns: config.review.maxTurns,
       signal,
+      logger,
     })
+    if (wrappedUp) logger.warn(`[review] The ${pass.label} pass wrapped up at the turn limit on ${subject}`)
 
-    return { lens: pass.lens, status: REVIEW_PASS_COMPLETED, output, reviewedPaths: diff.reviewedPaths }
+    return { lens: pass.lens, status: REVIEW_PASS_COMPLETED, wrappedUp, output, reviewedPaths: diff.reviewedPaths }
   } catch (err) {
     if (signal?.aborted) throw err
 

@@ -83,12 +83,16 @@ function callFor(lens) {
   return mockRunReviewAgent.mock.calls.find(call => passOf(call) === lens)[0]
 }
 
+function agentResult(output, wrappedUp = false) {
+  return { output, wrappedUp }
+}
+
 function respondByLens(outputs) {
   mockRunReviewAgent.mockImplementation(async options => {
     const output = outputs[passOf([options])]
     if (output instanceof Error) throw output
-    if (typeof output === 'function') return output(options)
-    return output ?? { findings: [], note: `${passOf([options])} ok` }
+    if (typeof output === 'function') return agentResult(await output(options))
+    return agentResult(output ?? { findings: [], note: `${passOf([options])} ok` })
   })
 }
 
@@ -126,9 +130,9 @@ describe('runReviewTeam', () => {
       { ...finding({ category: 'security', line: 20 }), lens: 'security' },
     ])
     expect(team.passes).toEqual([
-      { lens: 'overview', status: 'completed', note: null },
-      { lens: 'correctness', status: 'completed', note: 'One bug.' },
-      { lens: 'security', status: 'completed', note: 'One hole.' },
+      { lens: 'overview', status: 'completed', wrappedUp: false, note: null },
+      { lens: 'correctness', status: 'completed', wrappedUp: false, note: 'One bug.' },
+      { lens: 'security', status: 'completed', wrappedUp: false, note: 'One hole.' },
     ])
   })
 
@@ -248,6 +252,7 @@ describe('runReviewTeam', () => {
           subject: 'acme-io/app#7',
           maxTurns: 42,
           signal: controller.signal,
+          logger: expect.objectContaining({ warn: expect.any(Function) }),
         })
       )
     }
@@ -317,9 +322,9 @@ describe('runReviewTeam', () => {
 
     const reviewing = runReviewTeam(teamOptions({ files }))
     await vi.waitFor(() => expect(mockRunReviewAgent).toHaveBeenCalledTimes(4))
-    pending.splice(0).forEach(resolve => resolve({ findings: [], note: '' }))
+    pending.splice(0).forEach(resolve => resolve(agentResult({ findings: [], note: '' })))
     await vi.waitFor(() => expect(mockRunReviewAgent).toHaveBeenCalledTimes(6))
-    pending.splice(0).forEach(resolve => resolve({ findings: [], note: '' }))
+    pending.splice(0).forEach(resolve => resolve(agentResult({ findings: [], note: '' })))
 
     expect((await reviewing).passes).toHaveLength(6)
   })
@@ -336,12 +341,37 @@ describe('runReviewTeam', () => {
 
     expect(team.candidates).toEqual([{ ...finding(), lens: 'correctness' }])
     expect(team.passes).toEqual([
-      { lens: 'overview', status: 'completed', note: null },
-      { lens: 'correctness', status: 'completed', note: 'One bug.' },
-      { lens: 'security', status: 'failed', note: null },
+      { lens: 'overview', status: 'completed', wrappedUp: false, note: null },
+      { lens: 'correctness', status: 'completed', wrappedUp: false, note: 'One bug.' },
+      { lens: 'security', status: 'failed', wrappedUp: false, note: null },
     ])
     expect(options.logger.warn).toHaveBeenCalledWith(
       '[review] The security pass failed on acme-io/app#7 (The run hit the turn limit of 42 turns.); continuing without it'
+    )
+  })
+
+  it('keeps the findings and the files read by a pass that wrapped up at the turn limit, and flags it', async () => {
+    const options = teamOptions()
+    mockRunReviewAgent.mockImplementation(async agentOptions => {
+      if (passOf([agentOptions]) === 'overview') return agentResult(overviewOutput())
+      if (passOf([agentOptions]) === 'security') return agentResult({ findings: [], note: 'No holes.' })
+
+      await readDiff(agentOptions, 'src/totals.js')
+      return agentResult({ findings: [finding()], note: 'Stopped early.' }, true)
+    })
+
+    const team = await runReviewTeam(options)
+
+    expect(team.candidates).toEqual([{ ...finding(), lens: 'correctness' }])
+    expect(team.reviewedPaths).toEqual(new Set(['src/checkout.js', 'src/totals.js']))
+    expect(team.passes).toEqual([
+      { lens: 'overview', status: 'completed', wrappedUp: false, note: null },
+      { lens: 'correctness', status: 'completed', wrappedUp: true, note: 'Stopped early.' },
+      { lens: 'security', status: 'completed', wrappedUp: false, note: 'No holes.' },
+    ])
+    expect(options.logger.warn).toHaveBeenCalledTimes(1)
+    expect(options.logger.warn).toHaveBeenCalledWith(
+      '[review] The correctness pass wrapped up at the turn limit on acme-io/app#7'
     )
   })
 
@@ -349,7 +379,7 @@ describe('runReviewTeam', () => {
     const options = teamOptions({ files: [file('src/a.js', 1000), file('src/b.js', 1000)] })
     mockRunReviewAgent.mockImplementation(async ({ task }) => {
       if (task.includes('shard 2 of 2')) throw new Error('model unavailable')
-      return task.includes('the overview') ? overviewOutput() : { findings: [], note: '' }
+      return agentResult(task.includes('the overview') ? overviewOutput() : { findings: [], note: '' })
     })
 
     const team = await runReviewTeam(options)
@@ -379,7 +409,7 @@ describe('runReviewTeam', () => {
     const team = await runReviewTeam(teamOptions())
 
     expect(team.overview).toBeNull()
-    expect(team.passes[0]).toEqual({ lens: 'overview', status: 'failed', note: null })
+    expect(team.passes[0]).toEqual({ lens: 'overview', status: 'failed', wrappedUp: false, note: null })
     expect(team.candidates).toEqual([{ ...finding(), lens: 'correctness' }])
   })
 

@@ -130,8 +130,8 @@ async function verifyCluster(cluster, scope) {
   scope.signal?.throwIfAborted()
 
   try {
-    const { verdicts } = await runVerifier(cluster, scope)
-    return applyVerdicts(cluster, verdicts, scope.logger)
+    const { output } = await runVerifier(cluster, scope)
+    return applyVerdicts(cluster, output.verdicts, scope.logger)
   } catch (err) {
     if (scope.signal?.aborted) throw err
 
@@ -144,7 +144,7 @@ async function verifyCluster(cluster, scope) {
 
 async function runVerifier(
   cluster,
-  { trigger, files, sharedContext, changes = null, rootPath = null, diffBaseSha = null, signal }
+  { trigger, files, sharedContext, changes = null, rootPath = null, diffBaseSha = null, signal, logger }
 ) {
   const diff = buildDiffTools({ files, changes, rootPath, diffBaseSha })
 
@@ -159,6 +159,7 @@ async function runVerifier(
     subject: `${trigger.repoFullName}#${trigger.prNumber}`,
     maxTurns: Math.min(MAX_VERIFIER_TURNS, config.review.maxTurns),
     signal: AbortSignal.any([signal, AbortSignal.timeout(VERIFICATION_TIMEOUT_MS)].filter(Boolean)),
+    logger,
   })
 }
 

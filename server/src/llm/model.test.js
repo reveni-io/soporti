@@ -10,6 +10,7 @@ const openaiProvider = {
   isConfigured: vi.fn(),
   buildModel: vi.fn(),
   modelSettings: vi.fn(),
+  finalAnswerSettings: vi.fn(),
   wrapSession: vi.fn(),
 }
 
@@ -20,6 +21,7 @@ const anthropicProvider = {
   isConfigured: vi.fn(),
   buildModel: vi.fn(),
   modelSettings: vi.fn(),
+  finalAnswerSettings: vi.fn(),
   wrapSession: vi.fn(),
 }
 
@@ -47,6 +49,7 @@ beforeEach(() => {
     provider.isConfigured.mockReset()
     provider.buildModel.mockReset()
     provider.modelSettings.mockReset()
+    provider.finalAnswerSettings.mockReset().mockReturnValue({})
     provider.wrapSession.mockReset()
   }
 })
@@ -100,8 +103,20 @@ describe('resolveModelForAgent', () => {
     expect(await resolveModelForAgent()).toEqual({
       model: 'gpt-5.2-codex',
       modelSettings: { reasoning: { effort: 'high' } },
+      finalAnswerModelSettings: { reasoning: { effort: 'high' } },
     })
     expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-5.2-codex', { effort: 'high' })
+  })
+
+  it('layers the provider final answer settings over the model settings, without changing the regular ones', async () => {
+    openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-5.2', model: 'gpt-5.2' })
+    openaiProvider.modelSettings.mockReturnValue({ reasoning: { effort: 'medium' } })
+    openaiProvider.finalAnswerSettings.mockReturnValue({ toolChoice: 'none' })
+
+    const resolved = await resolveModelForAgent()
+
+    expect(resolved.modelSettings).toEqual({ reasoning: { effort: 'medium' } })
+    expect(resolved.finalAnswerModelSettings).toEqual({ reasoning: { effort: 'medium' }, toolChoice: 'none' })
   })
 
   it('falls back to the default effort when nothing is stored', async () => {
@@ -157,7 +172,11 @@ describe('resolveModelForAgent', () => {
 
     const resolved = await resolveModelForAgent({ provider: 'anthropic', model: 'claude-sonnet-5' })
 
-    expect(resolved).toEqual({ model: 'wrapped-sonnet', modelSettings: { retry: { maxRetries: 2 } } })
+    expect(resolved).toEqual({
+      model: 'wrapped-sonnet',
+      modelSettings: { retry: { maxRetries: 2 } },
+      finalAnswerModelSettings: { retry: { maxRetries: 2 } },
+    })
     expect(anthropicProvider.buildModel).toHaveBeenCalledWith({ modelId: 'claude-sonnet-5' })
     expect(getLlmProvider).not.toHaveBeenCalled()
     expect(openaiProvider.buildModel).not.toHaveBeenCalled()

@@ -52,6 +52,10 @@ export function modelSettings(modelId, { effort } = {}) {
   return { reasoning: { effort } }
 }
 
+export function finalAnswerSettings() {
+  return { toolChoice: 'none' }
+}
+
 export async function wrapSession(underlyingSession) {
   const client = await getClient()
   if (!client) return underlyingSession

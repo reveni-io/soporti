@@ -43,6 +43,7 @@ import {
   REVIEW_TURN_LIMIT_ERROR,
 } from '../constants.js'
 import { renderNumberedPatch } from './diff.js'
+import { buildTurnLimitMessage } from './prompt.js'
 
 const DEFAULT_DIFF_LINES = 1000
 const OUTSIDE_PR_ERROR =
@@ -54,6 +55,7 @@ const NOT_CHANGED_SINCE_ERROR =
 const NO_PATCH_SINCE_ERROR =
   'GitHub returned no patch for the changes to this file since your last review. Use its full diff instead: inlined in the message or readable with get_file_diff.'
 const NO_OUTPUT_ERROR = 'The agent produced no output: the run most likely hit its turn limit.'
+const WRAP_UP_TURNS = 1
 
 const findingSchema = z.object({
   path: z.string(),
@@ -287,18 +289,38 @@ export async function runReviewAgent({
   subject,
   maxTurns,
   signal,
+  logger = console,
 }) {
-  const { model, modelSettings } = await resolveModelForAgent()
+  const { model, modelSettings, finalAnswerModelSettings } = await resolveModelForAgent()
   const agent = new Agent({ name, model, instructions, tools, outputType, modelSettings })
   const input = `${sharedContext.text}\n\n${task}`
+  let wrappedUp = false
+
+  async function wrapUp({ context, runData }) {
+    try {
+      const result = await run(
+        agent.clone({ modelSettings: finalAnswerModelSettings }),
+        [...runData.history, { role: 'user', content: buildTurnLimitMessage(maxTurns) }],
+        { context, maxTurns: WRAP_UP_TURNS, signal }
+      )
+      wrappedUp = true
+
+      return { finalOutput: result.finalOutput }
+    } catch (err) {
+      if (signal?.aborted) throw err
+
+      logger.warn(`[review] ${name} could not wrap up at the turn limit on ${subject} (${err.message})`)
+      return undefined
+    }
+  }
 
   try {
     const { result } = await trackAgentRun(
       { channel, subject, failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR) },
-      () => run(agent, input, { maxTurns, signal })
+      () => run(agent, input, { maxTurns, signal, errorHandlers: { maxTurns: wrapUp } })
     )
 
-    return result.finalOutput
+    return { output: result.finalOutput, wrappedUp }
   } catch (err) {
     if (err instanceof MaxTurnsExceededError) throw turnLimitError(maxTurns, err)
     throw err

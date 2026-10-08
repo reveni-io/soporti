@@ -309,8 +309,8 @@ async function findEmptyFiles(files, rootPath) {
 
 function resolveEvent({ overview, candidates, passes }, notReviewed) {
   const hasProposedBlocking = candidates.some(finding => REVIEW_BLOCKING_SEVERITIES.has(finding.severity))
-  const hasFailedPass = passes.some(pass => pass.status === REVIEW_PASS_FAILED)
-  const isApproved = overview?.verdict === 'approve' && !hasProposedBlocking && !hasFailedPass
+  const hasCutShortPass = passes.some(pass => pass.status === REVIEW_PASS_FAILED || pass.wrappedUp)
+  const isApproved = overview?.verdict === 'approve' && !hasProposedBlocking && !hasCutShortPass
 
   return isApproved && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
 }

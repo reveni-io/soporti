@@ -91,7 +91,7 @@ const config = {
     label: process.env.REVIEW_LABEL || 'soporti-review',
     reviewerLogin: process.env.REVIEW_REVIEWER_LOGIN || '',
     concurrency: parseInt(process.env.REVIEW_CONCURRENCY || '1', 10) || 1,
-    maxTurns: parseInt(process.env.REVIEW_MAX_TURNS || '50', 10) || 50,
+    maxTurns: parseInt(process.env.REVIEW_MAX_TURNS || '200', 10) || 200,
     reviewOnPush: process.env.REVIEW_ON_PUSH !== 'false',
     pushDebounceMs: parseInt(process.env.REVIEW_PUSH_DEBOUNCE_MS || '120000', 10) || 120000,
   },
