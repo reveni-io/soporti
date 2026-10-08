@@ -2,7 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHmac } from 'node:crypto'
 import express from 'express'
 import request from 'supertest'
-import { createGithubWebhookRouter } from './webhook.js'
+
+const mockCreateIssueCommentReaction = vi.fn()
+const mockCreateReviewCommentReaction = vi.fn()
+
+vi.mock('../github/client.js', () => ({
+  createIssueCommentReaction: mockCreateIssueCommentReaction,
+  createReviewCommentReaction: mockCreateReviewCommentReaction,
+}))
+
+const { createGithubWebhookRouter } = await import('./webhook.js')
+const { ReviewQueue } = await import('./queue.js')
 
 const SECRET = 'webhook-secret'
 
@@ -29,7 +39,16 @@ function triggerPayload() {
   }
 }
 
-function buildApp(queue, { getSecret = async () => SECRET } = {}) {
+function commandPayload({ association = 'MEMBER', body = '@soporti-bot review' } = {}) {
+  return {
+    action: 'created',
+    repository: { full_name: 'acme-io/app' },
+    issue: { number: 7, pull_request: { url: 'x' } },
+    comment: { id: 300, body, user: { login: 'dev' }, author_association: association },
+  }
+}
+
+function buildApp(queue, { getSecret = async () => SECRET, logger = console } = {}) {
   const app = express()
   app.use(
     '/api/webhooks/github',
@@ -38,6 +57,7 @@ function buildApp(queue, { getSecret = async () => SECRET } = {}) {
       label: 'soporti-review',
       getReviewerLogin: () => 'soporti-bot',
       queue,
+      logger,
     })
   )
   return app
@@ -57,7 +77,10 @@ describe('POST /api/webhooks/github', () => {
   let queue
 
   beforeEach(() => {
+    vi.clearAllMocks()
     queue = { enqueue: vi.fn(() => ({ accepted: true })) }
+    mockCreateIssueCommentReaction.mockResolvedValue({ id: 1, content: 'eyes' })
+    mockCreateReviewCommentReaction.mockResolvedValue({ id: 2, content: 'eyes' })
   })
 
   it('queues a review for a valid signed trigger and responds 202', async () => {
@@ -90,6 +113,98 @@ describe('POST /api/webhooks/github', () => {
       expect.objectContaining({ kind: 'mention', channel: 'issue', dedupeKey: 'acme-io/app#7@mention-100' })
     )
     expect(queue.enqueue.mock.calls[0][0].supersedeKey).toBeUndefined()
+  })
+
+  it('queues a review of the current head for a review command from a member and reacts to the comment', async () => {
+    const res = await post(buildApp(queue), commandPayload(), { event: 'issue_comment' })
+
+    expect(res.status).toBe(202)
+    expect(res.body).toEqual({ queued: true })
+    expect(queue.enqueue).toHaveBeenCalledTimes(1)
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'mention_command',
+        headSha: 'HEAD',
+        dedupeKey: 'acme-io/app#7@HEAD',
+        supersedeKey: 'acme-io/app#7',
+      })
+    )
+    expect(mockCreateIssueCommentReaction).toHaveBeenCalledTimes(1)
+    expect(mockCreateIssueCommentReaction).toHaveBeenCalledWith('acme-io/app', 300, 'eyes')
+    expect(mockCreateReviewCommentReaction).not.toHaveBeenCalled()
+  })
+
+  it('reacts on the review comment when the command is posted in a review thread', async () => {
+    const payload = {
+      action: 'created',
+      repository: { full_name: 'acme-io/app' },
+      pull_request: { number: 7 },
+      comment: { id: 400, body: '@soporti-bot review', user: { login: 'dev' }, author_association: 'OWNER' },
+    }
+
+    const res = await post(buildApp(queue), payload, { event: 'pull_request_review_comment' })
+
+    expect(res.body).toEqual({ queued: true })
+    expect(queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'mention_command', commentId: 400 }))
+    expect(mockCreateReviewCommentReaction).toHaveBeenCalledTimes(1)
+    expect(mockCreateReviewCommentReaction).toHaveBeenCalledWith('acme-io/app', 400, 'eyes')
+    expect(mockCreateIssueCommentReaction).not.toHaveBeenCalled()
+  })
+
+  it('supersedes a running review of the same PR when a review command arrives', async () => {
+    const signals = []
+    const realQueue = new ReviewQueue({
+      processor: (job, { signal }) => {
+        signals.push(signal)
+        return new Promise(() => {})
+      },
+    })
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const app = buildApp(realQueue, { logger })
+
+    await post(app, triggerPayload())
+    const res = await post(app, commandPayload(), { event: 'issue_comment' })
+
+    expect(res.body).toEqual({ queued: true })
+    expect(signals).toHaveLength(1)
+    expect(signals[0].aborted).toBe(true)
+    expect(logger.log).toHaveBeenCalledWith(
+      '[review] Queued mention_command for acme-io/app#7@HEAD (superseding an older review of this PR)'
+    )
+  })
+
+  it('answers the review command as a plain mention when the author is not a collaborator', async () => {
+    const res = await post(buildApp(queue), commandPayload({ association: 'NONE' }), { event: 'issue_comment' })
+
+    expect(res.body).toEqual({ queued: true })
+    expect(queue.enqueue).toHaveBeenCalledTimes(1)
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'mention', dedupeKey: 'acme-io/app#7@mention-300' })
+    )
+    expect(mockCreateIssueCommentReaction).not.toHaveBeenCalled()
+  })
+
+  it('does not react when the review command is deduped against a pending one', async () => {
+    queue.enqueue.mockReturnValue({ accepted: false, reason: 'in-flight' })
+
+    const res = await post(buildApp(queue), commandPayload(), { event: 'issue_comment' })
+
+    expect(res.body).toEqual({ queued: false, reason: 'in-flight' })
+    expect(mockCreateIssueCommentReaction).not.toHaveBeenCalled()
+  })
+
+  it('still queues the review when the reaction on the command fails', async () => {
+    mockCreateIssueCommentReaction.mockRejectedValue(new Error('rate limited'))
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    const res = await post(buildApp(queue, { logger }), commandPayload(), { event: 'issue_comment' })
+
+    expect(res.body).toEqual({ queued: true })
+    await vi.waitFor(() => {
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[review] Could not react to the review command on acme-io/app#7@HEAD (rate limited)'
+      )
+    })
   })
 
   it('accepts but does not queue comments without a mention', async () => {

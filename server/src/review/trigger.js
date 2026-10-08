@@ -26,7 +26,7 @@ export function detectTrigger({ eventName, payload, reviewerLogin, label }) {
   return null
 }
 
-function buildTrigger(kind, repoFullName, pr) {
+export function buildTrigger(kind, repoFullName, pr) {
   return {
     kind,
     repoFullName,

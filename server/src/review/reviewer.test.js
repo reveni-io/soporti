@@ -801,4 +801,35 @@ describe('verdict header', () => {
     expect(body()).toMatch(/^### 🔎 \*\*Review needed\*\* — 1 major/)
     expect(body()).toContain('some files not reviewed')
   })
+
+  it('reviews the current head and reports the mention trigger for a review command', async () => {
+    setupHappyPath({ pr: prData({ head: { sha: 'cafe1234', ref: 'fix/totals' } }) })
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const command = {
+      ...trigger(),
+      kind: 'mention_command',
+      headSha: 'HEAD',
+      channel: 'issue',
+      commentId: 300,
+      dedupeKey: 'acme-io/app#7@HEAD',
+    }
+
+    await runReview(command, { logger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    const [repo, prNumber, review] = mockCreatePullRequestReview.mock.calls[0]
+    expect([repo, prNumber, review.commitId]).toEqual(['acme-io/app', 7, 'cafe1234'])
+    expect(review.body).toContain('_Automated review by Soporti · trigger: mention._')
+    expect(logger.log).not.toHaveBeenCalledWith(expect.stringContaining('Head moved'))
+  })
+
+  it('reports the label trigger in the footer', async () => {
+    setupHappyPath()
+
+    await runReview({ ...trigger(), kind: 'labeled' }, { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(mockCreatePullRequestReview.mock.calls[0][2].body).toContain(
+      '_Automated review by Soporti · trigger: label._'
+    )
+  })
 })

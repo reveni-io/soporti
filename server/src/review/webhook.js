@@ -2,6 +2,15 @@ import express from 'express'
 import { verifySignature } from './signature.js'
 import { detectTrigger } from './trigger.js'
 import { detectMention } from './mention-trigger.js'
+import { createIssueCommentReaction, createReviewCommentReaction } from '../github/client.js'
+import { REVIEW_KIND_MENTION_COMMAND } from '../constants.js'
+
+function acknowledgeCommand(job, logger) {
+  const react = job.channel === 'review_thread' ? createReviewCommentReaction : createIssueCommentReaction
+  react(job.repoFullName, job.commentId, 'eyes').catch(err => {
+    logger.warn(`[review] Could not react to the review command on ${job.dedupeKey} (${err.message})`)
+  })
+}
 
 export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, queue, logger = console }) {
   const router = express.Router()
@@ -48,6 +57,8 @@ export function createGithubWebhookRouter({ getSecret, label, getReviewerLogin, 
 
     const result = queue.enqueue(job)
     if (result.accepted) {
+      if (job.kind === REVIEW_KIND_MENTION_COMMAND) acknowledgeCommand(job, logger)
+
       const superseding = result.superseded ? ' (superseding an older review of this PR)' : ''
       logger.log(`[review] Queued ${job.kind} for ${job.dedupeKey}${superseding}`)
       return res.status(202).json({ queued: true })
