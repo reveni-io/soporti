@@ -63,7 +63,7 @@ vi.mock('../github/client.js', () => ({ listRepos: vi.fn() }))
 vi.mock('../config.js', () => ({
   default: {
     agent: { maxIterations: 7 },
-    review: { reasoningEffort: 'high' },
+    review: { reasoningEffort: 'high', maxTurns: 42 },
   },
 }))
 

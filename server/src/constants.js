@@ -105,3 +105,5 @@ export const MCP_MAX_JOBS_PER_USER = 5
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const MAX_EMAIL_LENGTH = 254
+
+export const REVIEW_TURN_LIMIT_ERROR = 'REVIEW_TURN_LIMIT'

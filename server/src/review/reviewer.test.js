@@ -431,7 +431,32 @@ describe('runReview', () => {
     expect(repo).toBe('acme-io/app')
     expect(prNumber).toBe(7)
     expect(body).toMatch(/could not complete/i)
+    expect(body).not.toContain('REVIEW_MAX_TURNS')
     expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+  })
+
+  it('names the turn limit as the cause when the review runs out of turns', async () => {
+    setupHappyPath()
+    mockRunReviewerAgent.mockRejectedValue(
+      Object.assign(new Error('The review hit the turn limit of 50 turns.'), {
+        code: 'REVIEW_TURN_LIMIT',
+        maxTurns: 50,
+      })
+    )
+    mockCreateIssueComment.mockResolvedValue({ id: 3 })
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    await runReview(trigger(), { logger })
+
+    expect(mockCreatePullRequestReview).not.toHaveBeenCalled()
+    expect(mockCreateIssueComment).toHaveBeenCalledTimes(1)
+    const body = mockCreateIssueComment.mock.calls[0][2]
+    expect(body).toMatch(/could not complete/i)
+    expect(body).toContain('hit the turn limit (50 turns)')
+    expect(body).toContain('the PR may be too large for one review')
+    expect(body).toContain('`REVIEW_MAX_TURNS` can be raised')
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(logger.error.mock.calls[0][0]).toBe('[review] Failed acme-io/app#7@deadbeef: hit the turn limit (50 turns)')
   })
 
   it('never throws even if the failure comment itself fails', async () => {
