@@ -8,6 +8,7 @@ const MAX_THREAD_COMMENTS = 10
 const MAX_CONVERSATION_COMMENTS = 20
 const MAX_REVIEW_BODY_CHARS = 3000
 const MAX_COMMENT_CHARS = 1000
+const THREAD_REF_PREFIX = 'T'
 const ANCESTOR_STATUSES = new Set(['ahead', 'identical'])
 
 export async function loadReviewHistory(
@@ -45,6 +46,7 @@ function buildHistory({ reviews, threads, comments, reviewerLogin }) {
   const submitted = reviews.filter(review => review.state !== 'PENDING')
   const ownReviews = submitted.filter(review => isOwn(review.user?.login))
   const startedThreads = threads.filter(thread => thread.comments.length > 0)
+  const ownThreads = withRefs(latestThreads(startedThreads.filter(thread => isOwn(thread.comments[0].author))))
 
   return {
     lastReviewedSha: ownReviews.at(-1)?.commit_id ?? null,
@@ -53,7 +55,8 @@ function buildHistory({ reviews, threads, comments, reviewerLogin }) {
         .slice(-MAX_OWN_REVIEWS)
         .map(review => ({ commitId: review.commit_id, body: truncate(review.body, MAX_REVIEW_BODY_CHARS) }))
     ),
-    ownThreads: capThreads(startedThreads.filter(thread => isOwn(thread.comments[0].author))),
+    ownThreads: ownThreads.map(trimThread),
+    openThreads: ownThreads.filter(thread => thread.ref).map(toOpenThread),
     humanReviews: withBody(
       submitted
         .filter(review => !isOwn(review.user?.login))
@@ -63,7 +66,7 @@ function buildHistory({ reviews, threads, comments, reviewerLogin }) {
           body: truncate(review.body, MAX_REVIEW_BODY_CHARS),
         }))
     ).slice(-MAX_HUMAN_REVIEWS),
-    humanThreads: capThreads(startedThreads.filter(thread => !isOwn(thread.comments[0].author))),
+    humanThreads: latestThreads(startedThreads.filter(thread => !isOwn(thread.comments[0].author))).map(trimThread),
     conversation: withBody(
       comments
         .filter(comment => !isOwn(comment.user?.login))
@@ -87,16 +90,28 @@ async function loadChangesSince({ repoFullName, baseSha, headSha, files }, logge
   }
 }
 
-function capThreads(threads) {
-  return threads.slice(-MAX_THREADS).map(thread => {
-    const [root, ...replies] = thread.comments
-    const kept = thread.isResolved ? [root] : [root, ...replies.slice(-(MAX_THREAD_COMMENTS - 1))]
+function latestThreads(threads) {
+  return threads.slice(-MAX_THREADS)
+}
 
-    return {
-      ...thread,
-      comments: kept.map(comment => ({ ...comment, body: truncate(comment.body, MAX_COMMENT_CHARS) })),
-    }
-  })
+function withRefs(threads) {
+  let nextRef = 1
+
+  return threads.map(thread => (thread.isResolved ? thread : { ...thread, ref: `${THREAD_REF_PREFIX}${nextRef++}` }))
+}
+
+function trimThread(thread) {
+  const [root, ...replies] = thread.comments
+  const kept = thread.isResolved ? [root] : [root, ...replies.slice(-(MAX_THREAD_COMMENTS - 1))]
+
+  return {
+    ...thread,
+    comments: kept.map(comment => ({ ...comment, body: truncate(comment.body, MAX_COMMENT_CHARS) })),
+  }
+}
+
+function toOpenThread({ ref, id, comments: [root] }) {
+  return { ref, id, commentId: root.databaseId, body: root.body }
 }
 
 function withBody(entries) {

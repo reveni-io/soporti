@@ -393,6 +393,7 @@ function sampleHistory(overrides = {}) {
         ],
       },
       {
+        ref: 'T1',
         isResolved: false,
         isOutdated: true,
         path: 'src/cents.js',
@@ -400,6 +401,7 @@ function sampleHistory(overrides = {}) {
         comments: [{ author: 'soporti-bot', body: '**[minor]** rename this' }],
       },
       {
+        ref: 'T2',
         isResolved: false,
         isOutdated: false,
         path: 'src/money.js',
@@ -444,8 +446,8 @@ describe('buildSharedContext with review history', () => {
     expect(input).toContain('> Two issues in refunds.')
     expect(input).toContain('### Your inline findings')
     expect(input).toContain('#### `src/refunds.js:12` — resolved')
-    expect(input).toContain('#### `src/cents.js` — open, outdated')
-    expect(input).toContain('#### `src/money.js:3` — open')
+    expect(input).toContain('#### T1 · `src/cents.js` — open, outdated')
+    expect(input).toContain('#### T2 · `src/money.js:3` — open')
     expect(input).toContain('**@dev-user**:\n> Fixed in the next commit.')
   })
 

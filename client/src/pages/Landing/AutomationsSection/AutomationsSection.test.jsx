@@ -22,6 +22,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByText(/one-click suggestions and a prompt for your AI agent/i)).toBeInTheDocument()
     expect(screen.getByText(/nits stay collapsed/i)).toBeInTheDocument()
     expect(screen.getByText(/never repeat resolved findings/i)).toBeInTheDocument()
+    expect(screen.getByText(/marks that comment “Addressed in commit …” and resolves the thread/i)).toBeInTheDocument()
     expect(screen.getByText(/a team of Soporti agents reviews the code/i)).toBeInTheDocument()
     expect(screen.getByText(/specialized passes in parallel: correctness, security, standards/i)).toBeInTheDocument()
     expect(screen.getByText(/split the correctness pass across up to four agents/i)).toBeInTheDocument()

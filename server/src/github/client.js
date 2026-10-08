@@ -7,6 +7,7 @@ const REVIEW_THREADS_QUERY = `query ($owner: String!, $repo: String!, $number: I
     pullRequest(number: $number) {
       reviewThreads(last: 100) {
         nodes {
+          id
           isResolved
           isOutdated
           path
@@ -14,6 +15,7 @@ const REVIEW_THREADS_QUERY = `query ($owner: String!, $repo: String!, $number: I
           originalLine
           comments(first: 50) {
             nodes {
+              fullDatabaseId
               author { login }
               body
             }
@@ -21,6 +23,12 @@ const REVIEW_THREADS_QUERY = `query ($owner: String!, $repo: String!, $number: I
         }
       }
     }
+  }
+}`
+
+const RESOLVE_REVIEW_THREAD_MUTATION = `mutation ($threadId: ID!) {
+  resolveReviewThread(input: { threadId: $threadId }) {
+    thread { id }
   }
 }`
 
@@ -131,15 +139,29 @@ export async function listReviewThreads(repoFullName, prNumber) {
   const data = await octokit.graphql(REVIEW_THREADS_QUERY, { owner, repo, number: prNumber })
 
   return (data.repository?.pullRequest?.reviewThreads?.nodes ?? []).map(thread => ({
+    id: thread.id,
     isResolved: Boolean(thread.isResolved),
     isOutdated: Boolean(thread.isOutdated),
     path: thread.path,
     line: thread.line ?? thread.originalLine ?? null,
     comments: (thread.comments?.nodes ?? []).map(comment => ({
+      databaseId: comment.fullDatabaseId ?? null,
       author: comment.author?.login ?? '',
       body: comment.body ?? '',
     })),
   }))
+}
+
+export async function updateReviewComment(repoFullName, commentId, body) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.pulls.updateReviewComment({ owner, repo, comment_id: commentId, body })
+  return data
+}
+
+export async function resolveReviewThread(threadId) {
+  const octokit = await getOctokit()
+  await octokit.graphql(RESOLVE_REVIEW_THREAD_MUTATION, { threadId })
 }
 
 export async function compareCommits(repoFullName, baseSha, headSha) {

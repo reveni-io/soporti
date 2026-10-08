@@ -35,11 +35,12 @@ function review(login, overrides = {}) {
 
 function thread(authors, overrides = {}) {
   return {
+    id: 'PRRT_1',
     isResolved: false,
     isOutdated: false,
     path: 'src/checkout.js',
     line: 11,
-    comments: authors.map((author, i) => ({ author, body: `comment ${i} by ${author}` })),
+    comments: authors.map((author, i) => ({ databaseId: `${4000 + i}`, author, body: `comment ${i} by ${author}` })),
     ...overrides,
   }
 }
@@ -96,25 +97,74 @@ describe('loadReviewHistory', () => {
 
     expect(history.ownThreads).toEqual([
       {
+        id: 'PRRT_1',
         isResolved: true,
         isOutdated: false,
         path: 'src/checkout.js',
         line: 11,
-        comments: [{ author: 'soporti-bot', body: 'comment 0 by soporti-bot' }],
+        comments: [{ databaseId: '4000', author: 'soporti-bot', body: 'comment 0 by soporti-bot' }],
       },
     ])
     expect(history.humanThreads).toEqual([
       {
+        id: 'PRRT_1',
         isResolved: false,
         isOutdated: true,
         path: 'src/cart.js',
         line: 3,
         comments: [
-          { author: 'alice', body: 'comment 0 by alice' },
-          { author: 'dev', body: 'comment 1 by dev' },
+          { databaseId: '4000', author: 'alice', body: 'comment 0 by alice' },
+          { databaseId: '4001', author: 'dev', body: 'comment 1 by dev' },
         ],
       },
     ])
+  })
+
+  it('numbers only the reviewer own open threads and lists them with their full root comment', async () => {
+    const longFinding = `**Major** ${'x'.repeat(1500)}`
+    setup({
+      reviews: [review('soporti-bot')],
+      threads: [
+        thread(['soporti-bot'], { id: 'PRRT_resolved', isResolved: true }),
+        thread(['alice'], { id: 'PRRT_human' }),
+        thread(['soporti-bot', 'dev'], { id: 'PRRT_open', isOutdated: true }),
+        thread(['dev', 'soporti-bot'], { id: 'PRRT_reply' }),
+        {
+          ...thread([], { id: 'PRRT_long' }),
+          comments: [{ databaseId: '9001', author: 'soporti-bot', body: longFinding }],
+        },
+      ],
+    })
+
+    const history = await loadReviewHistory(request(), { logger: silentLogger })
+
+    expect(history.ownThreads.map(({ id, ref }) => [id, ref])).toEqual([
+      ['PRRT_resolved', undefined],
+      ['PRRT_open', 'T1'],
+      ['PRRT_long', 'T2'],
+    ])
+    expect(history.humanThreads.map(({ id, ref }) => [id, ref])).toEqual([
+      ['PRRT_human', undefined],
+      ['PRRT_reply', undefined],
+    ])
+    expect(history.ownThreads[2].comments[0].body).toHaveLength(1001)
+    expect(history.openThreads).toEqual([
+      { ref: 'T1', id: 'PRRT_open', commentId: '4000', body: 'comment 0 by soporti-bot' },
+      { ref: 'T2', id: 'PRRT_long', commentId: '9001', body: longFinding },
+    ])
+  })
+
+  it('numbers only the threads it keeps, so every ref points to a thread the agents can read', async () => {
+    setup({
+      threads: Array.from({ length: 45 }, (_, i) => thread(['soporti-bot'], { id: `PRRT_${i}`, line: i + 1 })),
+    })
+
+    const history = await loadReviewHistory(request(), { logger: silentLogger })
+
+    expect(history.ownThreads).toHaveLength(40)
+    expect(history.openThreads).toHaveLength(40)
+    expect(history.openThreads[0]).toEqual(expect.objectContaining({ ref: 'T1', id: 'PRRT_5' }))
+    expect(history.openThreads.at(-1)).toEqual(expect.objectContaining({ ref: 'T40', id: 'PRRT_44' }))
   })
 
   it('keeps the root comment and the latest replies of a long thread', async () => {

@@ -270,9 +270,10 @@ function renderSection(title, items, renderItem) {
 
 function renderThread(thread) {
   const location = `${inline(thread.path)}${thread.line ? `:${thread.line}` : ''}`
+  const heading = [thread.ref, `\`${location}\` — ${threadState(thread)}`].filter(Boolean).join(' · ')
   const comments = thread.comments.map(comment => renderQuoted(`@${inline(comment.author)}`, comment.body))
 
-  return `#### \`${location}\` — ${threadState(thread)}\n\n${comments.join('\n\n')}`
+  return `#### ${heading}\n\n${comments.join('\n\n')}`
 }
 
 function renderQuoted(label, body) {
