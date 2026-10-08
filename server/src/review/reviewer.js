@@ -14,6 +14,7 @@ import {
 } from '../github/client.js'
 import { partitionFindings, buildGeneratedMatcher, classifyFiles, findUnreviewedFiles } from './diff.js'
 import { runReviewerAgent } from './agent.js'
+import { verifyFindings } from './verify.js'
 import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
 import { redactSecrets } from './output-guard.js'
@@ -109,7 +110,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     signal?.throwIfAborted()
 
-    const { output, reviewedPaths } = await runReviewerAgent({
+    const { output: proposed, reviewedPaths } = await runReviewerAgent({
       trigger: { ...current, headSha: reviewedSha },
       files: changedFiles,
       standardsFiles,
@@ -120,6 +121,18 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       diffBaseSha,
       signal,
     })
+
+    signal?.throwIfAborted()
+
+    const findings = await verifyFindings(proposed.findings, {
+      trigger: { ...current, headSha: reviewedSha },
+      files: changedFiles,
+      rootPath,
+      diffBaseSha,
+      signal,
+      logger,
+    })
+    const output = { ...proposed, findings }
 
     signal?.throwIfAborted()
 
