@@ -18,34 +18,48 @@ function finding(overrides = {}) {
   }
 }
 
-function output(overrides = {}) {
+function output({ findings = [], ...overrides } = {}) {
   return {
-    walkthrough: 'Recomputes the checkout total from the cart items.',
-    changes: [{ label: 'Checkout total', files: ['src/checkout.js'], summary: 'Sums the items before validating.' }],
-    effort: 2,
-    reviewMinutes: 15,
-    diagram: null,
-    standards: 'Follows CLAUDE.md.',
-    spec: 'Implements sc-42.',
-    previousFindings: null,
-    verdict: 'comment',
-    findings: [],
-    ...overrides,
+    overview: {
+      walkthrough: 'Recomputes the checkout total from the cart items.',
+      changes: [{ label: 'Checkout total', files: ['src/checkout.js'], summary: 'Sums the items before validating.' }],
+      effort: 2,
+      reviewMinutes: 15,
+      diagram: null,
+      previousFindings: null,
+      verdict: 'comment',
+      ...overrides,
+    },
+    findings,
   }
 }
+
+function pass(lens, overrides = {}) {
+  return { lens, status: 'completed', note: null, ...overrides }
+}
+
+const PASSES = [
+  pass('overview'),
+  pass('correctness', { note: 'No bugs found.' }),
+  pass('security', { note: 'No vulnerabilities found.' }),
+  pass('standards', { note: 'Follows CLAUDE.md.' }),
+  pass('spec', { note: 'Implements sc-42.' }),
+]
 
 function review(overrides = {}) {
   return {
     event: 'COMMENT',
     findings: { inline: [], outside: [], nits: [] },
     output: output(),
+    passes: PASSES,
+    verification: { proposed: 0, confirmed: 0, downgraded: 0, dropped: 0, unverified: 0, skipped: 0 },
     coverage: {
       files: [{ filename: 'src/checkout.js', generated: false, empty: false }],
       reviewedPaths: new Set(['src/checkout.js']),
       notReviewed: [],
     },
     context: {
-      trigger: { kind: 'review_requested', baseSha: 'base0001', baseRef: 'main' },
+      trigger: { kind: 'review_requested', baseSha: 'base0001', baseRef: 'main', title: 'Fix the checkout total' },
       history: null,
       headSha: 'deadbeef',
       standards: { documents: [], notInlined: [] },
@@ -69,6 +83,32 @@ describe('renderInlineComment', () => {
         'In @src/checkout.js at line 11: Clamp the total to zero in sumItems and add a test with a full refund.\n```',
         '</details>',
       ].join('\n\n')
+    )
+  })
+
+  it('collapses the verifier evidence under "Why this was flagged" between the body and the suggestion', () => {
+    const comment = renderInlineComment(
+      finding({
+        anchorStartLine: null,
+        suggestion: 'const total = 0',
+        evidence: 'src/cart.js:40 subtracts refunds and nothing clamps the result.',
+      })
+    )
+
+    expect(comment).toContain(
+      [
+        'sumItems subtracts refunds without a floor (src/cart.js:40), so the charge is negative.',
+        '<details>\n<summary>🔍 Why this was flagged</summary>',
+        'src/cart.js:40 subtracts refunds and nothing clamps the result.',
+        '</details>',
+        '<details>\n<summary>📝 Committable suggestion</summary>',
+      ].join('\n\n')
+    )
+    expect(renderInlineComment(finding({ anchorStartLine: null, evidence: null }))).not.toContain(
+      'Why this was flagged'
+    )
+    expect(renderInlineComment(finding({ anchorStartLine: null, evidence: '  ' }))).not.toContain(
+      'Why this was flagged'
     )
   })
 
@@ -193,7 +233,35 @@ describe('renderReviewBody', () => {
     )
 
     expect(body.split('\n\n')[1]).toBe(
-      '> ⚠️ **Partial review**: 1 file(s) were not reviewed (listed under Review info). A human needs to check them.'
+      '> ⚠️ **Partial review**: 1 file(s) were not reviewed (listed under Review info). A human needs to check what was not covered.'
+    )
+  })
+
+  it('flags a partial review when a finder pass failed, naming the failed shards, but not for the overview', () => {
+    const passes = [
+      pass('overview', { status: 'failed' }),
+      pass('correctness'),
+      pass('correctness', { status: 'failed' }),
+      pass('security', { status: 'failed' }),
+    ]
+
+    const failedFinders = renderReviewBody(review({ passes }))
+    const failedOverview = renderReviewBody(
+      review({ passes: [pass('overview', { status: 'failed' }), pass('security')] })
+    )
+    const both = renderReviewBody(
+      review({
+        passes: [pass('overview'), pass('security', { status: 'failed' })],
+        coverage: { files: [{ filename: 'src/cart.js' }], reviewedPaths: new Set(), notReviewed: ['src/cart.js'] },
+      })
+    )
+
+    expect(failedFinders.split('\n\n')[1]).toBe(
+      '> ⚠️ **Partial review**: the correctness (1 of 2 shards) and security passes failed. A human needs to check what was not covered.'
+    )
+    expect(failedOverview).not.toMatch(/Partial review/)
+    expect(both.split('\n\n')[1]).toBe(
+      '> ⚠️ **Partial review**: 1 file(s) were not reviewed (listed under Review info) and the security pass failed. A human needs to check what was not covered.'
     )
   })
 
@@ -232,6 +300,22 @@ describe('renderReviewBody', () => {
 
     expect(body).toContain('<details>\n<summary>⚠️ Outside diff range comments (1)</summary><blockquote>')
     expect(body).toContain('`500`: **🐛 Bug** | **🟡 Minor**')
+  })
+
+  it('collapses the evidence of a body finding too', () => {
+    const body = renderReviewBody(
+      review({
+        findings: {
+          inline: [],
+          outside: [finding({ line: null, evidence: 'No migration adds the column (server/drizzle/).' })],
+          nits: [],
+        },
+      })
+    )
+
+    expect(body).toContain(
+      '<details>\n<summary>🔍 Why this was flagged</summary>\n\nNo migration adds the column (server/drizzle/).\n\n</details>'
+    )
   })
 
   it('shows the suggestion of a body finding as a proposed fix', () => {
@@ -333,6 +417,30 @@ describe('renderReviewBody', () => {
         '- **Trigger:** label',
         '- **Standards:** `CLAUDE.md`, `docs/adr/0001-x.md`',
         '- **Spec:** sc-42, sc-43',
+        '- **Passes:** overview, correctness, security, standards, spec',
+        '- **Verification:** 0 proposed · 0 confirmed · 0 downgraded · 0 dropped',
+      ].join('\n')
+    )
+  })
+
+  it('counts the passes, marks the failed ones and sums up the verification in the review info', () => {
+    const body = renderReviewBody(
+      review({
+        passes: [
+          pass('overview'),
+          pass('correctness'),
+          pass('correctness', { status: 'failed' }),
+          pass('correctness'),
+          pass('security', { status: 'failed' }),
+        ],
+        verification: { proposed: 7, confirmed: 2, downgraded: 1, dropped: 1, unverified: 1, skipped: 2 },
+      })
+    )
+
+    expect(body).toContain(
+      [
+        '- **Passes:** overview, correctness ×3 (❌ 1 failed), security (❌ failed)',
+        '- **Verification:** 7 proposed · 2 confirmed · 1 downgraded · 1 dropped · 1 unverified · 2 skipped (over the verification limit)',
       ].join('\n')
     )
   })
@@ -595,24 +703,7 @@ describe('renderWalkthrough', () => {
     expect(comment).toContain('| CI | ❌ Failed | 1 failed: test (server) |')
   })
 
-  it('lists the detected stories but skips the spec check when Shortcut is not configured', () => {
-    const spec = {
-      configured: false,
-      stories: [
-        { id: 42, story: null },
-        { id: 43, story: null },
-      ],
-    }
-    const context = { ...review().context, spec }
-    const findings = [finding({ category: 'spec' })]
-
-    expect(renderReviewBody(review({ context }))).toContain('- **Spec:** sc-42, sc-43')
-    expect(renderWalkthrough(walkthrough({ context, output: output({ findings }) }))).toContain(
-      '| Spec | ➖ Skipped | Implements sc-42. |'
-    )
-  })
-
-  it('lists the detected stories but skips the spec check when every story failed to load', () => {
+  it('skips the spec check when no spec pass ran, while the review info still lists the detected stories', () => {
     const spec = {
       configured: true,
       stories: [
@@ -621,27 +712,79 @@ describe('renderWalkthrough', () => {
       ],
     }
     const context = { ...review().context, spec }
+    const passes = PASSES.filter(candidate => candidate.lens !== 'spec')
+    const findings = [finding({ category: 'spec' })]
 
-    expect(renderReviewBody(review({ context }))).toContain('- **Spec:** sc-42, sc-43')
-    expect(renderWalkthrough(walkthrough({ context }))).toContain('| Spec | ➖ Skipped | Implements sc-42. |')
+    expect(renderReviewBody(review({ context, passes }))).toContain('- **Spec:** sc-42, sc-43')
+    expect(renderWalkthrough(walkthrough({ context, passes, output: output({ findings }) }))).toContain(
+      '| Spec | ➖ Skipped | No spec available |'
+    )
   })
 
-  it('skips the spec check without a story and reports pending or missing CI', () => {
-    const pendingChecks = Array.from({ length: 7 }, (_, i) => ({ name: `job-${i}`, state: 'pending' }))
+  it('skips the standards check when no standards document was found', () => {
+    const passes = PASSES.filter(candidate => candidate.lens !== 'standards')
 
-    const pending = renderWalkthrough(
-      walkthrough({ output: output({ spec: 'No spec available' }), ciStatus: { checks: pendingChecks } })
+    expect(renderWalkthrough(walkthrough({ passes }))).toContain(
+      '| Standards | ➖ Skipped | No standards documents found |'
+    )
+  })
+
+  it('warns on a check whose pass did not complete', () => {
+    const passes = PASSES.map(candidate =>
+      candidate.lens === 'standards' ? pass('standards', { status: 'failed' }) : candidate
     )
 
-    expect(pending).toContain('| Spec | ➖ Skipped | No spec available |')
+    expect(renderWalkthrough(walkthrough({ passes }))).toContain(
+      '| Standards | ⚠️ Warning | The standards pass did not complete |'
+    )
+  })
+
+  it('reports pending or missing CI', () => {
+    const pendingChecks = Array.from({ length: 7 }, (_, i) => ({ name: `job-${i}`, state: 'pending' }))
+
+    const pending = renderWalkthrough(walkthrough({ ciStatus: { checks: pendingChecks } }))
+
     expect(pending).toContain('| CI | ⏳ Pending | 7 pending: job-0, job-1, job-2, job-3, job-4, … |')
-    expect(pending).toContain('<summary>🚥 Checks · ✅ 1 · ⏳ 1 · ➖ 1</summary>')
+    expect(pending).toContain('<summary>🚥 Checks · ✅ 2 · ⏳ 1</summary>')
     expect(renderWalkthrough(walkthrough({ ciStatus: { checks: [] } }))).toContain(
       '| CI | ➖ Skipped | No checks reported |'
     )
     expect(renderWalkthrough(walkthrough({ ciStatus: null }))).toContain(
       '| CI | ➖ Skipped | The CI status could not be loaded |'
     )
+  })
+
+  it('rates the merge risk unknown when a finder pass failed', () => {
+    const passes = [pass('overview'), pass('correctness'), pass('security', { status: 'failed' })]
+
+    expect(renderWalkthrough(walkthrough({ passes }))).toContain(
+      '**Merge risk:** ⚪ Unknown · the security pass failed'
+    )
+  })
+
+  it('falls back to the PR title and a note when the overview is unavailable', () => {
+    const comment = renderWalkthrough(
+      walkthrough({
+        output: { overview: null, findings: [finding({ severity: 'minor' })] },
+        passes: [pass('overview', { status: 'failed' }), pass('correctness'), pass('security')],
+      })
+    )
+
+    expect(comment).toContain(
+      [
+        '<!-- soporti:walkthrough -->\n## 📝 Walkthrough',
+        '**Fix the checkout total**',
+        '> ⚠️ The overview is unavailable for this review: its pass did not complete. The findings are in the review.',
+        '**Merge risk:** 🟢 Low · no blocking issues found',
+        '<details>\n<summary>🚥 Checks',
+      ].join('\n\n')
+    )
+    expect(comment).not.toMatch(/Estimated review effort|📂 Changes|Sequence diagram/)
+    expect(
+      renderReviewBody(
+        review({ output: { overview: null, findings: [] }, passes: [pass('overview', { status: 'failed' })] })
+      )
+    ).not.toContain('Since the last review')
   })
 
   it("stays under GitHub's size limit for a PR with hundreds of files", () => {

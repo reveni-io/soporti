@@ -3,7 +3,8 @@ import config from '../config.js'
 import { resolveModelForAgent } from '../llm/model.js'
 import { trackAgentRun } from '../agent/run-tracking.js'
 import { AGENT_CHANNEL_PR_MENTION } from '../constants.js'
-import { buildRepoTools, buildDataTools, inline } from './agent.js'
+import { buildRepoTools, buildDataTools } from './agent.js'
+import { inline } from './context.js'
 import { buildMentionInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000

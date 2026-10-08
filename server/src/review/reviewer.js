@@ -12,7 +12,8 @@ import {
   deleteIssueReaction,
 } from '../github/client.js'
 import { partitionFindings, buildGeneratedMatcher, classifyFiles, findUnreviewedFiles } from './diff.js'
-import { runReviewerAgent } from './agent.js'
+import { buildSharedContext } from './context.js'
+import { runReviewTeam } from './team.js'
 import { verifyFindings } from './verify.js'
 import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
@@ -21,9 +22,16 @@ import { loadSpec } from './spec.js'
 import { renderInlineComment, renderReviewBody, renderWalkthrough } from './render.js'
 import { upsertWalkthrough } from './walkthrough.js'
 import { shortSha } from '../github/sanitize.js'
-import { PR_HEAD_PLACEHOLDER, REVIEW_TURN_LIMIT_ERROR } from '../constants.js'
+import {
+  PR_HEAD_PLACEHOLDER,
+  REVIEW_BLOCKING_SEVERITIES,
+  REVIEW_PASS_FAILED,
+  REVIEW_SEVERITIES,
+  REVIEW_TURN_LIMIT_ERROR,
+} from '../constants.js'
 
 const NIT_SEVERITY = 'nit'
+const MISSING_LINE = Number.MAX_SAFE_INTEGER
 
 export async function runReview(trigger, { logger = console, reviewerLogin = null, signal } = {}) {
   const { repoFullName, prNumber, headSha, dedupeKey } = trigger
@@ -95,42 +103,46 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     )
     const changedFiles = await loadLocalPatches(classifiedFiles, { rootPath, diffBaseSha }, logger)
 
-    signal?.throwIfAborted()
-
-    const { output: proposed, reviewedPaths } = await runReviewerAgent({
-      trigger: { ...current, headSha: reviewedSha },
+    const reviewedTrigger = { ...current, headSha: reviewedSha }
+    const scope = {
+      trigger: reviewedTrigger,
       files: changedFiles,
-      standards,
-      spec,
-      history,
-      ciStatus,
-      rootPath,
-      diffBaseSha,
-      signal,
-    })
-
-    signal?.throwIfAborted()
-
-    const findings = await verifyFindings(proposed.findings, {
-      trigger: { ...current, headSha: reviewedSha },
-      files: changedFiles,
+      sharedContext: buildSharedContext({
+        trigger: reviewedTrigger,
+        files: changedFiles,
+        standards,
+        spec,
+        history,
+        ciStatus,
+      }),
+      changes: history?.changes ?? null,
       rootPath,
       diffBaseSha,
       signal,
       logger,
-    })
-    const output = { ...proposed, findings }
+    }
 
     signal?.throwIfAborted()
 
-    const notReviewed = findUnreviewedFiles(changedFiles, reviewedPaths)
-    const placed = placeFindings(output.findings, files)
-    const event = resolveEvent(proposed, notReviewed)
+    const team = await runReviewTeam({ ...scope, standards, spec })
+
+    signal?.throwIfAborted()
+
+    const verification = await verifyFindings(team.candidates, scope)
+    const findings = orderFindings(verification.findings)
+
+    signal?.throwIfAborted()
+
+    const notReviewed = findUnreviewedFiles(changedFiles, team.reviewedPaths)
+    const placed = placeFindings(findings, files)
+    const event = resolveEvent(team, notReviewed)
     const review = {
       event,
       findings: placed,
-      output,
-      coverage: { files: changedFiles, reviewedPaths, notReviewed },
+      output: { overview: team.overview, findings },
+      passes: team.passes,
+      verification: verification.stats,
+      coverage: { files: changedFiles, reviewedPaths: team.reviewedPaths, notReviewed },
       context: { trigger: current, history, headSha: reviewedSha, standards, spec },
     }
 
@@ -156,7 +168,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       })
     }
 
-    logger.log(`[review] Done ${dedupeKey}: ${event}, ${output.findings.length} finding(s)`)
+    logger.log(`[review] Done ${dedupeKey}: ${event}, ${findings.length} finding(s)`)
   } catch (err) {
     if (signal?.aborted) {
       logger.log(`[review] Superseded ${dedupeKey}: a newer review request replaced it; posting nothing`)
@@ -287,9 +299,21 @@ async function findEmptyFiles(files, rootPath) {
   return empty
 }
 
-function resolveEvent(proposed, notReviewed) {
-  const hasProposedBlocking = proposed.findings.some(f => f.severity === 'critical' || f.severity === 'major')
-  return proposed.verdict === 'approve' && !hasProposedBlocking && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
+function resolveEvent({ overview, candidates, passes }, notReviewed) {
+  const hasProposedBlocking = candidates.some(finding => REVIEW_BLOCKING_SEVERITIES.has(finding.severity))
+  const hasFailedPass = passes.some(pass => pass.status === REVIEW_PASS_FAILED)
+  const isApproved = overview?.verdict === 'approve' && !hasProposedBlocking && !hasFailedPass
+
+  return isApproved && notReviewed.length === 0 ? 'APPROVE' : 'COMMENT'
+}
+
+function orderFindings(findings) {
+  return [...findings].sort(
+    (a, b) =>
+      REVIEW_SEVERITIES.indexOf(a.severity) - REVIEW_SEVERITIES.indexOf(b.severity) ||
+      a.path.localeCompare(b.path) ||
+      (a.line ?? MISSING_LINE) - (b.line ?? MISSING_LINE)
+  )
 }
 
 function placeFindings(findings, files) {
