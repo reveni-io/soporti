@@ -16,6 +16,8 @@ const mockCreateForPullRequestReviewComment = vi.fn()
 const mockListReviews = vi.fn()
 const mockGraphql = vi.fn()
 const mockCompareCommitsWithBasehead = vi.fn()
+const mockListForRef = vi.fn()
+const mockGetCombinedStatusForRef = vi.fn()
 
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
@@ -23,7 +25,9 @@ vi.mock('@octokit/rest', () => ({
       this.repos = {
         listForAuthenticatedUser: mockListForAuthenticatedUser,
         compareCommitsWithBasehead: mockCompareCommitsWithBasehead,
+        getCombinedStatusForRef: mockGetCombinedStatusForRef,
       }
+      this.checks = { listForRef: mockListForRef }
       this.graphql = mockGraphql
       this.users = { getAuthenticated: mockGetAuthenticated }
       this.pulls = {
@@ -60,6 +64,8 @@ const {
   listPullRequestReviews,
   listReviewThreads,
   compareCommits,
+  listCheckRuns,
+  listCommitStatuses,
   createReviewCommentReply,
   createIssueReaction,
   deleteIssueReaction,
@@ -381,6 +387,84 @@ describe('compareCommits', () => {
       files: [],
       mergeBaseSha: null,
     })
+  })
+})
+
+describe('listCheckRuns', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('lists the check runs of the ref with their output', async () => {
+    mockListForRef.mockResolvedValue({
+      data: {
+        total_count: 2,
+        check_runs: [
+          {
+            name: 'lint',
+            status: 'completed',
+            conclusion: 'failure',
+            output: { title: '2 problems', summary: 'src/a.js:3 no-unused-vars' },
+          },
+          { name: 'test', status: 'in_progress', conclusion: null, output: {} },
+        ],
+      },
+    })
+
+    const runs = await listCheckRuns('acme-io/app', 'bbb222')
+
+    expect(runs).toEqual([
+      {
+        name: 'lint',
+        status: 'completed',
+        conclusion: 'failure',
+        title: '2 problems',
+        summary: 'src/a.js:3 no-unused-vars',
+      },
+      { name: 'test', status: 'in_progress', conclusion: null, title: '', summary: '' },
+    ])
+    expect(mockListForRef).toHaveBeenCalledTimes(1)
+    expect(mockListForRef).toHaveBeenCalledWith({ owner: 'acme-io', repo: 'app', ref: 'bbb222', per_page: 100 })
+  })
+
+  it('returns no runs when the response lists none', async () => {
+    mockListForRef.mockResolvedValue({ data: { total_count: 0 } })
+
+    expect(await listCheckRuns('acme-io/app', 'bbb222')).toEqual([])
+  })
+})
+
+describe('listCommitStatuses', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('lists the latest status of each context on the ref', async () => {
+    mockGetCombinedStatusForRef.mockResolvedValue({
+      data: {
+        state: 'failure',
+        statuses: [
+          { context: 'ci/circleci', state: 'failure', description: 'Your tests failed' },
+          { context: 'deploy/preview', state: 'pending', description: null },
+        ],
+      },
+    })
+
+    const statuses = await listCommitStatuses('acme-io/app', 'bbb222')
+
+    expect(statuses).toEqual([
+      { context: 'ci/circleci', state: 'failure', description: 'Your tests failed' },
+      { context: 'deploy/preview', state: 'pending', description: '' },
+    ])
+    expect(mockGetCombinedStatusForRef).toHaveBeenCalledTimes(1)
+    expect(mockGetCombinedStatusForRef).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      ref: 'bbb222',
+      per_page: 100,
+    })
+  })
+
+  it('returns no statuses when the response lists none', async () => {
+    mockGetCombinedStatusForRef.mockResolvedValue({ data: { state: 'pending' } })
+
+    expect(await listCommitStatuses('acme-io/app', 'bbb222')).toEqual([])
   })
 })
 
