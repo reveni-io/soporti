@@ -18,6 +18,8 @@ const execFileAsync = promisify(execFile)
 const DEFAULT_LOG_LIMIT = 20
 const MAX_LOG_LIMIT = 100
 const MAX_BLAME_LINES = 500
+const MAX_DIFF_BYTES = 50 * 1024 * 1024
+const COMMIT_SHA_RE = /^[0-9a-f]{7,40}$/i
 
 const EXCLUDE_DIRS = ['.git', 'node_modules']
 
@@ -110,14 +112,17 @@ export async function getFileContentsAt(
   const target = join(localPath, safePath)
   const raw = await readFile(target, 'utf-8')
   const allLines = raw.split('\n')
-  const totalLines = allLines.length
+  const range = resolveWindow({ offset, limit, centerLine, contextLines }, allLines.length)
 
-  const range = resolveWindow({ offset, limit, centerLine, contextLines }, totalLines)
+  return { path: safePath, ...pageLines(allLines, range, 'File') }
+}
+
+export function pageLines(allLines, range, label) {
+  const totalLines = allLines.length
   const slice = allLines.slice(range.offset, range.offset + range.limit)
   const truncated = range.offset + slice.length < totalLines
 
   return {
-    path: safePath,
     content: slice.join('\n'),
     offset: range.offset,
     lineCount: slice.length,
@@ -125,8 +130,43 @@ export async function getFileContentsAt(
     truncated,
     ...(truncated && {
       nextOffset: range.offset + slice.length,
-      hint: `File has ${totalLines} lines; ${slice.length} returned starting at line ${range.offset + 1}. Call again with offset=${range.offset + slice.length} to read more.`,
+      hint: `${label} has ${totalLines} lines; ${slice.length} returned starting at line ${range.offset + 1}. Call again with offset=${range.offset + slice.length} to read more.`,
     }),
+  }
+}
+
+export async function gitDiffAt(localPath, path, { baseSha }) {
+  const safePath = sanitizePath(path)
+  if (!safePath) {
+    throw new Error('A file path is required.')
+  }
+  if (!COMMIT_SHA_RE.test(baseSha ?? '')) {
+    throw new Error('A base commit is required.')
+  }
+
+  await ensureCommit(localPath, baseSha)
+
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', localPath, 'diff', baseSha, 'HEAD', '--', safePath], {
+      timeout: 30_000,
+      maxBuffer: MAX_DIFF_BYTES,
+    })
+    return stdout
+  } catch (err) {
+    throw new Error(`git diff failed: ${err.message}`, { cause: err })
+  }
+}
+
+async function ensureCommit(localPath, sha) {
+  try {
+    await execFileAsync('git', ['-C', localPath, 'cat-file', '-e', `${sha}^{commit}`], { timeout: 30_000 })
+    return
+  } catch {}
+
+  try {
+    await execFileAsync('git', ['-C', localPath, 'fetch', '--depth', '1', 'origin', sha], { timeout: 120_000 })
+  } catch (err) {
+    throw new Error(`Could not fetch the base commit ${sha}.`, { cause: err })
   }
 }
 

@@ -1,4 +1,32 @@
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/
+const GENERATED_PATTERNS = [
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'poetry.lock',
+  'Pipfile.lock',
+  'Cargo.lock',
+  'go.sum',
+  'composer.lock',
+  'Gemfile.lock',
+  '*.min.js',
+  '*.min.css',
+  '*.map',
+  '**/__snapshots__/**',
+  'drizzle/meta/**',
+]
+const GLOB_TOKEN = /(\*\*\/|\*\*|\*|\?)/
+const GLOB_TOKEN_SOURCES = new Map([
+  ['**/', '(?:.*/)?'],
+  ['**', '.*'],
+  ['*', '[^/]*'],
+  ['?', '[^/]'],
+])
+const REGEX_SPECIAL = /[.+^${}()|[\]\\]/g
+const WHITESPACE = /\s+/
+const LEADING_SLASH = /^\//
+const LINGUIST_GENERATED = /^linguist-generated(=true)?$/
+const DEFAULT_GENERATED_MATCHERS = GENERATED_PATTERNS.map(pattern => globToRegExp(pattern, { isAnchored: false }))
 
 export function commentableLines(files) {
   const result = new Map()
@@ -46,29 +74,43 @@ export function partitionFindings(findings, files) {
   return { anchored, unanchored }
 }
 
-export function selectFilesWithinBudget(files, maxChangedLines, { emptyFilenames = new Set() } = {}) {
-  const included = []
-  const omitted = []
-  const empty = []
-  let usedLines = 0
+export function buildGeneratedMatcher(gitattributes = '') {
+  const matchers = [...DEFAULT_GENERATED_MATCHERS, ...parseLinguistGenerated(gitattributes)]
 
-  for (const file of files ?? []) {
-    if (!file?.filename) continue
-    const cost = (file.additions ?? 0) + (file.deletions ?? 0)
+  return filename => matchers.some(matcher => matcher.test(filename))
+}
 
-    if (typeof file.patch !== 'string') {
-      if (cost === 0 && emptyFilenames.has(file.filename)) {
-        empty.push({ filename: file.filename, status: file.status ?? 'modified' })
-      } else {
-        omitted.push({ filename: file.filename, reason: 'no-patch' })
-      }
-    } else if (usedLines + cost > maxChangedLines && included.length > 0) {
-      omitted.push({ filename: file.filename, reason: 'budget' })
-    } else {
-      included.push(file)
-      usedLines += cost
-    }
-  }
+export function classifyFiles(files, { emptyFilenames, isGenerated }) {
+  return (files ?? [])
+    .filter(file => file?.filename)
+    .map(file => ({ ...file, generated: isGenerated(file.filename), empty: emptyFilenames.has(file.filename) }))
+}
 
-  return { included, omitted, empty, usedLines }
+export function findUnreviewedFiles(files, reviewedPaths) {
+  return files
+    .filter(file => !file.generated && !file.empty && !reviewedPaths.has(file.filename))
+    .map(file => file.filename)
+}
+
+function parseLinguistGenerated(gitattributes) {
+  return gitattributes
+    .split('\n')
+    .map(line => line.trim().split(WHITESPACE))
+    .filter(([pattern, ...attributes]) => isGeneratedRule(pattern, attributes))
+    .map(([pattern]) => globToRegExp(pattern.replace(LEADING_SLASH, ''), { isAnchored: pattern.includes('/') }))
+}
+
+function isGeneratedRule(pattern, attributes) {
+  if (!pattern || pattern.startsWith('#')) return false
+
+  return attributes.some(attribute => LINGUIST_GENERATED.test(attribute))
+}
+
+function globToRegExp(glob, { isAnchored }) {
+  const source = glob
+    .split(GLOB_TOKEN)
+    .map(token => GLOB_TOKEN_SOURCES.get(token) ?? token.replace(REGEX_SPECIAL, '\\$&'))
+    .join('')
+
+  return new RegExp(`${isAnchored ? '^' : '(?:^|/)'}${source}$`)
 }

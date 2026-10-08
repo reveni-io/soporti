@@ -139,7 +139,7 @@ export async function compareCommits(repoFullName, baseSha, headSha) {
   const octokit = await getOctokit()
   const { owner, repo } = parseRepo(repoFullName)
   const { data } = await octokit.repos.compareCommitsWithBasehead({ owner, repo, basehead: `${baseSha}...${headSha}` })
-  return { status: data.status, files: data.files ?? [] }
+  return { status: data.status, files: data.files ?? [], mergeBaseSha: data.merge_base_commit?.sha ?? null }
 }
 
 export async function createReviewCommentReply(repoFullName, prNumber, commentId, body) {

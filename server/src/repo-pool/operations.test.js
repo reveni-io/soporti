@@ -28,6 +28,8 @@ import {
   gitBlame,
   getFileContentsAt,
   findFilesAt,
+  gitDiffAt,
+  pageLines,
 } from './operations.js'
 
 describe('path-based variants (worktrees)', () => {
@@ -575,5 +577,97 @@ describe('gitBlame', () => {
     execFile.mockImplementation((cmd, args, opts, cb) => cb(new Error('boom'), { stdout: '', stderr: '' }))
     await expect(gitBlame('owner/repo', 'a.js')).rejects.toThrow('git blame failed')
     expect(release).toHaveBeenCalled()
+  })
+})
+
+describe('pageLines', () => {
+  it('returns the requested window and how to read the rest', () => {
+    const page = pageLines(['a', 'b', 'c', 'd'], { offset: 1, limit: 2 }, 'Diff')
+
+    expect(page).toEqual({
+      content: 'b\nc',
+      offset: 1,
+      lineCount: 2,
+      totalLines: 4,
+      truncated: true,
+      nextOffset: 3,
+      hint: 'Diff has 4 lines; 2 returned starting at line 2. Call again with offset=3 to read more.',
+    })
+  })
+
+  it('leaves out the paging hint on the last page', () => {
+    const page = pageLines(['a', 'b'], { offset: 0, limit: 10 }, 'Diff')
+
+    expect(page).toEqual({ content: 'a\nb', offset: 0, lineCount: 2, totalLines: 2, truncated: false })
+  })
+})
+
+describe('gitDiffAt', () => {
+  const BASE_SHA = 'abc1234def5678'
+
+  beforeEach(() => vi.clearAllMocks())
+
+  function stubGit({ hasBase = true, fetchFails = false, diffFails = false, diff = '@@ -1 +1 @@\n-a\n+b' } = {}) {
+    execFile.mockImplementation((cmd, args, opts, cb) => {
+      const subcommand = args[2]
+      if (subcommand === 'cat-file') return cb(hasBase ? null : new Error('missing'), { stdout: '', stderr: '' })
+      if (subcommand === 'fetch') return cb(fetchFails ? new Error('denied') : null, { stdout: '', stderr: '' })
+      return cb(diffFails ? new Error('bad revision') : null, { stdout: diff, stderr: '' })
+    })
+  }
+
+  function gitCalls() {
+    return execFile.mock.calls.map(([cmd, args]) => [cmd, ...args].join(' '))
+  }
+
+  it('diffs one file of the checkout HEAD against the base commit', async () => {
+    stubGit()
+
+    const diff = await gitDiffAt('/tmp/wt-pr-7', 'package-lock.json', { baseSha: BASE_SHA })
+
+    expect(diff).toBe('@@ -1 +1 @@\n-a\n+b')
+    expect(gitCalls()).toEqual([
+      `git -C /tmp/wt-pr-7 cat-file -e ${BASE_SHA}^{commit}`,
+      `git -C /tmp/wt-pr-7 diff ${BASE_SHA} HEAD -- package-lock.json`,
+    ])
+    expect(pool.acquire).not.toHaveBeenCalled()
+  })
+
+  it('fetches the base commit first when the shallow checkout does not have it', async () => {
+    stubGit({ hasBase: false })
+
+    await gitDiffAt('/tmp/wt-pr-7', 'yarn.lock', { baseSha: BASE_SHA })
+
+    expect(gitCalls()).toEqual([
+      `git -C /tmp/wt-pr-7 cat-file -e ${BASE_SHA}^{commit}`,
+      `git -C /tmp/wt-pr-7 fetch --depth 1 origin ${BASE_SHA}`,
+      `git -C /tmp/wt-pr-7 diff ${BASE_SHA} HEAD -- yarn.lock`,
+    ])
+  })
+
+  it('fails with a clear message when the base commit cannot be fetched', async () => {
+    stubGit({ hasBase: false, fetchFails: true })
+
+    await expect(gitDiffAt('/tmp/wt-pr-7', 'yarn.lock', { baseSha: BASE_SHA })).rejects.toThrow(
+      `Could not fetch the base commit ${BASE_SHA}.`
+    )
+  })
+
+  it('wraps a failing git diff', async () => {
+    stubGit({ diffFails: true })
+
+    await expect(gitDiffAt('/tmp/wt-pr-7', 'yarn.lock', { baseSha: BASE_SHA })).rejects.toThrow(
+      'git diff failed: bad revision'
+    )
+  })
+
+  it('rejects an empty path, path traversal and a malformed base commit before running git', async () => {
+    await expect(gitDiffAt('/tmp/wt-pr-7', '', { baseSha: BASE_SHA })).rejects.toThrow('file path is required')
+    await expect(gitDiffAt('/tmp/wt-pr-7', '../etc/passwd', { baseSha: BASE_SHA })).rejects.toThrow('Path traversal')
+    await expect(gitDiffAt('/tmp/wt-pr-7', 'a.js', { baseSha: '--output=/tmp/x' })).rejects.toThrow(
+      'A base commit is required.'
+    )
+    await expect(gitDiffAt('/tmp/wt-pr-7', 'a.js', { baseSha: null })).rejects.toThrow('A base commit is required.')
+    expect(execFile).not.toHaveBeenCalled()
   })
 })

@@ -351,12 +351,21 @@ describe('compareCommits', () => {
 
   it('compares the two commits and returns the status and the changed files', async () => {
     mockCompareCommitsWithBasehead.mockResolvedValue({
-      data: { status: 'ahead', files: [{ filename: 'src/a.js', patch: '@@' }], commits: [] },
+      data: {
+        status: 'ahead',
+        files: [{ filename: 'src/a.js', patch: '@@' }],
+        commits: [],
+        merge_base_commit: { sha: 'base000' },
+      },
     })
 
     const comparison = await compareCommits('acme-io/app', 'aaa111', 'bbb222')
 
-    expect(comparison).toEqual({ status: 'ahead', files: [{ filename: 'src/a.js', patch: '@@' }] })
+    expect(comparison).toEqual({
+      status: 'ahead',
+      files: [{ filename: 'src/a.js', patch: '@@' }],
+      mergeBaseSha: 'base000',
+    })
     expect(mockCompareCommitsWithBasehead).toHaveBeenCalledWith({
       owner: 'acme-io',
       repo: 'app',
@@ -367,7 +376,11 @@ describe('compareCommits', () => {
   it('returns no files when the comparison lists none', async () => {
     mockCompareCommitsWithBasehead.mockResolvedValue({ data: { status: 'identical' } })
 
-    expect(await compareCommits('acme-io/app', 'aaa111', 'aaa111')).toEqual({ status: 'identical', files: [] })
+    expect(await compareCommits('acme-io/app', 'aaa111', 'aaa111')).toEqual({
+      status: 'identical',
+      files: [],
+      mergeBaseSha: null,
+    })
   })
 })
 

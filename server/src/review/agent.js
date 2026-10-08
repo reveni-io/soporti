@@ -14,6 +14,8 @@ import {
   findFilesAt,
   gitLogFileAt,
   gitBlameAt,
+  gitDiffAt,
+  pageLines,
 } from '../repo-pool/index.js'
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
@@ -47,6 +49,21 @@ import { buildReviewerInstructions } from './prompt.js'
 
 const MAX_PR_BODY_CHARS = 4000
 const MAX_INLINE_CHARS = 300
+const DEFAULT_DIFF_LINES = 1000
+const FILE_LIST_INTRO =
+  "The diffs are not inline. Read each file's diff with get_file_diff before judging it, several files in the same turn whenever you can. A file counts as reviewed only once get_file_diff has returned its whole diff; any other file is reported as not reviewed and the PR cannot be approved."
+const GENERATED_FILES_NOTE =
+  'Files marked `generated` (lockfiles, minified bundles, snapshots, generated metadata) are not required: skip them unless you need to check one, for example that a lockfile change matches its manifest.'
+const EMPTY_FILES_NOTE =
+  'Files marked `empty` are verified empty (0 bytes) — there is nothing inside to review, so they count as reviewed: do NOT report them as unreviewed. Only judge whether an empty file makes sense at that location (an empty `__init__.py` usually does; an empty module that should have content does not).'
+const OUTSIDE_PR_ERROR =
+  'This path is not one of the files changed by this PR. Use a path from the "Files changed" list.'
+const NO_DIFF_ERROR =
+  'GitHub returned no patch for this file and there is no checkout of the PR head to diff it locally, so its diff cannot be read.'
+const NOT_CHANGED_SINCE_ERROR =
+  'This file did not change since your last review. Read its full diff with get_file_diff instead.'
+const NO_PATCH_SINCE_ERROR =
+  'GitHub returned no patch for the changes to this file since your last review. Read its full diff with get_file_diff instead.'
 const FULL_DIFF_FALLBACKS = {
   diverged: 'That commit is no longer in this branch (force-push or rebase).',
   unavailable: 'The changes since that commit could not be loaded.',
@@ -167,6 +184,85 @@ export function buildRepoTools(repoFullName, rootPath = null) {
   ]
 }
 
+export function buildDiffTools({ files, changes = null, rootPath = null, diffBaseSha = null }) {
+  const prFiles = new Map(files.map(file => [file.filename, file]))
+  const filesChangedSince = new Map((changes?.files ?? []).map(file => [file.filename, file]))
+  const localDiffs = new Map()
+  const servedLines = new Map()
+  const reviewedPaths = new Set()
+
+  async function loadPrDiff(file) {
+    if (typeof file.patch === 'string') return file.patch
+    if (!rootPath || !diffBaseSha) return null
+
+    if (!localDiffs.has(file.filename)) {
+      localDiffs.set(file.filename, await gitDiffAt(rootPath, file.filename, { baseSha: diffBaseSha }))
+    }
+
+    return localDiffs.get(file.filename)
+  }
+
+  function recordServed(page) {
+    const served = servedLines.get(page.path) ?? new Set()
+    for (let line = page.offset; line < page.offset + page.lineCount; line++) served.add(line)
+
+    servedLines.set(page.path, served)
+    if (served.size >= page.totalLines) reviewedPaths.add(page.path)
+  }
+
+  const tools = [
+    tool({
+      name: 'get_file_diff',
+      description: `Read the unified diff of one file changed by this PR; hunk headers give the RIGHT-side (new) line numbers to cite in findings. Only paths from the "Files changed" list are accepted. Returns up to \`limit\` lines from \`offset\` (default ${DEFAULT_DIFF_LINES}); when the response is truncated, call again with nextOffset — a file counts as reviewed only once its whole diff was returned. Call it for several files in the same turn.`,
+      parameters: diffPageParameters(),
+      execute: async input => {
+        const file = prFiles.get(input.path)
+        if (!file) return JSON.stringify({ error: OUTSIDE_PR_ERROR })
+
+        const diff = await loadPrDiff(file)
+        if (diff === null) return JSON.stringify({ error: NO_DIFF_ERROR })
+
+        const page = pageDiff(input, diff)
+        recordServed(page)
+
+        return JSON.stringify(page)
+      },
+    }),
+  ]
+
+  if (changes?.status === 'incremental') {
+    tools.push(
+      tool({
+        name: 'get_diff_since_last_review',
+        description:
+          'Read what changed in one file between the commit of your last review and the current head. Only paths from the "Changed since your last review" list are accepted. Pages like get_file_diff. It does not replace get_file_diff: a file counts as reviewed only once you read its full diff there.',
+        parameters: diffPageParameters(),
+        execute: async input => {
+          const file = filesChangedSince.get(input.path)
+          if (!file) return JSON.stringify({ error: NOT_CHANGED_SINCE_ERROR })
+          if (typeof file.patch !== 'string') return JSON.stringify({ error: NO_PATCH_SINCE_ERROR })
+
+          return JSON.stringify(pageDiff(input, file.patch))
+        },
+      })
+    )
+  }
+
+  return { tools, reviewedPaths }
+}
+
+function diffPageParameters() {
+  return z.object({
+    path: z.string(),
+    offset: z.number().int().min(0).default(0),
+    limit: z.number().int().min(1).max(MAX_FILE_LINES).default(DEFAULT_DIFF_LINES),
+  })
+}
+
+function pageDiff({ path, offset, limit }, diff) {
+  return { path, ...pageLines(diff.split('\n'), { offset, limit }, 'Diff') }
+}
+
 export async function buildDataTools() {
   const [shortcutConfigured, sentryConfigured, postgresConfigured, betterstackConfigured] = await Promise.all([
     shortcut.isConfigured(),
@@ -184,28 +280,20 @@ export async function buildDataTools() {
   ]
 }
 
-export async function createReviewerAgent(repoFullName, { rootPath = null } = {}) {
+export async function createReviewerAgent(repoFullName, { rootPath = null, diffTools = [] } = {}) {
   const { model, modelSettings } = await resolveModelForAgent()
 
   return new Agent({
     name: 'Soporti Reviewer',
     model,
     instructions: buildReviewerInstructions(repoFullName),
-    tools: [...buildRepoTools(repoFullName, rootPath), ...(await buildDataTools())],
+    tools: [...buildRepoTools(repoFullName, rootPath), ...diffTools, ...(await buildDataTools())],
     outputType: reviewOutputSchema,
     modelSettings,
   })
 }
 
-export function buildReviewInput({
-  trigger,
-  files,
-  omitted,
-  empty = [],
-  standardsFiles = [],
-  storyId = null,
-  history = null,
-}) {
+export function buildReviewInput({ trigger, files, standardsFiles = [], storyId = null, history = null }) {
   const parts = []
 
   parts.push(`# Pull Request #${trigger.prNumber} — ${inline(trigger.title)}`)
@@ -237,29 +325,29 @@ export function buildReviewInput({
 
   if (history) parts.push(...renderHistory(history))
 
-  const fileSections = (files ?? []).map(renderFilePatch)
-  parts.push(`## Files changed\n\n${fileSections.join('\n\n') || '(no reviewable files)'}`)
-
-  if (empty?.length > 0) {
-    const list = empty.map(f => `- ${inline(f.filename)} (${f.status})`).join('\n')
-    parts.push(
-      `## Empty files\n\n${list}\n\nThese files are verified empty (0 bytes) — there is nothing inside to review, so they count as reviewed: do NOT report them as unreviewed. Only judge whether an empty file makes sense at that location (an empty \`__init__.py\` usually does; an empty module that should have content does not).`
-    )
-  }
-
-  if (omitted?.length > 0) {
-    const list = omitted.map(o => `- ${inline(o.filename)} (${o.reason})`).join('\n')
-    parts.push(
-      `## Files NOT included in this review\n\n${list}\n\nMention in your summary that these were not reviewed.`
-    )
-  }
+  parts.push(renderFileList(files))
 
   return parts.join('\n\n')
 }
 
-function renderFilePatch(file) {
-  const header = `### ${inline(file.filename)} (${file.status ?? 'modified'}, +${file.additions ?? 0}/-${file.deletions ?? 0})`
-  return `${header}\n\`\`\`diff\n${file.patch}\n\`\`\``
+function renderFileList(files) {
+  if (files.length === 0) return '## Files changed\n\n(no files changed)'
+
+  const notes = [
+    FILE_LIST_INTRO,
+    files.some(file => file.generated) && GENERATED_FILES_NOTE,
+    files.some(file => file.empty) && EMPTY_FILES_NOTE,
+  ].filter(Boolean)
+
+  return `## Files changed\n\n${notes.join('\n\n')}\n\n${files.map(renderFileEntry).join('\n')}`
+}
+
+function renderFileEntry(file) {
+  const details = [file.status ?? 'modified', `+${file.additions ?? 0}/-${file.deletions ?? 0}`]
+  if (file.generated) details.push('generated')
+  if (file.empty) details.push('empty')
+
+  return `- ${inline(file.filename)} (${details.join(', ')})`
 }
 
 function renderHistory(history) {
@@ -321,38 +409,30 @@ function threadState(thread) {
 }
 
 function renderChanges(changes, sha) {
+  const heading = `## Changed since your last review (\`${sha}\`)`
   const fallback = FULL_DIFF_FALLBACKS[changes.status]
-  if (fallback) return `## Changed since your last review (\`${sha}\`)\n\n${fallback} Reviewing the full diff.`
 
-  if (changes.files.length === 0 && changes.omitted.length === 0) {
-    return `## Changed since your last review (\`${sha}\`)\n\nNo file of this PR changed since your last review.`
-  }
+  if (fallback) return `${heading}\n\n${fallback} Reviewing the full diff.`
+  if (changes.files.length === 0) return `${heading}\n\nNo file of this PR changed since your last review.`
 
-  const parts = [
-    `## Changed since your last review (\`${sha}\`)\n\nThese are the changes pushed after your last review. Focus on them; the full diff below is context.`,
-    ...changes.files.map(renderFilePatch),
-  ]
+  const list = changes.files.map(renderFileEntry).join('\n')
 
-  if (changes.omitted.length > 0) {
-    parts.push(`Also changed, patch not shown: ${changes.omitted.map(inline).join(', ')}`)
-  }
-
-  return parts.join('\n\n')
+  return `${heading}\n\nThese files changed after your last review. Read what changed in each one with get_diff_since_last_review and focus on it; the full diff of every file (get_file_diff) is context.\n\n${list}`
 }
 
 export async function runReviewerAgent({
   trigger,
   files,
-  omitted,
-  empty,
   standardsFiles,
   storyId,
   history = null,
   rootPath = null,
+  diffBaseSha = null,
   signal,
 }) {
-  const agent = await createReviewerAgent(trigger.repoFullName, { rootPath })
-  const input = buildReviewInput({ trigger, files, omitted, empty, standardsFiles, storyId, history })
+  const diff = buildDiffTools({ files, changes: history?.changes, rootPath, diffBaseSha })
+  const agent = await createReviewerAgent(trigger.repoFullName, { rootPath, diffTools: diff.tools })
+  const input = buildReviewInput({ trigger, files, standardsFiles, storyId, history })
   const subject = `${trigger.repoFullName}#${trigger.prNumber}`
   const maxTurns = config.review.maxTurns
 
@@ -366,7 +446,7 @@ export async function runReviewerAgent({
       () => run(agent, input, { maxTurns, signal })
     )
 
-    return result.finalOutput
+    return { output: result.finalOutput, reviewedPaths: diff.reviewedPaths }
   } catch (err) {
     if (err instanceof MaxTurnsExceededError) throw turnLimitError(maxTurns, err)
     throw err

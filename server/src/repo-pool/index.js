@@ -12,4 +12,6 @@ export {
   findFilesAt,
   gitLogFileAt,
   gitBlameAt,
+  gitDiffAt,
+  pageLines,
 } from './operations.js'
