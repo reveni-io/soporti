@@ -1,8 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { findFiles, findFilesAt } from '../repo-pool/index.js'
+import { gitDiffAt } from '../repo-pool/index.js'
 import { acquireWorkspace } from './workspace.js'
-import * as shortcut from '../shortcut/client.js'
 import {
   getPullRequest,
   listPullRequestFiles,
@@ -17,6 +16,8 @@ import { runReviewerAgent } from './agent.js'
 import { verifyFindings } from './verify.js'
 import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
+import { loadStandards } from './standards.js'
+import { loadSpec } from './spec.js'
 import { redactSecrets } from './output-guard.js'
 import { shortSha } from '../github/sanitize.js'
 import {
@@ -25,22 +26,6 @@ import {
   REVIEW_KIND_SYNCHRONIZE,
   REVIEW_TURN_LIMIT_ERROR,
 } from '../constants.js'
-
-const STANDARDS_PATTERNS = [
-  'CLAUDE.md',
-  'AGENTS.md',
-  'CONTRIBUTING.md',
-  'CONTEXT.md',
-  'STYLE.md',
-  'STANDARDS.md',
-  'STYLEGUIDE.md',
-  'docs/adr/*.md',
-  '.claude/skills/*.md',
-  '.agents/skills/*.md',
-]
-const MAX_STANDARDS_FILES = 30
-
-const STORY_REF = /\bsc-?(\d+)\b/i
 
 const TRIGGER_LABELS = { labeled: 'label', [REVIEW_KIND_MENTION_COMMAND]: 'mention', [REVIEW_KIND_SYNCHRONIZE]: 'push' }
 const DEFAULT_TRIGGER_LABEL = 'review request'
@@ -83,9 +68,8 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     workspace = await acquireWorkspace(repoFullName, prNumber, logger)
     const rootPath = workspace?.localPath ?? null
 
-    const [files, standardsFiles, gitattributes] = await Promise.all([
+    const [files, gitattributes] = await Promise.all([
       listPullRequestFiles(repoFullName, prNumber),
-      discoverStandardsFiles(repoFullName, rootPath, logger),
       readGitattributes(rootPath),
     ])
 
@@ -96,25 +80,33 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     }
 
     const emptyFilenames = await findEmptyFiles(files, rootPath)
-    const changedFiles = classifyFiles(files, { emptyFilenames, isGenerated: buildGeneratedMatcher(gitattributes) })
+    const classifiedFiles = classifyFiles(files, { emptyFilenames, isGenerated: buildGeneratedMatcher(gitattributes) })
 
-    const storyId = (await shortcut.isConfigured()) ? extractStoryId(current) : null
-    const [history, ciStatus] = await Promise.all([
+    const [history, ciStatus, standards, spec] = await Promise.all([
       loadReviewHistory({ repoFullName, prNumber, headSha: reviewedSha, reviewerLogin, files }, { logger }),
       loadCiStatus({ repoFullName, headSha: reviewedSha }, { logger }),
+      loadStandards({ repoFullName, rootPath, files }, { logger }),
+      loadSpec(current, { logger }),
     ])
     const diffBaseSha = await resolveDiffBase(
-      { workspace, files: changedFiles, repoFullName, base: current.baseSha ?? current.baseRef, headSha: reviewedSha },
+      {
+        workspace,
+        files: classifiedFiles,
+        repoFullName,
+        base: current.baseSha ?? current.baseRef,
+        headSha: reviewedSha,
+      },
       logger
     )
+    const changedFiles = await loadLocalPatches(classifiedFiles, { rootPath, diffBaseSha }, logger)
 
     signal?.throwIfAborted()
 
     const { output: proposed, reviewedPaths } = await runReviewerAgent({
       trigger: { ...current, headSha: reviewedSha },
       files: changedFiles,
-      standardsFiles,
-      storyId,
+      standards,
+      spec,
       history,
       ciStatus,
       rootPath,
@@ -248,6 +240,32 @@ function needsLocalDiff(file) {
   return typeof file.patch !== 'string' && !file.empty
 }
 
+async function loadLocalPatches(files, { rootPath, diffBaseSha }, logger) {
+  if (!diffBaseSha) return files
+
+  const loaded = []
+  for (const file of files) {
+    loaded.push(needsInlinePatch(file) ? await withLocalPatch(file, rootPath, diffBaseSha, logger) : file)
+  }
+
+  return loaded
+}
+
+function needsInlinePatch(file) {
+  return needsLocalDiff(file) && !file.generated
+}
+
+async function withLocalPatch(file, rootPath, diffBaseSha, logger) {
+  try {
+    return { ...file, patch: await gitDiffAt(rootPath, file.filename, { baseSha: diffBaseSha }) }
+  } catch (err) {
+    logger.warn(
+      `[review] Could not diff ${file.filename} locally (${err.message}); the reviewer reads it with get_file_diff`
+    )
+    return file
+  }
+}
+
 async function findEmptyFiles(files, rootPath) {
   const empty = new Set()
   if (!rootPath) return empty
@@ -273,30 +291,6 @@ async function findEmptyFiles(files, rootPath) {
   )
 
   return empty
-}
-
-async function discoverStandardsFiles(repoFullName, rootPath, logger) {
-  const find = pattern =>
-    rootPath ? findFilesAt(rootPath, pattern, { maxResults: 20 }) : findFiles(repoFullName, pattern, { maxResults: 20 })
-  const results = await Promise.allSettled(STANDARDS_PATTERNS.map(find))
-
-  const failures = results.filter(r => r.status === 'rejected')
-  if (failures.length > 0) {
-    logger.warn(
-      `[review] Standards discovery incomplete for ${repoFullName} (${failures[0].reason?.message ?? 'unknown error'})`
-    )
-  }
-
-  const paths = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value.items.map(item => item.path))
-  return [...new Set(paths)].slice(0, MAX_STANDARDS_FILES)
-}
-
-function extractStoryId({ headRef, title, body }) {
-  for (const source of [headRef, title, body]) {
-    const match = typeof source === 'string' ? source.match(STORY_REF) : null
-    if (match) return parseInt(match[1], 10)
-  }
-  return null
 }
 
 function resolveEvent(proposed, notReviewed) {

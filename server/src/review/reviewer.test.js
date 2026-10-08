@@ -40,25 +40,26 @@ vi.mock('./ci-status.js', () => ({
   loadCiStatus: mockLoadCiStatus,
 }))
 
-const mockFindFiles = vi.fn()
-const mockFindFilesAt = vi.fn()
+const mockLoadStandards = vi.fn()
+vi.mock('./standards.js', () => ({
+  loadStandards: mockLoadStandards,
+}))
+
+const mockLoadSpec = vi.fn()
+vi.mock('./spec.js', () => ({
+  loadSpec: mockLoadSpec,
+}))
+
 const mockAcquireWorktree = vi.fn()
 const mockWorktreeRelease = vi.fn()
-const mockShortcutConfigured = vi.fn()
-const mockGetStory = vi.fn()
+const mockGitDiffAt = vi.fn()
 
 vi.mock('../repo-pool/index.js', () => ({
   pool: {
     acquire: (...args) => mockAcquire(...args),
     acquireWorktree: (...args) => mockAcquireWorktree(...args),
   },
-  findFiles: (...args) => mockFindFiles(...args),
-  findFilesAt: (...args) => mockFindFilesAt(...args),
-}))
-
-vi.mock('../shortcut/client.js', () => ({
-  isConfigured: () => mockShortcutConfigured(),
-  getStory: (...args) => mockGetStory(...args),
+  gitDiffAt: (...args) => mockGitDiffAt(...args),
 }))
 
 const mockStat = vi.fn()
@@ -120,9 +121,9 @@ function setupHappyPath({ verdict = 'comment', findings = [], pr = prData(), rev
   ])
   mockAcquire.mockResolvedValue({ localPath: '/tmp/x', release: mockRelease })
   mockAcquireWorktree.mockResolvedValue({ localPath: '/tmp/wt-pr-7', release: mockWorktreeRelease })
-  mockFindFiles.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
-  mockFindFilesAt.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
-  mockShortcutConfigured.mockReturnValue(false)
+  mockLoadStandards.mockResolvedValue({ documents: [], notInlined: [] })
+  mockLoadSpec.mockResolvedValue({ configured: false, stories: [] })
+  mockGitDiffAt.mockResolvedValue('@@ -0,0 +1 @@\n+local')
   mockRunReviewerAgent.mockResolvedValue(reviewed({ summary: 'Looks reasonable.', verdict, findings }, reviewedPaths))
   mockVerifyFindings.mockImplementation(async proposed => proposed)
   mockCreatePullRequestReview.mockResolvedValue({ id: 1 })
@@ -342,6 +343,51 @@ describe('runReview', () => {
     )
   })
 
+  it('loads the diff of a patch-less file from the PR-head checkout once, for the reviewer and the verifier', async () => {
+    setupHappyPath({
+      findings: [{ path: 'db/seed.sql', line: 1, severity: 'major', axis: 'correctness', body: 'drops a table' }],
+      reviewedPaths: ['src/checkout.js', 'db/seed.sql'],
+    })
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'db/seed.sql', status: 'modified', additions: 9000, deletions: 0 },
+      { filename: 'yarn.lock', status: 'modified', additions: 9000, deletions: 0 },
+    ])
+    mockGitDiffAt.mockResolvedValue('@@ -0,0 +1 @@\n+drop table orders;\n')
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockGitDiffAt).toHaveBeenCalledTimes(1)
+    expect(mockGitDiffAt).toHaveBeenCalledWith('/tmp/wt-pr-7', 'db/seed.sql', { baseSha: 'merge000' })
+    const { files } = mockRunReviewerAgent.mock.calls[0][0]
+    expect(files[1]).toEqual(
+      expect.objectContaining({ filename: 'db/seed.sql', patch: '@@ -0,0 +1 @@\n+drop table orders;\n' })
+    )
+    expect(files[2]).toEqual(expect.objectContaining({ filename: 'yarn.lock', generated: true }))
+    expect(files[2].patch).toBeUndefined()
+    expect(mockVerifyFindings.mock.calls[0][1].files).toBe(files)
+    const review = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(review.comments).toEqual([])
+    expect(review.body).toContain('drops a table')
+  })
+
+  it('leaves a file for get_file_diff when its local diff fails', async () => {
+    setupHappyPath()
+    mockListPullRequestFiles.mockResolvedValue([
+      { filename: 'src/checkout.js', status: 'modified', additions: 2, deletions: 1, patch: PATCH },
+      { filename: 'db/seed.sql', status: 'modified', additions: 9000, deletions: 0 },
+    ])
+    mockGitDiffAt.mockRejectedValue(new Error('Could not fetch the base commit merge000.'))
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+
+    await runReview(trigger(), { logger })
+
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1].patch).toBeUndefined()
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ diffBaseSha: 'merge000' }))
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Could not diff db/seed.sql locally'))
+    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+  })
+
   it('compares against the base branch name when GitHub gives no base sha', async () => {
     setupHappyPath({ pr: prData({ base: { ref: 'main' } }) })
     mockListPullRequestFiles.mockResolvedValue([{ filename: 'db/seed.sql', status: 'modified', additions: 9000 }])
@@ -371,6 +417,8 @@ describe('runReview', () => {
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockCompareCommits).not.toHaveBeenCalled()
+    expect(mockGitDiffAt).not.toHaveBeenCalled()
+    expect(mockRunReviewerAgent.mock.calls[0][0].files[1].patch).toBeUndefined()
     expect(mockRunReviewerAgent).toHaveBeenCalledWith(
       expect.objectContaining({ rootPath: '/tmp/x', diffBaseSha: null })
     )
@@ -433,50 +481,26 @@ describe('runReview', () => {
     expect(body).not.toContain('deadbee')
   })
 
-  it('passes the standards documents discovered in the checkout to the agent, deduplicated', async () => {
+  it('loads the standards for the changed files from the reviewed checkout and hands them to the agent', async () => {
     setupHappyPath()
-    mockFindFilesAt.mockImplementation(async (_rootPath, pattern) => {
-      if (pattern === 'CLAUDE.md')
-        return { totalCount: 1, items: [{ path: 'CLAUDE.md', name: 'CLAUDE.md' }], truncated: false }
-      if (pattern === 'docs/adr/*.md')
-        return { totalCount: 1, items: [{ path: 'docs/adr/0001-x.md', name: '0001-x.md' }], truncated: false }
-      if (pattern === 'CONTEXT.md')
-        return { totalCount: 1, items: [{ path: 'CLAUDE.md', name: 'CLAUDE.md' }], truncated: false }
-      return { totalCount: 0, items: [], truncated: false }
-    })
+    const standards = {
+      documents: [{ path: 'CLAUDE.md', content: 'No comments.', truncated: false, modified: false }],
+      notInlined: [],
+    }
+    mockLoadStandards.mockResolvedValue(standards)
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ standardsFiles: ['CLAUDE.md', 'docs/adr/0001-x.md'] })
+    expect(mockLoadStandards).toHaveBeenCalledTimes(1)
+    expect(mockLoadStandards).toHaveBeenCalledWith(
+      {
+        repoFullName: 'acme-io/app',
+        rootPath: '/tmp/wt-pr-7',
+        files: [expect.objectContaining({ filename: 'src/checkout.js' })],
+      },
+      { logger: silentLogger }
     )
-  })
-
-  it('discovers agent skills as standards documents', async () => {
-    setupHappyPath()
-    mockFindFilesAt.mockImplementation(async (_rootPath, pattern) => {
-      if (pattern === '.claude/skills/*.md')
-        return {
-          totalCount: 1,
-          items: [{ path: '.claude/skills/django-migrations/SKILL.md', name: 'SKILL.md' }],
-          truncated: false,
-        }
-      if (pattern === '.agents/skills/*.md')
-        return {
-          totalCount: 1,
-          items: [{ path: '.agents/skills/tdd/SKILL.md', name: 'SKILL.md' }],
-          truncated: false,
-        }
-      return { totalCount: 0, items: [], truncated: false }
-    })
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        standardsFiles: ['.claude/skills/django-migrations/SKILL.md', '.agents/skills/tdd/SKILL.md'],
-      })
-    )
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ standards }))
   })
 
   it('treats verified-empty files as reviewed: no partial verdict, APPROVE still possible', async () => {
@@ -533,42 +557,21 @@ describe('runReview', () => {
     )
   })
 
-  it('detects the story referenced in the branch name and hands the reference (not the text) to the agent', async () => {
-    setupHappyPath({ pr: prData({ head: { sha: 'deadbeef', ref: 'feature/sc-1234-rounding' } }) })
-    mockShortcutConfigured.mockReturnValue(true)
+  it('loads the spec from the current branch name, title and body and hands it to the agent', async () => {
+    setupHappyPath({
+      pr: prData({ title: 'Round refunds (sc-1)', body: 'Spec: sc-2', head: { sha: 'deadbeef', ref: 'feature/sc-3' } }),
+    })
+    const spec = { configured: true, stories: [{ id: 3, story: null }] }
+    mockLoadSpec.mockResolvedValue(spec)
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockGetStory).not.toHaveBeenCalled()
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ storyId: 1234 }))
-  })
-
-  it('passes no story reference when none is found', async () => {
-    setupHappyPath()
-    mockShortcutConfigured.mockReturnValue(true)
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ storyId: null }))
-  })
-
-  it('passes no story reference when shortcut is not configured', async () => {
-    setupHappyPath({ pr: prData({ head: { sha: 'deadbeef', ref: 'feature/sc-1234-rounding' } }) })
-    mockShortcutConfigured.mockReturnValue(false)
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ storyId: null }))
-  })
-
-  it('still reviews when standards discovery fails', async () => {
-    setupHappyPath({ pr: prData({ head: { sha: 'deadbeef', ref: 'feature/sc-99' } }) })
-    mockFindFiles.mockRejectedValue(new Error('find broke'))
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ standardsFiles: [] }))
-    expect(mockCreatePullRequestReview).toHaveBeenCalledTimes(1)
+    expect(mockLoadSpec).toHaveBeenCalledTimes(1)
+    expect(mockLoadSpec).toHaveBeenCalledWith(
+      expect.objectContaining({ headRef: 'feature/sc-3', title: 'Round refunds (sc-1)', body: 'Spec: sc-2' }),
+      { logger: silentLogger }
+    )
+    expect(mockRunReviewerAgent).toHaveBeenCalledWith(expect.objectContaining({ spec }))
   })
 
   it('reviews the current head when commits landed after the trigger', async () => {
@@ -656,7 +659,6 @@ describe('runReview', () => {
     mockAcquireWorktree.mockResolvedValue({ localPath: '/tmp/wt-pr-7', release: mockWorktreeRelease })
     mockGetPullRequest.mockResolvedValue(prData())
     mockListPullRequestFiles.mockRejectedValue(new Error('boom'))
-    mockFindFilesAt.mockResolvedValue({ totalCount: 0, items: [], truncated: false })
     mockCreateIssueComment.mockResolvedValue({})
     await runReview(trigger(), { logger: silentLogger })
     expect(mockWorktreeRelease).toHaveBeenCalledTimes(1)

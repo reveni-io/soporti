@@ -46,24 +46,50 @@ import {
 } from '../constants.js'
 import { shortSha } from '../github/sanitize.js'
 import { buildReviewerInstructions } from './prompt.js'
+import { renderNumberedPatch } from './diff.js'
 
 const MAX_PR_BODY_CHARS = 4000
 const MAX_INLINE_CHARS = 300
 const DEFAULT_DIFF_LINES = 1000
+const MAX_INLINE_DIFF_CHARS = 600_000
+const MAX_INLINE_FILE_DIFF_CHARS = 120_000
+const MAX_INLINE_CHANGES_CHARS = 150_000
+const MAX_STORY_CHARS = 40_000
+const MIN_FENCE_LENGTH = 3
+const BACKTICK_RUN = /`+/g
+const NO_DESCRIPTION = '(no description)'
 const FILE_LIST_INTRO =
-  "The diffs are not inline. Read each file's diff with get_file_diff before judging it, several files in the same turn whenever you can. A file counts as reviewed only once get_file_diff has returned its whole diff; any other file is reported as not reviewed and the PR cannot be approved."
+  'Every file this PR changes. Their diffs follow in the "Diff" section, except for the ones listed under "Not inlined".'
 const GENERATED_FILES_NOTE =
-  'Files marked `generated` (lockfiles, minified bundles, snapshots, generated metadata) are not required: skip them unless you need to check one, for example that a lockfile change matches its manifest.'
+  'Files marked `generated` (lockfiles, minified bundles, snapshots, generated metadata) are not inlined and not required: read one with get_file_diff only when you need to check it, for example that a lockfile change matches its manifest.'
 const EMPTY_FILES_NOTE =
   'Files marked `empty` are verified empty (0 bytes) — there is nothing inside to review, so they count as reviewed: do NOT report them as unreviewed. Only judge whether an empty file makes sense at that location (an empty `__init__.py` usually does; an empty module that should have content does not).'
+const DIFF_INTRO =
+  'The diff of every changed file that fits in this message, in PR order. The left column is the RIGHT-side (new file) line number: that is the number to cite in a finding. Removed lines have no number because they cannot be commented on. Every file whose diff is in this section counts as reviewed.'
+const NOT_INLINED_HEADING = '## Not inlined: read with get_file_diff'
+const NOT_INLINED_INTRO =
+  'These diffs are not in this message: too large to inline, or GitHub sent no patch. Read each one with get_file_diff before judging it, several files in the same turn whenever you can. A file counts as reviewed only once get_file_diff has returned its whole diff; any file you skip is reported as not reviewed and the PR cannot be approved.'
+const CHANGES_INTRO =
+  'These files changed after your last review: focus on these changes and use the full diff as context. Each patch is numbered like the full diff.'
+const CHANGES_NOT_INLINED_INTRO =
+  'What changed in these files is not in this message: read it with get_diff_since_last_review.'
+const STANDARDS_INTRO =
+  "These documents set this repository's rules for the standards axis, highest priority first. Every standards finding must cite the document and the rule it violates."
+const STANDARDS_TRUNCATED_NOTE = 'This document is truncated: read the rest with get_file_contents.'
+const STANDARDS_NOT_INLINED_INTRO =
+  'These standards documents did not fit in this message or could not be read. Read the ones that apply to this PR with get_file_contents:'
+const MODIFIED_STANDARD_MARKER = ' (modified by this PR)'
+const NO_SPEC =
+  '## Spec\n\n(no story reference detected — if the description references a Shortcut story and you have Shortcut tools, fetch it and use it as the spec; otherwise skip the spec axis and say so in your summary)'
+const SPEC_INTRO = 'The Shortcut stories this PR references. They are the spec for the spec axis.'
 const OUTSIDE_PR_ERROR =
   'This path is not one of the files changed by this PR. Use a path from the "Files changed" list.'
 const NO_DIFF_ERROR =
   'GitHub returned no patch for this file and there is no checkout of the PR head to diff it locally, so its diff cannot be read.'
 const NOT_CHANGED_SINCE_ERROR =
-  'This file did not change since your last review. Read its full diff with get_file_diff instead.'
+  'This file did not change since your last review. Its full diff is inlined in the message or readable with get_file_diff.'
 const NO_PATCH_SINCE_ERROR =
-  'GitHub returned no patch for the changes to this file since your last review. Read its full diff with get_file_diff instead.'
+  'GitHub returned no patch for the changes to this file since your last review. Use its full diff instead: inlined in the message or readable with get_file_diff.'
 const FULL_DIFF_FALLBACKS = {
   diverged: 'That commit is no longer in this branch (force-push or rebase).',
   unavailable: 'The changes since that commit could not be loaded.',
@@ -190,22 +216,27 @@ export function buildRepoTools(repoFullName, rootPath = null) {
   ]
 }
 
-export function buildDiffTools({ files, changes = null, rootPath = null, diffBaseSha = null }) {
+export function buildDiffTools({ files, changes = null, rootPath = null, diffBaseSha = null, inlinedPaths = [] }) {
   const prFiles = new Map(files.map(file => [file.filename, file]))
   const filesChangedSince = new Map((changes?.files ?? []).map(file => [file.filename, file]))
-  const localDiffs = new Map()
+  const numberedDiffs = new Map()
   const servedLines = new Map()
-  const reviewedPaths = new Set()
+  const reviewedPaths = new Set(inlinedPaths)
 
   async function loadPrDiff(file) {
     if (typeof file.patch === 'string') return file.patch
     if (!rootPath || !diffBaseSha) return null
 
-    if (!localDiffs.has(file.filename)) {
-      localDiffs.set(file.filename, await gitDiffAt(rootPath, file.filename, { baseSha: diffBaseSha }))
+    return gitDiffAt(rootPath, file.filename, { baseSha: diffBaseSha })
+  }
+
+  async function loadNumberedDiff(file) {
+    if (!numberedDiffs.has(file.filename)) {
+      const diff = await loadPrDiff(file)
+      numberedDiffs.set(file.filename, diff === null ? null : renderNumberedPatch(diff))
     }
 
-    return localDiffs.get(file.filename)
+    return numberedDiffs.get(file.filename)
   }
 
   function recordServed(page) {
@@ -219,13 +250,13 @@ export function buildDiffTools({ files, changes = null, rootPath = null, diffBas
   const tools = [
     tool({
       name: 'get_file_diff',
-      description: `Read the unified diff of one file changed by this PR; hunk headers give the RIGHT-side (new) line numbers to cite in findings. Only paths from the "Files changed" list are accepted. Returns up to \`limit\` lines from \`offset\` (default ${DEFAULT_DIFF_LINES}); when the response is truncated, call again with nextOffset — a file counts as reviewed only once its whole diff was returned. Call it for several files in the same turn.`,
+      description: `Read the unified diff of one file changed by this PR. Every line starts with its RIGHT-side (new file) line number, the number to cite in findings; removed lines have none. Only paths from the "Files changed" list are accepted. Returns up to \`limit\` lines from \`offset\` (default ${DEFAULT_DIFF_LINES}); when the response is truncated, call again with nextOffset — a diff that was not inlined in the message counts as reviewed only once all of it was returned. Call it for several files in the same turn.`,
       parameters: diffPageParameters(),
       execute: async input => {
         const file = prFiles.get(input.path)
         if (!file) return JSON.stringify({ error: OUTSIDE_PR_ERROR })
 
-        const diff = await loadPrDiff(file)
+        const diff = await loadNumberedDiff(file)
         if (diff === null) return JSON.stringify({ error: NO_DIFF_ERROR })
 
         const page = pageDiff(input, diff)
@@ -241,14 +272,14 @@ export function buildDiffTools({ files, changes = null, rootPath = null, diffBas
       tool({
         name: 'get_diff_since_last_review',
         description:
-          'Read what changed in one file between the commit of your last review and the current head. Only paths from the "Changed since your last review" list are accepted. Pages like get_file_diff. It does not replace get_file_diff: a file counts as reviewed only once you read its full diff there.',
+          'Read what changed in one file between the commit of your last review and the current head, numbered like get_file_diff. Only paths from the "Changed since your last review" section are accepted. Pages like get_file_diff. It does not replace the full diff: a file counts as reviewed only once its full diff was inlined in the message or read with get_file_diff.',
         parameters: diffPageParameters(),
         execute: async input => {
           const file = filesChangedSince.get(input.path)
           if (!file) return JSON.stringify({ error: NOT_CHANGED_SINCE_ERROR })
           if (typeof file.patch !== 'string') return JSON.stringify({ error: NO_PATCH_SINCE_ERROR })
 
-          return JSON.stringify(pageDiff(input, file.patch))
+          return JSON.stringify(pageDiff(input, renderNumberedPatch(file.patch)))
         },
       })
     )
@@ -302,8 +333,9 @@ export async function createReviewerAgent(repoFullName, { rootPath = null, diffT
 export function buildReviewInput({
   trigger,
   files,
-  standardsFiles = [],
-  storyId = null,
+  inlineDiffs = selectInlineDiffs(files),
+  standards = { documents: [], notInlined: [] },
+  spec = { configured: false, stories: [] },
   history = null,
   ciStatus = null,
 }) {
@@ -321,28 +353,137 @@ export function buildReviewInput({
   )
 
   const body = (trigger.body ?? '').trim()
-  parts.push(`## Description\n\n${body ? body.slice(0, MAX_PR_BODY_CHARS) : '(no description)'}`)
+  parts.push(`## Description\n\n${body ? body.slice(0, MAX_PR_BODY_CHARS) : NO_DESCRIPTION}`)
 
-  if (standardsFiles.length > 0) {
-    const list = standardsFiles.map(p => `- ${inline(p)}`).join('\n')
-    parts.push(
-      `## Coding standards documents\n\nThese files document this repository's coding standards and decisions. Read them with your tools BEFORE reviewing; every standards finding must cite the document it violates:\n\n${list}`
-    )
-  }
+  parts.push(...renderStandards(standards))
 
-  parts.push(
-    storyId
-      ? `## Spec\n\nThis PR references Shortcut story sc-${storyId}. Fetch it with get_shortcut_story (id: ${storyId}) and use it as the spec for the spec axis; follow its tasks or linked stories if you need more detail.`
-      : '## Spec\n\n(no story reference detected — if the description references a Shortcut story and you have Shortcut tools, fetch it and use it as the spec; otherwise skip the spec axis and say so in your summary)'
-  )
+  parts.push(renderSpec(spec))
 
-  if (history) parts.push(...renderHistory(history))
+  if (history) parts.push(...renderHistory(history, files))
 
   if (ciStatus) parts.push(renderCiStatus(ciStatus))
 
   parts.push(renderFileList(files))
 
+  parts.push(...renderDiff(inlineDiffs))
+
   return parts.join('\n\n')
+}
+
+function selectInlineDiffs(files) {
+  return splitInlineDiffs(
+    files.filter(file => !file.generated && !file.empty),
+    MAX_INLINE_DIFF_CHARS
+  )
+}
+
+function splitInlineDiffs(files, budget) {
+  const inlined = []
+  const notInlined = []
+  let remaining = budget
+
+  for (const file of files) {
+    const numbered = file.generated ? null : numberWithin(file.patch, Math.min(MAX_INLINE_FILE_DIFF_CHARS, remaining))
+    if (numbered === null) {
+      notInlined.push(file)
+      continue
+    }
+
+    inlined.push({ file, numbered })
+    remaining -= numbered.length
+  }
+
+  return { inlined, notInlined }
+}
+
+function numberWithin(patch, limit) {
+  if (typeof patch !== 'string' || patch.length > limit) return null
+
+  const numbered = renderNumberedPatch(patch)
+
+  return numbered.length > limit ? null : numbered
+}
+
+function renderDiff({ inlined, notInlined }) {
+  const sections = []
+
+  if (inlined.length > 0) sections.push(['## Diff', DIFF_INTRO, ...inlined.map(renderInlineDiff)].join('\n\n'))
+  if (notInlined.length > 0) {
+    sections.push([NOT_INLINED_HEADING, NOT_INLINED_INTRO, notInlined.map(renderFileEntry).join('\n')].join('\n\n'))
+  }
+
+  return sections
+}
+
+function renderInlineDiff({ file, numbered }) {
+  return `### ${describeFile(file)}\n\n${fenced(numbered)}`
+}
+
+function fenced(text) {
+  const longestRun = (text.match(BACKTICK_RUN) ?? []).reduce((max, run) => Math.max(max, run.length), 0)
+  const fence = '`'.repeat(Math.max(MIN_FENCE_LENGTH, longestRun + 1))
+
+  return `${fence}\n${text}\n${fence}`
+}
+
+function renderStandards({ documents, notInlined }) {
+  if (documents.length === 0 && notInlined.length === 0) return []
+
+  const sections = ['## Repository standards', STANDARDS_INTRO, ...documents.map(renderStandard)]
+  if (notInlined.length > 0) {
+    sections.push(`${STANDARDS_NOT_INLINED_INTRO}\n\n${notInlined.map(doc => `- ${describeStandard(doc)}`).join('\n')}`)
+  }
+
+  return [sections.join('\n\n')]
+}
+
+function renderStandard(document) {
+  const parts = [`### ${describeStandard(document)}`, fenced(document.content)]
+  if (document.truncated) parts.push(STANDARDS_TRUNCATED_NOTE)
+
+  return parts.join('\n\n')
+}
+
+function describeStandard(document) {
+  return `${inline(document.path)}${document.modified ? MODIFIED_STANDARD_MARKER : ''}`
+}
+
+function renderSpec({ configured, stories }) {
+  if (stories.length === 0) return NO_SPEC
+
+  if (!configured) {
+    const references = stories.map(({ id }) => `sc-${id}`).join(', ')
+    return `## Spec\n\nThis PR references ${references}, but Shortcut is not configured, so the stories cannot be read. Skip the spec axis and say so in your summary.`
+  }
+
+  return ['## Spec', SPEC_INTRO, ...stories.map(renderStory)].join('\n\n')
+}
+
+function renderStory({ id, story }) {
+  if (!story) {
+    return `### sc-${id}\n\nThis story could not be loaded: fetch it with get_shortcut_story (id: ${id}) and use it as the spec.`
+  }
+
+  const text = storyText(story)
+  const parts = [
+    `### sc-${id} — ${inline(story.name)}`,
+    `Type: ${inline(story.story_type)} · State: ${inline(story.state ?? 'unknown')}`,
+    fenced(text.slice(0, MAX_STORY_CHARS)),
+  ]
+  if (text.length > MAX_STORY_CHARS) {
+    parts.push(`This story is truncated: fetch all of it with get_shortcut_story (id: ${id}).`)
+  }
+
+  return parts.join('\n\n')
+}
+
+function storyText({ description, tasks }) {
+  const text = description || NO_DESCRIPTION
+  if (tasks.length === 0) return text
+
+  const checklist = tasks.map(task => `- [${task.complete ? 'x' : ' '}] ${task.description}`)
+
+  return `${text}\n\nTasks:\n${checklist.join('\n')}`
 }
 
 function renderFileList(files) {
@@ -358,14 +499,18 @@ function renderFileList(files) {
 }
 
 function renderFileEntry(file) {
+  return `- ${describeFile(file)}`
+}
+
+function describeFile(file) {
   const details = [file.status ?? 'modified', `+${file.additions ?? 0}/-${file.deletions ?? 0}`]
   if (file.generated) details.push('generated')
   if (file.empty) details.push('empty')
 
-  return `- ${inline(file.filename)} (${details.join(', ')})`
+  return `${inline(file.filename)} (${details.join(', ')})`
 }
 
-function renderHistory(history) {
+function renderHistory(history, files) {
   const sections = []
   const blocks = [
     renderSection('Your earlier review summaries (oldest first)', history.ownReviews, review =>
@@ -390,7 +535,7 @@ function renderHistory(history) {
     )
   }
 
-  if (history.changes) sections.push(renderChanges(history.changes, shortSha(history.lastReviewedSha)))
+  if (history.changes) sections.push(renderChanges(history.changes, shortSha(history.lastReviewedSha), files))
 
   return sections
 }
@@ -423,16 +568,24 @@ function threadState(thread) {
   return 'open'
 }
 
-function renderChanges(changes, sha) {
+function renderChanges(changes, sha, files) {
   const heading = `## Changed since your last review (\`${sha}\`)`
   const fallback = FULL_DIFF_FALLBACKS[changes.status]
 
   if (fallback) return `${heading}\n\n${fallback} Reviewing the full diff.`
   if (changes.files.length === 0) return `${heading}\n\nNo file of this PR changed since your last review.`
 
-  const list = changes.files.map(renderFileEntry).join('\n')
+  const generatedPaths = new Set(files.filter(file => file.generated).map(file => file.filename))
+  const { inlined, notInlined } = splitInlineDiffs(
+    changes.files.map(file => ({ ...file, generated: generatedPaths.has(file.filename) })),
+    MAX_INLINE_CHANGES_CHARS
+  )
+  const sections = [heading, CHANGES_INTRO, ...inlined.map(renderInlineDiff)]
+  if (notInlined.length > 0) {
+    sections.push(`${CHANGES_NOT_INLINED_INTRO}\n\n${notInlined.map(renderFileEntry).join('\n')}`)
+  }
 
-  return `${heading}\n\nThese files changed after your last review. Read what changed in each one with get_diff_since_last_review and focus on it; the full diff of every file (get_file_diff) is context.\n\n${list}`
+  return sections.join('\n\n')
 }
 
 function renderCiStatus({ checks, incomplete }) {
@@ -462,17 +615,24 @@ function renderCheck(check) {
 export async function runReviewerAgent({
   trigger,
   files,
-  standardsFiles,
-  storyId,
+  standards,
+  spec,
   history = null,
   ciStatus = null,
   rootPath = null,
   diffBaseSha = null,
   signal,
 }) {
-  const diff = buildDiffTools({ files, changes: history?.changes, rootPath, diffBaseSha })
+  const inlineDiffs = selectInlineDiffs(files)
+  const diff = buildDiffTools({
+    files,
+    changes: history?.changes,
+    rootPath,
+    diffBaseSha,
+    inlinedPaths: inlineDiffs.inlined.map(({ file }) => file.filename),
+  })
   const agent = await createReviewerAgent(trigger.repoFullName, { rootPath, diffTools: diff.tools })
-  const input = buildReviewInput({ trigger, files, standardsFiles, storyId, history, ciStatus })
+  const input = buildReviewInput({ trigger, files, inlineDiffs, standards, spec, history, ciStatus })
   const subject = `${trigger.repoFullName}#${trigger.prNumber}`
   const maxTurns = config.review.maxTurns
 
