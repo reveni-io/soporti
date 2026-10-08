@@ -1236,6 +1236,33 @@ describe('review body header', () => {
     mockLoadSpec.mockResolvedValue({
       configured: true,
       stories: [
+        { id: 1234, story: { name: 'Round refunds' } },
+        { id: 1235, story: null },
+      ],
+    })
+    mockRunReviewerAgent.mockResolvedValue(reviewed({ spec: 'Implements sc-1234.' }))
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(body()).toContain('- **Standards:** `REVIEW.md`, `docs/adr/0001-x.md`\n- **Spec:** sc-1234, sc-1235')
+    expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | Implements sc-1234. |')
+  })
+
+  it('lists the detected stories but skips the spec check when Shortcut is not configured', async () => {
+    setupHappyPath()
+    mockLoadSpec.mockResolvedValue({ configured: false, stories: [{ id: 1234, story: null }] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(body()).toContain('- **Spec:** sc-1234')
+    expect(postedWalkthrough()).toContain('| Spec | ➖ Skipped | No spec available |')
+  })
+
+  it('lists the detected stories but skips the spec check when every story failed to load', async () => {
+    setupHappyPath()
+    mockLoadSpec.mockResolvedValue({
+      configured: true,
+      stories: [
         { id: 1234, story: null },
         { id: 1235, story: null },
       ],
@@ -1243,18 +1270,8 @@ describe('review body header', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(body()).toContain('- **Standards:** `REVIEW.md`, `docs/adr/0001-x.md`\n- **Spec:** sc-1234, sc-1235')
-    expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | No spec available |')
-  })
-
-  it('lists the detected stories even when Shortcut is not configured', async () => {
-    setupHappyPath()
-    mockLoadSpec.mockResolvedValue({ configured: false, stories: [{ id: 1234, story: null }] })
-
-    await runReview(trigger(), { logger: silentLogger })
-
-    expect(body()).toContain('- **Spec:** sc-1234')
-    expect(postedWalkthrough()).toContain('| Spec | ✅ Passed | No spec available |')
+    expect(body()).toContain('- **Spec:** sc-1234, sc-1235')
+    expect(postedWalkthrough()).toContain('| Spec | ➖ Skipped | No spec available |')
   })
 
   it('reports no standards and skips the spec check when nothing was found or detected', async () => {

@@ -540,7 +540,16 @@ describe('renderWalkthrough', () => {
   it('passes the checks when no posted finding breaks the standards or the spec and CI is green', () => {
     const comment = renderWalkthrough(
       walkthrough({
-        context: { ...review().context, spec: { configured: true, stories: [{ id: 42, story: null }] } },
+        context: {
+          ...review().context,
+          spec: {
+            configured: true,
+            stories: [
+              { id: 42, story: { name: 'Checkout' } },
+              { id: 43, story: null },
+            ],
+          },
+        },
         ciStatus: {
           checks: [
             { name: 'test', state: 'completed' },
@@ -572,7 +581,10 @@ describe('renderWalkthrough', () => {
     const comment = renderWalkthrough(
       walkthrough({
         output: output({ findings }),
-        context: { ...review().context, spec: { configured: true, stories: [{ id: 42, story: null }] } },
+        context: {
+          ...review().context,
+          spec: { configured: true, stories: [{ id: 42, story: { name: 'Checkout' } }] },
+        },
         ciStatus: { checks },
       })
     )
@@ -583,7 +595,7 @@ describe('renderWalkthrough', () => {
     expect(comment).toContain('| CI | ❌ Failed | 1 failed: test (server) |')
   })
 
-  it('lists and checks every detected story, even when Shortcut is not configured', () => {
+  it('lists the detected stories but skips the spec check when Shortcut is not configured', () => {
     const spec = {
       configured: false,
       stories: [
@@ -592,9 +604,26 @@ describe('renderWalkthrough', () => {
       ],
     }
     const context = { ...review().context, spec }
+    const findings = [finding({ category: 'spec' })]
 
     expect(renderReviewBody(review({ context }))).toContain('- **Spec:** sc-42, sc-43')
-    expect(renderWalkthrough(walkthrough({ context }))).toContain('| Spec | ✅ Passed | Implements sc-42. |')
+    expect(renderWalkthrough(walkthrough({ context, output: output({ findings }) }))).toContain(
+      '| Spec | ➖ Skipped | Implements sc-42. |'
+    )
+  })
+
+  it('lists the detected stories but skips the spec check when every story failed to load', () => {
+    const spec = {
+      configured: true,
+      stories: [
+        { id: 42, story: null },
+        { id: 43, story: null },
+      ],
+    }
+    const context = { ...review().context, spec }
+
+    expect(renderReviewBody(review({ context }))).toContain('- **Spec:** sc-42, sc-43')
+    expect(renderWalkthrough(walkthrough({ context }))).toContain('| Spec | ➖ Skipped | Implements sc-42. |')
   })
 
   it('skips the spec check without a story and reports pending or missing CI', () => {

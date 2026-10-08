@@ -95,7 +95,7 @@ export function renderWalkthrough({ event, output, coverage, context, ciStatus, 
     ].join('\n'),
     renderChanges(output.changes),
     renderDiagram(output.diagram),
-    renderChecks({ output, storyIds: specStoryIds(context.spec), ciStatus }),
+    renderChecks({ output, spec: context.spec, ciStatus }),
     renderWalkthroughFooter(context.headSha, reviewerLogin),
   ]
 
@@ -348,11 +348,11 @@ function renderDiagram(diagram) {
   return renderDetails('📊 Sequence diagram', fence(diagram.trim(), 'mermaid'))
 }
 
-function renderChecks({ output, storyIds, ciStatus }) {
+function renderChecks({ output, spec, ciStatus }) {
   const { findings } = output
   const checks = [
     { name: 'Standards', status: hasCategory(findings, 'standards') ? 'warning' : 'passed', details: output.standards },
-    { name: 'Spec', status: describeSpecStatus(findings, storyIds), details: output.spec },
+    { name: 'Spec', status: describeSpecStatus(findings, spec), details: output.spec },
     { name: 'CI', ...describeCi(ciStatus) },
   ]
   const tally = Object.entries(CHECK_STATUSES)
@@ -374,10 +374,14 @@ function hasCategory(findings, category) {
   return findings.some(finding => finding.category === category)
 }
 
-function describeSpecStatus(findings, storyIds) {
-  if (storyIds.length === 0) return 'skipped'
+function describeSpecStatus(findings, spec) {
+  if (!hasLoadedStory(spec)) return 'skipped'
 
   return hasCategory(findings, 'spec') ? 'warning' : 'passed'
+}
+
+function hasLoadedStory(spec) {
+  return spec.configured && spec.stories.some(entry => entry.story !== null)
 }
 
 function describeCi(ciStatus) {
