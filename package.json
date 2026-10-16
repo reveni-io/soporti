@@ -37,7 +37,7 @@
   "devDependencies": {
     "concurrently": "^9.1.2",
     "jscpd": "^5.3.3",
-    "knip": "^6.38.0",
+    "knip": "^6.41.0",
     "prettier": "^3.9.6"
   }
 }
