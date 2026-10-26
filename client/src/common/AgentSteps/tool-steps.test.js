@@ -20,6 +20,10 @@ describe('describeToolCall', () => {
     )
   })
 
+  it('labels the Slack posting tool', () => {
+    expect(describeToolCall({ tool: 'post_slack_message', input: {} }).label).toBe('Posting to Slack')
+  })
+
   it('humanizes an unknown tool name', () => {
     expect(describeToolCall({ tool: 'inspect_widget_state', input: {} }).label).toBe('Inspect widget state')
   })

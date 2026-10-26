@@ -25,6 +25,7 @@ import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
 import { getZendeskConnection } from '../zendesk/settings.js'
+import { isSlackConfigured } from '../slack/settings.js'
 import * as shopify from '../shopify/client.js'
 
 export async function createAgent(
@@ -62,6 +63,7 @@ export async function createAgent(
     zendeskConnection,
     shortcutWrites,
     figmaCommentsEnabled,
+    slackConfigured,
     catalogPrompt,
     subagents,
     mainAgentTools,
@@ -79,6 +81,7 @@ export async function createAgent(
     getZendeskConnection(userId),
     areShortcutWritesEnabled(),
     getFigmaCommentsEnabled(),
+    isSlackConfigured(),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
@@ -105,6 +108,7 @@ export async function createAgent(
     shortcutWrites,
     figmaComments: figmaConfigured && figmaCommentsEnabled,
     zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
+    slackConfigured,
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {

@@ -48,6 +48,7 @@ const TOOL_LABELS = {
   zendesk_list_views: { label: 'Listing Zendesk views' },
   zendesk_list_view_tickets: { label: 'Listing Zendesk tickets', arg: 'viewId' },
   zendesk_post_internal_note: { label: 'Posting Zendesk internal note', arg: 'ticket' },
+  post_slack_message: { label: 'Posting to Slack', arg: 'channel' },
 }
 
 function parseArguments(rawArguments) {

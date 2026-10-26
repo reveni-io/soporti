@@ -74,6 +74,7 @@ vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(as
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
 vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () => null) }))
+vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
   getFigmaCommentsEnabled: vi.fn(async () => false),
@@ -93,6 +94,7 @@ const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js
 const { isGranolaConfigured } = await import('../granola/settings.js')
 const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
 const { getZendeskConnection } = await import('../zendesk/settings.js')
+const { isSlackConfigured } = await import('../slack/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -108,6 +110,7 @@ const CONFIGURATION_CHECKS = [
   isGranolaConfigured,
   isFigmaConfigured,
   getFigmaCommentsEnabled,
+  isSlackConfigured,
 ]
 
 describe('createAgent', () => {
@@ -489,6 +492,25 @@ describe('createAgent', () => {
     )
   })
 
+  it('passes the Slack configuration to the tool builder and adds the posting rules only when the tool is there', async () => {
+    isSlackConfigured.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'post_slack_message']))
+
+    const withSlack = await createAgent([], 'support')
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ slackConfigured: true })
+    )
+    expect(withSlack.instructions).toContain('## Posting to Slack')
+
+    buildAgentTools.mockReturnValue(toolList())
+    const withoutSlack = await createAgent([], 'support')
+
+    expect(withoutSlack.instructions).not.toContain('## Posting to Slack')
+  })
+
   it('tells the model to embed Figma renders only in a web conversation', async () => {
     isFigmaConfigured.mockResolvedValue(true)
     buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'get_figma_screenshot']))
@@ -523,6 +545,7 @@ describe('createAgent', () => {
         shortcutWrites: false,
         figmaComments: false,
         zendeskWrites: false,
+        slackConfigured: false,
       }
     )
   })
@@ -544,6 +567,7 @@ describe('createAgent', () => {
         shortcutWrites: false,
         figmaComments: false,
         zendeskWrites: false,
+        slackConfigured: false,
       }
     )
   })
@@ -565,6 +589,7 @@ describe('createAgent', () => {
         shortcutWrites: false,
         figmaComments: false,
         zendeskWrites: false,
+        slackConfigured: false,
       }
     )
   })

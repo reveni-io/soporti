@@ -116,6 +116,10 @@ vi.mock('../zendesk/client.js', () => ({
   isConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../slack/client.js', () => ({
+  postMessage: vi.fn(),
+}))
+
 vi.mock('../config.js', () => ({
   default: {
     postgres: { connection: 'test' },
@@ -165,6 +169,7 @@ const {
   getFigmaScreenshotTool,
   listFigmaCommentsTool,
   postFigmaCommentTool,
+  postSlackMessageTool,
   allTools,
   buildRepoTools,
   buildAgentTools,
@@ -1402,5 +1407,48 @@ describe('buildAgentTools with Zendesk', () => {
 
     expect(readOnly).not.toContain('zendesk_post_internal_note')
     expect(withWrites).toContain('zendesk_post_internal_note')
+  })
+})
+
+describe('postSlackMessageTool', () => {
+  it('posts the text to the channel and returns where it landed', async () => {
+    const slack = await import('../slack/client.js')
+    slack.postMessage.mockResolvedValue({
+      channel: 'C0123ABCD',
+      ts: '1730000000.000100',
+      permalink: 'https://acme.slack.com/archives/C0123ABCD/p1730000000000100',
+    })
+
+    const result = await postSlackMessageTool.execute({ channel: '#support', text: '**3 new issues**' })
+
+    expect(slack.postMessage).toHaveBeenCalledTimes(1)
+    expect(slack.postMessage).toHaveBeenCalledWith('#support', '**3 new issues**')
+    expect(JSON.parse(result)).toEqual({
+      channel: 'C0123ABCD',
+      ts: '1730000000.000100',
+      permalink: 'https://acme.slack.com/archives/C0123ABCD/p1730000000000100',
+    })
+  })
+})
+
+describe('buildAgentTools with Slack', () => {
+  const names = tools => tools.map(t => t.name)
+  const restricted = { unrestricted: false, repos: [], integrations: [] }
+  const unrestricted = { unrestricted: true, repos: [], integrations: [] }
+
+  it('registers post_slack_message whatever the selected sources once Slack is configured', () => {
+    expect(names(buildAgentTools(restricted, {}, { slackConfigured: true }))).toContain('post_slack_message')
+    expect(names(buildAgentTools(unrestricted, {}, { slackConfigured: true }))).toContain('post_slack_message')
+  })
+
+  it('leaves post_slack_message out while Slack is not configured', () => {
+    expect(names(buildAgentTools(restricted, {}, { slackConfigured: false }))).not.toContain('post_slack_message')
+    expect(names(buildAgentTools(unrestricted, {}, {}))).not.toContain('post_slack_message')
+  })
+
+  it('keeps post_slack_message when the main agent is restricted to a list of tools', () => {
+    const tools = restrictToolsByName(buildAgentTools(unrestricted, {}, { slackConfigured: true }), ['search_code'])
+
+    expect(names(tools)).toContain('post_slack_message')
   })
 })

@@ -729,6 +729,18 @@ describe('buildSubagentsPrompt language', () => {
   })
 })
 
+describe('Slack posting prompt', () => {
+  it('adds the posting rules only when post_slack_message is registered', () => {
+    const withTool = buildBasePrompt(null, { toolNames: new Set(['post_slack_message']) })
+    const withoutTool = buildBasePrompt(null, { toolNames: new Set() })
+
+    expect(withTool).toContain('## Posting to Slack')
+    expect(withTool).toContain('show the exact message and the channel first and wait for a yes')
+    expect(withTool).toContain('never post to a different channel instead')
+    expect(withoutTool).not.toContain('## Posting to Slack')
+  })
+})
+
 describe('date and time prompt', () => {
   const MADRID_MOMENT = {
     weekday: 'Friday',

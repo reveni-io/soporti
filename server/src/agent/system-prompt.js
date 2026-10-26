@@ -1,4 +1,9 @@
-import { MAX_ATTACHMENT_CHARS, PROMPT_SECTION_SEPARATOR, SUBAGENT_TOOL_PREFIX } from '../constants.js'
+import {
+  MAX_ATTACHMENT_CHARS,
+  PROMPT_SECTION_SEPARATOR,
+  SLACK_POST_TOOL_NAME,
+  SUBAGENT_TOOL_PREFIX,
+} from '../constants.js'
 import { carriesImage } from '../documents/attachments.js'
 import { TIME_TOOL_NAMES } from './time-tools.js'
 import { isYoloMode, buildSourcePolicy, hasWriteTools } from './sources.js'
@@ -451,6 +456,15 @@ export function buildTurnLimitPrompt(maxTurns) {
   return `You have used all ${maxTurns} turns, you cannot call tools. Write your final report now: what you did on each item, which you did not get to, and anything that failed.`
 }
 
+const SLACK_POST_SECTION = `## Posting to Slack
+
+You can post a message to a Slack channel with ${SLACK_POST_TOOL_NAME}. Everyone in that channel reads it, so treat it as a deliberate action.
+
+- **Only post when you were asked to.** In an unattended run the request is the go-ahead: post once the work is done. Otherwise show the exact message and the channel first and wait for a yes.
+- **Write it for the channel.** The people there have not seen this conversation: make the message self-contained and link to what it summarizes.
+- **The bot posts only where it was invited.** When Slack refuses — the bot is not in the channel, the channel does not exist or is archived — say so and tell the user what to do; never post to a different channel instead.
+- **Report what you did.** Give the channel and the permalink of the message.`
+
 const DATE_TIME_SECTION = `## Dates and times
 
 - Your sense of today's date comes from your training data and is wrong. Today's date is in "Current context" below; for anything finer — the time of day, how long ago something happened — call get_current_time.
@@ -487,6 +501,7 @@ export function buildBasePrompt(
   if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
   if (unattended) parts.push(UNATTENDED_RUN_SECTION)
   if (TIME_TOOL_NAMES.every(name => toolNames.has(name))) parts.push(DATE_TIME_SECTION)
+  if (toolNames.has(SLACK_POST_TOOL_NAME)) parts.push(SLACK_POST_SECTION)
 
   for (const id of available) {
     const section = INTEGRATION_PROMPT_SECTIONS[id]

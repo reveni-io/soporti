@@ -20,7 +20,7 @@ Security fixes land on `main`. There are no long-term support branches; run the 
 
 ## Security Model — Read This Before You Deploy
 
-Soporti is an LLM agent wired to real systems: your source code, a production database (read-only), Google Drive, Slack. Like any LLM agent, it is exposed to **prompt injection** — content the agent reads (PR diffs, support tickets, documents, query results) can attempt to steer its behavior. The project ships deterministic guardrails, but three design decisions deliberately trade isolation for capability. They are summarized here because **every adopter must evaluate them against their own threat model before connecting production systems.**
+Soporti is an LLM agent wired to real systems: your source code, a production database (read-only), Google Drive, Slack. Like any LLM agent, it is exposed to **prompt injection** — content the agent reads (PR diffs, support tickets, documents, query results) can attempt to steer its behavior. The project ships deterministic guardrails, but four design decisions deliberately trade isolation for capability. They are summarized here because **every adopter must evaluate them against their own threat model before connecting production systems.**
 
 ### 1. The agent runs live queries against the database you connect
 
@@ -48,6 +48,15 @@ Deploy accordingly:
 
 - Only enable it on channels restricted to your own staff.
 - Do **not** enable it if the channel accepts external or guest submitters.
+
+### 4. Slack: channel membership IS the posting boundary
+
+Once the Slack bot is configured, every agent run — web chat, Slack, scheduled queries, MCP and auto-diagnose — carries `post_slack_message`, which posts as the bot in any channel the bot has been invited to. There is no channel allowlist in code: what the agent read (database rows, tickets, documents) can be posted wherever the bot is a member, and a prompt-injected ticket or document could in principle steer an unattended run into doing so.
+
+Deploy accordingly:
+
+- Invite the bot only to channels whose members may see what the agent can read, and remove it from the ones that no longer need it.
+- Never grant the bot `chat:write.public`: without it, the bot cannot post in a channel it has not been invited to.
 
 ### Built-in guardrails (they reduce the risks above — they do not eliminate them)
 

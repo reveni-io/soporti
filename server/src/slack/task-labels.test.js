@@ -40,6 +40,10 @@ describe('describeToolCall', () => {
       title: 'Posting Zendesk internal note',
       details: '123',
     })
+    expect(describeToolCall('post_slack_message', JSON.stringify({ channel: '#support', text: 'Digest' }))).toEqual({
+      title: 'Posting to Slack',
+      details: '#support',
+    })
   })
 
   it('omits details for tools whose arguments should not be shown', () => {

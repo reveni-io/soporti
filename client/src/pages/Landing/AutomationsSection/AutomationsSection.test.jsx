@@ -37,5 +37,9 @@ describe('AutomationsSection', () => {
     expect(screen.getByText(/hourly, daily, weekly or monthly/i)).toBeInTheDocument()
     expect(screen.getByText(/edit the question, cadence or sources anytime/i)).toBeInTheDocument()
     expect(screen.getByText(/errors in the last hour” are measured from when each run starts/i)).toBeInTheDocument()
+    expect(screen.getByText(/posts to a channel when you ask, from any conversation/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/summarize the new Sentry issues in #support” — and each run posts it there/i)
+    ).toBeInTheDocument()
   })
 })

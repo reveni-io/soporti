@@ -20,6 +20,7 @@ import * as googleDrive from '../google-drive/client.js'
 import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
+import * as slack from '../slack/client.js'
 import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
@@ -27,6 +28,7 @@ import {
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
+  SLACK_POST_TOOL_NAME,
 } from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
 import { INTEGRATION_TOOL_NAMES } from './sources.js'
@@ -1001,6 +1003,28 @@ export const postFigmaCommentTool = tool({
   },
 })
 
+export const postSlackMessageTool = tool({
+  name: SLACK_POST_TOOL_NAME,
+  description:
+    'Post a message to a Slack channel as the Soporti bot. This WRITES to Slack, where everyone in the channel reads it: only call it when you were asked to post there, and when someone is following the conversation, only once they have seen the exact text and the channel and said yes; in an unattended run the request is the go-ahead. The bot can only post in channels it has been invited to — when Slack refuses, report why instead of trying another channel. Returns the channel id, the message ts and a permalink to the message.',
+  parameters: z.object({
+    channel: z
+      .string()
+      .describe(
+        'The channel name, like "#support", or its id, like "C0123ABCD". A Slack channel mention such as <#C0123ABCD|support> carries the id.'
+      ),
+    text: z
+      .string()
+      .describe(
+        'The message, exactly as approved, in Markdown. Write it for the people in the channel: self-contained, without referring to this conversation, with links to what it summarizes.'
+      ),
+  }),
+  execute: async input => {
+    const message = await slack.postMessage(input.channel, input.text)
+    return JSON.stringify(message)
+  },
+})
+
 const SHORTCUT_TOOLS = [
   getShortcutStoryTool,
   searchShortcutStoriesTool,
@@ -1082,10 +1106,13 @@ export function buildAgentTools(policy, configured, context = {}) {
 
   const artifactTools = buildArtifactTools(context.conversationId, context.onArtifactPublished)
   const timeTools = buildTimeTools(context.timezone)
+  const slackTools = context.slackConfigured ? [postSlackMessageTool] : []
 
-  if (!policy || policy.unrestricted) return [...allTools, ...integrationTools, ...artifactTools, ...timeTools]
+  if (!policy || policy.unrestricted) {
+    return [...allTools, ...integrationTools, ...artifactTools, ...timeTools, ...slackTools]
+  }
 
   const repoTools = policy.repos.length > 0 ? buildRepoTools(policy.repos) : []
 
-  return [...repoTools, ...integrationTools, ...artifactTools, ...timeTools]
+  return [...repoTools, ...integrationTools, ...artifactTools, ...timeTools, ...slackTools]
 }
