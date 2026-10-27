@@ -1,4 +1,5 @@
 import { run } from '@openai/agents'
+import { traceAgentRun } from '../agent/run-tracking.js'
 import { createAgent } from '../agent/assistant.js'
 import { buildUserTurn } from '../agent/user-turn.js'
 import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
@@ -83,6 +84,8 @@ async function forwardStreamEvent(event, turn, onProgress) {
 
 export async function processMessage({
   message,
+  displayQuestion = null,
+  conversationId = null,
   selectedSources,
   session,
   previousResponseId,
@@ -124,12 +127,15 @@ export async function processMessage({
   async function runTurn(prevResponseId) {
     resetTurn(turn)
 
-    const stream = await run(agent, agentInput, {
-      stream: true,
-      maxTurns: config.agent.maxIterations,
-      session,
-      previousResponseId: prevResponseId,
-    })
+    const trace = { sessionId: conversationId, userId, question: displayQuestion ?? message }
+    const stream = await traceAgentRun(trace, () =>
+      run(agent, agentInput, {
+        stream: true,
+        maxTurns: config.agent.maxIterations,
+        session,
+        previousResponseId: prevResponseId,
+      })
+    )
 
     for await (const event of stream.toStream()) {
       await forwardStreamEvent(event, turn, onProgress)

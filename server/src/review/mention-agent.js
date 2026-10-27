@@ -1,7 +1,7 @@
 import { Agent, run } from '@openai/agents'
 import config from '../config.js'
 import { resolveModelForAgent } from '../llm/model.js'
-import { trackAgentRun } from '../agent/run-tracking.js'
+import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { AGENT_CHANNEL_PR_MENTION } from '../constants.js'
 import { buildRepoTools, buildDataTools } from './agent.js'
 import { inline } from './context.js'
@@ -66,8 +66,9 @@ export async function runMentionAgent({ mention, pr, thread, rootPath = null }) 
   const input = buildMentionInput({ mention, pr, thread })
   const subject = `${mention.repoFullName}#${mention.prNumber}`
 
+  const trace = { sessionId: subject, question: mention.commentBody }
   const { result } = await trackAgentRun({ channel: AGENT_CHANNEL_PR_MENTION, subject }, () =>
-    run(agent, input, { maxTurns: config.agent.maxIterations })
+    traceAgentRun(trace, () => run(agent, input, { maxTurns: config.agent.maxIterations }))
   )
 
   return result.finalOutput

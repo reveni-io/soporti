@@ -32,7 +32,7 @@ import {
   BETTERSTACK_TOOLS,
 } from '../agent/tools.js'
 import { resolveModelForAgent } from '../llm/model.js'
-import { trackAgentRun } from '../agent/run-tracking.js'
+import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
@@ -317,7 +317,10 @@ export async function runReviewAgent({
   try {
     const { result } = await trackAgentRun(
       { channel, subject, failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR) },
-      () => run(agent, input, { maxTurns, signal, errorHandlers: { maxTurns: wrapUp } })
+      () =>
+        traceAgentRun({ sessionId: subject, question: `${name} on ${subject}` }, () =>
+          run(agent, input, { maxTurns, signal, errorHandlers: { maxTurns: wrapUp } })
+        )
     )
 
     return { output: result.finalOutput, wrappedUp }

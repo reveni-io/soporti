@@ -6,7 +6,7 @@ import config from '../config.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
-import { trackAgentRun } from '../agent/run-tracking.js'
+import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { UNKNOWN_TOOL } from '../agent/run-items.js'
 import { AGENT_CHANNEL_MCP, EMPTY_ANSWER_ERROR } from '../constants.js'
 
@@ -83,13 +83,16 @@ export async function executeAskSoporti({
     nestedUsage.length = 0
     callIdToName.clear()
 
-    const stream = await run(agent, agentInput, {
-      stream: true,
-      maxTurns: config.agent.maxIterations,
-      signal,
-      session: conversation.session,
-      previousResponseId,
-    })
+    const trace = { sessionId: conversation.conversationId, userId, question }
+    const stream = await traceAgentRun(trace, () =>
+      run(agent, agentInput, {
+        stream: true,
+        maxTurns: config.agent.maxIterations,
+        signal,
+        session: conversation.session,
+        previousResponseId,
+      })
+    )
 
     for await (const event of stream.toStream()) {
       if (event.type === 'raw_model_stream_event') {

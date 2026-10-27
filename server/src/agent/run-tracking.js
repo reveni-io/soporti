@@ -1,7 +1,22 @@
+import { withTrace } from '@openai/agents'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { extractUsage, sumUsage } from '../llm/usage.js'
 import { RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 import { toolNames, toolNamesFromResult } from './run-items.js'
+
+const TRACE_NAME = 'Agent workflow'
+
+function traceMetadata(fields) {
+  return Object.fromEntries(
+    Object.entries(fields)
+      .filter(([, value]) => value !== undefined && value !== null && String(value).length > 0)
+      .map(([key, value]) => [key, String(value)])
+  )
+}
+
+export function traceAgentRun({ sessionId = null, userId = null, question = null }, runAgent) {
+  return withTrace(TRACE_NAME, runAgent, { metadata: traceMetadata({ sessionId, userId, question }) })
+}
 
 export async function trackAgentRun(
   { channel, subject = null, userId = null, failureReason = null, nestedUsage = [], nestedToolCalls = [] },

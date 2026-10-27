@@ -21,6 +21,12 @@ const INGESTION_VERSION_HEADER = 'x-langfuse-ingestion-version'
 const INGESTION_VERSION = '4'
 
 const NETWORK_FAILURE_STATUS = 0
+const MAX_TRACKED_ANSWERS = 100
+const MAX_TRACE_ID_CHARS = 200
+const TRACE_ID_ATTRIBUTES = [
+  ['session.id', 'sessionId'],
+  ['user.id', 'userId'],
+]
 
 const OBSERVATION_FIELDS = {
   agent: agentFields,
@@ -31,6 +37,7 @@ const OBSERVATION_FIELDS = {
 
 let lastExportError = null
 let pausedUntil = 0
+const traceAnswers = new Map()
 
 function agentFields(data) {
   return { name: data.name, type: 'agent' }
@@ -171,6 +178,60 @@ function errorAttributes(message) {
   ]
 }
 
+function generationOutput(data) {
+  if (data.type === 'generation') return data.output
+  if (data.type === 'response') return data._response?.output
+
+  return null
+}
+
+function assistantText(output) {
+  if (!Array.isArray(output)) return ''
+
+  return output
+    .filter(item => item?.type === 'message' && item.role === 'assistant' && Array.isArray(item.content))
+    .flatMap(item => item.content)
+    .filter(part => part?.type === 'output_text' && typeof part.text === 'string')
+    .map(part => part.text)
+    .join('\n')
+    .trim()
+}
+
+function rememberAnswer(span) {
+  const text = assistantText(generationOutput(span.spanData))
+  if (!text) return
+
+  traceAnswers.delete(span.traceId)
+  traceAnswers.set(span.traceId, contentText(text))
+  if (traceAnswers.size > MAX_TRACKED_ANSWERS) traceAnswers.delete(traceAnswers.keys().next().value)
+}
+
+function isRootAgent(span) {
+  return span.spanData.type === 'agent' && !span.parentId
+}
+
+function rootContentAttributes(span, metadataOnly) {
+  if (metadataOnly || !isRootAgent(span)) return []
+
+  const answer = span.error ? null : traceAnswers.get(span.traceId)
+  traceAnswers.delete(span.traceId)
+
+  return [
+    ['langfuse.observation.input', contentText(span.traceMetadata?.question)],
+    ['langfuse.observation.output', answer],
+  ]
+    .filter(([, text]) => Boolean(text))
+    .map(([key, text]) => stringAttribute(key, text))
+}
+
+function traceIdAttributes(span, metadataOnly) {
+  if (metadataOnly) return []
+
+  return TRACE_ID_ATTRIBUTES.map(([key, field]) => [key, String(span.traceMetadata?.[field] ?? '').trim()])
+    .filter(([, value]) => value.length > 0)
+    .map(([key, value]) => stringAttribute(key, value.slice(0, MAX_TRACE_ID_CHARS)))
+}
+
 function hexId(id, length) {
   return createHash('sha256').update(id).digest('hex').slice(0, length)
 }
@@ -188,6 +249,8 @@ function toOtlpSpan(span, metadataOnly) {
     ...(fields.model ? [stringAttribute('langfuse.observation.model.name', fields.model)] : []),
     ...usageAttributes(fields.usage),
     ...contentAttributes(fields, metadataOnly),
+    ...rootContentAttributes(span, metadataOnly),
+    ...traceIdAttributes(span, metadataOnly),
     ...errorAttributes(failure),
   ]
 
@@ -243,7 +306,7 @@ function postPayload(body, { config, signal }) {
 async function readExportConfig() {
   try {
     const config = await getLangfuseConfig()
-    return isLangfuseConfigured(config) ? config : null
+    return { config: isLangfuseConfigured(config) ? config : null }
   } catch (err) {
     console.error('Failed to read the Langfuse settings for a trace export:', err.name)
     return null
@@ -268,9 +331,16 @@ async function deliver(body, { config, signal }) {
 
 export async function exportSpans(items, signal) {
   const spans = items.filter(isExportableSpan)
+
+  spans.forEach(rememberAnswer)
+
   if (spans.length === 0 || Date.now() < pausedUntil) return
 
-  const config = await readExportConfig()
+  const read = await readExportConfig()
+  if (!read) return
+
+  const { config } = read
+  if (!config || config.metadataOnly) traceAnswers.clear()
   if (!config) return
 
   for (let start = 0; start < spans.length && Date.now() >= pausedUntil; start += MAX_SPANS_PER_REQUEST) {
@@ -286,4 +356,5 @@ export function getLastExportError() {
 export function resetExportFailure() {
   lastExportError = null
   pausedUntil = 0
+  traceAnswers.clear()
 }

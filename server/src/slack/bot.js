@@ -406,7 +406,17 @@ async function deliverError({ client, channelId, threadTs, progress }) {
   await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: STREAM_ERROR_TEXT })
 }
 
-async function runAndReply({ client, channelId, threadTs, question, sources, profile, slackUserId, teamId }) {
+async function runAndReply({
+  client,
+  channelId,
+  threadTs,
+  question,
+  displayQuestion,
+  sources,
+  profile,
+  slackUserId,
+  teamId,
+}) {
   if (!(await isLlmConfigured())) {
     await client.chat.postMessage({
       channel: channelId,
@@ -438,6 +448,8 @@ async function runAndReply({ client, channelId, threadTs, question, sources, pro
     )
     const result = await processMessage({
       message: question,
+      displayQuestion,
+      conversationId,
       selectedSources: sources,
       session,
       previousResponseId,
@@ -509,6 +521,7 @@ async function answerOrPromptSources({
       channelId,
       threadTs,
       question,
+      displayQuestion,
       sources: existingSources,
       profile: threadProfiles.get(threadKey) || DEFAULT_PROFILE,
       slackUserId,
@@ -737,6 +750,7 @@ export async function startSlackBot(store) {
       channelId,
       threadTs,
       question,
+      displayQuestion,
       sources: selectedSources,
       profile,
       slackUserId: slackUserId || body.user.id,

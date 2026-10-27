@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { run } from '@openai/agents'
+import { traceAgentRun } from '../agent/run-tracking.js'
 import { createAgent } from '../agent/assistant.js'
 import { buildUserTurn } from '../agent/user-turn.js'
 import config from '../config.js'
@@ -309,13 +310,15 @@ function forwardStreamEvent(event, turn) {
   turn.flushArtifacts()
 }
 
-async function runAgentTurn(agent, agentInput, { session, previousResponseId, turn }) {
-  const stream = await run(agent, agentInput, {
-    stream: true,
-    maxTurns: config.agent.maxIterations,
-    session,
-    previousResponseId,
-  })
+async function runAgentTurn(agent, agentInput, { session, previousResponseId, turn, trace }) {
+  const stream = await traceAgentRun(trace, () =>
+    run(agent, agentInput, {
+      stream: true,
+      maxTurns: config.agent.maxIterations,
+      session,
+      previousResponseId,
+    })
+  )
 
   for await (const event of stream.toStream()) {
     forwardStreamEvent(event, turn)
@@ -333,14 +336,14 @@ async function runAgentTurn(agent, agentInput, { session, previousResponseId, tu
   }
 }
 
-async function runAgentTurnWithRetry(agent, agentInput, { session, previousResponseId, turn }) {
+async function runAgentTurnWithRetry(agent, agentInput, { session, previousResponseId, turn, trace }) {
   try {
-    return await runAgentTurn(agent, agentInput, { session, previousResponseId, turn })
+    return await runAgentTurn(agent, agentInput, { session, previousResponseId, turn, trace })
   } catch (err) {
     if (!previousResponseId || turn.hasSentContent()) throw err
 
     log('♻️', `Retrying without previousResponseId (${err.message})`)
-    return runAgentTurn(agent, agentInput, { session, previousResponseId: undefined, turn })
+    return runAgentTurn(agent, agentInput, { session, previousResponseId: undefined, turn, trace })
   }
 }
 
@@ -445,6 +448,7 @@ export default function chatRoute(conversationStore) {
         session,
         previousResponseId,
         turn,
+        trace: { sessionId: conversationId, userId: req.user.id, question: request.message },
       })
 
       const totalMs = Date.now() - agentStart

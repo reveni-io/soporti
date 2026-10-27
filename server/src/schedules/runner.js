@@ -8,7 +8,7 @@ import config from '../config.js'
 import { getCustomInstructions } from '../db/users.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { toolCallsFromResult } from '../agent/run-items.js'
-import { trackAgentRun } from '../agent/run-tracking.js'
+import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { AGENT_CHANNEL_SCHEDULE, EMPTY_ANSWER_ERROR } from '../constants.js'
 
 const WRAP_UP_TURNS = 1
@@ -77,7 +77,10 @@ export async function runSchedule(schedule, conversationStore) {
         nestedToolCalls,
         failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
       },
-      () => run(agent, agentInput, { maxTurns, session, errorHandlers: { maxTurns: wrapUp } })
+      () =>
+        traceAgentRun({ sessionId: conversationId, userId: schedule.userId, question: schedule.question }, () =>
+          run(agent, agentInput, { maxTurns, session, errorHandlers: { maxTurns: wrapUp } })
+        )
     )
 
     const answer = extractText(result)
