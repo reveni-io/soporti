@@ -101,6 +101,7 @@ describe('exportSpans mapping', () => {
         'langfuse.observation.model.name': 'claude-sonnet-5-5',
         'gen_ai.usage.input_tokens': 12,
         'gen_ai.usage.output_tokens': 7,
+        'langfuse.observation.usage_details': '{"input":12,"output":7}',
         'langfuse.observation.input': '[{"role":"user","content":"hi"}]',
         'langfuse.observation.output': '[{"role":"assistant","content":"hello"}]',
       },
@@ -124,6 +125,7 @@ describe('exportSpans mapping', () => {
         'langfuse.observation.model.name': 'gpt-5.5',
         'gen_ai.usage.input_tokens': 40,
         'gen_ai.usage.output_tokens': 9,
+        'langfuse.observation.usage_details': '{"input":40,"output":9}',
         'langfuse.observation.input':
           '[{"role":"system","content":"You review PRs."},{"role":"user","content":"what broke?"}]',
         'langfuse.observation.output': '[{"type":"message","content":"nothing"}]',
@@ -260,7 +262,7 @@ describe('exportSpans content safety', () => {
       type: 'generation',
       model: 'anthropic.messages:claude-sonnet-5-5',
       input: [{ content: SENTINEL }],
-      usage: { input_tokens: 3, output_tokens: 4 },
+      usage: { input_tokens: 3, output_tokens: 4, input_tokens_details: { cached_tokens: 2 } },
     })
 
     await exportSpans([span])
@@ -270,6 +272,7 @@ describe('exportSpans content safety', () => {
       'langfuse.observation.model.name': 'claude-sonnet-5-5',
       'gen_ai.usage.input_tokens': 3,
       'gen_ai.usage.output_tokens': 4,
+      'langfuse.observation.usage_details': '{"input":1,"input_cache_read":2,"output":4}',
     })
   })
 
@@ -333,6 +336,66 @@ describe('exportSpans content safety', () => {
       { key: 'gen_ai.usage.input_tokens', value: { intValue: 120 } },
       { key: 'gen_ai.usage.output_tokens', value: { intValue: 30 } },
     ])
+  })
+})
+
+describe('exportSpans usage details', () => {
+  function sentUsageDetails() {
+    const details = attributesOf(sentSpans()[0])['langfuse.observation.usage_details']
+    return details === undefined ? undefined : JSON.parse(details)
+  }
+
+  it.each([
+    {
+      kind: 'Anthropic cache reads and writes out of the input total',
+      usage: {
+        input_tokens: 40302,
+        output_tokens: 102,
+        input_tokens_details: { cached_tokens: 0, cache_write_tokens: 40298 },
+      },
+      expected: { input: 4, input_cache_read: 0, input_cache_creation: 40298, output: 102 },
+    },
+    {
+      kind: 'a warm Anthropic turn mostly served from the cache',
+      usage: {
+        input_tokens: 50000,
+        output_tokens: 300,
+        input_tokens_details: { cached_tokens: 45000, cache_write_tokens: 4000 },
+      },
+      expected: { input: 1000, input_cache_read: 45000, input_cache_creation: 4000, output: 300 },
+    },
+    {
+      kind: 'OpenAI cache reads, which have no write count',
+      usage: { input_tokens: 900, output_tokens: 50, input_tokens_details: { cached_tokens: 600 } },
+      expected: { input: 300, input_cache_read: 600, output: 50 },
+    },
+    {
+      kind: 'empty token details',
+      usage: { input_tokens: 10, output_tokens: 5, input_tokens_details: {} },
+      expected: { input: 10, output: 5 },
+    },
+    {
+      kind: 'cache counts larger than the input total',
+      usage: { input_tokens: 10, output_tokens: 5, input_tokens_details: { cached_tokens: 8, cache_write_tokens: 8 } },
+      expected: { input: 0, input_cache_read: 8, input_cache_creation: 8, output: 5 },
+    },
+    { kind: 'input only', usage: { input_tokens: 7 }, expected: { input: 7 } },
+    { kind: 'output only', usage: { output_tokens: 5 }, expected: { output: 5 } },
+    { kind: 'no counts', usage: {}, expected: undefined },
+    { kind: 'no usage', usage: undefined, expected: undefined },
+  ])('maps $kind to its usage buckets', async ({ usage, expected }) => {
+    await exportSpans([buildSpan({ type: 'generation', model: 'anthropic.messages:claude-sonnet-5-5', usage })])
+
+    expect(sentUsageDetails()).toEqual(expected)
+  })
+
+  it('keeps the buckets of a response span summing to its input and output totals', async () => {
+    const usage = { input_tokens: 1234, output_tokens: 56, input_tokens_details: { cached_tokens: 1000 } }
+
+    await exportSpans([buildSpan({ type: 'response', _response: { model: 'gpt-5.5', usage } })])
+
+    const buckets = Object.values(sentUsageDetails())
+    expect(buckets.reduce((total, tokens) => total + tokens, 0)).toBe(1234 + 56)
   })
 })
 
