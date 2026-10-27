@@ -77,11 +77,11 @@ export function buildRepoTools(allowedRepos = null) {
         centerLine: z
           .number()
           .int()
-          .min(1)
+          .min(0)
           .nullable()
           .default(null)
           .describe(
-            '1-based line to read around. When set, offset and limit are ignored. Use it whenever you know it.'
+            '1-based line to read around. When set, offset and limit are ignored. Use it whenever you know it; 0 or null reads from offset.'
           ),
         contextLines: z
           .number()
@@ -128,7 +128,9 @@ export function buildRepoTools(allowedRepos = null) {
         pathGlob: z
           .string()
           .default('')
-          .describe('Optional path glob to limit the search (e.g. "*.js", "*.test.*"). Empty for no filter.'),
+          .describe(
+            'Optional filter. A file-name glob ("*.js", "*.test.*") matches at any depth; a leading directory ("apps/orders/**/*.py", "src/api/") limits the search to it. Empty for no filter.'
+          ),
         caseInsensitive: z.boolean().default(false).describe('If true, match case-insensitively.'),
         regex: z
           .boolean()

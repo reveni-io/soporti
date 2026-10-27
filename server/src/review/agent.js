@@ -107,7 +107,7 @@ export function buildRepoTools(repoFullName, rootPath = null) {
       description: `Read the contents of a file. Prefer a targeted window over a whole file: pass centerLine (a diff hunk line, a search_code match, a stacktrace frame) to get that line with contextLines on each side. Without centerLine it returns up to \`limit\` lines from \`offset\`, defaulting to the first ${DEFAULT_FILE_LINES}. The response includes totalLines, truncated and nextOffset to page when more is genuinely needed.`,
       parameters: z.object({
         path: z.string(),
-        centerLine: z.number().int().min(1).nullable().default(null),
+        centerLine: z.number().int().min(0).nullable().default(null),
         contextLines: z.number().int().min(0).max(MAX_FILE_LINES).default(DEFAULT_CONTEXT_LINES),
         offset: z.number().int().min(0).default(0),
         limit: z.number().int().min(1).max(MAX_FILE_LINES).default(DEFAULT_FILE_LINES),
@@ -125,7 +125,7 @@ export function buildRepoTools(repoFullName, rootPath = null) {
     tool({
       name: 'search_code',
       description:
-        'Search the repository code. Returns matching {path, line, snippet} entries. Supports literal or regex search, case-insensitive matching, and a path glob filter (e.g. "*.js").',
+        'Search the repository code. Returns matching {path, line, snippet} entries. Supports literal or regex search, case-insensitive matching, and a path glob filter: a file-name glob ("*.js") matches at any depth, and a leading directory ("src/api/**/*.js", "src/api/") limits the search to it.',
       parameters: z.object({
         query: z.string(),
         pathGlob: z.string().default(''),

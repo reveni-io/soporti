@@ -12,6 +12,7 @@ import {
   MAX_SEARCH_RESULTS,
 } from '../constants.js'
 import { pool } from './pool.js'
+import { resolveInsideClone, toFsToolError, withoutClonePath } from './resolve-inside-clone.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -22,6 +23,7 @@ const MAX_DIFF_BYTES = 50 * 1024 * 1024
 const COMMIT_SHA_RE = /^[0-9a-f]{7,40}$/i
 
 const EXCLUDE_DIRS = ['.git', 'node_modules']
+const GLOB_CHARS_RE = /[*?[]/
 
 function excludeDirArgs() {
   return EXCLUDE_DIRS.map(d => `--exclude-dir=${d}`)
@@ -48,8 +50,13 @@ export function getDirectoryContents(repoFullName, path = '') {
 export async function getDirectoryContentsAt(localPath, path = '') {
   const safePath = sanitizePath(path)
 
-  const target = join(localPath, safePath)
-  const entries = await readdir(target, { withFileTypes: true })
+  const target = await resolveInsideClone(localPath, safePath)
+  const entries = await readdir(target, { withFileTypes: true }).catch(err => {
+    throw toFsToolError(err, {
+      localPath,
+      messages: { ENOTDIR: `"${safePath}" is a file. Read it with get_file_contents.` },
+    })
+  })
   const visible = entries.filter(e => !EXCLUDE_DIRS.includes(e.name))
 
   return Promise.all(
@@ -57,7 +64,7 @@ export async function getDirectoryContentsAt(localPath, path = '') {
       const entryPath = safePath ? `${safePath}/${e.name}` : e.name
       const isDir = e.isDirectory()
       let size = null
-      if (!isDir) {
+      if (!isDir && !e.isSymbolicLink()) {
         try {
           const s = await stat(join(target, e.name))
           size = s.size
@@ -85,7 +92,7 @@ function clampInt(value, min, max, fallback) {
 }
 
 function resolveWindow({ offset, limit, centerLine, contextLines }, totalLines) {
-  if (!Number.isFinite(centerLine)) {
+  if (!Number.isFinite(centerLine) || centerLine < 1) {
     return {
       offset: Math.max(0, Number.isFinite(offset) ? Math.floor(offset) : 0),
       limit: clampInt(limit, 1, MAX_FILE_LINES, DEFAULT_FILE_LINES),
@@ -109,8 +116,13 @@ export async function getFileContentsAt(
     throw new Error('A file path is required.')
   }
 
-  const target = join(localPath, safePath)
-  const raw = await readFile(target, 'utf-8')
+  const target = await resolveInsideClone(localPath, safePath)
+  const raw = await readFile(target, 'utf-8').catch(err => {
+    throw toFsToolError(err, {
+      localPath,
+      messages: { EISDIR: `"${safePath}" is a directory. List it with get_directory_contents.` },
+    })
+  })
   const allLines = raw.split('\n')
   const range = resolveWindow({ offset, limit, centerLine, contextLines }, allLines.length)
 
@@ -174,16 +186,58 @@ export function searchCode(repoFullName, query, options = {}) {
   return withClone(repoFullName, localPath => searchCodeAt(localPath, query, options))
 }
 
-function buildGrepArgs(localPath, query, { pathGlob, caseInsensitive, regex }) {
+function splitPathGlob(pathGlob) {
+  const glob = String(pathGlob ?? '')
+  if (!glob.includes('/')) return { root: '', include: glob }
+
+  const segments = glob.split('/').filter(segment => segment && segment !== '.')
+  const firstGlob = segments.findIndex(segment => GLOB_CHARS_RE.test(segment))
+  if (firstGlob === -1) return { root: segments.join('/'), include: '' }
+
+  const last = segments.at(-1)
+
+  return { root: segments.slice(0, firstGlob).join('/'), include: last === '**' ? '' : last }
+}
+
+async function resolveSearchRoot(localPath, root) {
+  if (!root) return localPath
+
+  return resolveInsideClone(localPath, sanitizePath(root))
+}
+
+function buildGrepArgs(searchRoot, query, { include, caseInsensitive, regex }) {
   const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs()]
   if (caseInsensitive) args.push('-i')
   args.push(regex ? '-E' : '-F')
-  if (pathGlob && typeof pathGlob === 'string') {
-    args.push(`--include=${pathGlob.slice(0, 128)}`)
+  if (include) {
+    args.push(`--include=${include.slice(0, 128)}`)
   }
   args.push(...excludeEnvArgs())
-  args.push('-e', query, localPath)
+  args.push('-e', query, searchRoot)
   return args
+}
+
+function toGrepToolError(err, { localPath, regex }) {
+  if (err.killed) {
+    return new Error('The code search timed out. Narrow it with pathGlob or a more specific query.', { cause: err })
+  }
+
+  const detail = withoutClonePath(String(err.stderr ?? '').split('\n')[0], localPath).trim()
+  const hint = regex ? ' Escape regex metacharacters such as ( ) [ ] or set regex to false.' : ''
+
+  return new Error(`The code search failed${detail ? `: ${detail}` : ''}.${hint}`, { cause: err })
+}
+
+async function runGrep(args, { localPath, regex }) {
+  try {
+    const { stdout } = await execFileAsync('grep', args, { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
+    return { stdout, partial: false }
+  } catch (err) {
+    if (err.code === 1) return { stdout: '', partial: false }
+    if (err.stdout) return { stdout: err.stdout, partial: true }
+
+    throw toGrepToolError(err, { localPath, regex })
+  }
 }
 
 function parseGrepLine(line, prefix) {
@@ -217,18 +271,10 @@ export async function searchCodeAt(
 
   const safeQuery = query.trim().slice(0, 256)
   const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS)
-  const args = buildGrepArgs(localPath, safeQuery, { pathGlob, caseInsensitive, regex })
-
-  let stdout
-  try {
-    const result = await execFileAsync('grep', args, { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
-    stdout = result.stdout
-  } catch (err) {
-    if (err.code === 1) {
-      return { totalCount: 0, items: [], truncated: false }
-    }
-    throw err
-  }
+  const { root, include } = splitPathGlob(pathGlob)
+  const searchRoot = await resolveSearchRoot(localPath, root)
+  const args = buildGrepArgs(searchRoot, safeQuery, { include, caseInsensitive, regex })
+  const { stdout, partial } = await runGrep(args, { localPath, regex })
 
   const lines = stdout.split('\n').filter(Boolean)
   const items = []
@@ -243,7 +289,7 @@ export async function searchCodeAt(
   return {
     totalCount: lines.length,
     items,
-    truncated: lines.length > items.length,
+    truncated: partial || lines.length > items.length,
   }
 }
 
