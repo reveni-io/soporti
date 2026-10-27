@@ -544,7 +544,7 @@ export const describeDatabaseTableTool = tool({
 export const queryDatabaseTool = tool({
   name: 'query_database',
   description:
-    'Execute a read-only SQL SELECT query against the PostgreSQL database. Only SELECT and WITH (CTE) queries are allowed. Results are capped at a configured row limit (100 by default). Always use LIMIT in your queries for efficiency.',
+    'Execute a read-only SQL SELECT query against the PostgreSQL database. Only SELECT and WITH (CTE) queries are allowed. Results are capped at a configured row limit (100 by default). Always use LIMIT in your queries for efficiency. Describe each table with describe_database_table before querying it.',
   parameters: z.object({
     sql: z.string().describe('SQL SELECT query to execute.'),
   }),

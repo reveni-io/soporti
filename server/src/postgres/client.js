@@ -4,6 +4,10 @@ import { getPostgresConnection, isPostgresConfigured, getPostgresMaxRows } from 
 const { Pool } = pg
 
 const LOG_PREFIX = '[postgres]'
+const UNDEFINED_COLUMN_CODE = '42703'
+const SYSTEM_SCHEMAS = ['information_schema', 'pg_catalog', 'pg_toast']
+const MAX_SUGGESTED_TABLES = 5
+const IDENTIFIER_RE = /[a-z_][a-z0-9_$]*/g
 let pool = null
 let poolConnString = null
 
@@ -168,6 +172,54 @@ export async function describeTable(schema, table) {
   }
 }
 
+function identifierTokens(sql) {
+  return [...new Set(sql.toLowerCase().match(IDENTIFIER_RE) ?? [])]
+}
+
+function groupColumnsByTable(rows) {
+  const tables = new Map()
+
+  for (const row of rows) {
+    const key = `${row.table_schema}.${row.table_name}`
+    if (!tables.has(key)) tables.set(key, [])
+    tables.get(key).push(row.column_name)
+  }
+
+  return [...tables].slice(0, MAX_SUGGESTED_TABLES).map(([table, columns]) => ({ table, columns }))
+}
+
+async function describeTablesInQuery(sql) {
+  try {
+    const db = await getPool()
+    const { rows } = await db.query(
+      `SELECT table_schema, table_name, column_name
+     FROM information_schema.columns
+     WHERE lower(table_name) = ANY($1::text[]) AND table_schema <> ALL($2::text[])
+     ORDER BY array_position($1::text[], lower(table_name)), table_schema, table_name, ordinal_position`,
+      [identifierTokens(sql), SYSTEM_SCHEMAS]
+    )
+
+    return groupColumnsByTable(rows)
+  } catch (err) {
+    console.error(`${LOG_PREFIX} describeTablesInQuery error:`, err.message)
+    return []
+  }
+}
+
+function describeColumns(tables) {
+  if (tables.length === 0) return null
+
+  const listed = tables.map(({ table, columns }) => `${table}: ${columns.join(', ')}`).join('; ')
+  return `Columns of the tables in this query: ${listed}.`
+}
+
+async function undefinedColumnError(err, sql) {
+  const tables = await describeTablesInQuery(sql)
+  const message = [err.message, err.hint, describeColumns(tables)].filter(Boolean).join(' ')
+
+  return Object.assign(new Error(message, { cause: err }), { code: err.code })
+}
+
 export async function runQuery(sql) {
   console.log(`${LOG_PREFIX} runQuery: ${sql.slice(0, 200)}${sql.length > 200 ? '...' : ''}`)
   const trimmed = sql.trim()
@@ -193,6 +245,7 @@ export async function runQuery(sql) {
     }
   } catch (err) {
     console.error(`${LOG_PREFIX} runQuery error:`, err.message)
+    if (err.code === UNDEFINED_COLUMN_CODE) throw await undefinedColumnError(err, trimmed)
     throw err
   }
 }
