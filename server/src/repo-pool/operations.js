@@ -188,10 +188,12 @@ export function searchCode(repoFullName, query, options = {}) {
 
 function splitPathGlob(pathGlob) {
   const glob = String(pathGlob ?? '')
+
   if (!glob.includes('/')) return { root: '', include: glob }
 
   const segments = glob.split('/').filter(segment => segment && segment !== '.')
   const firstGlob = segments.findIndex(segment => GLOB_CHARS_RE.test(segment))
+
   if (firstGlob === -1) return { root: segments.join('/'), include: '' }
 
   const last = segments.at(-1)
