@@ -210,6 +210,7 @@ function describeColumns(tables) {
   if (tables.length === 0) return null
 
   const listed = tables.map(({ table, columns }) => `${table}: ${columns.join(', ')}`).join('; ')
+
   return `Columns of the tables in this query: ${listed}.`
 }
 
