@@ -246,6 +246,12 @@ describe('finderOutputSchema', () => {
 describe('buildRepoTools', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('accepts centerLine 0 as "no center line" in get_file_contents', () => {
+    const getFile = buildRepoTools('acme-io/app').find(t => t.name === 'get_file_contents')
+
+    expect(getFile.parameters.parse({ path: 'src/a.js', centerLine: 0 }).centerLine).toBe(0)
+  })
+
   it('exposes the repository tools, pinned to the triggered repository with no repo parameter', async () => {
     const tools = buildRepoTools('acme-io/app')
 

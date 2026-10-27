@@ -113,9 +113,17 @@ describe('store credentials', () => {
     expect(mockFetch.mock.calls[1][0]).toBe('https://teststore.myshopify.com/admin/api/2024-10/orders/1.json')
   })
 
-  it('tells the agent to resolve the store ID when the service does not know the store', async () => {
+  it.each([
+    { store: 'Acme', uuidHint: false },
+    { store: '3a65acb5-9d3d-490e-a00c-eca4e7c4db53', uuidHint: false },
+    { store: '94', uuidHint: true },
+  ])('tells the agent to resolve store $store when the service does not know it', async ({ store, uuidHint }) => {
     mockFetch.mockResolvedValueOnce(mockResponse({}, false, 404))
-    await expect(getOrder('1', 'Acme')).rejects.toThrow('does not know store "Acme"')
+
+    const error = await getOrder('1', store).catch(err => err)
+
+    expect(error.message).toContain(`does not know store "${store}"`)
+    expect(error.message.includes("retry with the store's UUID")).toBe(uuidHint)
   })
 
   it('reports a store that must be reconnected as terminal', async () => {

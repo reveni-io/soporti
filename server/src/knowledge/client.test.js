@@ -88,6 +88,18 @@ describe('knowledge client', () => {
       expect(mockVsSearch).toHaveBeenCalledWith('vs_configured', { query: 'How to X?', max_num_results: 3 })
     })
 
+    it.each([
+      { kind: 'a question within the limit', query: 'Why did order 42 fail?', sent: 'Why did order 42 fail?' },
+      { kind: 'a pasted log over the limit', query: `Why? ${'x'.repeat(5000)}`, sent: `Why? ${'x'.repeat(4091)}` },
+      { kind: 'emoji across the limit', query: '😀'.repeat(4100), sent: '😀'.repeat(4096) },
+    ])('sends $kind within the 4,096-character search limit', async ({ query, sent }) => {
+      mockVsSearch.mockResolvedValue({ data: [] })
+
+      await searchSimilarCases(query)
+
+      expect(mockVsSearch).toHaveBeenCalledWith('vs_configured', { query: sent, max_num_results: 3 })
+    })
+
     it('returns empty array on search error', async () => {
       mockVsSearch.mockRejectedValue(new Error('API error'))
 

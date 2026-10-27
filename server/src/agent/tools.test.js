@@ -330,6 +330,12 @@ describe('buildRepoTools repo guard', () => {
     })
   })
 
+  it('get_file_contents accepts centerLine 0 as "no center line"', () => {
+    const getFile = buildRepoTools().find(t => t.name === 'get_file_contents')
+
+    expect(getFile.parameters.parse({ repo: 'org/app', path: 'a.js', centerLine: 0 }).centerLine).toBe(0)
+  })
+
   it('find_files defaults to a modest result count while search_code keeps full coverage', () => {
     const tools = buildRepoTools()
     const find = tools.find(t => t.name === 'find_files')

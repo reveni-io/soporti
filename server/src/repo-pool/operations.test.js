@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('./pool.js', () => ({
   pool: {
@@ -9,6 +9,7 @@ vi.mock('./pool.js', () => ({
 vi.mock('node:fs/promises', () => ({
   readdir: vi.fn(),
   readFile: vi.fn(),
+  realpath: vi.fn(async path => path),
   stat: vi.fn(),
 }))
 
@@ -17,7 +18,7 @@ vi.mock('node:child_process', () => ({
 }))
 
 import { pool } from './pool.js'
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import {
   getDirectoryContents,
@@ -31,6 +32,10 @@ import {
   gitDiffAt,
   pageLines,
 } from './operations.js'
+
+afterEach(() => {
+  realpath.mockImplementation(async path => path)
+})
 
 describe('path-based variants (worktrees)', () => {
   beforeEach(() => {
@@ -73,8 +78,8 @@ describe('getDirectoryContents', () => {
 
   it('lists files and directories with sizes', async () => {
     readdir.mockResolvedValue([
-      { name: 'src', isDirectory: () => true },
-      { name: 'index.js', isDirectory: () => false },
+      { name: 'src', isDirectory: () => true, isSymbolicLink: () => false },
+      { name: 'index.js', isDirectory: () => false, isSymbolicLink: () => false },
     ])
 
     const result = await getDirectoryContents('owner/repo', '')
@@ -87,9 +92,9 @@ describe('getDirectoryContents', () => {
 
   it('filters out .git and node_modules', async () => {
     readdir.mockResolvedValue([
-      { name: '.git', isDirectory: () => true },
-      { name: 'node_modules', isDirectory: () => true },
-      { name: 'src', isDirectory: () => true },
+      { name: '.git', isDirectory: () => true, isSymbolicLink: () => false },
+      { name: 'node_modules', isDirectory: () => true, isSymbolicLink: () => false },
+      { name: 'src', isDirectory: () => true, isSymbolicLink: () => false },
     ])
 
     const result = await getDirectoryContents('owner/repo', '')
@@ -97,7 +102,7 @@ describe('getDirectoryContents', () => {
   })
 
   it('falls back to null size when stat fails', async () => {
-    readdir.mockResolvedValue([{ name: 'broken.js', isDirectory: () => false }])
+    readdir.mockResolvedValue([{ name: 'broken.js', isDirectory: () => false, isSymbolicLink: () => false }])
     stat.mockRejectedValue(new Error('EACCES'))
 
     const result = await getDirectoryContents('owner/repo', '')
@@ -105,7 +110,7 @@ describe('getDirectoryContents', () => {
   })
 
   it('includes subpath in entry paths', async () => {
-    readdir.mockResolvedValue([{ name: 'App.jsx', isDirectory: () => false }])
+    readdir.mockResolvedValue([{ name: 'App.jsx', isDirectory: () => false, isSymbolicLink: () => false }])
 
     const result = await getDirectoryContents('owner/repo', 'src/components')
     expect(result[0].path).toBe('src/components/App.jsx')
@@ -123,6 +128,35 @@ describe('getDirectoryContents', () => {
     readdir.mockRejectedValue(new Error('ENOENT'))
     await expect(getDirectoryContents('owner/repo', 'nonexistent')).rejects.toThrow('ENOENT')
     expect(release).toHaveBeenCalled()
+  })
+
+  it('points to get_file_contents when the path is a file', async () => {
+    readdir.mockRejectedValue(Object.assign(new Error('ENOTDIR'), { code: 'ENOTDIR' }))
+
+    await expect(getDirectoryContents('owner/repo', 'src/a.js')).rejects.toThrow(
+      '"src/a.js" is a file. Read it with get_file_contents.'
+    )
+  })
+
+  it('says a missing directory does not exist without the clone path', async () => {
+    realpath.mockImplementation(async path => {
+      if (path.endsWith('/gone')) throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
+      return path
+    })
+
+    const failure = await getDirectoryContents('owner/repo', 'gone').catch(err => err)
+
+    expect(failure.message).toContain('"gone" does not exist in this repository')
+    expect(failure.message).not.toContain('/tmp/repos')
+  })
+
+  it('never follows a symlink entry to report its size', async () => {
+    readdir.mockResolvedValue([{ name: 'link', isDirectory: () => false, isSymbolicLink: () => true }])
+
+    const result = await getDirectoryContents('owner/repo', '')
+
+    expect(result[0].size).toBeNull()
+    expect(stat).not.toHaveBeenCalled()
   })
 })
 
@@ -247,6 +281,49 @@ describe('getFileContents', () => {
     await expect(getFileContents('owner/repo', 'missing.txt')).rejects.toThrow('ENOENT')
     expect(release).toHaveBeenCalled()
   })
+
+  it('reads from offset when centerLine is 0', async () => {
+    readFile.mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join('\n'))
+
+    const result = await getFileContents('owner/repo', 'a.js', { centerLine: 0, offset: 3, limit: 2 })
+
+    expect(result.content).toBe('line4\nline5')
+  })
+
+  it.each([
+    {
+      kind: 'a directory',
+      readCode: 'EISDIR',
+      realpathCode: null,
+      message: '"src" is a directory. List it with get_directory_contents.',
+    },
+    {
+      kind: 'a missing path',
+      readCode: null,
+      realpathCode: 'ENOENT',
+      message: '"src" does not exist in this repository',
+    },
+    {
+      kind: 'a path under a file',
+      readCode: null,
+      realpathCode: 'ENOTDIR',
+      message: '"src" does not exist in this repository',
+    },
+  ])('explains reading $kind without the clone path', async ({ readCode, realpathCode, message }) => {
+    const fsFailure = code => Object.assign(new Error(`${code}: /tmp/repos/owner--repo/src`), { code })
+    if (readCode) readFile.mockRejectedValueOnce(fsFailure(readCode))
+    if (realpathCode) {
+      realpath.mockImplementation(async path => {
+        if (path.endsWith('/src')) throw fsFailure(realpathCode)
+        return path
+      })
+    }
+
+    const failure = await getFileContents('owner/repo', 'src').catch(err => err)
+
+    expect(failure.message).toContain(message)
+    expect(failure.message).not.toContain('/tmp/repos')
+  })
 })
 
 describe('searchCode', () => {
@@ -352,8 +429,89 @@ describe('searchCode', () => {
     error.code = 2
     execFile.mockImplementation((cmd, args, opts, cb) => cb(error, { stdout: '', stderr: '' }))
 
-    await expect(searchCode('owner/repo', 'test')).rejects.toThrow('grep failed')
+    await expect(searchCode('owner/repo', 'test')).rejects.toThrow('The code search failed.')
     expect(release).toHaveBeenCalled()
+  })
+
+  it.each([
+    { pathGlob: '', root: '/tmp/repos/owner--repo', include: null },
+    { pathGlob: '*.py', root: '/tmp/repos/owner--repo', include: '--include=*.py' },
+    { pathGlob: 'apps/**/*.py', root: '/tmp/repos/owner--repo/apps', include: '--include=*.py' },
+    { pathGlob: './apps/orders/*.py', root: '/tmp/repos/owner--repo/apps/orders', include: '--include=*.py' },
+    { pathGlob: 'apps/', root: '/tmp/repos/owner--repo/apps', include: null },
+    { pathGlob: 'apps/**', root: '/tmp/repos/owner--repo/apps', include: null },
+    { pathGlob: '*/models.py', root: '/tmp/repos/owner--repo', include: '--include=models.py' },
+    { pathGlob: 'src/api/handler.js', root: '/tmp/repos/owner--repo/src/api/handler.js', include: null },
+  ])('searches $pathGlob from $root', async ({ pathGlob, root, include }) => {
+    let capturedArgs
+    execFile.mockImplementation((cmd, args, opts, cb) => {
+      capturedArgs = args
+      cb(null, { stdout: '/tmp/repos/owner--repo/apps/orders/m.py:3:def x():', stderr: '' })
+    })
+
+    const result = await searchCode('owner/repo', 'def', { pathGlob })
+
+    expect(capturedArgs.at(-1)).toBe(root)
+    expect(capturedArgs.find(arg => arg.startsWith('--include=')) ?? null).toBe(include)
+    expect(result.items[0].path).toBe('apps/orders/m.py')
+  })
+
+  it.each([
+    { pathGlob: '../other/*.py', message: 'Path traversal' },
+    { pathGlob: '.git/**', message: 'Access to ".git" is not allowed' },
+    { pathGlob: 'docs/*.md', message: '"docs" points outside the repository' },
+  ])('refuses to search $pathGlob', async ({ pathGlob, message }) => {
+    realpath.mockImplementation(async path => (path.endsWith('/docs') ? '/etc' : path))
+
+    await expect(searchCode('owner/repo', 'x', { pathGlob })).rejects.toThrow(message)
+    expect(execFile).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { regex: true, stderr: 'grep: Unmatched ( or \\(', detail: 'grep: Unmatched ( or \\(', hint: true },
+    {
+      regex: false,
+      stderr: 'grep: /tmp/repos/owner--repo/apps/x.py: Permission denied',
+      detail: 'grep: apps/x.py: Permission denied',
+      hint: false,
+    },
+  ])('explains a failed search without the clone path (regex: $regex)', async ({ regex, stderr, detail, hint }) => {
+    const error = Object.assign(new Error('Command failed: grep -r /tmp/repos/owner--repo'), {
+      code: 2,
+      stdout: '',
+      stderr: `${stderr}\n`,
+    })
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(error))
+
+    const failure = await searchCode('owner/repo', 'transition(', { regex }).catch(err => err)
+
+    expect(failure.message).toContain(`The code search failed: ${detail}.`)
+    expect(failure.message).not.toContain('/tmp/repos')
+    expect(failure.message.includes('Escape regex metacharacters')).toBe(hint)
+  })
+
+  it.each([
+    { kind: 'an unreadable file', error: { code: 2 } },
+    { kind: 'the output limit', error: { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' } },
+    { kind: 'the timeout', error: { code: null, killed: true } },
+  ])('returns the matches found before $kind stopped grep, marked truncated', async ({ error }) => {
+    const failure = Object.assign(new Error('grep stopped'), error, {
+      stdout: '/tmp/repos/owner--repo/src/a.js:1:hit\n',
+      stderr: '',
+    })
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(failure))
+
+    const result = await searchCode('owner/repo', 'hit')
+
+    expect(result.items).toEqual([{ path: 'src/a.js', line: 1, snippet: 'hit' }])
+    expect(result.truncated).toBe(true)
+  })
+
+  it('tells the agent to narrow a search that timed out with no matches', async () => {
+    const failure = Object.assign(new Error('Command failed'), { code: null, killed: true, stdout: '', stderr: '' })
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(failure))
+
+    await expect(searchCode('owner/repo', 'hit')).rejects.toThrow('The code search timed out')
   })
 })
 
