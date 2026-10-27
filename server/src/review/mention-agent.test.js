@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockRun = vi.fn()
+const mockWithTrace = vi.fn((_name, runAgent) => runAgent())
 const MockAgent = vi.fn(function (options) {
   this.options = options
 })
 
 vi.mock('@openai/agents', () => ({
   Agent: MockAgent,
+  withTrace: mockWithTrace,
   run: mockRun,
   tool: def => def,
 }))
@@ -209,6 +211,25 @@ describe('runMentionAgent', () => {
     expect(agentArg).toBeInstanceOf(MockAgent)
     expect(typeof inputArg).toBe('string')
     expect(optionsArg).toEqual({ maxTurns: 7 })
+  })
+
+  it('traces the run with the PR as the session and the comment as the question', async () => {
+    mockRun.mockResolvedValue({ finalOutput: 'Sí.' })
+
+    await runMentionAgent({
+      mention: sampleMention({
+        repoFullName: 'acme-io/app',
+        prNumber: 7,
+        commentBody: '@soporti-bot ¿y los reintentos?',
+      }),
+      pr: samplePr(),
+      thread: [],
+    })
+
+    expect(mockWithTrace).toHaveBeenCalledTimes(1)
+    expect(mockWithTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: 'acme-io/app#7', question: '@soporti-bot ¿y los reintentos?' },
+    })
   })
 
   it('records the reply against the PR it answered', async () => {

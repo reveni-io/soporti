@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockRun = vi.fn()
+const mockWithTrace = vi.fn((_name, runAgent) => runAgent())
 class MockMaxTurnsExceededError extends Error {}
 const MockAgent = vi.fn(function (options) {
   this.options = options
@@ -9,6 +10,7 @@ const MockAgent = vi.fn(function (options) {
 
 vi.mock('@openai/agents', () => ({
   Agent: MockAgent,
+  withTrace: mockWithTrace,
   MaxTurnsExceededError: MockMaxTurnsExceededError,
   run: mockRun,
   tool: def => def,
@@ -396,6 +398,17 @@ describe('runReviewAgent', () => {
     })
   })
 
+  it('traces the run with the PR as the session and the pass on that PR as the question', async () => {
+    mockRun.mockResolvedValue({ finalOutput: { findings: [], note: 'ok' } })
+
+    await runReviewAgent(agentRun())
+
+    expect(mockWithTrace).toHaveBeenCalledTimes(1)
+    expect(mockWithTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: 'acme-io/app#7', question: 'Soporti Review Finder (security) on acme-io/app#7' },
+    })
+  })
+
   it('records the run on its channel against the PR it reviewed', async () => {
     mockRun.mockResolvedValue({
       finalOutput: { findings: [], note: 'ok' },
@@ -468,6 +481,7 @@ describe('runReviewAgent', () => {
 
     expect(result).toEqual({ output: WRAPPED_UP_OUTPUT, wrappedUp: true })
     expect(mockRun).toHaveBeenCalledTimes(2)
+    expect(mockWithTrace).toHaveBeenCalledTimes(1)
     const [wrapUpAgent, wrapUpInput, wrapUpOptions] = mockRun.mock.calls[1]
     expect(wrapUpAgent.options).toEqual({
       name: 'Soporti Review Finder (security)',

@@ -514,6 +514,7 @@ describe('Slack bot', () => {
       expect(processCall.message).toContain('Thread context — previous messages in this thread')
       expect(processCall.message).toContain('context line')
       expect(processCall.message).toContain('follow question')
+      expect(processCall).toMatchObject({ displayQuestion: 'follow question', conversationId: 'conv-1' })
     })
   })
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@openai/agents', () => ({
   run: vi.fn(),
+  withTrace: vi.fn((_name, runAgent) => runAgent()),
 }))
 
 vi.mock('../agent/assistant.js', () => ({
@@ -216,6 +217,33 @@ describe('processMessage', () => {
     })
 
     expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', userId: 1 }))
+  })
+
+  it.each([
+    {
+      name: 'the display question when one is given',
+      displayQuestion: 'What did the customer ask?',
+      expectedQuestion: 'What did the customer ask?',
+    },
+    { name: 'the message when no display question is given', displayQuestion: undefined, expectedQuestion: 'why 500?' },
+  ])('traces the run with the conversation, the user and $name', async ({ displayQuestion, expectedQuestion }) => {
+    const { withTrace } = await import('@openai/agents')
+    run.mockResolvedValue(createStreamMock([]))
+
+    await processMessage({
+      message: 'why 500?',
+      displayQuestion,
+      conversationId: 'conversation-42',
+      selectedSources: [],
+      session: {},
+      profile: 'support',
+      slackUserId: 'U123',
+    })
+
+    expect(withTrace).toHaveBeenCalledTimes(1)
+    expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: 'conversation-42', userId: '1', question: expectedQuestion },
+    })
   })
 
   it('searches similar cases on the message that opens the thread and sends them in the user turn', async () => {

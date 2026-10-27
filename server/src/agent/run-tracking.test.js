@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { createCustomSpan, setTraceProcessors, setTracingDisabled } from '@openai/agents'
 
 vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 
 const { recordAgentRun } = await import('../db/agent-runs.js')
-const { trackAgentRun } = await import('./run-tracking.js')
+const { traceAgentRun, trackAgentRun } = await import('./run-tracking.js')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -104,5 +105,67 @@ describe('trackAgentRun', () => {
       subject: 'acme/app#7',
       userId: null,
     })
+  })
+})
+
+describe('traceAgentRun', () => {
+  const endedSpans = []
+  const CAPTURING_PROCESSOR = {
+    onTraceStart: async () => {},
+    onTraceEnd: async () => {},
+    onSpanStart: async () => {},
+    onSpanEnd: async span => {
+      endedSpans.push(span)
+    },
+    shutdown: async () => {},
+    forceFlush: async () => {},
+  }
+
+  beforeEach(() => {
+    endedSpans.length = 0
+    setTraceProcessors([CAPTURING_PROCESSOR])
+    setTracingDisabled(false)
+  })
+
+  afterEach(() => {
+    setTracingDisabled(true)
+  })
+
+  function runWithOneSpan() {
+    const span = createCustomSpan({ data: { name: 'step', data: {} } })
+    span.start()
+    span.end()
+
+    return 'answer'
+  }
+
+  it.each([
+    {
+      kind: 'every field as a string',
+      fields: { sessionId: 'conv-1', userId: 7, question: 'Why did order 42 fail?' },
+      metadata: { sessionId: 'conv-1', userId: '7', question: 'Why did order 42 fail?' },
+    },
+    {
+      kind: 'only the fields that have a value',
+      fields: { sessionId: 'acme/app#3', userId: null, question: '' },
+      metadata: { sessionId: 'acme/app#3' },
+    },
+    { kind: 'nothing when no field has a value', fields: {}, metadata: {} },
+  ])('stamps $kind on every span of the run', async ({ fields, metadata }) => {
+    const result = await traceAgentRun(fields, async () => runWithOneSpan())
+
+    expect(result).toBe('answer')
+    expect(endedSpans).toHaveLength(1)
+    expect(endedSpans[0].traceMetadata).toEqual(metadata)
+  })
+
+  it('lets the run error through unchanged', async () => {
+    const failure = new Error('model unavailable')
+
+    await expect(
+      traceAgentRun({ sessionId: 'conv-1' }, async () => {
+        throw failure
+      })
+    ).rejects.toBe(failure)
   })
 })

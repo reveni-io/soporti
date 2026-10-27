@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@openai/agents', () => ({ run: vi.fn() }))
+vi.mock('@openai/agents', () => ({
+  run: vi.fn(),
+  withTrace: vi.fn((_name, runAgent) => runAgent()),
+}))
 vi.mock('../config.js', () => ({ default: { agent: { maxIterations: 7 }, schedules: { maxTurns: 42 } } }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: vi.fn() }))
 vi.mock('../agent/assistant.js', () => ({ createAgent: vi.fn() }))
@@ -79,6 +82,19 @@ describe('runSchedule', () => {
       maxTurns: 42,
       session: { id: 'session' },
       errorHandlers: { maxTurns: expect.any(Function) },
+    })
+  })
+
+  it('traces the run with the conversation, the owner and the question of the schedule', async () => {
+    const { withTrace } = await import('@openai/agents')
+    const store = makeStore()
+    store.createScheduled.mockResolvedValue({ conversationId: 'scheduled-conversation', session: { id: 'session' } })
+
+    await runSchedule({ ...SCHEDULE, userId: 7, question: 'Failed payments in the last 24h' }, store)
+
+    expect(withTrace).toHaveBeenCalledTimes(1)
+    expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: 'scheduled-conversation', userId: '7', question: 'Failed payments in the last 24h' },
     })
   })
 

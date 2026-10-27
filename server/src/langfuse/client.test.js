@@ -336,6 +336,254 @@ describe('exportSpans content safety', () => {
   })
 })
 
+describe('exportSpans trace input, output and grouping', () => {
+  const ROOT_ID = 'span_root00000000000000000000'
+  const META = { sessionId: 'conv-1', userId: '7', question: 'Why did order 42 fail?' }
+
+  function rootAgent(options = {}) {
+    return buildSpan({ type: 'agent', name: 'Soporti' }, { spanId: ROOT_ID, traceMetadata: META, ...options })
+  }
+
+  function aiSdkGeneration(output, options = {}) {
+    return buildSpan(
+      { type: 'generation', model: 'anthropic.messages:claude-sonnet-5-5', input: [], output },
+      { parentId: ROOT_ID, traceMetadata: META, ...options }
+    )
+  }
+
+  function assistantMessage(text) {
+    return { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] }
+  }
+
+  function rootOf(callIndex) {
+    return attributesOf(sentSpans(callIndex).find(span => !span.parentSpanId))
+  }
+
+  it.each([
+    {
+      kind: 'an ai-sdk answer',
+      spans: () => [aiSdkGeneration([assistantMessage('The carrier rejected it.')]), rootAgent()],
+      answer: 'The carrier rejected it.',
+    },
+    {
+      kind: 'an OpenAI answer',
+      spans: () => [
+        buildSpan(
+          {
+            type: 'response',
+            _input: 'q',
+            _response: { model: 'gpt-5.5', output: [assistantMessage('Stock ran out.')] },
+          },
+          { parentId: ROOT_ID, traceMetadata: META }
+        ),
+        rootAgent(),
+      ],
+      answer: 'Stock ran out.',
+    },
+    {
+      kind: 'the last text answer when the final step only called a tool',
+      spans: () => [
+        aiSdkGeneration([assistantMessage('Checking the order first.')]),
+        aiSdkGeneration([{ type: 'function_call', name: 'query_database', arguments: '{}' }]),
+        rootAgent(),
+      ],
+      answer: 'Checking the order first.',
+    },
+    {
+      kind: 'only the assistant text, never reasoning or tool calls',
+      spans: () => [
+        aiSdkGeneration([
+          { type: 'reasoning', content: [{ type: 'input_text', text: 'thinking about it' }] },
+          assistantMessage('Final answer.'),
+          { type: 'function_call', name: 'read_file', arguments: '{}' },
+        ]),
+        rootAgent(),
+      ],
+      answer: 'Final answer.',
+    },
+  ])('gives the root the question and $kind', async ({ spans, answer }) => {
+    await exportSpans(spans())
+
+    expect(rootOf(0)).toMatchObject({
+      'langfuse.observation.input': 'Why did order 42 fail?',
+      'langfuse.observation.output': answer,
+      'session.id': 'conv-1',
+      'user.id': '7',
+    })
+  })
+
+  it('keeps the answer across export batches until the root arrives', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('Answer from an earlier batch.')])])
+    await exportSpans([rootAgent()])
+
+    expect(rootOf(1)['langfuse.observation.output']).toBe('Answer from an earlier batch.')
+  })
+
+  it('stamps the session and user on every span so wrapped-up runs still group', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('a')])])
+
+    expect(attributesOf(sentSpans()[0])).toMatchObject({ 'session.id': 'conv-1', 'user.id': '7' })
+  })
+
+  it.each([
+    {
+      kind: 'a generation, which keeps its own input and output',
+      span: () => aiSdkGeneration([assistantMessage('own output')]),
+      expected: {
+        'langfuse.observation.input': '[]',
+        'langfuse.observation.output': JSON.stringify([assistantMessage('own output')]),
+      },
+    },
+    {
+      kind: 'a nested agent, which gets none',
+      span: () => buildSpan({ type: 'agent', name: 'Sub' }, { parentId: ROOT_ID, traceMetadata: META }),
+      expected: {},
+    },
+  ])('never puts the run question on $kind', async ({ span, expected }) => {
+    await exportSpans([span()])
+
+    const attributes = attributesOf(sentSpans()[0])
+    expect(attributes['langfuse.observation.input']).toBe(expected['langfuse.observation.input'])
+    expect(attributes['langfuse.observation.output']).toBe(expected['langfuse.observation.output'])
+  })
+
+  it.each([
+    { kind: 'no trace metadata', traceMetadata: undefined },
+    { kind: 'empty trace metadata', traceMetadata: {} },
+  ])('sends a root with $kind as before, without question, answer or ids', async ({ traceMetadata }) => {
+    await exportSpans([buildSpan({ type: 'agent', name: 'Soporti' }, { traceMetadata })])
+
+    expect(attributesOf(sentSpans()[0])).toEqual({ 'langfuse.observation.type': 'agent' })
+  })
+
+  it('sends no question, answer or ids in metadata-only mode', async () => {
+    storeConfig({ [LANGFUSE_METADATA_ONLY_KEY]: true })
+
+    await exportSpans([aiSdkGeneration([assistantMessage('secret answer')]), rootAgent()])
+
+    const body = fetch.mock.calls[0][1].body
+    expect(body).not.toContain('secret answer')
+    expect(body).not.toContain('Why did order 42 fail?')
+    expect(body).not.toContain('conv-1')
+  })
+
+  it('redacts secrets in the question and the answer', async () => {
+    const meta = { ...META, question: `use ${GITHUB_TOKEN}` }
+
+    await exportSpans([
+      aiSdkGeneration([assistantMessage(`token ${GITHUB_TOKEN}`)], { traceMetadata: meta }),
+      rootAgent({ traceMetadata: meta }),
+    ])
+
+    expect(fetch.mock.calls[0][1].body).not.toContain(GITHUB_TOKEN)
+    expect(rootOf(0)['langfuse.observation.input']).toBe('use [redacted]')
+  })
+
+  it('gives a root that failed no answer', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('partial')]), rootAgent({ error: { message: 'x' } })])
+
+    expect(rootOf(0)).not.toHaveProperty('langfuse.observation.output')
+  })
+
+  it('does not reuse an answer once its root has been sent', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('first run')]), rootAgent()])
+    await exportSpans([rootAgent({ spanId: 'span_root11111111111111111111' })])
+
+    expect(rootOf(1)).not.toHaveProperty('langfuse.observation.output')
+  })
+
+  it('keeps answers of another trace apart', async () => {
+    await exportSpans([
+      aiSdkGeneration([assistantMessage('other trace')], { traceId: 'trace_ffffffffffffffffffffffffffffffff' }),
+    ])
+    await exportSpans([rootAgent()])
+
+    expect(rootOf(1)).not.toHaveProperty('langfuse.observation.output')
+  })
+
+  function reconfigure(overrides) {
+    _resetLangfuseSettingsCacheForTests()
+    storeConfig(overrides)
+  }
+
+  it.each([
+    {
+      kind: 'Langfuse is not configured',
+      first: () => storeConfig({ [LANGFUSE_HOST_KEY]: null }),
+      answer: null,
+    },
+    {
+      kind: 'metadata only is on',
+      first: () => storeConfig({ [LANGFUSE_METADATA_ONLY_KEY]: true }),
+      answer: null,
+    },
+    {
+      kind: 'the settings cannot be read for a moment',
+      first: () => getConfigValue.mockRejectedValue(new Error('db down')),
+      answer: 'kept answer',
+    },
+  ])('treats a pending answer as expected when $kind', async ({ first, answer }) => {
+    first()
+    await exportSpans([aiSdkGeneration([assistantMessage('kept answer')])])
+
+    reconfigure()
+    await exportSpans([rootAgent()])
+
+    const roots = sentSpans(fetch.mock.calls.length - 1).filter(span => !span.parentSpanId)
+    expect(attributesOf(roots[0])['langfuse.observation.output'] ?? null).toBe(answer)
+  })
+
+  it('drops pending answers when the export failure is reset after a settings change', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('before the change')])])
+
+    resetExportFailure()
+    await exportSpans([rootAgent()])
+
+    expect(rootOf(1)).not.toHaveProperty('langfuse.observation.output')
+  })
+
+  it('keeps a trace that keeps answering ahead of older ones when the limit is reached', async () => {
+    const traceIds = Array.from({ length: 101 }, (_, index) => `trace_${String(index).padStart(32, '0')}`)
+    await exportSpans(traceIds.slice(0, 100).map(traceId => aiSdkGeneration([assistantMessage(traceId)], { traceId })))
+    await exportSpans([aiSdkGeneration([assistantMessage('still going')], { traceId: traceIds[0] })])
+    await exportSpans([aiSdkGeneration([assistantMessage(traceIds[100])], { traceId: traceIds[100] })])
+
+    await exportSpans([rootAgent({ traceId: traceIds[0] }), rootAgent({ traceId: traceIds[1], spanId: 'span_root3' })])
+
+    const roots = sentSpans(fetch.mock.calls.length - 1).map(attributesOf)
+    expect(roots.map(attributes => attributes['langfuse.observation.output'] ?? null)).toEqual(['still going', null])
+  })
+
+  it('truncates a long answer once, with a single marker', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('a'.repeat(50_000))]), rootAgent()])
+
+    const output = rootOf(0)['langfuse.observation.output']
+    expect(output).toHaveLength(32_000 + '\n… [truncated] …\n'.length)
+    expect(output.split('[truncated]')).toHaveLength(2)
+  })
+
+  it('caps the session and user ids at two hundred characters', async () => {
+    const meta = { ...META, sessionId: 's'.repeat(300) }
+
+    await exportSpans([rootAgent({ traceMetadata: meta })])
+
+    expect(rootOf(0)['session.id']).toBe('s'.repeat(200))
+  })
+
+  it('forgets the oldest answers beyond one hundred pending traces', async () => {
+    const traceIds = Array.from({ length: 101 }, (_, index) => `trace_${String(index).padStart(32, '0')}`)
+    await exportSpans(traceIds.map(traceId => aiSdkGeneration([assistantMessage(traceId)], { traceId })))
+
+    await exportSpans([
+      rootAgent({ traceId: traceIds[0] }),
+      rootAgent({ traceId: traceIds[100], spanId: 'span_root2' }),
+    ])
+
+    const roots = sentSpans(fetch.mock.calls.length - 1).map(attributesOf)
+    expect(roots.map(attributes => attributes['langfuse.observation.output'] ?? null)).toEqual([null, traceIds[100]])
+  })
+})
+
 describe('exportSpans delivery', () => {
   it.each([
     { kind: 'no public key', overrides: { [LANGFUSE_PUBLIC_KEY_KEY]: null } },

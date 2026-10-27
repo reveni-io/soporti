@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@openai/agents', () => ({ run: vi.fn() }))
+vi.mock('@openai/agents', () => ({
+  run: vi.fn(),
+  withTrace: vi.fn((_name, runAgent) => runAgent()),
+}))
 
 vi.mock('../agent/assistant.js', () => ({
   createAgent: vi.fn(() => ({ name: 'agent' })),
@@ -111,6 +114,17 @@ describe('diagnoseTicket', () => {
       usage: { requests: 3, inputTokens: 5000, outputTokens: 300, cachedInputTokens: 0, cacheWriteTokens: 0 },
       durationMs: expect.any(Number),
       tools: ['get_sentry_issue'],
+    })
+  })
+
+  it('traces the run with the ticket id as the session and its title as the question', async () => {
+    const { withTrace } = await import('@openai/agents')
+
+    await diagnoseTicket({ id: 'Rec01', title: 'Checkout fails', fields: [{ label: 'Details', value: 'roto' }] })
+
+    expect(withTrace).toHaveBeenCalledTimes(1)
+    expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: 'Rec01', question: 'Checkout fails' },
     })
   })
 

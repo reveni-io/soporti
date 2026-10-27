@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@openai/agents', () => ({ run: vi.fn() }))
+vi.mock('@openai/agents', () => ({
+  run: vi.fn(),
+  withTrace: vi.fn((_name, runAgent) => runAgent()),
+}))
 vi.mock('../agent/assistant.js', () => ({ createAgent: vi.fn() }))
 vi.mock('../knowledge/client.js', () => ({ searchSimilarCases: vi.fn() }))
 vi.mock('../db/users.js', () => ({ getCustomInstructions: vi.fn() }))
@@ -182,6 +185,23 @@ describe('executeAskSoporti', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+    })
+  })
+
+  it('traces the run with the conversation, the user and the question', async () => {
+    const { withTrace } = await import('@openai/agents')
+
+    await executeAskSoporti(
+      askArgs({
+        question: 'What failed?',
+        userId: 7,
+        conversation: makeConversation({ conversationId: CONVERSATION_ID }),
+      })
+    )
+
+    expect(withTrace).toHaveBeenCalledTimes(1)
+    expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: CONVERSATION_ID, userId: '7', question: 'What failed?' },
     })
   })
 

@@ -8,6 +8,7 @@ const assistantMocks = vi.hoisted(() => ({
 
 vi.mock('@openai/agents', () => ({
   run: vi.fn(),
+  withTrace: vi.fn((_name, runAgent) => runAgent()),
 }))
 
 vi.mock('../agent/assistant.js', () => ({
@@ -212,6 +213,18 @@ describe('POST /api/chat', () => {
     await request(app).post('/').send({ message: 'hi' })
 
     expect(conversationStore.resolveWeb).toHaveBeenCalledWith(undefined, 1)
+  })
+
+  it('traces the run with the conversation, the user and the question', async () => {
+    const { withTrace } = await import('@openai/agents')
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').send({ message: 'why did the sync fail?' })
+
+    expect(withTrace).toHaveBeenCalledTimes(1)
+    expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
+      metadata: { sessionId: TEST_CONVERSATION_ID, userId: '1', question: 'why did the sync fail?' },
+    })
   })
 
   it('searches similar cases on the first message of a conversation and sends them in the user turn', async () => {
