@@ -65,6 +65,6 @@ export const INTEGRATIONS = [
     id: 'langfuse',
     name: 'Langfuse',
     icon: 'clock',
-    desc: 'Traces every agent run to your Langfuse, cloud or self-hosted: each model call with its tokens and each tool call with what it returned, so you can see why an answer or a review went wrong. Known secret formats are redacted on the way out, and one switch sends metadata only.',
+    desc: 'Traces every agent run to your Langfuse, cloud or self-hosted: the question and final answer of each run, every model call with its tokens and every tool call with what it returned, grouped by conversation, PR or ticket, so you can see why an answer or a review went wrong. Known secret formats are redacted on the way out, and one switch sends metadata only.',
   },
 ]
