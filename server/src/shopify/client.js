@@ -10,6 +10,7 @@ const UNAUTHORIZED_STATUS = 401
 const TOKEN_SERVICE_REJECTED_STATUSES = [401, 403]
 const STORE_NOT_FOUND_STATUS = 404
 const REAUTH_REQUIRED_STATUS = 409
+const NUMERIC_ID_RE = /^\d+$/
 
 const tokenCache = new Map()
 
@@ -31,7 +32,10 @@ function describeTokenServiceError(status, identifier) {
     return 'The Shopify token service rejected the configured Authorization header. An admin must check it in /admin → Shopify.'
   }
   if (status === STORE_NOT_FOUND_STATUS) {
-    return `The Shopify token service does not know store "${identifier}". Pass the store identifier it expects (resolve the store's ID in the database first), not its commercial name or domain.`
+    const numericHint = NUMERIC_ID_RE.test(identifier)
+      ? ` "${identifier}" looks like a numeric primary key: when the stores table also has a UUID column, retry with the store's UUID.`
+      : ''
+    return `The Shopify token service does not know store "${identifier}".${numericHint} Pass the store identifier it expects (resolve the store's ID in the database first), not its commercial name or domain.`
   }
   if (status === REAUTH_REQUIRED_STATUS) {
     return `Store "${identifier}" must be reconnected to Shopify by the merchant: its Shopify authorization is no longer valid, so its data cannot be read until then. Do not retry.`

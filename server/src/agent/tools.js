@@ -669,7 +669,7 @@ const storeParams = {
   store: z
     .string()
     .describe(
-      "Store identifier: the store's ID in the connected database (its UUID when the stores table has one). NOT the store's commercial name or domain — resolve those to the ID first (e.g. with the database tools)."
+      "Store identifier: the store's ID in the connected database (its UUID when the stores table has one). When the stores table has both a numeric id and a UUID, pass the UUID. NOT the store's commercial name or domain — resolve those to the ID first (e.g. with the database tools)."
     ),
 }
 
