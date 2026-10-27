@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { getKnowledgeApiKey, getVectorStoreId, isKnowledgeConfigured } from './settings.js'
 
 const MIN_SCORE = 0.72
+const MAX_QUERY_CHARS = 4096
 
 let clientInstance = null
 let clientInstanceKey = null
@@ -30,7 +31,7 @@ export async function searchSimilarCases(query, maxResults = 3) {
 
   try {
     const results = await client.vectorStores.search(storeId, {
-      query,
+      query: Array.from(String(query)).slice(0, MAX_QUERY_CHARS).join(''),
       max_num_results: maxResults,
     })
 
