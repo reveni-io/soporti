@@ -1,5 +1,5 @@
-const CACHE_READ_KEY = 'cached_tokens'
-const CACHE_WRITE_KEY = 'cache_write_tokens'
+export const CACHE_READ_KEY = 'cached_tokens'
+export const CACHE_WRITE_KEY = 'cache_write_tokens'
 
 function sumDetail(details, key) {
   if (!Array.isArray(details)) return 0

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { getLangfuseConfig, isLangfuseConfigured } from './settings.js'
 import { redactSecrets } from '../review/output-guard.js'
+import { CACHE_READ_KEY, CACHE_WRITE_KEY } from '../llm/usage.js'
 
 const OTLP_TRACES_PATH = '/api/public/otel/v1/traces'
 const EXPORT_TIMEOUT_MS = 15_000
@@ -153,13 +154,41 @@ function contentAttributes(fields, metadataOnly) {
     .map(([key, text]) => stringAttribute(key, text))
 }
 
+function tokenCount(value) {
+  return Number.isInteger(value) ? value : null
+}
+
+function freshInputTokens(input, cacheRead, cacheWrite) {
+  if (input === null) return null
+
+  return Math.max(input - (cacheRead ?? 0) - (cacheWrite ?? 0), 0)
+}
+
+function usageDetailAttributes(usage) {
+  const input = tokenCount(usage?.input_tokens)
+  const cacheRead = tokenCount(usage?.input_tokens_details?.[CACHE_READ_KEY])
+  const cacheWrite = tokenCount(usage?.input_tokens_details?.[CACHE_WRITE_KEY])
+  const buckets = [
+    ['input', freshInputTokens(input, cacheRead, cacheWrite)],
+    ['input_cache_read', cacheRead],
+    ['input_cache_creation', cacheWrite],
+    ['output', tokenCount(usage?.output_tokens)],
+  ].filter(([, tokens]) => tokens !== null)
+
+  if (buckets.length === 0) return []
+
+  return [stringAttribute('langfuse.observation.usage_details', JSON.stringify(Object.fromEntries(buckets)))]
+}
+
 function usageAttributes(usage) {
-  return [
+  const totals = [
     ['gen_ai.usage.input_tokens', usage?.input_tokens],
     ['gen_ai.usage.output_tokens', usage?.output_tokens],
   ]
     .filter(([, tokens]) => Number.isInteger(tokens))
     .map(([key, tokens]) => intAttribute(key, tokens))
+
+  return [...totals, ...usageDetailAttributes(usage)]
 }
 
 function errorMessage(error, metadataOnly) {
