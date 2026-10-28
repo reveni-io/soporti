@@ -14,8 +14,11 @@ function traceMetadata(fields) {
   )
 }
 
-export function traceAgentRun({ sessionId = null, userId = null, question = null, effort = null }, runAgent) {
-  return withTrace(TRACE_NAME, runAgent, { metadata: traceMetadata({ sessionId, userId, question, effort }) })
+export function traceAgentRun({ sessionId = null, userId = null, question = null, effort = null, traceId }, runAgent) {
+  return withTrace(TRACE_NAME, runAgent, {
+    metadata: traceMetadata({ sessionId, userId, question, effort }),
+    traceId,
+  })
 }
 
 export async function trackAgentRun(
