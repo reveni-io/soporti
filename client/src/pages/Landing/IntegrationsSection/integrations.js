@@ -89,6 +89,6 @@ export const INTEGRATIONS = [
     name: 'Langfuse',
     icon: 'chart-line',
     ring: 'outer',
-    desc: 'Traces every run: model calls, tokens, cost and what each tool returned.',
+    desc: 'Traces every run: model calls, tokens, cost and what each tool returned. Compares prompt variants on real questions.',
   },
 ]
