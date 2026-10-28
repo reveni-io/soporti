@@ -1,4 +1,5 @@
 import {
+  ARTIFACT_TOOL_NAME,
   MAX_ATTACHMENT_CHARS,
   PROMPT_SECTION_SEPARATOR,
   SLACK_POST_TOOL_NAME,
@@ -6,7 +7,7 @@ import {
 } from '../constants.js'
 import { carriesImage } from '../documents/attachments.js'
 import { TIME_TOOL_NAMES } from './time-tools.js'
-import { isYoloMode, buildSourcePolicy, hasWriteTools } from './sources.js'
+import { isYoloMode, buildSourcePolicy, hasWriteTools, INTEGRATION_PREFIX } from './sources.js'
 import {
   INTEGRATIONS,
   ALWAYS_AVAILABLE_INTEGRATIONS,
@@ -373,7 +374,7 @@ ${hasDatabase ? SHOPIFY_BACKEND_COMPARISON : SHOPIFY_WITHOUT_BACKEND_COMPARISON}
 
 const ARTIFACTS_SECTION = `## Artifacts
 
-You can publish an artifact — a self-contained page of HTML, CSS and JS — into a side panel next to the conversation with \`render_artifact\`. The user opens it from a card in the chat, keeps it open while you keep talking, switches between versions, shares it with a link and exports it as a PDF.
+You can publish an artifact — a self-contained page of HTML, CSS and JS — into a side panel next to the conversation with \`${ARTIFACT_TOOL_NAME}\`. The user opens it from a card in the chat, keeps it open while you keep talking, switches between versions, shares it with a link and exports it as a PDF.
 
 **Documents are the primary case.** Most artifacts are things the user will keep, share or print: a runbook, an incident report, a migration guide, a postmortem, a comparison of options, onboarding notes. Interactive pages — a dashboard over query results, an explorer with filters, a calculator — are also artifacts, but they are the exception, not the rule.
 
@@ -479,6 +480,36 @@ export function buildCurrentDatePrompt({ weekday, local, timezone, utcOffset }, 
   return `${today} The user's own time zone is not known, so this is ${timezone}: say so whenever you give a time, and switch to theirs once they mention it.`
 }
 
+export const PROMPT_SECTIONS = {
+  core_intro: CORE_INTRO,
+  explore_code: EXPLORE_CODE_SECTION,
+  core_guidelines: CORE_GUIDELINES,
+  date_time: DATE_TIME_SECTION,
+}
+
+export const INTEGRATION_SECTION_IDS = Object.keys(INTEGRATION_PROMPT_SECTIONS).map(id => `${INTEGRATION_PREFIX}${id}`)
+
+function resolveSection(id, text, sectionOverrides) {
+  return sectionOverrides?.[id] ?? text
+}
+
+function buildIntegrationSection(id, available, { toolNames, rendersMarkdownImages }) {
+  const section = INTEGRATION_PROMPT_SECTIONS[id]
+  if (typeof section !== 'function') return section
+
+  return section(available, { hasWrites: hasWriteTools(id, toolNames), rendersMarkdownImages })
+}
+
+function buildIntegrationSections(available, { toolNames, rendersMarkdownImages, sectionOverrides }) {
+  return available
+    .map(id => {
+      const override = sectionOverrides?.[`${INTEGRATION_PREFIX}${id}`]
+      if (override) return override
+      return buildIntegrationSection(id, available, { toolNames, rendersMarkdownImages })
+    })
+    .filter(Boolean)
+}
+
 export function buildBasePrompt(
   policy = null,
   {
@@ -489,28 +520,22 @@ export function buildBasePrompt(
     hasRepoTools = true,
     toolNames = new Set(),
     unattended = false,
+    sectionOverrides = null,
   } = {}
 ) {
   const unrestricted = !policy || policy.unrestricted
   const available = resolveAvailableIntegrations(policy, configured)
+  const section = id => resolveSection(id, PROMPT_SECTIONS[id], sectionOverrides)
 
-  const parts = [CORE_INTRO]
-  if (hasRepoTools && (unrestricted || policy.repos.length > 0)) parts.push(EXPLORE_CODE_SECTION)
-  parts.push(CORE_GUIDELINES)
+  const parts = [section('core_intro')]
+  if (hasRepoTools && (unrestricted || policy.repos.length > 0)) parts.push(section('explore_code'))
+  parts.push(section('core_guidelines'))
   if (canRenderArtifacts) parts.push(ARTIFACTS_SECTION)
   if (hasActiveSkills) parts.push(SKILL_OVERRIDE_NOTICE)
   if (unattended) parts.push(UNATTENDED_RUN_SECTION)
-  if (TIME_TOOL_NAMES.every(name => toolNames.has(name))) parts.push(DATE_TIME_SECTION)
+  if (TIME_TOOL_NAMES.every(name => toolNames.has(name))) parts.push(section('date_time'))
   if (toolNames.has(SLACK_POST_TOOL_NAME)) parts.push(SLACK_POST_SECTION)
-
-  for (const id of available) {
-    const section = INTEGRATION_PROMPT_SECTIONS[id]
-    if (typeof section === 'function') {
-      parts.push(section(available, { hasWrites: hasWriteTools(id, toolNames), rendersMarkdownImages }))
-    } else if (section) {
-      parts.push(section)
-    }
-  }
+  parts.push(...buildIntegrationSections(available, { toolNames, rendersMarkdownImages, sectionOverrides }))
 
   return parts.join('\n\n')
 }

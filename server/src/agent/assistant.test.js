@@ -997,3 +997,112 @@ describe('createAgent language rule', () => {
     expect(agent.instructions).not.toContain('Final reminder')
   })
 })
+
+describe('createAgent read-only', () => {
+  const READ_ONLY_TOOLS = AVAILABLE_TOOL_NAMES.filter(name => name !== 'render_artifact')
+
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(true)
+    areShortcutWritesEnabled.mockResolvedValue(true)
+    getFigmaCommentsEnabled.mockResolvedValue(true)
+    getZendeskConnection.mockReset().mockResolvedValue({ subdomain: 'acme', writesEnabled: true })
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList(READ_ONLY_TOOLS))
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+  })
+
+  it.each([
+    ['shortcutWrites', false],
+    ['figmaComments', false],
+    ['zendeskWrites', false],
+    ['slackConfigured', false],
+    ['userId', null],
+    ['conversationId', null],
+    ['onArtifactPublished', null],
+  ])('builds the tools with %s forced to %s even when the caller and the settings allow it', async (flag, expected) => {
+    await createAgent(['yolo'], 'support', {
+      readOnly: true,
+      userId: 7,
+      conversationId: 'c-1',
+      onArtifactPublished: vi.fn(),
+    })
+
+    expect(buildAgentTools).toHaveBeenCalledTimes(1)
+    expect(buildAgentTools.mock.calls[0][2][flag]).toBe(expected)
+  })
+
+  it('resolves the user-scoped integrations with no user', async () => {
+    await createAgent(['yolo'], 'support', { readOnly: true, userId: 7 })
+
+    expect(getZendeskConnection).toHaveBeenCalledWith(null)
+    expect(isGranolaConfigured).toHaveBeenCalledWith(null)
+  })
+
+  it('gives a subagent that claims a write tool only the read tools that were registered', async () => {
+    listEnabledSubagents.mockResolvedValue([
+      {
+        id: 1,
+        name: 'ticket_writer',
+        description: 'Files stories.',
+        instructions: 'File the story.',
+        provider: null,
+        model: null,
+        tools: ['create_shortcut_story', 'search_code'],
+        exclusive: false,
+        enabled: true,
+      },
+    ])
+
+    const agent = await createAgent(['yolo'], 'support', { readOnly: true })
+
+    const [askTool] = agent.tools.filter(candidate => candidate.name === 'ask_ticket_writer')
+    expect(askTool.agent.tools).toEqual([{ name: 'search_code' }])
+  })
+
+  it.each([
+    'create_shortcut_story',
+    'post_figma_comment',
+    'zendesk_post_internal_note',
+    'post_slack_message',
+    'render_artifact',
+  ])('refuses to build a read-only agent when the tool builder still returns %s', async writeTool => {
+    buildAgentTools.mockReturnValue(toolList([...READ_ONLY_TOOLS, writeTool]))
+
+    await expect(createAgent(['yolo'], 'support', { readOnly: true })).rejects.toThrow(writeTool)
+  })
+
+  it('keeps the write flags of a normal run', async () => {
+    await createAgent(['yolo'], 'support', { userId: 7 })
+
+    expect(buildAgentTools.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ shortcutWrites: true, zendeskWrites: true, slackConfigured: true, userId: 7 })
+    )
+  })
+})
+
+describe('createAgent prompt overrides', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    getZendeskConnection.mockReset().mockResolvedValue(null)
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+  })
+
+  it('replaces the overridden section and tool description and leaves the rest', async () => {
+    const agent = await createAgent(['yolo'], 'support', {
+      promptOverrides: {
+        sections: { core_guidelines: 'GUIDELINES OVERRIDE' },
+        tools: { search_code: 'SEARCH OVERRIDE' },
+      },
+    })
+    const byName = Object.fromEntries(agent.tools.map(candidate => [candidate.name, candidate]))
+
+    expect(agent.instructions).toContain('GUIDELINES OVERRIDE')
+    expect(agent.instructions).not.toContain('## What NOT to do')
+    expect(agent.instructions).toContain('## Language')
+    expect(byName.search_code.description).toBe('SEARCH OVERRIDE')
+    expect(byName.get_file_contents.description).toBeUndefined()
+  })
+})

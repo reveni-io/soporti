@@ -1,6 +1,7 @@
 import { Agent } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
 import { buildAgentTools, excludeToolsByName, REPO_TOOL_NAMES, restrictToolsByName } from './tools.js'
+import { applyToolDescriptions } from './tool-overrides.js'
 import {
   buildBasePrompt,
   buildCurrentDatePrompt,
@@ -13,7 +14,7 @@ import { buildSubagentTools, claimedToolNames, parentConfiguredFlags, resolveAct
 import { getMainAgentTools } from './settings.js'
 import { canonicalizeTimezone, describeInstant } from './clock.js'
 import { DEFAULT_TIMEZONE } from '../constants.js'
-import { isYoloMode, buildSourcePolicy } from './sources.js'
+import { assertReadOnlyTools, isYoloMode, buildSourcePolicy } from './sources.js'
 import { buildRepoCatalogPrompt } from './repo-catalog.js'
 import { areShortcutWritesEnabled, isShortcutConfigured } from '../shortcut/settings.js'
 import { isSentryConfigured } from '../sentry/settings.js'
@@ -28,6 +29,23 @@ import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
 import * as shopify from '../shopify/client.js'
 
+function resolveRunScope(readOnly, { userId, conversationId, onArtifactPublished }) {
+  if (readOnly) return { userId: null, conversationId: null, onArtifactPublished: null }
+
+  return { userId, conversationId, onArtifactPublished }
+}
+
+function resolveWriteFlags(readOnly, { shortcutWrites, figmaComments, zendeskConnection, slackConfigured }) {
+  if (readOnly) return { shortcutWrites: false, figmaComments: false, zendeskWrites: false, slackConfigured: false }
+
+  return {
+    shortcutWrites,
+    figmaComments,
+    zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
+    slackConfigured,
+  }
+}
+
 export async function createAgent(
   selectedSources,
   profile,
@@ -35,16 +53,23 @@ export async function createAgent(
     customInstructions = '',
     skills: invokedSkills = [],
     skillArguments = '',
-    userId = null,
-    conversationId = null,
-    onArtifactPublished = null,
+    userId: requestedUserId = null,
+    conversationId: requestedConversationId = null,
+    onArtifactPublished: requestedOnArtifactPublished = null,
     onNestedToolCall = null,
     onNestedToolResult = null,
     onNestedUsage = null,
     unattended = false,
     timezone = null,
+    readOnly = false,
+    promptOverrides = null,
   } = {}
 ) {
+  const { userId, conversationId, onArtifactPublished } = resolveRunScope(readOnly, {
+    userId: requestedUserId,
+    conversationId: requestedConversationId,
+    onArtifactPublished: requestedOnArtifactPublished,
+  })
   const userTimezone = canonicalizeTimezone(timezone)
   const zone = userTimezone ?? DEFAULT_TIMEZONE
   const policy = buildSourcePolicy(selectedSources)
@@ -100,16 +125,20 @@ export async function createAgent(
     zendeskConfigured: Boolean(zendeskConnection),
   }
 
-  const registered = buildAgentTools(policy, configured, {
+  const writeFlags = resolveWriteFlags(readOnly, {
+    shortcutWrites,
+    figmaComments: figmaConfigured && figmaCommentsEnabled,
+    zendeskConnection,
+    slackConfigured,
+  })
+  const built = buildAgentTools(policy, configured, {
     userId,
     conversationId,
     onArtifactPublished,
     timezone: zone,
-    shortcutWrites,
-    figmaComments: figmaConfigured && figmaCommentsEnabled,
-    zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
-    slackConfigured,
+    ...writeFlags,
   })
+  const registered = applyToolDescriptions(readOnly ? assertReadOnlyTools(built) : built, promptOverrides?.tools)
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
     onNestedToolCall,
@@ -138,6 +167,7 @@ export async function createAgent(
       hasRepoTools,
       toolNames: parentToolNames,
       unattended,
+      sectionOverrides: promptOverrides?.sections,
     }),
   ]
   const datePrompt = buildCurrentDatePrompt(describeInstant(new Date(), zone), {

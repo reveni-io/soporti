@@ -20,6 +20,7 @@ describe('ChannelTable', () => {
           ROW,
           { ...ROW, channel: 'auto_diagnose', runs: 4, inputTokens: 900 },
           { ...ROW, channel: 'mcp', runs: 2, inputTokens: 500, p50DurationMs: 20_000, p95DurationMs: 45_000 },
+          { ...ROW, channel: 'experiment', runs: 6, inputTokens: 700, p50DurationMs: 30_000, p95DurationMs: 90_000 },
         ]}
       />
     )
@@ -27,6 +28,7 @@ describe('ChannelTable', () => {
     expect(screen.getByText('PR reviews')).toBeInTheDocument()
     expect(screen.getByText('Ticket auto-diagnose')).toBeInTheDocument()
     expect(screen.getByText('MCP')).toBeInTheDocument()
+    expect(screen.getByText('Prompt experiments')).toBeInTheDocument()
     expect(screen.getByText('1.4M')).toBeInTheDocument()
     expect(screen.getByText('900')).toBeInTheDocument()
     expect(screen.getAllByText('61.5s')).toHaveLength(2)

@@ -1,4 +1,4 @@
-import { MAX_SOURCES, MAX_SOURCE_LENGTH } from '../constants.js'
+import { ARTIFACT_TOOL_NAME, MAX_SOURCES, MAX_SOURCE_LENGTH, SLACK_POST_TOOL_NAME } from '../constants.js'
 import { INTEGRATIONS } from './integrations.js'
 
 export const YOLO_SOURCE = 'yolo'
@@ -34,6 +34,19 @@ export const INTEGRATION_WRITE_TOOL_NAMES = {
   ],
   figma: ['post_figma_comment'],
   zendesk: ['zendesk_post_internal_note'],
+}
+
+export const WRITE_TOOL_NAMES = new Set([
+  ...Object.values(INTEGRATION_WRITE_TOOL_NAMES).flat(),
+  SLACK_POST_TOOL_NAME,
+  ARTIFACT_TOOL_NAME,
+])
+
+export function assertReadOnlyTools(tools) {
+  const writes = tools.filter(candidate => WRITE_TOOL_NAMES.has(candidate.name)).map(candidate => candidate.name)
+  if (writes.length > 0) throw new Error(`A read-only agent was given write tools: ${writes.join(', ')}.`)
+
+  return tools
 }
 
 export function hasWriteTools(integrationId, toolNames) {

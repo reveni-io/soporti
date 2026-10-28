@@ -265,6 +265,10 @@ function hexId(id, length) {
   return createHash('sha256').update(id).digest('hex').slice(0, length)
 }
 
+export function langfuseTraceId(agentsTraceId) {
+  return hexId(agentsTraceId, TRACE_ID_HEX_LENGTH)
+}
+
 function toUnixNanos(iso) {
   return String(BigInt(Date.parse(iso)) * NANOS_PER_MILLI)
 }
@@ -284,7 +288,7 @@ function toOtlpSpan(span, metadataOnly) {
   ]
 
   return {
-    traceId: hexId(span.traceId, TRACE_ID_HEX_LENGTH),
+    traceId: langfuseTraceId(span.traceId),
     spanId: hexId(span.spanId, SPAN_ID_HEX_LENGTH),
     parentSpanId: span.parentId ? hexId(span.parentId, SPAN_ID_HEX_LENGTH) : undefined,
     name: fields.name ?? fields.type,

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { createSession, requireAdmin } from '../middleware/auth.js'
 import adminStatsRouter from './admin-stats.js'
+import experimentsRouter from './experiments.js'
 import { hashPassword, validatePassword } from '../auth/password.js'
 import { verifySetupCode, announceSetupCode } from '../auth/setup-code.js'
 import { getAllowedDomains, setAllowedDomains } from '../auth/allowed-domains.js'
@@ -314,6 +315,7 @@ router.post('/bootstrap', async (req, res) => {
 router.use(requireAdmin)
 
 router.use('/stats', adminStatsRouter)
+router.use('/experiments', experimentsRouter)
 
 router.get('/users', async (_req, res) => {
   try {

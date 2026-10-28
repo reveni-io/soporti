@@ -40,6 +40,7 @@ export const SUBAGENT_NAME_RE = /^[a-z][a-z0-9_]{1,39}$/
 export const SUBAGENT_TOOL_PREFIX = 'ask_'
 
 export const SLACK_POST_TOOL_NAME = 'post_slack_message'
+export const ARTIFACT_TOOL_NAME = 'render_artifact'
 
 export const MAX_API_KEY_NAME_LENGTH = 80
 export const MAX_API_KEYS_PER_USER = 20
@@ -91,6 +92,7 @@ export const AGENT_CHANNEL_PR_MENTION = 'pr_mention'
 export const AGENT_CHANNEL_PR_REVIEW_VERIFY = 'pr_review_verify'
 export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
 export const AGENT_CHANNEL_MCP = 'mcp'
+export const AGENT_CHANNEL_EXPERIMENT = 'experiment'
 export const RUN_STATUS_OK = 'ok'
 export const RUN_STATUS_ERROR = 'error'
 export const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'

@@ -7,6 +7,7 @@ const CHANNEL_LABELS = {
   pr_review_verify: 'PR review verification',
   auto_diagnose: 'Ticket auto-diagnose',
   mcp: 'MCP',
+  experiment: 'Prompt experiments',
 }
 
 const SOURCE_LABELS = {

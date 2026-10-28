@@ -507,6 +507,23 @@ describe('GET /api/admin/users', () => {
     expect(res.status).toBe(403)
     expect(listUsers).not.toHaveBeenCalled()
   })
+
+  it('serves prompt experiments to admins', async () => {
+    const res = await request(app).post('/api/admin/experiments').send({ dataset: 'questions', variants: [] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/run name/i)
+  })
+
+  it('keeps prompt experiments behind the admin check', async () => {
+    currentDbRole = 'user'
+
+    const res = await request(app)
+      .post('/api/admin/experiments')
+      .send({ dataset: 'questions', runName: 'ab', variants: [{ baseline: true }] })
+
+    expect(res.status).toBe(403)
+  })
 })
 
 describe('POST /api/admin/users', () => {

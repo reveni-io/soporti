@@ -9,6 +9,8 @@ import {
   buildSimilarCasesPrompt,
   buildSubagentsPrompt,
   buildCurrentDatePrompt,
+  PROMPT_SECTIONS,
+  INTEGRATION_SECTION_IDS,
 } from './system-prompt.js'
 import { buildSourcePolicy } from './sources.js'
 import { INTEGRATIONS } from './integrations.js'
@@ -36,6 +38,46 @@ describe('constants', () => {
 
   it('DEFAULT_PROFILE is support', () => {
     expect(DEFAULT_PROFILE).toBe('support')
+  })
+})
+
+describe('buildBasePrompt section overrides', () => {
+  const SENTINEL = 'OVERRIDDEN $& SECTION'
+  const EVERY_TOOL = { toolNames: new Set(TIME_TOOL_NAMES) }
+
+  it.each(Object.keys(PROMPT_SECTIONS))('replaces exactly the %s section', id => {
+    const baseline = buildBasePrompt(null, { configured: ALL_CONFIGURED, ...EVERY_TOOL })
+    const overridden = buildBasePrompt(null, {
+      configured: ALL_CONFIGURED,
+      ...EVERY_TOOL,
+      sectionOverrides: { [id]: SENTINEL },
+    })
+
+    expect(baseline).toContain(PROMPT_SECTIONS[id])
+    expect(overridden).toBe(baseline.replace(PROMPT_SECTIONS[id], () => SENTINEL))
+  })
+
+  it.each(INTEGRATION_SECTION_IDS)('replaces only the composed %s section with the override', id => {
+    const policy = buildSourcePolicy([id])
+    const baseline = buildBasePrompt(policy, { configured: ALL_CONFIGURED, ...EVERY_TOOL })
+    const overridden = buildBasePrompt(policy, {
+      configured: ALL_CONFIGURED,
+      ...EVERY_TOOL,
+      sectionOverrides: { [id]: SENTINEL },
+    })
+    const [before, after, ...rest] = overridden.split(SENTINEL)
+    const replaced = baseline.slice(before.length, baseline.length - after.length)
+
+    expect(rest).toEqual([])
+    expect(baseline.startsWith(before) && baseline.endsWith(after)).toBe(true)
+    expect(replaced).toMatch(/^## [^\n]+ integration\n/)
+    expect(replaced.match(/^## /gm)).toHaveLength(1)
+  })
+
+  it('ignores overrides when none are given', () => {
+    const prompt = buildBasePrompt(null, { configured: ALL_CONFIGURED, ...EVERY_TOOL, sectionOverrides: {} })
+
+    expect(prompt).toBe(buildBasePrompt(null, { configured: ALL_CONFIGURED, ...EVERY_TOOL }))
   })
 })
 

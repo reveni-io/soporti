@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { tool } from '@openai/agents'
 import { saveArtifactVersion } from '../db/artifacts.js'
 import { inlineArtifactMermaid } from './artifact-mermaid.js'
-import { ARTIFACT_IDENTIFIER_RE, MAX_ARTIFACT_HTML_CHARS, MAX_ARTIFACT_TITLE_LENGTH } from '../constants.js'
+import {
+  ARTIFACT_IDENTIFIER_RE,
+  ARTIFACT_TOOL_NAME,
+  MAX_ARTIFACT_HTML_CHARS,
+  MAX_ARTIFACT_TITLE_LENGTH,
+} from '../constants.js'
 
 const IDENTIFIER_DESCRIPTION =
   'Stable slug naming this artifact, lowercase letters, digits and dashes (e.g. "refund-dashboard"). Reuse the SAME identifier to publish a new version of an artifact you already created in this conversation; only pick a new one for a genuinely different artifact.'
@@ -15,7 +20,7 @@ export function buildArtifactTools(conversationId, onPublished) {
 
   return [
     tool({
-      name: 'render_artifact',
+      name: ARTIFACT_TOOL_NAME,
       description:
         'Publish an artifact — a self-contained page of HTML, CSS and JS — into a side panel next to the conversation. Use it for substantial, self-contained deliverables the user will keep, share, print or iterate on: documents first (reports, runbooks, guides, postmortems), and interactive pages (dashboards, explorers, calculators, forms) when the user needs to operate the result. Publishing the same identifier again replaces it with a new version and the user can switch between them.',
       parameters: z.object({
