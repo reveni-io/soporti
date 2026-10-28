@@ -4,14 +4,26 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      root-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /server
     schedule:
       interval: weekly
+    groups:
+      server-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /client
     schedule:
       interval: weekly
+    groups:
+      client-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: docker
     directory: /server
     schedule:
@@ -24,3 +36,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
