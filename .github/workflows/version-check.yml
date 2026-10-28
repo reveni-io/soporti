@@ -1,6 +1,6 @@
 name: Version
 
-# Every PR to main must bump the product version in the root package.json.
+# Every PR to main except dependabot's must bump the product version in the root package.json.
 # This job is meant to be a REQUIRED status check (Settings -> Branches -> main),
 # so a PR cannot be merged without a semver-increasing version. Merges then get a
 # unique version, which release.yml turns into a git tag + GitHub Release.
@@ -12,6 +12,7 @@ on:
 jobs:
   version-check:
     name: Version bump check
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
