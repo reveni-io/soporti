@@ -5,7 +5,7 @@ const getConfigValue = vi.fn()
 const setConfigValue = vi.fn()
 vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 
-const { exportSpans, getLastExportError, resetExportFailure } = await import('./client.js')
+const { exportSpans, getLastExportError, langfuseTraceId, resetExportFailure } = await import('./client.js')
 const {
   LANGFUSE_PUBLIC_KEY_KEY,
   LANGFUSE_SECRET_KEY_KEY,
@@ -186,6 +186,14 @@ describe('exportSpans mapping', () => {
     expect(sentChild.traceId).toBe(sentRoot.traceId)
     expect(sentChild.parentSpanId).toBe(sentRoot.spanId)
     expect(sentRoot).not.toHaveProperty('parentSpanId')
+  })
+
+  it('sends the trace id that langfuseTraceId derives, so a dataset run item can point at it', async () => {
+    await exportSpans([buildSpan({ type: 'agent', name: 'Soporti' })])
+
+    const [sent] = sentSpans(0)
+    expect(sent.traceId).toBe(langfuseTraceId(TRACE_ID))
+    expect(langfuseTraceId('trace_ffffffffffffffffffffffffffffffff')).not.toBe(sent.traceId)
   })
 
   it.each([

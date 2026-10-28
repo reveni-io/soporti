@@ -159,6 +159,16 @@ describe('traceAgentRun', () => {
     expect(endedSpans[0].traceMetadata).toEqual(metadata)
   })
 
+  it.each([
+    { kind: 'the given trace id', traceId: 'trace_0123456789abcdef0123456789abcdef', matches: true },
+    { kind: 'a fresh trace id when none is given', traceId: undefined, matches: false },
+  ])('runs under $kind', async ({ traceId, matches }) => {
+    await traceAgentRun({ sessionId: 'conv-1', traceId }, async () => runWithOneSpan())
+
+    expect(endedSpans[0].traceId).toMatch(/^trace_[0-9a-f]{32}$/)
+    expect(endedSpans[0].traceId === traceId).toBe(matches)
+  })
+
   it('lets the run error through unchanged', async () => {
     const failure = new Error('model unavailable')
 

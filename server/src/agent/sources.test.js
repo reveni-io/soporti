@@ -11,6 +11,7 @@ import {
   REPO_WRITE_TOOL_NAMES,
   OPEN_PULL_REQUEST_TOOL_NAME,
   hasWriteTools,
+  assertReadOnlyTools,
   guardRepoSelection,
 } from './sources.js'
 
@@ -285,5 +286,33 @@ describe('buildSourcesFooter', () => {
     expect(footer).toContain('Sources consulted')
     expect(footer).toContain('`org/app`')
     expect(footer).toContain('Notion')
+  })
+})
+
+describe('assertReadOnlyTools', () => {
+  it.each([
+    'create_shortcut_story',
+    'update_shortcut_story',
+    'add_shortcut_comment',
+    'post_figma_comment',
+    'zendesk_post_internal_note',
+    'post_slack_message',
+    'render_artifact',
+    'create_hubspot_record',
+    'reply_hubspot_conversation',
+    'edit_file',
+    'open_pull_request',
+  ])('rejects a tool list that contains %s', name => {
+    expect(() => assertReadOnlyTools([{ name: 'search_code' }, { name }])).toThrow(name)
+  })
+
+  it('passes an empty list through', () => {
+    expect(assertReadOnlyTools([])).toEqual([])
+  })
+
+  it('passes a list of read tools through', () => {
+    const tools = [{ name: 'search_code' }, { name: 'query_database' }, { name: 'get_shortcut_story' }]
+
+    expect(assertReadOnlyTools(tools)).toBe(tools)
   })
 })
