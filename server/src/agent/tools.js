@@ -20,6 +20,7 @@ import * as googleDrive from '../google-drive/client.js'
 import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
+import * as sendcloud from '../sendcloud/client.js'
 import * as slack from '../slack/client.js'
 import {
   DEFAULT_CONTEXT_LINES,
@@ -888,6 +889,119 @@ export function buildZendeskTools(userId, writes) {
   ]
 }
 
+const SENDCLOUD_ACCOUNT_PARAM = z
+  .string()
+  .nullable()
+  .default(null)
+  .describe(
+    'Name of the linked Sendcloud account to query, exactly as sendcloud_list_accounts lists it. Null when only one account is linked.'
+  )
+
+const SENDCLOUD_CURSOR_PARAM = z
+  .string()
+  .nullable()
+  .default(null)
+  .describe('`nextCursor` from the previous result to fetch the next page. Null for the first.')
+
+function optionalSendcloudText(description) {
+  return z.string().nullable().default(null).describe(description)
+}
+
+const listSendcloudAccountsTool = tool({
+  name: 'sendcloud_list_accounts',
+  description:
+    'List the names of the Sendcloud accounts linked to Soporti. Every other Sendcloud tool takes one of these names as `account`; call this first whenever more than one account may be linked, and when the user does not say which one, search each account in turn.',
+  parameters: z.object({}),
+  execute: async () => JSON.stringify(await sendcloud.listAccounts()),
+})
+
+const searchSendcloudParcelsTool = tool({
+  name: 'sendcloud_search_parcels',
+  description:
+    'Find Sendcloud parcels (shipments and return parcels) by the shop order number, the carrier tracking number or the external reference, and get their id, status, carrier, shipping method, tracking number and url, recipient and dates. Give at least one filter. When `truncated` is true there are more parcels: pass `nextCursor` as `cursor` before treating the list as complete. Read one with sendcloud_get_parcel and its timeline with sendcloud_get_tracking.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    orderNumber: optionalSendcloudText('Order number of the shop, e.g. "#1042" or "1042". Null to skip.'),
+    trackingNumber: optionalSendcloudText('Carrier tracking number. Null to skip.'),
+    externalReference: optionalSendcloudText(
+      'External reference set by the integration that created it. Null to skip.'
+    ),
+    cursor: SENDCLOUD_CURSOR_PARAM,
+  }),
+  execute: async ({ account, ...filters }) => JSON.stringify(await sendcloud.searchParcels(account, filters)),
+})
+
+const getSendcloudParcelTool = tool({
+  name: 'sendcloud_get_parcel',
+  description:
+    'Read one Sendcloud parcel by its numeric id: status, order number, tracking number and url, carrier, shipping method, whether it is a return, weight, the recipient with their address, email and phone, the items it carries and any carrier errors. Use sendcloud_search_parcels first when all you have is an order or tracking number.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    parcelId: z.string().describe('Numeric Sendcloud parcel id, e.g. "123456789".'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getParcel(input.account, input.parcelId)),
+})
+
+const getSendcloudTrackingTool = tool({
+  name: 'sendcloud_get_tracking',
+  description:
+    'Get the full tracking timeline of a parcel by its tracking number, newest event first: each event has its time, the delivery `phase` (e.g. in_transit, delivered), an `exception` when something went wrong (e.g. delivery_delay, address_error), a `subStatus` (e.g. not_home), whether it is a success, warning or error, and a description. The current status is the first event. Also returns the expected delivery date and whether it is a return. Use it for "where is my parcel" and "why has it not arrived".',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    trackingNumber: z.string().describe('Carrier tracking number of the parcel.'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getTracking(input.account, input.trackingNumber)),
+})
+
+const listSendcloudReturnsTool = tool({
+  name: 'sendcloud_list_returns',
+  description:
+    'List the Sendcloud returns created within a date window (the last 30 days by default), with their id, status, current parcel status, order number, tracking number, reason, refund type and customer, up to 40 per page. Narrow it with `parcelStatus`. When `truncated` is true there are more: pass `nextCursor` as `cursor` before treating the list as complete. Read one with sendcloud_get_return.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    fromDate: optionalSendcloudText('First day of the window, YYYY-MM-DD. Null for 30 days before `toDate`.'),
+    toDate: optionalSendcloudText('Last day of the window, YYYY-MM-DD. Null for today.'),
+    parcelStatus: optionalSendcloudText(
+      'Only returns whose parcel is in this status: announced, delivered, returned-to-sender or cancelled. Null for all.'
+    ),
+    cursor: SENDCLOUD_CURSOR_PARAM,
+  }),
+  execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.listReturns(account, options)),
+})
+
+const getSendcloudReturnTool = tool({
+  name: 'sendcloud_get_return',
+  description:
+    'Read one Sendcloud return by its numeric id: status, reason, refund type and message, the customer address it comes from and the address it goes to, the items, label cost and return fee, whether it can still be cancelled, and the parcel status history, newest first.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    returnId: z.string().describe('Numeric Sendcloud return id, e.g. "1751075".'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getReturn(input.account, input.returnId)),
+})
+
+const listSendcloudShippingMethodsTool = tool({
+  name: 'sendcloud_list_shipping_methods',
+  description:
+    'List the shipping methods enabled in a Sendcloud account, with their id, name, carrier, weight range, whether they deliver to a service point and the destination countries, plus the list of carriers in use. Use it for "which carriers do we ship with" or "can we ship this to Germany".',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    isReturn: z.boolean().default(false).describe('True to list only the methods usable for returns.'),
+    toCountry: optionalSendcloudText('Two-letter destination country code, e.g. "DE". Null for every country.'),
+  }),
+  execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.listShippingMethods(account, options)),
+})
+
+const SENDCLOUD_TOOLS = [
+  listSendcloudAccountsTool,
+  searchSendcloudParcelsTool,
+  getSendcloudParcelTool,
+  getSendcloudTrackingTool,
+  listSendcloudReturnsTool,
+  getSendcloudReturnTool,
+  listSendcloudShippingMethodsTool,
+]
+
 const DEFAULT_FIGMA_NODE_DEPTH = 3
 const MAX_FIGMA_NODE_DEPTH = 8
 const DEFAULT_FIGMA_SCALE = 1
@@ -1075,6 +1189,7 @@ const INTEGRATION_TOOLS = {
   granola: ({ userId }) => buildGranolaTools(userId),
   figma: ({ figmaComments }) => (figmaComments ? [...FIGMA_TOOLS, ...FIGMA_WRITE_TOOLS] : FIGMA_TOOLS),
   zendesk: ({ userId, zendeskWrites }) => buildZendeskTools(userId, zendeskWrites),
+  sendcloud: SENDCLOUD_TOOLS,
 }
 
 export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])

@@ -66,6 +66,15 @@ export const INTEGRATION_TOOL_NAMES = {
     'zendesk_list_view_tickets',
     ...INTEGRATION_WRITE_TOOL_NAMES.zendesk,
   ],
+  sendcloud: [
+    'sendcloud_list_accounts',
+    'sendcloud_search_parcels',
+    'sendcloud_get_parcel',
+    'sendcloud_get_tracking',
+    'sendcloud_list_returns',
+    'sendcloud_get_return',
+    'sendcloud_list_shipping_methods',
+  ],
   figma: [
     'get_figma_file',
     'get_figma_node',

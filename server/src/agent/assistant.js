@@ -25,6 +25,7 @@ import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
 import { getZendeskConnection } from '../zendesk/settings.js'
+import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
 import * as shopify from '../shopify/client.js'
 
@@ -61,6 +62,7 @@ export async function createAgent(
     granolaConfigured,
     figmaConfigured,
     zendeskConnection,
+    sendcloudConfigured,
     shortcutWrites,
     figmaCommentsEnabled,
     slackConfigured,
@@ -79,6 +81,7 @@ export async function createAgent(
     isGranolaConfigured(userId),
     isFigmaConfigured(),
     getZendeskConnection(userId),
+    isSendcloudConfigured(),
     areShortcutWritesEnabled(),
     getFigmaCommentsEnabled(),
     isSlackConfigured(),
@@ -98,6 +101,7 @@ export async function createAgent(
     granolaConfigured,
     figmaConfigured,
     zendeskConfigured: Boolean(zendeskConnection),
+    sendcloudConfigured,
   }
 
   const registered = buildAgentTools(policy, configured, {

@@ -26,6 +26,7 @@ const ALL_CONFIGURED = {
   granolaConfigured: true,
   figmaConfigured: true,
   zendeskConfigured: true,
+  sendcloudConfigured: true,
 }
 
 describe('constants', () => {
@@ -55,6 +56,7 @@ describe('buildBasePrompt', () => {
       'Shopify',
       'Figma',
       'Zendesk',
+      'Sendcloud',
     ]) {
       expect(prompt).toContain(`## ${section} integration`)
     }
@@ -90,6 +92,23 @@ describe('buildBasePrompt', () => {
     expect(withNotes).toContain('### Posting internal notes')
     expect(readOnly).toContain('You never reply to the requester')
     expect(readOnly).not.toContain('### Posting internal notes')
+  })
+
+  it('tells the agent how to pick a Sendcloud account and that it cannot change anything', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:sendcloud']), { configured: ALL_CONFIGURED })
+
+    expect(prompt).toContain('## Sendcloud integration')
+    expect(prompt).toContain('sendcloud_list_accounts')
+    expect(prompt).toContain('search each account in turn')
+    expect(prompt).toContain('You cannot change anything in Sendcloud')
+  })
+
+  it('leaves the Sendcloud section out while no account is linked', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:sendcloud']), {
+      configured: { ...ALL_CONFIGURED, sendcloudConfigured: false },
+    })
+
+    expect(prompt).not.toContain('## Sendcloud integration')
   })
 
   it('describes the Zendesk search and view tools without any view scope', () => {
@@ -491,6 +510,14 @@ describe('buildSourceInstructions', () => {
     expect(result).toContain('zendesk_get_ticket')
     expect(result).toContain('never reply to the requester or change a ticket')
     expect(result).toContain('status, assignee or fields')
+  })
+
+  it('tells the agent it reads Sendcloud without changing anything', () => {
+    const result = buildSourceInstructions(['integration:sendcloud'], { sendcloudConfigured: true })
+
+    expect(result).toContain('sendcloud_get_tracking')
+    expect(result).toContain('pass the account name when several are linked')
+    expect(result).toContain('never claim to have changed anything in Sendcloud')
   })
 
   it('adds the unattended section only for an unattended run', () => {

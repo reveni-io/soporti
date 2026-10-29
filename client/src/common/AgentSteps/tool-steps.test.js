@@ -20,6 +20,11 @@ describe('describeToolCall', () => {
     )
   })
 
+  it('labels the Sendcloud tools', () => {
+    expect(describeToolCall({ tool: 'sendcloud_get_tracking', input: {} }).label).toBe('Tracking Sendcloud parcel')
+    expect(describeToolCall({ tool: 'sendcloud_list_returns', input: {} }).label).toBe('Listing Sendcloud returns')
+  })
+
   it('labels the Slack posting tool', () => {
     expect(describeToolCall({ tool: 'post_slack_message', input: {} }).label).toBe('Posting to Slack')
   })

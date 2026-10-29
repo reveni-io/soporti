@@ -54,6 +54,13 @@ const TOOL_LABELS = {
   zendesk_list_views: 'Listing Zendesk views',
   zendesk_list_view_tickets: 'Listing Zendesk tickets',
   zendesk_post_internal_note: 'Posting Zendesk internal note',
+  sendcloud_list_accounts: 'Listing Sendcloud accounts',
+  sendcloud_search_parcels: 'Searching Sendcloud parcels',
+  sendcloud_get_parcel: 'Reading Sendcloud parcel',
+  sendcloud_get_tracking: 'Tracking Sendcloud parcel',
+  sendcloud_list_returns: 'Listing Sendcloud returns',
+  sendcloud_get_return: 'Reading Sendcloud return',
+  sendcloud_list_shipping_methods: 'Listing Sendcloud shipping methods',
   post_slack_message: 'Posting to Slack',
   render_artifact: 'Writing artifact',
 }

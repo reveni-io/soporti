@@ -48,6 +48,13 @@ const TOOL_LABELS = {
   zendesk_list_views: { label: 'Listing Zendesk views' },
   zendesk_list_view_tickets: { label: 'Listing Zendesk tickets', arg: 'viewId' },
   zendesk_post_internal_note: { label: 'Posting Zendesk internal note', arg: 'ticket' },
+  sendcloud_list_accounts: { label: 'Listing Sendcloud accounts' },
+  sendcloud_search_parcels: { label: 'Searching Sendcloud parcels', arg: 'orderNumber' },
+  sendcloud_get_parcel: { label: 'Reading Sendcloud parcel', arg: 'parcelId' },
+  sendcloud_get_tracking: { label: 'Tracking Sendcloud parcel', arg: 'trackingNumber' },
+  sendcloud_list_returns: { label: 'Listing Sendcloud returns' },
+  sendcloud_get_return: { label: 'Reading Sendcloud return', arg: 'returnId' },
+  sendcloud_list_shipping_methods: { label: 'Listing Sendcloud shipping methods' },
   post_slack_message: { label: 'Posting to Slack', arg: 'channel' },
 }
 

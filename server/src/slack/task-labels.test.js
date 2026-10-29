@@ -21,6 +21,14 @@ describe('describeToolCall', () => {
     })
   })
 
+  it('labels the Sendcloud tools with the number they look up', () => {
+    expect(describeToolCall('sendcloud_get_tracking', JSON.stringify({ trackingNumber: 'JVGL0612345' }))).toEqual({
+      title: 'Tracking Sendcloud parcel',
+      details: 'JVGL0612345',
+    })
+    expect(describeToolCall('sendcloud_list_returns', '{}')).toEqual({ title: 'Listing Sendcloud returns' })
+  })
+
   it('picks the argument configured for each tool', () => {
     expect(describeToolCall('search_notion_pages', JSON.stringify({ query: 'refund policy' }))).toEqual({
       title: 'Searching Notion',

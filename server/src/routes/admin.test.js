@@ -130,6 +130,7 @@ const isGranolaConfigured = vi.fn()
 const isShopifyConfigured = vi.fn()
 const isFigmaConfigured = vi.fn()
 const isZendeskConfigured = vi.fn()
+const isSendcloudConfigured = vi.fn()
 const INTEGRATION_CHECK_MOCKS = [
   isShortcutConfigured,
   isSentryConfigured,
@@ -142,6 +143,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isShopifyConfigured,
   isFigmaConfigured,
   isZendeskConfigured,
+  isSendcloudConfigured,
 ]
 
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
@@ -273,6 +275,11 @@ const setMainAgentTools = vi.fn(async () => {})
 vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
 vi.mock('../zendesk/settings.js', () => ({ isZendeskConfigured }))
+vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured }))
+vi.mock('./admin-sendcloud.js', async () => {
+  const { Router } = await import('express')
+  return { default: Router() }
+})
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
 const REPO_TOOL_NAMES = new Set([
   'list_repos',

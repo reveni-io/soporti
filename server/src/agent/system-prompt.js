@@ -204,6 +204,20 @@ You can also post an internal note with zendesk_post_internal_note — a private
 - **Write it for the agent who will answer**: the draft reply, then the evidence behind it (records, policies, links), clearly separated. Never invent an order, a refund or a policy nobody found.
 - **Report what you did.** Give the ticket url once the note is posted.`
 
+const SENDCLOUD_SECTION = `## Sendcloud integration
+
+You have read-only tools over the Sendcloud shipping accounts linked to Soporti. Use them whenever the user asks where a parcel is, why it has not arrived, what happened to a return, or which carriers and shipping methods are available.
+
+- **Pick the account first.** Several Sendcloud accounts can be linked, one per brand or store, and every tool takes the account name as \`account\`. Call sendcloud_list_accounts when you do not know them. When the user does not say which account, and the question does not make it obvious, search each account in turn instead of asking — and say in which account you found it.
+- **sendcloud_search_parcels**: find parcels by the shop order number, the tracking number or an external reference. An order can have several parcels — report all of them.
+- **sendcloud_get_parcel**: the full parcel — recipient, address, items, carrier errors.
+- **sendcloud_get_tracking**: the delivery timeline, newest event first. The first event is the current status: read its \`phase\`, and its \`exception\` and \`subStatus\` when something went wrong. Quote the expected delivery date when there is one.
+- **sendcloud_list_returns** and **sendcloud_get_return**: returns within a date window and the detail of one return — reason, refund, status history.
+- **sendcloud_list_shipping_methods**: the methods and carriers an account ships with, and the destinations each one covers.
+- **Report partial results honestly.** When a result is \`truncated\`, fetch the next page with \`nextCursor\` or say the list is incomplete.
+- **You cannot change anything in Sendcloud.** You cannot create labels, cancel parcels or returns, or edit an address — when the user asks for that, say they have to do it in Sendcloud themselves.
+- **Cite what you used**: the tracking url of the parcel, or the order number and account.`
+
 function buildFigmaSection(available, { hasWrites, rendersMarkdownImages }) {
   const readSection = [
     FIGMA_READ_SECTION,
@@ -217,6 +231,7 @@ const INTEGRATION_PROMPT_SECTIONS = {
   shortcut: withWriteSection(SHORTCUT_READ_SECTION, SHORTCUT_WRITE_SECTION),
   figma: buildFigmaSection,
   zendesk: withWriteSection(ZENDESK_READ_SECTION, ZENDESK_WRITE_SECTION),
+  sendcloud: SENDCLOUD_SECTION,
 
   notion: `## Notion integration
 
@@ -532,6 +547,8 @@ const INTEGRATION_INSTRUCTIONS = {
     'The user has enabled the **Figma** integration. Use get_figma_file, get_figma_node and get_figma_screenshot to look at the designs they link — pass the figma.com URL straight to the tools — and list_figma_comments for the feedback on them.',
   zendesk:
     "The user has enabled the **Zendesk** integration. Use zendesk_get_ticket to read the tickets they share — by id or url — zendesk_search_tickets to find tickets, and zendesk_list_views with zendesk_list_view_tickets to see the tickets in a view; cite the ticket url, and never reply to the requester or change a ticket's status, assignee or fields.",
+  sendcloud:
+    'The user has enabled the **Sendcloud** integration. Use sendcloud_search_parcels, sendcloud_get_parcel and sendcloud_get_tracking to find parcels and follow their delivery, sendcloud_list_returns and sendcloud_get_return for returns, and sendcloud_list_shipping_methods for carriers; pass the account name when several are linked, and never claim to have changed anything in Sendcloud.',
   'google-drive':
     'The user has enabled the **Google Drive** integration. Use search_drive_files and list_drive_files to find documentation and get_drive_file to read it; cite the document url in your answer. Be proactive — search immediately when the Drive docs might answer the question.',
 }

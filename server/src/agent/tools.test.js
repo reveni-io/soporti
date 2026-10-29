@@ -116,6 +116,17 @@ vi.mock('../zendesk/client.js', () => ({
   isConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../sendcloud/client.js', () => ({
+  listAccounts: vi.fn(),
+  searchParcels: vi.fn(),
+  getParcel: vi.fn(),
+  getTracking: vi.fn(),
+  listReturns: vi.fn(),
+  getReturn: vi.fn(),
+  listShippingMethods: vi.fn(),
+  isConfigured: vi.fn(async () => true),
+}))
+
 vi.mock('../slack/client.js', () => ({
   postMessage: vi.fn(),
 }))
@@ -1442,6 +1453,111 @@ describe('buildAgentTools with Zendesk', () => {
 
     expect(readOnly).not.toContain('zendesk_post_internal_note')
     expect(withWrites).toContain('zendesk_post_internal_note')
+  })
+})
+
+describe('buildAgentTools with Sendcloud', () => {
+  const selection = { unrestricted: false, repos: [], integrations: ['sendcloud'] }
+
+  function sendcloudTool(name) {
+    return buildAgentTools(selection, { sendcloudConfigured: true }).find(candidate => candidate.name === name)
+  }
+
+  it('registers the read-only Sendcloud tools only once an account is linked', () => {
+    const names = tools => tools.map(t => t.name).filter(name => name.startsWith('sendcloud_'))
+
+    expect(names(buildAgentTools(selection, { sendcloudConfigured: false }))).toEqual([])
+    expect(names(buildAgentTools(selection, { sendcloudConfigured: true }))).toEqual([
+      'sendcloud_list_accounts',
+      'sendcloud_search_parcels',
+      'sendcloud_get_parcel',
+      'sendcloud_get_tracking',
+      'sendcloud_list_returns',
+      'sendcloud_get_return',
+      'sendcloud_list_shipping_methods',
+    ])
+  })
+
+  it('lists the linked accounts', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.listAccounts.mockResolvedValue({ accounts: [{ name: 'Acme EU' }] })
+
+    const result = await sendcloudTool('sendcloud_list_accounts').execute({})
+
+    expect(JSON.parse(result)).toEqual({ accounts: [{ name: 'Acme EU' }] })
+    expect(sendcloudMod.listAccounts).toHaveBeenCalledTimes(1)
+  })
+
+  it('searches parcels in the chosen account with the given filters', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.searchParcels.mockResolvedValue({ account: 'Acme EU', parcels: [] })
+
+    const result = await sendcloudTool('sendcloud_search_parcels').execute({
+      account: 'Acme EU',
+      orderNumber: '1042',
+      trackingNumber: null,
+      externalReference: null,
+      cursor: null,
+    })
+
+    expect(JSON.parse(result)).toEqual({ account: 'Acme EU', parcels: [] })
+    expect(sendcloudMod.searchParcels).toHaveBeenCalledTimes(1)
+    expect(sendcloudMod.searchParcels).toHaveBeenCalledWith('Acme EU', {
+      orderNumber: '1042',
+      trackingNumber: null,
+      externalReference: null,
+      cursor: null,
+    })
+  })
+
+  it('reads a parcel, its tracking and a return by id', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.getParcel.mockResolvedValue({ id: 501 })
+    sendcloudMod.getTracking.mockResolvedValue({ trackingNumber: 'JVGL0612345' })
+    sendcloudMod.getReturn.mockResolvedValue({ id: 7 })
+
+    expect(JSON.parse(await sendcloudTool('sendcloud_get_parcel').execute({ account: null, parcelId: '501' }))).toEqual(
+      { id: 501 }
+    )
+    expect(
+      JSON.parse(
+        await sendcloudTool('sendcloud_get_tracking').execute({ account: null, trackingNumber: 'JVGL0612345' })
+      )
+    ).toEqual({ trackingNumber: 'JVGL0612345' })
+    expect(
+      JSON.parse(await sendcloudTool('sendcloud_get_return').execute({ account: 'Acme US', returnId: '7' }))
+    ).toEqual({ id: 7 })
+    expect(sendcloudMod.getParcel).toHaveBeenCalledWith(null, '501')
+    expect(sendcloudMod.getTracking).toHaveBeenCalledWith(null, 'JVGL0612345')
+    expect(sendcloudMod.getReturn).toHaveBeenCalledWith('Acme US', '7')
+  })
+
+  it('lists returns and shipping methods with their options', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.listReturns.mockResolvedValue({ returns: [] })
+    sendcloudMod.listShippingMethods.mockResolvedValue({ carriers: ['dhl'] })
+
+    await sendcloudTool('sendcloud_list_returns').execute({
+      account: null,
+      fromDate: '2026-10-01',
+      toDate: null,
+      parcelStatus: 'delivered',
+      cursor: null,
+    })
+    const methods = await sendcloudTool('sendcloud_list_shipping_methods').execute({
+      account: null,
+      isReturn: true,
+      toCountry: 'DE',
+    })
+
+    expect(sendcloudMod.listReturns).toHaveBeenCalledWith(null, {
+      fromDate: '2026-10-01',
+      toDate: null,
+      parcelStatus: 'delivered',
+      cursor: null,
+    })
+    expect(sendcloudMod.listShippingMethods).toHaveBeenCalledWith(null, { isReturn: true, toCountry: 'DE' })
+    expect(JSON.parse(methods)).toEqual({ carriers: ['dhl'] })
   })
 })
 

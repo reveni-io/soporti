@@ -14,6 +14,7 @@ describe('IntegrationIcon', () => {
     'betterstack',
     'figma',
     'zendesk',
+    'sendcloud',
     'openai',
     'anthropic',
   ])('renders the %s brand mark', id => {

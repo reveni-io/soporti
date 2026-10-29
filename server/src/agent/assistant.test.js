@@ -74,6 +74,7 @@ vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(as
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
 vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () => null) }))
+vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured: vi.fn(async () => false) }))
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
@@ -94,6 +95,7 @@ const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js
 const { isGranolaConfigured } = await import('../granola/settings.js')
 const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
 const { getZendeskConnection } = await import('../zendesk/settings.js')
+const { isSendcloudConfigured } = await import('../sendcloud/settings.js')
 const { isSlackConfigured } = await import('../slack/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
@@ -111,6 +113,7 @@ const CONFIGURATION_CHECKS = [
   isFigmaConfigured,
   getFigmaCommentsEnabled,
   isSlackConfigured,
+  isSendcloudConfigured,
 ]
 
 describe('createAgent', () => {
@@ -656,6 +659,44 @@ describe('createAgent with Zendesk', () => {
       expect.objectContaining({ zendeskWrites: false })
     )
     expect(agent.instructions).not.toContain('## Zendesk integration')
+  })
+})
+
+describe('createAgent with Sendcloud', () => {
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getZendeskConnection.mockReset().mockResolvedValue(null)
+  })
+
+  it('registers the Sendcloud tools and their prompt section once an account is linked', async () => {
+    isSendcloudConfigured.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'sendcloud_search_parcels']))
+
+    const agent = await createAgent(['integration:sendcloud'], 'support', { userId: 7 })
+
+    expect(buildAgentTools).toHaveBeenCalledTimes(1)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sendcloudConfigured: true }),
+      expect.anything()
+    )
+    expect(agent.instructions).toContain('## Sendcloud integration')
+  })
+
+  it('leaves Sendcloud out of the prompt while no account is linked', async () => {
+    const agent = await createAgent(['integration:sendcloud'], 'support', { userId: 7 })
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sendcloudConfigured: false }),
+      expect.anything()
+    )
+    expect(agent.instructions).not.toContain('## Sendcloud integration')
   })
 })
 
