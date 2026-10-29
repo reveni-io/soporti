@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 
 const setTraceProcessors = vi.fn()
 vi.mock('@openai/agents', async importOriginal => ({ ...(await importOriginal()), setTraceProcessors }))
@@ -21,8 +21,12 @@ function endSpan(processor, index) {
   return span
 }
 
-beforeEach(() => {
+beforeAll(() => {
   registerLangfuseTracing()
+})
+
+beforeEach(() => {
+  exportSpans.mockClear()
 })
 
 describe('registerLangfuseTracing', () => {

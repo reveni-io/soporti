@@ -1,6 +1,6 @@
 # Soporti
 
-[![CI](https://github.com/reveni-io/soporti/actions/workflows/ci.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/ci.yml) [![CodeQL](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE) ![Node 22+](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
+[![CI](https://github.com/reveni-io/soporti/actions/workflows/ci.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/ci.yml) [![CodeQL](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml/badge.svg)](https://github.com/reveni-io/soporti/actions/workflows/codeql.yml) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE) ![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 
 AI-powered code assistant that helps support and engineering teams understand and navigate code repositories. Built on the OpenAI Agents SDK — running against OpenAI or Anthropic, your choice — with a React chat interface.
 
@@ -86,7 +86,7 @@ Everything above reads. Writing is one switch away, and there are three switches
 
 ## Prerequisites
 
-- Node.js 22+ (or Docker + Docker Compose for the containerized setups)
+- Node.js 20+ (or Docker + Docker Compose for the containerized setups)
 - Git
 - A PostgreSQL database (provided automatically by Docker Compose — see below)
 - An OpenAI or Anthropic API key — configured from the `/admin` panel after the first boot, not an env var
