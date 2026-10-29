@@ -1,6 +1,6 @@
 {
   "name": "soporti",
-  "version": "1.64.3",
+  "version": "1.64.4",
   "private": true,
   "type": "module",
   "description": "AI-powered code assistant that helps support and engineering teams understand and navigate code repositories.",
@@ -35,9 +35,9 @@
     "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "jscpd": "^5.3.3",
-    "knip": "^6.38.0",
-    "prettier": "^3.9.6"
+    "concurrently": "^9.2.5",
+    "jscpd": "^5.4.2",
+    "knip": "^6.43.0",
+    "prettier": "^3.9.10"
   }
 }
