@@ -626,6 +626,19 @@ describe('buildAgentTools', () => {
     ])
   })
 
+  it('lists exactly the tools that only register once writes are enabled as write tools', async () => {
+    const { WRITE_TOOL_NAMES } = await import('./sources.js')
+    const configured = Object.fromEntries(Object.values(INTEGRATIONS).map(({ flag }) => [flag, true]))
+    const policy = { unrestricted: true, repos: [], integrations: [] }
+    const writes = { shortcutWrites: true, figmaComments: true, zendeskWrites: true, slackConfigured: true }
+    const noWrites = { shortcutWrites: false, figmaComments: false, zendeskWrites: false, slackConfigured: false }
+
+    const withWrites = names(buildAgentTools(policy, configured, { userId: 'u-1', ...writes }))
+    const withoutWrites = new Set(names(buildAgentTools(policy, configured, { userId: 'u-1', ...noWrites })))
+
+    expect(new Set(withWrites.filter(name => !withoutWrites.has(name)))).toEqual(new Set(WRITE_TOOL_NAMES))
+  })
+
   it('registers tools for every integration in the registry', () => {
     for (const [id, { flag }] of Object.entries(INTEGRATIONS)) {
       const tools = buildAgentTools({ unrestricted: false, repos: [], integrations: [id] }, { [flag]: true })

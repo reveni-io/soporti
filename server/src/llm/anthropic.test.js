@@ -16,6 +16,8 @@ vi.mock('./settings.js', () => ({ getAnthropicApiKey, getAnthropicModel }))
 
 const provider = await import('./anthropic.js')
 
+const CONTEXT_WINDOW_TOKENS = 1_000_000
+
 beforeEach(() => {
   anthropicFactory.mockReset()
   createAnthropic.mockClear()
@@ -120,9 +122,8 @@ describe('modelSettings', () => {
   it('nests the anthropic options under providerData.providerOptions so the adapter forwards them', () => {
     const settings = provider.modelSettings('claude-opus-5', { intent: 'chat' })
 
-    expect(settings.providerData).toEqual({
-      providerOptions: { anthropic: { thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } } },
-    })
+    expect(Object.keys(settings.providerData)).toEqual(['providerOptions'])
+    expect(Object.keys(settings.providerData.providerOptions)).toEqual(['anthropic'])
   })
 
   it('requests prompt caching so the tools and system prefix are not re-billed every turn', () => {
@@ -145,11 +146,7 @@ describe('modelSettings', () => {
     for (const effort of ['low', 'medium', 'high']) {
       const { anthropic } = provider.modelSettings('claude-opus-5', { effort }).providerData.providerOptions
 
-      expect(anthropic).toEqual({
-        thinking: { type: 'adaptive' },
-        cacheControl: { type: 'ephemeral' },
-        effort,
-      })
+      expect(anthropic.effort).toBe(effort)
     }
   })
 
@@ -157,14 +154,16 @@ describe('modelSettings', () => {
     for (const effort of ['minimal', 'none', '', undefined]) {
       const { anthropic } = provider.modelSettings('claude-opus-5', { effort }).providerData.providerOptions
 
-      expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } })
+      expect(anthropic).not.toHaveProperty('effort')
     }
   })
 
   it('still returns the thinking and caching options when called with no effort at all', () => {
     const { anthropic } = provider.modelSettings('claude-opus-5').providerData.providerOptions
 
-    expect(anthropic).toEqual({ thinking: { type: 'adaptive' }, cacheControl: { type: 'ephemeral' } })
+    expect(anthropic.thinking).toEqual({ type: 'adaptive' })
+    expect(anthropic.cacheControl).toEqual({ type: 'ephemeral' })
+    expect(anthropic).not.toHaveProperty('effort')
   })
 
   it('asks the runner to retry, because the adapter has no retries of its own', () => {
@@ -172,6 +171,62 @@ describe('modelSettings', () => {
 
     expect(retry.maxRetries).toBe(2)
     expect(typeof retry.policy).toBe('function')
+  })
+})
+
+describe('modelSettings on the wire', () => {
+  async function sendThroughRealAdapter(modelSettings) {
+    const { createAnthropic: realCreateAnthropic } = await vi.importActual('@ai-sdk/anthropic')
+    const { aisdk: realAisdk } = await vi.importActual('@openai/agents-extensions/ai-sdk')
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          type: 'message',
+          id: 'msg_1',
+          role: 'assistant',
+          model: 'claude-opus-5',
+          content: [{ type: 'text', text: 'ok' }],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    )
+
+    const { withTrace } = await import('@openai/agents')
+    const model = realAisdk(realCreateAnthropic({ apiKey: 'sk-test', fetch })('claude-opus-5'))
+    const request = { input: 'hi', modelSettings, tools: [], handoffs: [], outputType: 'text', tracing: false }
+    await withTrace('anthropic-wire-test', () => model.getResponse(request))
+
+    const [, init] = fetch.mock.calls[0]
+    return { fetch, body: JSON.parse(init.body), betas: new Headers(init.headers).get('anthropic-beta') }
+  }
+
+  it('asks anthropic to clear old tool results only near the context window, never those of write tools', async () => {
+    const { WRITE_TOOL_NAMES } = await import('../agent/sources.js')
+
+    const { fetch, body, betas } = await sendThroughRealAdapter(provider.modelSettings('claude-opus-5'))
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(betas).toContain('context-management-2025-06-27')
+    expect(body.context_management.edits).toHaveLength(1)
+
+    const [edit] = body.context_management.edits
+    expect(edit.type).toBe('clear_tool_uses_20250919')
+    expect(edit.exclude_tools).toEqual(WRITE_TOOL_NAMES)
+    expect(edit.exclude_tools).toContain('post_slack_message')
+    expect(edit.trigger.value).toBeLessThan(CONTEXT_WINDOW_TOKENS)
+    expect(edit.clear_at_least.value).toBeGreaterThan(0)
+    expect(edit.keep.value).toBeGreaterThan(0)
+    expect(edit.clear_tool_inputs).not.toBe(true)
+  })
+
+  it('keeps sending thinking and caching alongside the clearing edit', async () => {
+    const { body } = await sendThroughRealAdapter(provider.modelSettings('claude-opus-5', { effort: 'high' }))
+
+    expect(body.thinking).toEqual({ type: 'adaptive' })
+    expect(body.cache_control).toEqual({ type: 'ephemeral' })
   })
 })
 
