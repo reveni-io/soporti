@@ -751,7 +751,19 @@ describe('listShippingMethods', () => {
           countries: [],
         },
       ],
+      total: 2,
+      truncated: false,
     })
+  })
+
+  it('keeps the first 30 methods but names every carrier in use', async () => {
+    const methods = Array.from({ length: 35 }, (_, index) => ({ id: index, carrier: index === 34 ? 'ups' : 'dhl' }))
+    global.fetch.mockResolvedValue(jsonResponse({ shipping_methods: methods }))
+
+    const result = await listShippingMethods(null)
+
+    expect(result.shippingMethods).toHaveLength(30)
+    expect(result).toMatchObject({ carriers: ['dhl', 'ups'], total: 35, truncated: true })
   })
 
   it('lists every method without filters', async () => {
@@ -850,7 +862,19 @@ describe('listShippingProducts', () => {
           ],
         },
       ],
+      total: 1,
+      truncated: false,
     })
+  })
+
+  it('keeps the first 30 products and says there were more', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(Array.from({ length: 31 }, (_, index) => ({ code: `p${index}` }))))
+
+    const result = await listShippingProducts(null, { fromCountry: 'ES' })
+
+    expect(result.products).toHaveLength(30)
+    expect(result.products[29].code).toBe('p29')
+    expect(result).toMatchObject({ total: 31, truncated: true })
   })
 
   it('asks for the outbound products when it is not a return', async () => {
@@ -1025,6 +1049,25 @@ describe('service points', () => {
     })
   })
 
+  it('refuses a city and an address together before calling Sendcloud', async () => {
+    await expect(
+      searchServicePoints(null, { country: 'ES', city: 'Madrid', address: 'Calle Mayor 1' })
+    ).rejects.toThrow('Give either an address or a city to search service points, not both.')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('never logs the address searched when Sendcloud cannot be reached', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    global.fetch.mockRejectedValue(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } }))
+
+    await expect(searchServicePoints(null, { country: 'ES', address: 'Calle Mayor 1, Madrid' })).rejects.toThrow(
+      'Sendcloud could not be reached'
+    )
+    expect(console.error).toHaveBeenCalledTimes(1)
+    expect(console.error).toHaveBeenCalledWith('Failed to reach Sendcloud at /v2/service-points:', 'ECONNRESET')
+    expect(JSON.stringify(console.error.mock.calls)).not.toContain('Calle')
+  })
+
   it('needs a country and refuses an address that is too long', async () => {
     await expect(searchServicePoints(null, { city: 'Madrid' })).rejects.toThrow('Give the country.')
     await expect(searchServicePoints(null, { country: 'ES', address: 'x'.repeat(101) })).rejects.toThrow(
@@ -1102,6 +1145,17 @@ describe('validateAddress', () => {
     })
   })
 
+  it('keeps an unknown verdict as null instead of calling the address invalid', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({ input_address_is_valid: null, results: [{ recommended: false, address: null, analysis: null }] })
+    )
+
+    const result = await validateAddress(null, ADDRESS)
+
+    expect(result.isValid).toBeNull()
+    expect(result.results).toEqual([{ recommended: false, address: null, reasons: [] }])
+  })
+
   it('sends the house number when there is one', async () => {
     global.fetch.mockResolvedValue(jsonResponse({ input_address_is_valid: true }))
 
@@ -1124,40 +1178,51 @@ describe('validateAddress', () => {
 })
 
 describe('getIntegration', () => {
-  it('reports whether the webhook of an integration is active, without its url', async () => {
-    global.fetch.mockResolvedValue(
-      jsonResponse({
-        data: {
-          id: 4512,
-          shop_name: 'Acme EU',
-          system: 'api',
-          webhook_active: false,
-          webhook_url: 'https://hooks.example.com/sendcloud?token=secret-token',
-          failing_since: '2026-10-20T08:00:00Z',
-          last_fetch: '2026-10-28T10:00:00Z',
-          last_updated_at: '2026-10-21T09:00:00Z',
-          service_point_enabled: true,
-          service_point_carriers: ['correos'],
-        },
-      })
-    )
+  const INTEGRATION = {
+    id: 23452345,
+    shop_name: 'Integration #1',
+    shop_url: 'https://www.my-shop-integration.com/',
+    type: 'api',
+    started_failing_at: '2023-11-10T16:16:42Z',
+    last_fetched_at: '2023-11-10T16:15:09Z',
+    created_at: '2023-11-04T14:15:22Z',
+    updated_at: '2023-11-08T12:23:56Z',
+    service_point_enabled: true,
+    service_point_carriers: ['ups', 'dhl'],
+    webhook_active: true,
+    webhook_url: 'https://my-shop-integration.integrator/api/webhooks/sendcloud',
+    feedback_type: 'eager',
+  }
 
-    const result = await getIntegration(null, '4512')
+  it('maps the v3 integration with its failure and fetch times, without its webhook url', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ data: INTEGRATION }))
 
-    expect(requestedUrl().pathname).toBe('/api/v3/integrations/4512')
+    const result = await getIntegration(null, '23452345')
+
+    expect(requestedUrl().pathname).toBe('/api/v3/integrations/23452345')
     expect(result).toEqual({
       account: 'Acme EU',
-      id: 4512,
-      shopName: 'Acme EU',
-      system: 'api',
-      webhookActive: false,
-      failingSince: '2026-10-20T08:00:00Z',
-      lastFetch: '2026-10-28T10:00:00Z',
-      lastUpdatedAt: '2026-10-21T09:00:00Z',
+      id: 23452345,
+      shopName: 'Integration #1',
+      type: 'api',
+      webhookActive: true,
+      feedbackType: 'eager',
+      startedFailingAt: '2023-11-10T16:16:42Z',
+      lastFetchedAt: '2023-11-10T16:15:09Z',
+      createdAt: '2023-11-04T14:15:22Z',
+      updatedAt: '2023-11-08T12:23:56Z',
       servicePointEnabled: true,
-      servicePointCarriers: ['correos'],
+      servicePointCarriers: ['ups', 'dhl'],
     })
-    expect(JSON.stringify(result)).not.toContain('secret-token')
+    expect(JSON.stringify(result)).not.toContain('my-shop-integration.integrator')
+  })
+
+  it('ignores the v2 names, which the v3 endpoint does not send', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({ data: { id: 1, system: 'api', failing_since: '2023-11-10T16:16:42Z', last_fetch: 'x' } })
+    )
+
+    expect(await getIntegration(null, '1')).toMatchObject({ type: null, startedFailingAt: null, lastFetchedAt: null })
   })
 
   it('reads an empty answer as unknown values', async () => {

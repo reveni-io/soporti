@@ -35,6 +35,8 @@ const POSTAL_CODE_RE = /^[A-Za-z0-9 -]{1,12}$/
 const MAX_TEXT_CHARS = 100
 const GRAMS_PER_KG = 1000
 const MAX_SERVICE_POINTS = 20
+const MAX_SHIPPING_PRODUCTS = 30
+const MAX_SHIPPING_METHODS = 30
 const CLOSED_LABEL = 'closed'
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const ADDRESS_FIELDS = {
@@ -79,11 +81,15 @@ function describeFailure(status, path) {
   return `Sendcloud API ${path} failed (${status}).`
 }
 
+function withoutQuery(path) {
+  return path.split('?')[0]
+}
+
 async function send(account, path, { baseUrl, signal, body }) {
   try {
     return await fetch(`${baseUrl}${path}`, buildInit(account, { signal, body }))
   } catch (err) {
-    console.error(`Failed to reach Sendcloud at ${path}:`, err.cause?.code ?? err.name)
+    console.error(`Failed to reach Sendcloud at ${withoutQuery(path)}:`, err.cause?.code ?? err.name)
     throw new Error(err.name === ABORT_ERROR ? TIMEOUT_MESSAGE : UNREACHABLE_MESSAGE, { cause: err })
   }
 }
@@ -591,14 +597,20 @@ function toIntegration(integration) {
   return {
     id: integration.id ?? null,
     shopName: integration.shop_name ?? null,
-    system: integration.system ?? null,
+    type: integration.type ?? null,
     webhookActive: integration.webhook_active ?? null,
-    failingSince: integration.failing_since ?? null,
-    lastFetch: integration.last_fetch ?? null,
-    lastUpdatedAt: integration.last_updated_at ?? null,
+    feedbackType: integration.feedback_type ?? null,
+    startedFailingAt: integration.started_failing_at ?? null,
+    lastFetchedAt: integration.last_fetched_at ?? null,
+    createdAt: integration.created_at ?? null,
+    updatedAt: integration.updated_at ?? null,
     servicePointEnabled: integration.service_point_enabled ?? null,
     servicePointCarriers: integration.service_point_carriers ?? [],
   }
+}
+
+function firstOf(items, max) {
+  return { kept: items.slice(0, max), total: items.length, truncated: items.length > max }
 }
 
 export async function listAccounts() {
@@ -691,12 +703,15 @@ export async function listShippingMethods(accountName, options = {}) {
   }
 
   const data = await request(account, `/v2/shipping_methods${query(params)}`)
-  const methods = (data.shipping_methods || []).map(toShippingMethod)
+  const methods = data.shipping_methods || []
+  const { kept, total, truncated } = firstOf(methods, MAX_SHIPPING_METHODS)
 
   return {
     account: account.name,
     carriers: [...new Set(methods.map(method => method.carrier).filter(Boolean))].sort(),
-    shippingMethods: methods,
+    shippingMethods: kept.map(toShippingMethod),
+    total,
+    truncated,
   }
 }
 
@@ -713,8 +728,9 @@ export async function listShippingProducts(accountName, options = {}) {
   }
 
   const data = await request(account, `/v2/shipping-products${query(params)}`)
+  const { kept, total, truncated } = firstOf(Array.isArray(data) ? data : [], MAX_SHIPPING_PRODUCTS)
 
-  return { account: account.name, products: (Array.isArray(data) ? data : []).map(toShippingProduct) }
+  return { account: account.name, products: kept.map(toShippingProduct), total, truncated }
 }
 
 export async function getPickup(accountName, pickupId) {
@@ -734,16 +750,14 @@ export async function searchServicePoints(accountName, options = {}) {
     city: parseText(options.city, 'city'),
     address: parseText(options.address, 'address'),
   }
+  if (params.city && params.address) {
+    throw new Error('Give either an address or a city to search service points, not both.')
+  }
 
   const data = await request(account, `/v2/service-points${query(params)}`, { baseUrl: SERVICE_POINTS_BASE_URL })
-  const points = Array.isArray(data) ? data : []
+  const { kept, total, truncated } = firstOf(Array.isArray(data) ? data : [], MAX_SERVICE_POINTS)
 
-  return {
-    account: account.name,
-    servicePoints: points.slice(0, MAX_SERVICE_POINTS).map(toServicePoint),
-    total: points.length,
-    truncated: points.length > MAX_SERVICE_POINTS,
-  }
+  return { account: account.name, servicePoints: kept.map(toServicePoint), total, truncated }
 }
 
 export async function getServicePoint(accountName, servicePointId) {
@@ -763,7 +777,7 @@ export async function validateAddress(accountName, input = {}) {
 
   return {
     account: account.name,
-    isValid: Boolean(data.input_address_is_valid),
+    isValid: data.input_address_is_valid ?? null,
     results: (data.results || []).map(toAddressResult),
   }
 }

@@ -990,7 +990,7 @@ const SENDCLOUD_ROUTE_PARAMS = {
 const listSendcloudShippingMethodsTool = tool({
   name: 'sendcloud_list_shipping_methods',
   description:
-    'List the shipping methods a Sendcloud account offers, optionally for one route (origin and destination country and postal code), with their id, name, carrier, weight range, whether they deliver to a service point and the destination countries, plus the list of carriers in use. Use it for "which carriers do we ship with", "can we ship this to Germany" or "why is there no method for this route".',
+    'List the shipping methods a Sendcloud account offers, optionally for one route (origin and destination country and postal code), with their id, name, carrier, weight range, whether they deliver to a service point and the destination countries, plus the list of every carrier in use. Returns at most 30 methods with `total`; when `truncated` is true, narrow it with the route or `isReturn` instead of treating the list as complete. Use it for "which carriers do we ship with", "can we ship this to Germany" or "why is there no method for this route".',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     isReturn: z.boolean().default(false).describe('True to list only the methods usable for returns.'),
@@ -1002,7 +1002,7 @@ const listSendcloudShippingMethodsTool = tool({
 const listSendcloudShippingProductsTool = tool({
   name: 'sendcloud_list_shipping_products',
   description:
-    'List the shipping products a Sendcloud account can use from an origin country, optionally narrowed to a destination, postal codes, a carrier, a carrier contract and returns: each product with its code, carrier, weight range in kg and its methods (id, name, product code, weight range in kg and the functionalities it supports, e.g. signature, age check or returns). Use it to check whether a carrier offers a service on a route and for a given weight — for example to explain why a label could not be created.',
+    'List the shipping products a Sendcloud account can use from an origin country, optionally narrowed to a destination, postal codes, a carrier, a carrier contract and returns: each product with its code, carrier, weight range in kg and its methods (id, name, product code, weight range in kg and the functionalities it supports, e.g. signature, age check or returns). Returns at most 30 products with `total`; when `truncated` is true, narrow it with `carrier` or `toCountry` instead of treating the list as complete. Use it to check whether a carrier offers a service on a route and for a given weight — for example to explain why a label could not be created.',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     fromCountry: z.string().describe('Two-letter origin country code, e.g. "ES".'),
@@ -1030,13 +1030,17 @@ const getSendcloudPickupTool = tool({
 const searchSendcloudServicePointsTool = tool({
   name: 'sendcloud_search_service_points',
   description:
-    'Find carrier service points (shops and lockers where a parcel is dropped off or collected) in a country, optionally for one carrier and near a city or address: id, name, carrier, address, distance, whether it is active and its opening times. Returns up to 20; `truncated` says there were more. Use it for "where can the customer drop the parcel" or to check a service point a customer picked.',
+    'Find carrier service points (shops and lockers where a parcel is dropped off or collected) in a country, optionally for one carrier, near an address or in a city — give one of the two, never both, and prefer `address`: id, name, carrier, address, distance, whether it is active and its opening times. Returns up to 20; `truncated` says there were more. Use it for "where can the customer drop the parcel" or to check a service point a customer picked.',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     country: z.string().describe('Two-letter country code, e.g. "ES".'),
     carrier: optionalSendcloudText('Sendcloud carrier code, e.g. "correos". Null for every carrier enabled.'),
-    city: optionalSendcloudText('City to search in. Null to skip.'),
-    address: optionalSendcloudText('Street address or postal code to search near. Null to skip.'),
+    city: optionalSendcloudText(
+      'City to search in, spelled exactly as locally written (e.g. "München", not "Munich"): Sendcloud matches it exactly. Null when you give `address`.'
+    ),
+    address: optionalSendcloudText(
+      'Free-text street address or postal code to search near; Sendcloud finds the closest points. Preferred over `city`. Null when you give `city`.'
+    ),
   }),
   execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.searchServicePoints(account, options)),
 })
@@ -1055,7 +1059,7 @@ const getSendcloudServicePointTool = tool({
 const validateSendcloudAddressTool = tool({
   name: 'sendcloud_validate_address',
   description:
-    "Ask Sendcloud whether an address is deliverable by one carrier. Returns `isValid` and Sendcloud's results: each with the address it matched, whether it is `recommended` and the reason codes it found (e.g. ADDRESS_NOT_VALID, HOUSE_NUMBER_TOO_SHORT). It only checks — nothing is saved or changed. Use it when a label fails over the address or a customer cannot get past an address step.",
+    "Ask Sendcloud whether an address is deliverable by one carrier. Returns `isValid` — true, false, or null when Sendcloud could not give a verdict (e.g. its validator is unavailable), which says nothing about the address — and Sendcloud's results: each with the address it matched, whether it is `recommended` and the reason codes it found (e.g. ADDRESS_NOT_VALID, HOUSE_NUMBER_TOO_SHORT). It only checks — nothing is saved or changed. Use it when a label fails over the address or a customer cannot get past an address step.",
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     addressLine1: z.string().describe('Street, e.g. "Calle Mayor".'),
@@ -1073,7 +1077,7 @@ const validateSendcloudAddressTool = tool({
 const getSendcloudIntegrationTool = tool({
   name: 'sendcloud_get_integration',
   description:
-    'Read one Sendcloud integration (a shop or API connection of the account) by its numeric id: shop name, system, whether its webhook is active, since when it is failing, when it last synced, and its service point settings. Use it when parcel statuses stop updating in the system that created them: an inactive webhook means Sendcloud stopped pushing status changes. It only reads — it cannot reactivate anything.',
+    'Read one Sendcloud integration (a shop or API connection of the account) by its numeric id: shop name, `type`, whether its webhook is active and its `feedbackType`, `startedFailingAt` (when it began failing to fetch orders or send feedback, null when it is not failing), `lastFetchedAt` (its last successful fetch), when it was created and updated, and its service point settings. Use it when parcel statuses stop updating in the system that created them: an inactive webhook means Sendcloud stopped pushing status changes. It only reads — it cannot reactivate anything.',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     integrationId: z.string().describe('Numeric Sendcloud integration id, from Settings → Integrations in the panel.'),

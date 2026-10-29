@@ -1504,6 +1504,17 @@ describe('buildAgentTools with Sendcloud', () => {
     )
   })
 
+  it('describes the v3 integration fields, the unknown address verdict and the service point search rules', () => {
+    expect(sendcloudTool('sendcloud_get_integration').description).toContain('`startedFailingAt`')
+    expect(sendcloudTool('sendcloud_get_integration').description).not.toContain('shop name, system')
+    expect(sendcloudTool('sendcloud_validate_address').description).toContain(
+      'null when Sendcloud could not give a verdict'
+    )
+    expect(sendcloudTool('sendcloud_search_service_points').description).toContain('never both, and prefer `address`')
+    expect(sendcloudTool('sendcloud_list_shipping_products').description).toContain('Returns at most 30 products')
+    expect(sendcloudTool('sendcloud_list_shipping_methods').description).toContain('Returns at most 30 methods')
+  })
+
   it('lists the linked accounts', async () => {
     const sendcloudMod = await import('../sendcloud/client.js')
     sendcloudMod.listAccounts.mockResolvedValue({ accounts: [{ name: 'Acme EU' }] })
