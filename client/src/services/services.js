@@ -700,6 +700,27 @@ export function saveSentryAuthToken(token, value) {
   })
 }
 
+export function getSendcloudAccounts(token) {
+  return request('/api/admin/config/sendcloud', { token, errorMessage: 'Failed to load the Sendcloud accounts' })
+}
+
+export function linkSendcloudAccount(token, account) {
+  return request('/api/admin/config/sendcloud/accounts', {
+    method: 'POST',
+    token,
+    body: account,
+    errorMessage: 'Failed to link the Sendcloud account',
+  })
+}
+
+export function removeSendcloudAccount(token, id) {
+  return request(`/api/admin/config/sendcloud/accounts/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to remove the Sendcloud account',
+  })
+}
+
 export function getLangfuseConfig(token) {
   return request('/api/admin/config/langfuse', { token, errorMessage: 'Failed to load the Langfuse settings' })
 }

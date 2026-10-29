@@ -10,6 +10,7 @@ export const INTEGRATIONS = {
   granola: { label: 'Granola', flag: 'granolaConfigured' },
   figma: { label: 'Figma', flag: 'figmaConfigured' },
   zendesk: { label: 'Zendesk', flag: 'zendeskConfigured' },
+  sendcloud: { label: 'Sendcloud', flag: 'sendcloudConfigured' },
 }
 
 export const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])

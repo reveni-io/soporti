@@ -9,6 +9,7 @@ import AdminKnowledge from './AdminKnowledge/AdminKnowledge.jsx'
 import AdminLangfuse from './AdminLangfuse/AdminLangfuse.jsx'
 import AdminLlm from './AdminLlm/AdminLlm.jsx'
 import AdminNotion from './AdminNotion/AdminNotion.jsx'
+import AdminSendcloud from './AdminSendcloud/AdminSendcloud.jsx'
 import AdminSentry from './AdminSentry/AdminSentry.jsx'
 import AdminShopify from './AdminShopify/AdminShopify.jsx'
 import AdminShortcut from './AdminShortcut/AdminShortcut.jsx'
@@ -30,6 +31,7 @@ export const SECTIONS = [
   { path: 'helpjuice', label: 'Helpjuice', icon: 'help-circle', Component: AdminHelpjuice },
   { path: 'database', label: 'Database', icon: 'database', Component: AdminDatabase },
   { path: 'shopify', label: 'Shopify', icon: 'shopify', Component: AdminShopify },
+  { path: 'sendcloud', label: 'Sendcloud', icon: 'sendcloud', Component: AdminSendcloud },
   { path: 'shortcut', label: 'Shortcut', icon: 'shortcut', Component: AdminShortcut },
   { path: 'figma', label: 'Figma', icon: 'figma', Component: AdminFigma },
   { path: 'sentry', label: 'Sentry', icon: 'sentry', Component: AdminSentry },

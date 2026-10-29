@@ -52,6 +52,12 @@ describe('Landing', () => {
     expect(intNames).toContain('Shopify')
   })
 
+  it('presents the Sendcloud integration in its own section', () => {
+    const { container } = render(<Landing />)
+
+    expect(container.querySelector('#sendcloud')).toHaveTextContent('Where is the parcel?')
+  })
+
   it('lists the supported LLM providers', () => {
     const { container } = render(<Landing />)
     const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)
