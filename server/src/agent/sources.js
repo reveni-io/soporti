@@ -1,4 +1,4 @@
-import { MAX_SOURCES, MAX_SOURCE_LENGTH } from '../constants.js'
+import { MAX_SOURCES, MAX_SOURCE_LENGTH, SLACK_POST_TOOL_NAME } from '../constants.js'
 import { INTEGRATIONS } from './integrations.js'
 
 export const YOLO_SOURCE = 'yolo'
@@ -35,6 +35,8 @@ export const INTEGRATION_WRITE_TOOL_NAMES = {
   figma: ['post_figma_comment'],
   zendesk: ['zendesk_post_internal_note'],
 }
+
+export const WRITE_TOOL_NAMES = [...Object.values(INTEGRATION_WRITE_TOOL_NAMES).flat(), SLACK_POST_TOOL_NAME]
 
 export function hasWriteTools(integrationId, toolNames) {
   return (INTEGRATION_WRITE_TOOL_NAMES[integrationId] ?? []).some(name => toolNames.has(name))
