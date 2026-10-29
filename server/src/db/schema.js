@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   pgTable,
   serial,
@@ -234,14 +235,18 @@ export const zendeskConnections = pgTable('zendesk_connections', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
-export const sendcloudAccounts = pgTable('sendcloud_accounts', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull().unique(),
-  publicKey: text('public_key').notNull(),
-  secretKey: text('secret_key').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const sendcloudAccounts = pgTable(
+  'sendcloud_accounts',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    publicKey: text('public_key').notNull(),
+    secretKey: text('secret_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('sendcloud_accounts_name_lower_idx').on(sql`lower(${table.name})`)]
+)
 
 export const attachmentImages = pgTable(
   'attachment_images',

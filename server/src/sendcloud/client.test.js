@@ -70,6 +70,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('account selection', () => {
@@ -177,6 +178,16 @@ describe('searchParcels', () => {
     expect(result.nextCursor).toBe('cD0yMDE4')
   })
 
+  it('never reports the parcels as complete when the next page link has no cursor', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ parcels: [PARCEL], next: `${BASE_URL}/v2/parcels?page=2` }))
+
+    const result = await searchParcels(null, { orderNumber: '1042' })
+
+    expect(result.truncated).toBe(true)
+    expect(result.nextCursor).toBeNull()
+    expect(result.notice).toMatch(/tell the user the list is incomplete/)
+  })
+
   it('keeps a bare next token as the cursor', async () => {
     global.fetch.mockResolvedValue(jsonResponse({ parcels: [], next: 42 }))
 
@@ -245,6 +256,58 @@ describe('getParcel', () => {
 
     await expect(getParcel(null, '501')).rejects.toThrow('(500)')
     expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('says Sendcloud timed out when the request is aborted after 15 seconds', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    global.fetch.mockImplementation(
+      (_url, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('This operation was aborted', 'AbortError')))
+        })
+    )
+
+    const pending = getParcel(null, '501').catch(err => err)
+    await vi.advanceTimersByTimeAsync(15_000)
+    const error = await pending
+
+    expect(error.message).toBe('Sendcloud did not answer within 15 seconds: try again later.')
+    expect(console.error).toHaveBeenCalledWith('Failed to reach Sendcloud at /v2/parcels/501:', 'AbortError')
+  })
+
+  it('says Sendcloud could not be reached when the network fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    global.fetch.mockRejectedValue(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }))
+
+    await expect(getParcel(null, '501')).rejects.toThrow('Sendcloud could not be reached: try again later.')
+    expect(console.error).toHaveBeenCalledWith('Failed to reach Sendcloud at /v2/parcels/501:', 'ECONNREFUSED')
+  })
+
+  it('says the answer was not JSON instead of passing the parse error on', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('Unexpected token \'<\', "<html>Maintenance" is not valid JSON')
+      },
+    })
+
+    await expect(getParcel(null, '501')).rejects.toThrow(
+      'Sendcloud answered /v2/parcels/501 with something that is not JSON: try again later.'
+    )
+  })
+
+  it('says Sendcloud timed out when the body stops arriving', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new DOMException('This operation was aborted', 'AbortError')
+      },
+    })
+
+    await expect(getParcel(null, '501')).rejects.toThrow('Sendcloud did not answer within 15 seconds: try again later.')
   })
 
   it('never hands the body of an upstream error to the model', async () => {
@@ -489,9 +552,21 @@ describe('listReturns', () => {
     expect(result.nextCursor).toBe('cj0xJnA9MzAw')
   })
 
+  it('never reports the returns as complete when the next page link has no cursor', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ data: [RETURN], next: `${BASE_URL}/v3/returns?offset=40` }))
+
+    const result = await listReturns(null)
+
+    expect(result.truncated).toBe(true)
+    expect(result.nextCursor).toBeNull()
+    expect(result.notice).toMatch(/tell the user the list is incomplete/)
+  })
+
   it.each([
     [{ fromDate: '01/09/2026' }, /YYYY-MM-DD/],
     [{ toDate: '2026-13-45' }, /YYYY-MM-DD/],
+    [{ fromDate: '2026-02-30', toDate: '2026-03-01' }, '"2026-02-30" is not a valid start date: use YYYY-MM-DD.'],
+    [{ toDate: '2026-04-31' }, '"2026-04-31" is not a valid end date: use YYYY-MM-DD.'],
     [{ fromDate: '2026-10-10', toDate: '2026-10-01' }, /after its end date/],
   ])('refuses the window %j', async (options, message) => {
     await expect(listReturns(null, options)).rejects.toThrow(message)

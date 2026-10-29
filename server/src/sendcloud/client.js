@@ -18,6 +18,12 @@ const FORBIDDEN_MESSAGE = 'Sendcloud refused the request: the API keys of this a
 const INVALID_REQUEST_STATUSES = new Set([400, 422])
 const RATE_LIMITED_STATUS = 429
 const SERVER_ERROR_STATUS = 500
+const ABORT_ERROR = 'AbortError'
+const MS_PER_SECOND = 1000
+const TIMEOUT_MESSAGE = `Sendcloud did not answer within ${REQUEST_TIMEOUT_MS / MS_PER_SECOND} seconds: try again later.`
+const UNREACHABLE_MESSAGE = 'Sendcloud could not be reached: try again later.'
+const UNFOLLOWABLE_PAGE_NOTICE =
+  'Sendcloud reports more results, but its link to the next page carries no cursor this tool can follow: tell the user the list is incomplete.'
 const PARCEL_FILTERS = {
   orderNumber: 'order_number',
   trackingNumber: 'tracking_number',
@@ -45,22 +51,41 @@ function describeFailure(status, path) {
   return `Sendcloud API ${path} failed (${status}).`
 }
 
+async function send(account, path, signal) {
+  try {
+    return await fetch(`${API_BASE_URL}${path}`, {
+      signal,
+      headers: { Authorization: authorization(account), Accept: 'application/json' },
+    })
+  } catch (err) {
+    console.error(`Failed to reach Sendcloud at ${path}:`, err.cause?.code ?? err.name)
+    throw new Error(err.name === ABORT_ERROR ? TIMEOUT_MESSAGE : UNREACHABLE_MESSAGE, { cause: err })
+  }
+}
+
+async function readBody(res, path) {
+  try {
+    return await res.json()
+  } catch (err) {
+    if (err.name === ABORT_ERROR) throw new Error(TIMEOUT_MESSAGE, { cause: err })
+
+    throw new Error(`Sendcloud answered ${path} with something that is not JSON: try again later.`, { cause: err })
+  }
+}
+
 async function request(account, path) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      signal: controller.signal,
-      headers: { Authorization: authorization(account), Accept: 'application/json' },
-    })
+    const res = await send(account, path, controller.signal)
 
     if (!res.ok) {
       await res.body?.cancel()
       throw new Error(describeFailure(res.status, path))
     }
 
-    return res.json()
+    return await readBody(res, path)
   } finally {
     clearTimeout(timer)
   }
@@ -107,11 +132,23 @@ function parseTrackingNumber(value) {
   return raw
 }
 
+function hasNextPage(next) {
+  return next !== null && next !== undefined && next !== ''
+}
+
 function cursorFrom(next) {
-  if (next === null || next === undefined || next === '') return null
   if (!URL.canParse(next)) return String(next)
 
-  return new URL(next).searchParams.get('cursor')
+  return new URL(next).searchParams.get('cursor') || null
+}
+
+function toPage(next) {
+  if (!hasNextPage(next)) return { truncated: false, nextCursor: null }
+
+  const nextCursor = cursorFrom(next)
+  if (!nextCursor) return { truncated: true, nextCursor: null, notice: UNFOLLOWABLE_PAGE_NOTICE }
+
+  return { truncated: true, nextCursor }
 }
 
 function query(params) {
@@ -317,10 +354,16 @@ function toReturn(item) {
   }
 }
 
+function isCalendarDay(raw) {
+  const time = Date.parse(raw)
+
+  return !Number.isNaN(time) && isoDay(time) === raw
+}
+
 function parseDate(value, label) {
   const raw = String(value ?? '').trim()
   if (!raw) return null
-  if (!DATE_RE.test(raw) || Number.isNaN(Date.parse(raw))) {
+  if (!DATE_RE.test(raw) || !isCalendarDay(raw)) {
     throw new Error(`"${raw}" is not a valid ${label}: use YYYY-MM-DD.`)
   }
 
@@ -371,13 +414,11 @@ export async function searchParcels(accountName, filters = {}) {
   const params = parseParcelFilters(filters)
 
   const data = await request(account, `/v2/parcels${query({ ...params, cursor: filters.cursor })}`)
-  const nextCursor = cursorFrom(data.next)
 
   return {
     account: account.name,
     parcels: (data.parcels || []).map(toParcelSummary),
-    truncated: Boolean(nextCursor),
-    nextCursor,
+    ...toPage(data.next),
   }
 }
 
@@ -422,15 +463,13 @@ export async function listReturns(accountName, options = {}) {
     cursor: options.cursor,
   }
   const data = await request(account, `/v3/returns${query(params)}`)
-  const nextCursor = cursorFrom(data.next)
 
   return {
     account: account.name,
     from,
     to,
     returns: (data.data || []).map(toReturnSummary),
-    truncated: Boolean(nextCursor),
-    nextCursor,
+    ...toPage(data.next),
   }
 }
 

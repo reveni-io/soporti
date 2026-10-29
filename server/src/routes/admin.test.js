@@ -276,9 +276,14 @@ vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools })
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
 vi.mock('../zendesk/settings.js', () => ({ isZendeskConfigured }))
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured }))
+const sendcloudRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
 vi.mock('./admin-sendcloud.js', async () => {
   const { Router } = await import('express')
-  return { default: Router() }
+  const sendcloudRouter = Router()
+  sendcloudRouter.get('/', sendcloudRouteReached)
+  sendcloudRouter.post('/accounts', sendcloudRouteReached)
+  sendcloudRouter.delete('/accounts/:id', sendcloudRouteReached)
+  return { default: sendcloudRouter }
 })
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
 const REPO_TOOL_NAMES = new Set([
@@ -409,6 +414,7 @@ beforeEach(() => {
   deleteSubagent.mockReset()
   for (const check of INTEGRATION_CHECK_MOCKS) check.mockReset().mockResolvedValue(false)
   currentDbRole = 'admin'
+  sendcloudRouteReached.mockClear()
 })
 
 describe('GET /api/admin/status', () => {
@@ -513,6 +519,35 @@ describe('GET /api/admin/users', () => {
 
     expect(res.status).toBe(403)
     expect(listUsers).not.toHaveBeenCalled()
+  })
+})
+
+describe('/api/admin/config/sendcloud', () => {
+  const SENDCLOUD_REQUESTS = [
+    ['get', '/api/admin/config/sendcloud'],
+    ['post', '/api/admin/config/sendcloud/accounts'],
+    ['delete', '/api/admin/config/sendcloud/accounts/1'],
+  ]
+
+  it.each(SENDCLOUD_REQUESTS)(
+    'rejects a non-admin %s %s with 403 before the Sendcloud routes',
+    async (method, path) => {
+      currentDbRole = 'user'
+
+      const res = await request(app)[method](path)
+
+      expect(res.status).toBe(403)
+      expect(res.body).toEqual({ error: 'Admin access required.' })
+      expect(sendcloudRouteReached).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(SENDCLOUD_REQUESTS)('lets an admin %s %s reach the Sendcloud routes', async (method, path) => {
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reached: true })
+    expect(sendcloudRouteReached).toHaveBeenCalledTimes(1)
   })
 })
 
