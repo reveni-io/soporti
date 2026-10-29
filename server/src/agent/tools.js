@@ -101,11 +101,11 @@ export function buildRepoTools(allowedRepos = null) {
         limit: z
           .number()
           .int()
-          .min(1)
+          .min(0)
           .max(MAX_FILE_LINES)
           .default(DEFAULT_FILE_LINES)
           .describe(
-            `Max lines to return. Default ${DEFAULT_FILE_LINES}, max ${MAX_FILE_LINES}. Only raise it when a targeted window is not enough.`
+            `Max lines to return. Default ${DEFAULT_FILE_LINES}, max ${MAX_FILE_LINES}; 0 means the default. Only raise it when a targeted window is not enough.`
           ),
       }),
       execute: guard(async input => {
@@ -823,16 +823,15 @@ export function buildZendeskTools(userId, writes) {
             'Zendesk search query without `type:ticket`, e.g. "refund status<solved order_by:updated_at sort:desc".'
           ),
         page: z
-          .number()
-          .int()
+          .union([z.number().int(), z.enum([''])])
           .nullable()
           .default(null)
           .describe(
-            'Page of results to fetch (1 to 10); pass `nextPage` from the previous result. Null for the first.'
+            'Page of results to fetch (1 to 10); pass `nextPage` from the previous result. Null or an empty string for the first.'
           ),
       }),
       execute: async input => {
-        const result = await zendesk.searchTickets(userId, input.query, input.page ?? 1)
+        const result = await zendesk.searchTickets(userId, input.query, input.page || 1)
         return JSON.stringify(result)
       },
     }),

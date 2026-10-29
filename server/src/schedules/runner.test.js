@@ -81,6 +81,7 @@ describe('runSchedule', () => {
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ name: 'agent' }), 'Failed payments in the last 24h', {
       maxTurns: 42,
       session: { id: 'session' },
+      toolNotFoundBehavior: 'return_error_to_model',
       errorHandlers: { maxTurns: expect.any(Function) },
     })
   })
@@ -264,7 +265,7 @@ describe('runSchedule', () => {
       expect(run).toHaveBeenCalledWith(
         clonedAgent,
         ['h1', { role: 'user', content: expect.stringContaining('all 42 turns') }],
-        { context: { id: 'ctx' }, maxTurns: 1 }
+        { context: { id: 'ctx' }, maxTurns: 1, toolNotFoundBehavior: 'return_error_to_model' }
       )
       const [, turn] = store.saveTurn.mock.calls[0]
       expect(turn.lastResponseId).toBeNull()

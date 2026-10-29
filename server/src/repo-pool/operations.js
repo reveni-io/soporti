@@ -23,7 +23,9 @@ const MAX_DIFF_BYTES = 50 * 1024 * 1024
 const COMMIT_SHA_RE = /^[0-9a-f]{7,40}$/i
 
 const EXCLUDE_DIRS = ['.git', 'node_modules']
-const GLOB_CHARS_RE = /[*?[]/
+const GLOB_CHARS_RE = /[*?[{]/
+const BRACE_GROUP_RE = /\{([^{}]*)\}/
+const MAX_INCLUDE_CHARS = 128
 
 function excludeDirArgs() {
   return EXCLUDE_DIRS.map(d => `--exclude-dir=${d}`)
@@ -95,7 +97,7 @@ function resolveWindow({ offset, limit, centerLine, contextLines }, totalLines) 
   if (!Number.isFinite(centerLine) || centerLine < 1) {
     return {
       offset: Math.max(0, Number.isFinite(offset) ? Math.floor(offset) : 0),
-      limit: clampInt(limit, 1, MAX_FILE_LINES, DEFAULT_FILE_LINES),
+      limit: clampInt(limit || DEFAULT_FILE_LINES, 1, MAX_FILE_LINES, DEFAULT_FILE_LINES),
     }
   }
 
@@ -207,13 +209,20 @@ async function resolveSearchRoot(localPath, root) {
   return resolveInsideClone(localPath, sanitizePath(root))
 }
 
+function expandBraceGroup(include) {
+  if (!include) return []
+
+  const group = include.match(BRACE_GROUP_RE)
+  if (!group) return [include]
+
+  return group[1].split(',').map(option => include.replace(group[0], option))
+}
+
 function buildGrepArgs(searchRoot, query, { include, caseInsensitive, regex }) {
   const args = ['-r', '-n', '-H', '-I', ...excludeDirArgs()]
   if (caseInsensitive) args.push('-i')
   args.push(regex ? '-E' : '-F')
-  if (include) {
-    args.push(`--include=${include.slice(0, 128)}`)
-  }
+  args.push(...expandBraceGroup(include).map(pattern => `--include=${pattern.slice(0, MAX_INCLUDE_CHARS)}`))
   args.push(...excludeEnvArgs())
   args.push('-e', query, searchRoot)
   return args

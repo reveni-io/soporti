@@ -41,6 +41,7 @@ import {
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
   REVIEW_TURN_LIMIT_ERROR,
+  TOOL_NOT_FOUND_BEHAVIOR,
 } from '../constants.js'
 import { renderNumberedPatch } from './diff.js'
 import { buildTurnLimitMessage } from './prompt.js'
@@ -301,7 +302,7 @@ export async function runReviewAgent({
       const result = await run(
         agent.clone({ modelSettings: finalAnswerModelSettings }),
         [...runData.history, { role: 'user', content: buildTurnLimitMessage(maxTurns) }],
-        { context, maxTurns: WRAP_UP_TURNS, signal }
+        { context, maxTurns: WRAP_UP_TURNS, signal, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR }
       )
       wrappedUp = true
 
@@ -319,7 +320,12 @@ export async function runReviewAgent({
       { channel, subject, failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR) },
       () =>
         traceAgentRun({ sessionId: subject, question: `${name} on ${subject}` }, () =>
-          run(agent, input, { maxTurns, signal, errorHandlers: { maxTurns: wrapUp } })
+          run(agent, input, {
+            maxTurns,
+            signal,
+            toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
+            errorHandlers: { maxTurns: wrapUp },
+          })
         )
     )
 

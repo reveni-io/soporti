@@ -2,7 +2,7 @@ import { Agent, run } from '@openai/agents'
 import config from '../config.js'
 import { resolveModelForAgent } from '../llm/model.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_PR_MENTION } from '../constants.js'
+import { AGENT_CHANNEL_PR_MENTION, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 import { buildRepoTools, buildDataTools } from './agent.js'
 import { inline } from './context.js'
 import { buildMentionInstructions } from './prompt.js'
@@ -68,7 +68,9 @@ export async function runMentionAgent({ mention, pr, thread, rootPath = null }) 
 
   const trace = { sessionId: subject, question: mention.commentBody }
   const { result } = await trackAgentRun({ channel: AGENT_CHANNEL_PR_MENTION, subject }, () =>
-    traceAgentRun(trace, () => run(agent, input, { maxTurns: config.agent.maxIterations }))
+    traceAgentRun(trace, () =>
+      run(agent, input, { maxTurns: config.agent.maxIterations, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR })
+    )
   )
 
   return result.finalOutput

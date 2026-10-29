@@ -331,7 +331,7 @@ You have tools to read **the user's own** Granola meeting notes — the notes of
   shopify: buildShopifySection,
 }
 
-const SHOPIFY_STORE_LOOKUP_WITH_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name or a domain, resolve it yourself FIRST: use the database tools to search the stores table by name or domain (case-insensitive, partial match) and get the store's ID (its UUID when the table has one).
+const SHOPIFY_STORE_LOOKUP_WITH_DATABASE = `- Users usually know the store by its commercial NAME ("Acme"), not its domain or ID. Do NOT ask them for a domain/ID — they rarely know it. When you only have a name or a domain, resolve it yourself FIRST: find the table that holds the stores with list_database_tables (its name depends on the database, so never assume it is called \`stores\`), search it by name or domain (case-insensitive, partial match) and get the store's ID (its UUID when the table has one).
 - If the search returns exactly one store, proceed with it and mention which store you resolved. If it returns several, show them (name, domain, ID) and ask the user to pick one. If it returns none, say so and ask for more details.
 - The same applies when a Shopify tool fails to find the store: resolve the identifier in the database before asking the user.`
 

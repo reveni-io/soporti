@@ -291,6 +291,17 @@ describe('getFileContents', () => {
   })
 
   it.each([
+    { limit: 0, lines: 10 },
+    { limit: 3, lines: 3 },
+  ])('reads $lines lines when limit is $limit', async ({ limit, lines }) => {
+    readFile.mockResolvedValue(Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join('\n'))
+
+    const result = await getFileContents('owner/repo', 'a.js', { centerLine: 0, offset: 0, limit })
+
+    expect(result.content.split('\n')).toHaveLength(lines)
+  })
+
+  it.each([
     {
       kind: 'a directory',
       readCode: 'EISDIR',
@@ -440,6 +451,8 @@ describe('searchCode', () => {
     { pathGlob: './apps/orders/*.py', root: '/tmp/repos/owner--repo/apps/orders', include: '--include=*.py' },
     { pathGlob: 'apps/', root: '/tmp/repos/owner--repo/apps', include: null },
     { pathGlob: 'apps/**', root: '/tmp/repos/owner--repo/apps', include: null },
+    { pathGlob: 'apps/{orders,api}/**/*.py', root: '/tmp/repos/owner--repo/apps', include: '--include=*.py' },
+    { pathGlob: '{src,lib}/*.js', root: '/tmp/repos/owner--repo', include: '--include=*.js' },
     { pathGlob: '*/models.py', root: '/tmp/repos/owner--repo', include: '--include=models.py' },
     { pathGlob: 'src/api/handler.js', root: '/tmp/repos/owner--repo/src/api/handler.js', include: null },
   ])('searches $pathGlob from $root', async ({ pathGlob, root, include }) => {
@@ -454,6 +467,24 @@ describe('searchCode', () => {
     expect(capturedArgs.at(-1)).toBe(root)
     expect(capturedArgs.find(arg => arg.startsWith('--include=')) ?? null).toBe(include)
     expect(result.items[0].path).toBe('apps/orders/m.py')
+  })
+
+  it.each([
+    { pathGlob: 'src/{api,lib}.js', root: '/tmp/repos/owner--repo/src', includes: ['api.js', 'lib.js'] },
+    { pathGlob: 'src/**/*.{js,ts}', root: '/tmp/repos/owner--repo/src', includes: ['*.js', '*.ts'] },
+    { pathGlob: '*.{py}', root: '/tmp/repos/owner--repo', includes: ['*.py'] },
+    { pathGlob: 'src/*.js', root: '/tmp/repos/owner--repo/src', includes: ['*.js'] },
+  ])('gives grep one include per brace option of $pathGlob', async ({ pathGlob, root, includes }) => {
+    let capturedArgs
+    execFile.mockImplementation((cmd, args, opts, cb) => {
+      capturedArgs = args
+      cb(null, { stdout: '', stderr: '' })
+    })
+
+    await searchCode('owner/repo', 'def', { pathGlob })
+
+    expect(capturedArgs.at(-1)).toBe(root)
+    expect(capturedArgs.filter(arg => arg.startsWith('--include='))).toEqual(includes.map(name => `--include=${name}`))
   })
 
   it.each([

@@ -214,6 +214,7 @@ describe('executeAskSoporti', () => {
       stream: true,
       maxTurns: expect.any(Number),
       signal,
+      toolNotFoundBehavior: 'return_error_to_model',
       session: { id: 'session' },
       previousResponseId: undefined,
     })

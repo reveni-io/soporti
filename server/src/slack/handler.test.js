@@ -323,6 +323,7 @@ describe('processMessage', () => {
 
     expect(result.text).toBe('Hello')
     expect(run.mock.calls[1][2].previousResponseId).toBeUndefined()
+    expect(run.mock.calls[1][2].toolNotFoundBehavior).toBe('return_error_to_model')
     expect(recordAgentRun).toHaveBeenCalledWith(expect.objectContaining({ channel: 'slack', status: 'ok' }))
   })
 

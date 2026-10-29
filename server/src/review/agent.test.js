@@ -400,6 +400,7 @@ describe('runReviewAgent', () => {
     expect(optionsArg).toEqual({
       maxTurns: 42,
       signal: controller.signal,
+      toolNotFoundBehavior: 'return_error_to_model',
       errorHandlers: { maxTurns: expect.any(Function) },
     })
   })
@@ -501,7 +502,12 @@ describe('runReviewAgent', () => {
       ...HISTORY,
       { role: 'user', content: expect.stringMatching(/^## Turn limit reached\n\nYou have used all 42 turns/) },
     ])
-    expect(wrapUpOptions).toEqual({ context, maxTurns: 1, signal: controller.signal })
+    expect(wrapUpOptions).toEqual({
+      context,
+      maxTurns: 1,
+      signal: controller.signal,
+      toolNotFoundBehavior: 'return_error_to_model',
+    })
     expect(wrapUpOptions.context).toBe(context)
     expect(options.logger.warn).not.toHaveBeenCalled()
   })
