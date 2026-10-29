@@ -54,7 +54,7 @@ just re-selecting the other one — nothing is cleared.
 | Example models           | `gpt-4o`, `gpt-5.2-codex`                     | `claude-opus-5`, `claude-sonnet-5`                |
 | Conversation state       | Kept by OpenAI (Responses API)                | None — the Messages API is stateless              |
 | Where history lives      | OpenAI, keyed by a stored response id         | This app's `conversation_items` table             |
-| Context compaction       | Yes, via the Responses compaction session     | Not used (the models carry a 1M-token window)     |
+| Context compaction       | Yes, via the Responses compaction session     | Old tool results cleared server-side past 600K input tokens (history kept intact) |
 | Transient-error retries  | The `openai` client retries                   | The agent runner retries (429/5xx and network)    |
 
 Two consequences worth knowing before switching:
