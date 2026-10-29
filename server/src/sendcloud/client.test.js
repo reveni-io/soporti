@@ -239,6 +239,14 @@ describe('getParcel', () => {
     await expect(getParcel(null, '501')).rejects.toThrow(message)
   })
 
+  it('releases the body of a failed response', async () => {
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    global.fetch.mockResolvedValue({ ok: false, status: 500, body: { cancel } })
+
+    await expect(getParcel(null, '501')).rejects.toThrow('(500)')
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
   it('never hands the body of an upstream error to the model', async () => {
     global.fetch.mockResolvedValue({
       ok: false,
@@ -432,7 +440,22 @@ describe('listReturns', () => {
       account: 'Acme EU',
       from: '2026-09-29',
       to: '2026-10-29',
-      returns: [MAPPED_RETURN],
+      returns: [
+        {
+          status: 'open',
+          parcelStatus: 'delivered',
+          parcelStatusAt: '2026-10-04T23:30:00Z',
+          orderNumber: '1042',
+          trackingNumber: 'RET123',
+          trackingUrl: 'https://tracking.example/RET123',
+          reason: 'Too small',
+          refundType: 'money',
+          customer: 'Carla Customer',
+          createdAt: '2026-10-02T09:00:00Z',
+          deliveredAt: null,
+          items: [{ description: 'Sneakers', quantity: 1, sku: 'SNK-42' }],
+        },
+      ],
       truncated: false,
       nextCursor: null,
     })
@@ -466,6 +489,34 @@ describe('listReturns', () => {
   ])('refuses the window %j', async (options, message) => {
     await expect(listReturns(null, options)).rejects.toThrow(message)
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('keeps contact details, what the customer wrote and the full history out of the list', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            ...RETURN,
+            from_address: { ...RETURN.from_address, email: 'carla@example.com', phone_number: '+34600000000' },
+            label_cost: { value: '4.95', currency: 'EUR' },
+            shipping_option: { code: 'postnl:standard' },
+          },
+        ],
+        next: null,
+      })
+    )
+
+    const [listed] = (await listReturns(null)).returns
+    const text = JSON.stringify(listed)
+
+    expect(text).not.toContain('carla@example.com')
+    expect(text).not.toContain('+34600000000')
+    expect(text).not.toContain('Arrived with a crack in the sole')
+    expect(text).not.toContain('Refund to card')
+    expect(text).not.toContain('Acme Warehouse')
+    expect(text).not.toContain('postnl:standard')
+    expect(text).not.toContain('4.95')
+    expect(listed).not.toHaveProperty('statusHistory')
   })
 
   it('never makes up an id for a listed return, since the API sends none', async () => {

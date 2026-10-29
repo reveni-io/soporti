@@ -53,7 +53,10 @@ async function request(account, path) {
       headers: { Authorization: authorization(account), Accept: 'application/json' },
     })
 
-    if (!res.ok) throw new Error(describeFailure(res.status, path))
+    if (!res.ok) {
+      await res.body?.cancel()
+      throw new Error(describeFailure(res.status, path))
+    }
 
     return res.json()
   } finally {
@@ -252,6 +255,29 @@ function toReturnItem(item) {
   }
 }
 
+function toReturnItemSummary(item) {
+  return { description: item.description ?? null, quantity: item.quantity ?? null, sku: item.sku || null }
+}
+
+function toReturnSummary(item) {
+  const [latest] = newestFirst(item.status_history, 'carrier_update_timestamp')
+
+  return {
+    status: item.status ?? null,
+    parcelStatus: latest?.parent_status ?? null,
+    parcelStatusAt: latest?.carrier_update_timestamp ?? null,
+    orderNumber: item.order_number || null,
+    trackingNumber: item.tracking_number || null,
+    trackingUrl: item.tracking_url || null,
+    reason: item.reason?.description ?? null,
+    refundType: item.refund?.refund_type ?? null,
+    customer: item.from_address?.name ?? null,
+    createdAt: item.created_at ?? null,
+    deliveredAt: item.delivered_at_iso ?? null,
+    items: (item.parcel_items || []).map(toReturnItemSummary),
+  }
+}
+
 function toReturn(item) {
   const history = newestFirst(item.status_history, 'carrier_update_timestamp')
 
@@ -388,7 +414,7 @@ export async function listReturns(accountName, options = {}) {
     account: account.name,
     from,
     to,
-    returns: (data.data || []).map(toReturn),
+    returns: (data.data || []).map(toReturnSummary),
     truncated: Boolean(nextCursor),
     nextCursor,
   }
