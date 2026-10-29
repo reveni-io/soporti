@@ -453,7 +453,14 @@ describe('listReturns', () => {
           customer: 'Carla Customer',
           createdAt: '2026-10-02T09:00:00Z',
           deliveredAt: null,
-          items: [{ description: 'Sneakers', quantity: 1, sku: 'SNK-42' }],
+          items: [
+            {
+              description: 'Sneakers',
+              quantity: 1,
+              sku: 'SNK-42',
+              customerMessage: 'Arrived with a crack in the sole',
+            },
+          ],
         },
       ],
       truncated: false,
@@ -491,7 +498,7 @@ describe('listReturns', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('keeps contact details, what the customer wrote and the full history out of the list', async () => {
+  it('keeps contact details, the refund message and the full history out of the list', async () => {
     global.fetch.mockResolvedValue(
       jsonResponse({
         data: [
@@ -511,12 +518,34 @@ describe('listReturns', () => {
 
     expect(text).not.toContain('carla@example.com')
     expect(text).not.toContain('+34600000000')
-    expect(text).not.toContain('Arrived with a crack in the sole')
     expect(text).not.toContain('Refund to card')
     expect(text).not.toContain('Acme Warehouse')
     expect(text).not.toContain('postnl:standard')
     expect(text).not.toContain('4.95')
     expect(listed).not.toHaveProperty('statusHistory')
+  })
+
+  it('caps what the customer wrote on a listed return', async () => {
+    const longMessage = 'x'.repeat(600)
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        data: [
+          {
+            ...RETURN,
+            parcel_items: [
+              { description: 'Sneakers', return_message: longMessage },
+              { description: 'Socks', return_message: '' },
+            ],
+          },
+        ],
+        next: null,
+      })
+    )
+
+    const [listed] = (await listReturns(null)).returns
+
+    expect(listed.items[0].customerMessage).toBe(`${'x'.repeat(500)}…`)
+    expect(listed.items[1].customerMessage).toBeNull()
   })
 
   it('never makes up an id for a listed return, since the API sends none', async () => {

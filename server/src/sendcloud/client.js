@@ -4,6 +4,8 @@ const API_BASE_URL = 'https://panel.sendcloud.sc/api'
 const REQUEST_TIMEOUT_MS = 15_000
 const RETURNS_PAGE_SIZE = 40
 const DEFAULT_RETURNS_WINDOW_DAYS = 30
+const MAX_LISTED_CUSTOMER_MESSAGE_CHARS = 500
+const TRUNCATION_MARK = '…'
 const DAY_MS = 86_400_000
 const NUMERIC_ID_RE = /^\d{1,15}$/
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9-]{1,64}$/
@@ -255,8 +257,20 @@ function toReturnItem(item) {
   }
 }
 
+function capCustomerMessage(message) {
+  if (!message) return null
+  if (message.length <= MAX_LISTED_CUSTOMER_MESSAGE_CHARS) return message
+
+  return `${message.slice(0, MAX_LISTED_CUSTOMER_MESSAGE_CHARS)}${TRUNCATION_MARK}`
+}
+
 function toReturnItemSummary(item) {
-  return { description: item.description ?? null, quantity: item.quantity ?? null, sku: item.sku || null }
+  return {
+    description: item.description ?? null,
+    quantity: item.quantity ?? null,
+    sku: item.sku || null,
+    customerMessage: capCustomerMessage(item.return_message),
+  }
 }
 
 function toReturnSummary(item) {
