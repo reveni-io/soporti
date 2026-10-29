@@ -22,6 +22,15 @@ describe('extractUsage', () => {
     })
   })
 
+  it('skips a cache detail that is a nested breakdown instead of a number', () => {
+    const usage = extractUsage({
+      inputTokensDetails: [{ cached_tokens: { text: 40 } }, { cached_tokens: 300, cache_write_tokens: '7' }],
+    })
+
+    expect(usage.cachedInputTokens).toBe(300)
+    expect(usage.cacheWriteTokens).toBe(0)
+  })
+
   it('defaults every missing counter to zero', () => {
     expect(extractUsage({})).toEqual({
       requests: 0,
