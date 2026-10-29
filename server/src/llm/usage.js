@@ -4,7 +4,6 @@ export const CACHE_WRITE_KEY = 'cache_write_tokens'
 function sumDetail(details, key) {
   if (!Array.isArray(details)) return 0
 
-  // Detail values can be nested breakdown objects, so only plain numbers are summed.
   return details.reduce((total, entry) => total + (typeof entry?.[key] === 'number' ? entry[key] : 0), 0)
 }
 

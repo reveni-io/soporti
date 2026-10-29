@@ -143,8 +143,6 @@ await import('./index.js')
 
 listenSpy.mockRestore()
 
-// index.js boots once, at import, and vitest clears mock history before every test,
-// so the boot calls are copied here for the module-level setup tests to read.
 const { setupSecurity } = await import('./middleware/security.js')
 const { startSlackBot } = await import('./slack/bot.js')
 const { setupReviewWebhook } = await import('./review/index.js')
