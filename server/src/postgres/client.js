@@ -8,6 +8,7 @@ const UNDEFINED_COLUMN_CODE = '42703'
 const UNDEFINED_TABLE_CODE = '42P01'
 const QUERY_CANCELED_CODE = '57014'
 const MISSING_RELATION_RE = /relation "([^"]+)" does not exist/
+const TRAILING_PLURAL_S_RE = /(?<=.{3})s$/i
 const STATEMENT_TIMEOUT_RE = /statement timeout/
 const MAX_SIMILAR_TABLES = 10
 const STATEMENT_TIMEOUT_HINT =
@@ -256,7 +257,7 @@ async function findTablesNamedLike(name) {
 }
 
 async function undefinedTableError(err) {
-  const missing = err.message.match(MISSING_RELATION_RE)?.[1]?.split('.').at(-1)
+  const missing = err.message.match(MISSING_RELATION_RE)?.[1]?.split('.').at(-1)?.replace(TRAILING_PLURAL_S_RE, '')
   if (!missing) return err
 
   const tables = await findTablesNamedLike(missing)
