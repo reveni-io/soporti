@@ -4,7 +4,7 @@ export const CACHE_WRITE_KEY = 'cache_write_tokens'
 function sumDetail(details, key) {
   if (!Array.isArray(details)) return 0
 
-  return details.reduce((total, entry) => total + (entry?.[key] ?? 0), 0)
+  return details.reduce((total, entry) => total + (typeof entry?.[key] === 'number' ? entry[key] : 0), 0)
 }
 
 export function extractUsage(usage) {

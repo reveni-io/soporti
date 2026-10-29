@@ -1,6 +1,6 @@
 {
   "name": "soporti",
-  "version": "1.65.0",
+  "version": "1.65.1",
   "private": true,
   "type": "module",
   "description": "AI-powered code assistant that helps support and engineering teams understand and navigate code repositories.",
@@ -15,7 +15,7 @@
   "license": "Apache-2.0",
   "author": "Reveni",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
@@ -35,7 +35,7 @@
     "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix client"
   },
   "devDependencies": {
-    "concurrently": "^9.2.5",
+    "concurrently": "^10.0.6",
     "jscpd": "^5.4.2",
     "knip": "^6.43.0",
     "prettier": "^3.9.10"

@@ -143,6 +143,19 @@ await import('./index.js')
 
 listenSpy.mockRestore()
 
+const { setupSecurity } = await import('./middleware/security.js')
+const { startSlackBot } = await import('./slack/bot.js')
+const { setupReviewWebhook } = await import('./review/index.js')
+const chatRoute = (await import('./routes/chat.js')).default
+const conversationsRoute = (await import('./routes/conversations.js')).default
+const { registerLangfuseTracing } = await import('./langfuse/tracing.js')
+const bootCalls = new Map(
+  [setupSecurity, startSlackBot, setupReviewWebhook, chatRoute, conversationsRoute, registerLangfuseTracing].map(fn => [
+    fn,
+    [...fn.mock.calls],
+  ])
+)
+
 const authRouter = (await import('./routes/auth.js')).default
 
 const app = express()
@@ -228,37 +241,30 @@ describe('index.js app setup', () => {
 })
 
 describe('module-level setup', () => {
-  it('called setupSecurity during initialization', async () => {
-    const { setupSecurity } = await import('./middleware/security.js')
-    expect(setupSecurity).toHaveBeenCalled()
+  it('called setupSecurity during initialization', () => {
+    expect(bootCalls.get(setupSecurity).length).toBeGreaterThan(0)
   })
 
-  it('startSlackBot was given the conversation store during initialization', async () => {
-    const { startSlackBot } = await import('./slack/bot.js')
-    expect(startSlackBot).toHaveBeenCalledWith(expect.anything())
+  it('startSlackBot was given the conversation store during initialization', () => {
+    expect(bootCalls.get(startSlackBot)).toEqual([[expect.anything()]])
   })
 
-  it('setupReviewWebhook was given the app before other middleware', async () => {
-    const { setupReviewWebhook } = await import('./review/index.js')
-    expect(setupReviewWebhook).toHaveBeenCalledTimes(1)
-    expect(setupReviewWebhook.mock.calls[0][0]).toBeDefined()
+  it('setupReviewWebhook was given the app before other middleware', () => {
+    expect(bootCalls.get(setupReviewWebhook)).toHaveLength(1)
+    expect(bootCalls.get(setupReviewWebhook)[0][0]).toBeDefined()
   })
 
-  it('chat route factory was called with a conversation store', async () => {
-    const chatRoute = (await import('./routes/chat.js')).default
-    expect(chatRoute).toHaveBeenCalledTimes(1)
-    expect(chatRoute.mock.calls[0][0]).toBeDefined()
+  it('chat route factory was called with a conversation store', () => {
+    expect(bootCalls.get(chatRoute)).toHaveLength(1)
+    expect(bootCalls.get(chatRoute)[0][0]).toBeDefined()
   })
 
-  it('conversations route factory was called with a conversation store', async () => {
-    const conversationsRoute = (await import('./routes/conversations.js')).default
-    expect(conversationsRoute).toHaveBeenCalledTimes(1)
-    expect(conversationsRoute.mock.calls[0][0]).toBeDefined()
+  it('conversations route factory was called with a conversation store', () => {
+    expect(bootCalls.get(conversationsRoute)).toHaveLength(1)
+    expect(bootCalls.get(conversationsRoute)[0][0]).toBeDefined()
   })
 
-  it('registers the Langfuse trace processor once at boot, replacing the default OpenAI exporter', async () => {
-    const { registerLangfuseTracing } = await import('./langfuse/tracing.js')
-    expect(registerLangfuseTracing).toHaveBeenCalledTimes(1)
-    expect(registerLangfuseTracing).toHaveBeenCalledWith()
+  it('registers the Langfuse trace processor once at boot, replacing the default OpenAI exporter', () => {
+    expect(bootCalls.get(registerLangfuseTracing)).toEqual([[]])
   })
 })

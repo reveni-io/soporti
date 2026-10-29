@@ -24,6 +24,13 @@ updates:
       client-minor-and-patch:
         patterns: ["*"]
         update-types: [minor, patch]
+    # eslint-plugin-react still declares a peer of eslint ^9, so an eslint 10 PR
+    # cannot install; drop this once the plugin supports eslint 10.
+    ignore:
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: "@eslint/js"
+        update-types: [version-update:semver-major]
   - package-ecosystem: docker
     directory: /server
     schedule:

@@ -36,9 +36,9 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
@@ -49,9 +49,10 @@ jobs:
       # Pages artifact deploys are served as-is (no Jekyll), but this is a cheap
       # guard against any future underscore-prefixed asset paths.
       - run: touch dist-landing/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: client/dist-landing
+          include-hidden-files: true
 
   deploy:
     name: Deploy to Pages
@@ -62,4 +63,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
