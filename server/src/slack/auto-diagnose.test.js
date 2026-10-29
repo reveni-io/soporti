@@ -68,7 +68,7 @@ describe('diagnoseTicket', () => {
     const [, input, opts] = run.mock.calls[0]
     expect(typeof input).toBe('string')
     expect(input).toContain('roto')
-    expect(opts).toMatchObject({ maxTurns: 7 })
+    expect(opts).toMatchObject({ maxTurns: 7, toolNotFoundBehavior: 'return_error_to_model' })
   })
 
   it('passes screenshots as input_image content', async () => {

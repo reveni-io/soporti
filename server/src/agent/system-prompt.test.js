@@ -344,7 +344,7 @@ describe('buildBasePrompt', () => {
     const withDatabase = buildBasePrompt(buildSourcePolicy(['integration:shopify', 'integration:postgres']), {
       configured,
     })
-    expect(withDatabase).toContain('use the database tools to search the stores table')
+    expect(withDatabase).toContain('find the table that holds the stores with list_database_tables')
     expect(withDatabase).toContain("get the store's ID (its UUID when the table has one)")
     expect(withDatabase).toContain('Fetch the same data from the backend using `query_database`')
 

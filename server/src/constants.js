@@ -83,6 +83,8 @@ export const MAX_FIND_RESULTS = 200
 export const REASONING_EFFORT_LEVELS = ['low', 'medium', 'high']
 export const DEFAULT_REASONING_EFFORT = 'medium'
 
+export const TOOL_NOT_FOUND_BEHAVIOR = 'return_error_to_model'
+
 export const AGENT_CHANNEL_WEB = 'web'
 export const AGENT_CHANNEL_SLACK = 'slack'
 export const AGENT_CHANNEL_SCHEDULE = 'schedule'

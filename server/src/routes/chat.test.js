@@ -177,6 +177,7 @@ describe('POST /api/chat', () => {
     expect(events.some(e => e.type === 'session_id')).toBe(true)
     expect(events.some(e => e.type === 'text_delta' && e.text === 'Hello')).toBe(true)
     expect(events.some(e => e.type === 'done')).toBe(true)
+    expect(run.mock.calls[0][2].toolNotFoundBehavior).toBe('return_error_to_model')
   })
 
   function streamEvents(res) {

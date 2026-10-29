@@ -7,7 +7,7 @@ import { searchSimilarCases } from '../knowledge/client.js'
 import { redactSecrets } from '../review/output-guard.js'
 import { formatUsage } from '../llm/usage.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_AUTO_DIAGNOSE } from '../constants.js'
+import { AGENT_CHANNEL_AUTO_DIAGNOSE, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 import config from '../config.js'
 import { buildDiagnosisPrompt, buildTicketText } from './diagnose-prompt.js'
 
@@ -32,7 +32,7 @@ export async function diagnoseTicket(ticket, { images = [] } = {}) {
     { channel: AGENT_CHANNEL_AUTO_DIAGNOSE, subject: ticket?.id ?? null },
     () =>
       traceAgentRun({ sessionId: ticket?.id, question: ticket?.title }, () =>
-        run(agent, input, { maxTurns: config.agent.maxIterations })
+        run(agent, input, { maxTurns: config.agent.maxIterations, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR })
       )
   )
 

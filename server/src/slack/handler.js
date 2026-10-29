@@ -9,7 +9,7 @@ import { upsertSlackUser, getCustomInstructions } from '../db/users.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { UNKNOWN_TOOL, toolNames } from '../agent/run-items.js'
 import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
-import { AGENT_CHANNEL_SLACK, RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
+import { AGENT_CHANNEL_SLACK, RUN_STATUS_ERROR, RUN_STATUS_OK, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 
 function log(icon, ...args) {
   const timestamp = new Date().toISOString().slice(11, 23)
@@ -132,6 +132,7 @@ export async function processMessage({
       run(agent, agentInput, {
         stream: true,
         maxTurns: config.agent.maxIterations,
+        toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
         session,
         previousResponseId: prevResponseId,
       })

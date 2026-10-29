@@ -9,7 +9,7 @@ import { getCustomInstructions } from '../db/users.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { toolCallsFromResult } from '../agent/run-items.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_SCHEDULE, EMPTY_ANSWER_ERROR } from '../constants.js'
+import { AGENT_CHANNEL_SCHEDULE, EMPTY_ANSWER_ERROR, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 
 const WRAP_UP_TURNS = 1
 
@@ -58,7 +58,7 @@ export async function runSchedule(schedule, conversationStore) {
         const wrapUpResult = await run(
           agent.clone({ modelSettings: finalAnswerModelSettings }),
           [...runData.history, { role: 'user', content: buildTurnLimitPrompt(maxTurns) }],
-          { context, maxTurns: WRAP_UP_TURNS }
+          { context, maxTurns: WRAP_UP_TURNS, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR }
         )
         wrappedUp = true
 
@@ -79,7 +79,12 @@ export async function runSchedule(schedule, conversationStore) {
       },
       () =>
         traceAgentRun({ sessionId: conversationId, userId: schedule.userId, question: schedule.question }, () =>
-          run(agent, agentInput, { maxTurns, session, errorHandlers: { maxTurns: wrapUp } })
+          run(agent, agentInput, {
+            maxTurns,
+            session,
+            toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
+            errorHandlers: { maxTurns: wrapUp },
+          })
         )
     )
 

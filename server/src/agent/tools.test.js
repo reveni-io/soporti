@@ -336,6 +336,12 @@ describe('buildRepoTools repo guard', () => {
     expect(getFile.parameters.parse({ repo: 'org/app', path: 'a.js', centerLine: 0 }).centerLine).toBe(0)
   })
 
+  it('get_file_contents accepts limit 0 as "the default"', () => {
+    const getFile = buildRepoTools().find(t => t.name === 'get_file_contents')
+
+    expect(getFile.parameters.parse({ repo: 'org/app', path: 'a.js', limit: 0 }).limit).toBe(0)
+  })
+
   it('find_files defaults to a modest result count while search_code keeps full coverage', () => {
     const tools = buildRepoTools()
     const find = tools.find(t => t.name === 'find_files')
@@ -1344,6 +1350,16 @@ describe('buildZendeskTools', () => {
     await searchTickets.execute({ query: 'tags:refund', page: 2 })
 
     expect(zendeskMod.searchTickets).toHaveBeenCalledWith(7, 'tags:refund', 2)
+  })
+
+  it('reads an empty page from the model as the first page', async () => {
+    const zendeskMod = await import('../zendesk/client.js')
+    zendeskMod.searchTickets.mockResolvedValue({ query: 'tags:refund', count: 0, tickets: [], truncated: false })
+
+    const [, searchTickets] = buildZendeskTools(7, false)
+    await searchTickets.execute(searchTickets.parameters.parse({ query: 'tags:refund', page: '' }))
+
+    expect(zendeskMod.searchTickets).toHaveBeenCalledWith(7, 'tags:refund', 1)
   })
 
   it('lists the views of the user the tools were built for', async () => {
