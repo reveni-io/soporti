@@ -26,6 +26,7 @@ import {
   RUN_STATUS_ERROR,
   RUN_STATUS_OK,
   UUID_RE,
+  TOOL_NOT_FOUND_BEHAVIOR,
 } from '../constants.js'
 
 const router = Router()
@@ -315,6 +316,7 @@ async function runAgentTurn(agent, agentInput, { session, previousResponseId, tu
     run(agent, agentInput, {
       stream: true,
       maxTurns: config.agent.maxIterations,
+      toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
       session,
       previousResponseId,
     })

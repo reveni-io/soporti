@@ -8,7 +8,7 @@ import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { UNKNOWN_TOOL } from '../agent/run-items.js'
-import { AGENT_CHANNEL_MCP, EMPTY_ANSWER_ERROR } from '../constants.js'
+import { AGENT_CHANNEL_MCP, EMPTY_ANSWER_ERROR, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 
 export function resolveScopedSources(requested, scope) {
   const requestedList = Array.isArray(requested) ? requested : []
@@ -89,6 +89,7 @@ export async function executeAskSoporti({
         stream: true,
         maxTurns: config.agent.maxIterations,
         signal,
+        toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
         session: conversation.session,
         previousResponseId,
       })

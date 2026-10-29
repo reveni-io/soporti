@@ -441,3 +441,102 @@ describe('connection rotation', () => {
     expect(mockEnd).not.toHaveBeenCalled()
   })
 })
+
+describe('runQuery on a missing table', () => {
+  function undefinedTable(name) {
+    return Object.assign(new Error(`relation "${name}" does not exist`), { code: '42P01' })
+  }
+
+  beforeEach(() => {
+    mockQuery.mockReset()
+    mockClientQuery.mockReset()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it.each([
+    {
+      kind: 'lists the tables whose name contains the missing one',
+      error: undefinedTable('stores'),
+      lookup: {
+        rows: [
+          { table_schema: 'public', table_name: 'stores_store' },
+          { table_schema: 'shop', table_name: 'accounts_stores' },
+        ],
+      },
+      searched: 'stores',
+      message:
+        'relation "stores" does not exist Tables whose name contains "stores": public.stores_store, shop.accounts_stores.',
+    },
+    {
+      kind: 'searches by the table part of a schema-qualified name',
+      error: undefinedTable('public.store'),
+      lookup: { rows: [{ table_schema: 'public', table_name: 'stores_store' }] },
+      searched: 'store',
+      message: 'relation "public.store" does not exist Tables whose name contains "store": public.stores_store.',
+    },
+    {
+      kind: 'points at list_database_tables when no table matches',
+      error: undefinedTable('nope'),
+      lookup: { rows: [] },
+      searched: 'nope',
+      message: 'relation "nope" does not exist No table name contains "nope": list them with list_database_tables.',
+    },
+  ])('$kind', async ({ error, lookup, searched, message }) => {
+    stubReadOnlyQuery(error)
+    mockQuery.mockResolvedValueOnce(lookup)
+
+    const failure = await runQuery('SELECT * FROM stores').catch(err => err)
+
+    expect(failure.message).toBe(message)
+    expect(failure.code).toBe('42P01')
+    expect(failure.cause).toBe(error)
+    expect(mockQuery).toHaveBeenCalledTimes(1)
+    expect(mockQuery.mock.calls[0][1][0]).toBe(searched)
+  })
+
+  it('leaves a missing FROM-clause entry unchanged', async () => {
+    const alias = Object.assign(new Error('missing FROM-clause entry for table "o"'), { code: '42P01' })
+    stubReadOnlyQuery(alias)
+
+    await expect(runQuery('SELECT o.id FROM orders')).rejects.toBe(alias)
+    expect(mockQuery).not.toHaveBeenCalled()
+  })
+
+  it('keeps the hint short when the table lookup itself fails', async () => {
+    stubReadOnlyQuery(undefinedTable('stores'))
+    mockQuery.mockRejectedValueOnce(new Error('permission denied'))
+
+    const failure = await runQuery('SELECT * FROM stores').catch(err => err)
+
+    expect(failure.message).toBe(
+      'relation "stores" does not exist No table name contains "stores": list them with list_database_tables.'
+    )
+  })
+})
+
+describe('runQuery cancelled by the database', () => {
+  beforeEach(() => {
+    mockQuery.mockReset()
+    mockClientQuery.mockReset()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('tells the agent how to narrow a query that hit the statement timeout', async () => {
+    const timeout = Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    stubReadOnlyQuery(timeout)
+
+    const failure = await runQuery("SELECT * FROM events WHERE type ILIKE '%refund%'").catch(err => err)
+
+    expect(failure.message).toMatch(/^canceling statement due to statement timeout The query ran longer/)
+    expect(failure.code).toBe('57014')
+    expect(failure.cause).toBe(timeout)
+    expect(mockQuery).not.toHaveBeenCalled()
+  })
+
+  it('leaves any other cancellation unchanged', async () => {
+    const cancelled = Object.assign(new Error('canceling statement due to user request'), { code: '57014' })
+    stubReadOnlyQuery(cancelled)
+
+    await expect(runQuery('SELECT 1')).rejects.toBe(cancelled)
+  })
+})

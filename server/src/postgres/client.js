@@ -5,6 +5,13 @@ const { Pool } = pg
 
 const LOG_PREFIX = '[postgres]'
 const UNDEFINED_COLUMN_CODE = '42703'
+const UNDEFINED_TABLE_CODE = '42P01'
+const QUERY_CANCELED_CODE = '57014'
+const MISSING_RELATION_RE = /relation "([^"]+)" does not exist/
+const STATEMENT_TIMEOUT_RE = /statement timeout/
+const MAX_SIMILAR_TABLES = 10
+const STATEMENT_TIMEOUT_HINT =
+  'The query ran longer than the database allows. Narrow it: filter on indexed columns such as ids or a range on a date column, avoid ILIKE or leading wildcards on large tables, and split a large join into smaller queries.'
 const SYSTEM_SCHEMAS = ['information_schema', 'pg_catalog', 'pg_toast']
 const MAX_SUGGESTED_TABLES = 5
 const IDENTIFIER_RE = /[a-z_][a-z0-9_$]*/g
@@ -217,11 +224,58 @@ function describeColumns(tables) {
   return `Columns of the tables in this query: ${listed}.`
 }
 
-async function undefinedColumnError(err, sql) {
-  const tables = await describeTablesInQuery(sql)
-  const message = [err.message, err.hint, describeColumns(tables)].filter(Boolean).join(' ')
+function withHint(err, hint) {
+  const message = [err.message, err.hint, hint].filter(Boolean).join(' ')
 
   return Object.assign(new Error(message, { cause: err }), { code: err.code })
+}
+
+async function undefinedColumnError(err, sql) {
+  const tables = await describeTablesInQuery(sql)
+
+  return withHint(err, describeColumns(tables))
+}
+
+async function findTablesNamedLike(name) {
+  try {
+    const db = await getPool()
+    const { rows } = await db.query(
+      `SELECT table_schema, table_name
+     FROM information_schema.tables
+     WHERE position(lower($1) in lower(table_name)) > 0 AND table_schema <> ALL($2::text[])
+     ORDER BY length(table_name), table_schema, table_name
+     LIMIT $3`,
+      [name, SYSTEM_SCHEMAS, MAX_SIMILAR_TABLES]
+    )
+
+    return rows.map(row => `${row.table_schema}.${row.table_name}`)
+  } catch (err) {
+    console.error(`${LOG_PREFIX} findTablesNamedLike error:`, err.message)
+    return []
+  }
+}
+
+async function undefinedTableError(err) {
+  const missing = err.message.match(MISSING_RELATION_RE)?.[1]?.split('.').at(-1)
+  if (!missing) return err
+
+  const tables = await findTablesNamedLike(missing)
+  if (tables.length === 0)
+    return withHint(err, `No table name contains "${missing}": list them with list_database_tables.`)
+
+  return withHint(err, `Tables whose name contains "${missing}": ${tables.join(', ')}.`)
+}
+
+function canceledQueryError(err) {
+  if (!STATEMENT_TIMEOUT_RE.test(err.message)) return err
+
+  return withHint(err, STATEMENT_TIMEOUT_HINT)
+}
+
+const QUERY_ERROR_EXPLAINERS = {
+  [UNDEFINED_COLUMN_CODE]: undefinedColumnError,
+  [UNDEFINED_TABLE_CODE]: undefinedTableError,
+  [QUERY_CANCELED_CODE]: canceledQueryError,
 }
 
 function logConnectionError(err) {
@@ -270,7 +324,8 @@ export async function runQuery(sql) {
     }
   } catch (err) {
     console.error(`${LOG_PREFIX} runQuery error:`, err.message)
-    if (err.code === UNDEFINED_COLUMN_CODE) throw await undefinedColumnError(err, trimmed)
+    const explain = QUERY_ERROR_EXPLAINERS[err.code]
+    if (explain) throw await explain(err, trimmed)
     throw err
   }
 }

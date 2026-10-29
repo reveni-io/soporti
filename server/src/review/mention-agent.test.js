@@ -210,7 +210,7 @@ describe('runMentionAgent', () => {
     const [agentArg, inputArg, optionsArg] = mockRun.mock.calls[0]
     expect(agentArg).toBeInstanceOf(MockAgent)
     expect(typeof inputArg).toBe('string')
-    expect(optionsArg).toEqual({ maxTurns: 7 })
+    expect(optionsArg).toEqual({ maxTurns: 7, toolNotFoundBehavior: 'return_error_to_model' })
   })
 
   it('traces the run with the PR as the session and the comment as the question', async () => {
