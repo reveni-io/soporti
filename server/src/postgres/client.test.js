@@ -455,17 +455,31 @@ describe('runQuery on a missing table', () => {
 
   it.each([
     {
-      kind: 'lists the tables whose name contains the missing one',
+      kind: 'searches the singular of a plural name, so the singular table is found',
       error: undefinedTable('stores'),
       lookup: {
         rows: [
-          { table_schema: 'public', table_name: 'stores_store' },
-          { table_schema: 'shop', table_name: 'accounts_stores' },
+          { table_schema: 'public', table_name: 'accounts_store' },
+          { table_schema: 'public', table_name: 'accounts_storesettings' },
         ],
       },
-      searched: 'stores',
+      searched: 'store',
       message:
-        'relation "stores" does not exist Tables whose name contains "stores": public.stores_store, shop.accounts_stores.',
+        'relation "stores" does not exist Tables whose name contains "store": public.accounts_store, public.accounts_storesettings.',
+    },
+    {
+      kind: 'strips an uppercase plural S too',
+      error: undefinedTable('ORDERS'),
+      lookup: { rows: [{ table_schema: 'public', table_name: 'orders_order' }] },
+      searched: 'ORDER',
+      message: 'relation "ORDERS" does not exist Tables whose name contains "ORDER": public.orders_order.',
+    },
+    {
+      kind: 'keeps a short name ending in s as it is',
+      error: undefinedTable('bus'),
+      lookup: { rows: [{ table_schema: 'public', table_name: 'fleet_bus' }] },
+      searched: 'bus',
+      message: 'relation "bus" does not exist Tables whose name contains "bus": public.fleet_bus.',
     },
     {
       kind: 'searches by the table part of a schema-qualified name',
@@ -509,7 +523,7 @@ describe('runQuery on a missing table', () => {
     const failure = await runQuery('SELECT * FROM stores').catch(err => err)
 
     expect(failure.message).toBe(
-      'relation "stores" does not exist No table name contains "stores": list them with list_database_tables.'
+      'relation "stores" does not exist No table name contains "store": list them with list_database_tables.'
     )
   })
 })
