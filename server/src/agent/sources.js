@@ -74,6 +74,12 @@ export const INTEGRATION_TOOL_NAMES = {
     'sendcloud_list_returns',
     'sendcloud_get_return',
     'sendcloud_list_shipping_methods',
+    'sendcloud_list_shipping_products',
+    'sendcloud_get_pickup',
+    'sendcloud_search_service_points',
+    'sendcloud_get_service_point',
+    'sendcloud_validate_address',
+    'sendcloud_get_integration',
   ],
   figma: [
     'get_figma_file',

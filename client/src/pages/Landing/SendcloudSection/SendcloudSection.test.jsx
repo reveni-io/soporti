@@ -14,7 +14,7 @@ describe('SendcloudSection', () => {
   it('lists what it reads and promises it never writes', () => {
     const { container } = render(<SendcloudSection />)
 
-    expect(container.querySelectorAll('.lp-points li')).toHaveLength(5)
+    expect(container.querySelectorAll('.lp-points li')).toHaveLength(7)
     expect(screen.getByText(/never creates a label, cancels a parcel or edits an address/)).toBeInTheDocument()
   })
 

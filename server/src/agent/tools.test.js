@@ -124,6 +124,12 @@ vi.mock('../sendcloud/client.js', () => ({
   listReturns: vi.fn(),
   getReturn: vi.fn(),
   listShippingMethods: vi.fn(),
+  listShippingProducts: vi.fn(),
+  getPickup: vi.fn(),
+  searchServicePoints: vi.fn(),
+  getServicePoint: vi.fn(),
+  validateAddress: vi.fn(),
+  getIntegration: vi.fn(),
   isConfigured: vi.fn(async () => true),
 }))
 
@@ -1475,6 +1481,12 @@ describe('buildAgentTools with Sendcloud', () => {
       'sendcloud_list_returns',
       'sendcloud_get_return',
       'sendcloud_list_shipping_methods',
+      'sendcloud_list_shipping_products',
+      'sendcloud_get_pickup',
+      'sendcloud_search_service_points',
+      'sendcloud_get_service_point',
+      'sendcloud_validate_address',
+      'sendcloud_get_integration',
     ])
   })
 
@@ -1572,6 +1584,80 @@ describe('buildAgentTools with Sendcloud', () => {
     })
     expect(sendcloudMod.listShippingMethods).toHaveBeenCalledWith(null, { isReturn: true, toCountry: 'DE' })
     expect(JSON.parse(methods)).toEqual({ carriers: ['dhl'] })
+  })
+
+  it('checks shipping products and the methods of a route', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.listShippingProducts.mockResolvedValue({ products: [] })
+    sendcloudMod.listShippingMethods.mockResolvedValue({ carriers: [] })
+    const route = { fromCountry: 'ES', fromPostalCode: '28013', toCountry: 'PT', toPostalCode: null }
+
+    const products = await sendcloudTool('sendcloud_list_shipping_products').execute({
+      account: 'Acme EU',
+      ...route,
+      carrier: 'correos',
+      contractId: null,
+      isReturn: true,
+    })
+    await sendcloudTool('sendcloud_list_shipping_methods').execute({ account: null, isReturn: false, ...route })
+
+    expect(JSON.parse(products)).toEqual({ products: [] })
+    expect(sendcloudMod.listShippingProducts).toHaveBeenCalledTimes(1)
+    expect(sendcloudMod.listShippingProducts).toHaveBeenCalledWith('Acme EU', {
+      ...route,
+      carrier: 'correos',
+      contractId: null,
+      isReturn: true,
+    })
+    expect(sendcloudMod.listShippingMethods).toHaveBeenCalledWith(null, { isReturn: false, ...route })
+  })
+
+  it('reads a pickup, service points and an integration by id', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.getPickup.mockResolvedValue({ id: 770001 })
+    sendcloudMod.getServicePoint.mockResolvedValue({ id: 880001 })
+    sendcloudMod.searchServicePoints.mockResolvedValue({ servicePoints: [] })
+    sendcloudMod.getIntegration.mockResolvedValue({ webhookActive: false })
+
+    const pickup = await sendcloudTool('sendcloud_get_pickup').execute({ account: null, pickupId: '770001' })
+    const point = await sendcloudTool('sendcloud_get_service_point').execute({ account: null, servicePointId: '12' })
+    const search = { country: 'ES', carrier: 'correos', city: 'Madrid', address: null }
+    await sendcloudTool('sendcloud_search_service_points').execute({ account: 'Acme EU', ...search })
+    const integration = await sendcloudTool('sendcloud_get_integration').execute({
+      account: null,
+      integrationId: '4512',
+    })
+
+    expect(JSON.parse(pickup)).toEqual({ id: 770001 })
+    expect(JSON.parse(point)).toEqual({ id: 880001 })
+    expect(JSON.parse(integration)).toEqual({ webhookActive: false })
+    expect(sendcloudMod.getPickup).toHaveBeenCalledWith(null, '770001')
+    expect(sendcloudMod.getServicePoint).toHaveBeenCalledWith(null, '12')
+    expect(sendcloudMod.searchServicePoints).toHaveBeenCalledWith('Acme EU', search)
+    expect(sendcloudMod.getIntegration).toHaveBeenCalledWith(null, '4512')
+  })
+
+  it('validates an address without changing anything', async () => {
+    const sendcloudMod = await import('../sendcloud/client.js')
+    sendcloudMod.validateAddress.mockResolvedValue({ isValid: true, results: [] })
+    const address = {
+      addressLine1: 'Calle Mayor',
+      houseNumber: '1',
+      addressLine2: null,
+      postalCode: '28013',
+      city: 'Madrid',
+      countryCode: 'ES',
+      stateProvinceCode: null,
+      carrier: 'correos',
+    }
+
+    const result = await sendcloudTool('sendcloud_validate_address').execute({ account: null, ...address })
+
+    expect(JSON.parse(result)).toEqual({ isValid: true, results: [] })
+    expect(sendcloudMod.validateAddress).toHaveBeenCalledTimes(1)
+    expect(sendcloudMod.validateAddress).toHaveBeenCalledWith(null, address)
+    expect(sendcloudTool('sendcloud_validate_address').description).toContain('nothing is saved or changed')
+    expect(sendcloudTool('sendcloud_get_integration').description).toContain('it cannot reactivate anything')
   })
 })
 

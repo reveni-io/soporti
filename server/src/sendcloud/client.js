@@ -1,6 +1,7 @@
 import { getSendcloudAccounts, isSendcloudConfigured } from './settings.js'
 
 const API_BASE_URL = 'https://panel.sendcloud.sc/api'
+const SERVICE_POINTS_BASE_URL = 'https://servicepoints.sendcloud.sc/api'
 const REQUEST_TIMEOUT_MS = 15_000
 const RETURNS_PAGE_SIZE = 40
 const DEFAULT_RETURNS_WINDOW_DAYS = 30
@@ -29,9 +30,36 @@ const PARCEL_FILTERS = {
   trackingNumber: 'tracking_number',
   externalReference: 'external_reference',
 }
+const CARRIER_RE = /^[a-z0-9_]{1,50}$/
+const POSTAL_CODE_RE = /^[A-Za-z0-9 -]{1,12}$/
+const MAX_TEXT_CHARS = 100
+const GRAMS_PER_KG = 1000
+const MAX_SERVICE_POINTS = 20
+const CLOSED_LABEL = 'closed'
+const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const ADDRESS_FIELDS = {
+  addressLine1: 'address_line_1',
+  houseNumber: 'house_number',
+  addressLine2: 'address_line_2',
+  postalCode: 'postal_code',
+  city: 'city',
+  stateProvinceCode: 'state_province_code',
+}
 
 function authorization({ publicKey, secretKey }) {
   return `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString('base64')}`
+}
+
+function buildInit(account, { signal, body }) {
+  const headers = { Authorization: authorization(account), Accept: 'application/json' }
+  if (!body) return { signal, headers }
+
+  return {
+    method: 'POST',
+    signal,
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }
 }
 
 function describeFailure(status, path) {
@@ -51,12 +79,9 @@ function describeFailure(status, path) {
   return `Sendcloud API ${path} failed (${status}).`
 }
 
-async function send(account, path, signal) {
+async function send(account, path, { baseUrl, signal, body }) {
   try {
-    return await fetch(`${API_BASE_URL}${path}`, {
-      signal,
-      headers: { Authorization: authorization(account), Accept: 'application/json' },
-    })
+    return await fetch(`${baseUrl}${path}`, buildInit(account, { signal, body }))
   } catch (err) {
     console.error(`Failed to reach Sendcloud at ${path}:`, err.cause?.code ?? err.name)
     throw new Error(err.name === ABORT_ERROR ? TIMEOUT_MESSAGE : UNREACHABLE_MESSAGE, { cause: err })
@@ -73,12 +98,12 @@ async function readBody(res, path) {
   }
 }
 
-async function request(account, path) {
+async function request(account, path, { baseUrl = API_BASE_URL, body = null } = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
-    const res = await send(account, path, controller.signal)
+    const res = await send(account, path, { baseUrl, signal: controller.signal, body })
 
     if (!res.ok) {
       await res.body?.cancel()
@@ -210,6 +235,9 @@ function toParcel(parcel) {
     recipient: toRecipient(parcel),
     items: (parcel.parcel_items || []).map(toParcelItem),
     errors: parcel.errors?.non_field_errors ?? [],
+    servicePointId: parcel.to_service_point ?? null,
+    contractId: parcel.contract ?? null,
+    documents: (parcel.documents || []).map(document => document.type).filter(Boolean),
   }
 }
 
@@ -403,6 +431,176 @@ function parseCountry(value) {
   return raw.toUpperCase()
 }
 
+function requireValue(value, label) {
+  if (value === null) throw new Error(`Give the ${label}.`)
+
+  return value
+}
+
+function parseOptionalId(value, label) {
+  if (!String(value ?? '').trim()) return null
+
+  return parseNumericId(value, label)
+}
+
+function parseCarrier(value) {
+  const raw = String(value ?? '')
+    .trim()
+    .toLowerCase()
+  if (!raw) return null
+  if (!CARRIER_RE.test(raw)) throw new Error(`"${raw}" is not a Sendcloud carrier code, e.g. "dhl" or "correos".`)
+
+  return raw
+}
+
+function parsePostalCode(value) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  if (!POSTAL_CODE_RE.test(raw)) throw new Error(`"${raw}" does not look like a postal code.`)
+
+  return raw
+}
+
+function parseText(value, label) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return null
+  if (raw.length > MAX_TEXT_CHARS) throw new Error(`The ${label} is too long (max ${MAX_TEXT_CHARS} characters).`)
+
+  return raw
+}
+
+function withoutEmpty(fields) {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null))
+}
+
+function toPickup(pickup) {
+  return {
+    id: pickup.id ?? null,
+    status: pickup.pickup_status ?? null,
+    carrier: pickup.carrier ?? null,
+    pickupFrom: pickup.pickup_from ?? null,
+    pickupUntil: pickup.pickup_until ?? null,
+    trackingNumber: pickup.tracking_number || null,
+    reference: pickup.reference || null,
+    quantity: pickup.quantity ?? null,
+    totalWeight: pickup.total_weight ?? null,
+    contractId: pickup.contract ?? null,
+    createdAt: pickup.created_at ?? null,
+    cancelledAt: pickup.cancelled_at ?? null,
+    name: pickup.name || null,
+    address: [pickup.address, pickup.address_2].filter(Boolean).join(', ') || null,
+    postalCode: pickup.postal_code ?? null,
+    city: pickup.city ?? null,
+    country: pickup.country ?? null,
+    specialInstructions: pickup.special_instructions || null,
+  }
+}
+
+function kilograms(grams) {
+  if (grams === null || grams === undefined || grams === '') return null
+
+  const value = Number(grams)
+  return Number.isFinite(value) ? value / GRAMS_PER_KG : null
+}
+
+function toWeightRangeKg(range) {
+  if (!range) return null
+
+  return { min: kilograms(range.min_weight), max: kilograms(range.max_weight) }
+}
+
+function enabledFunctionalities(functionalities) {
+  return Object.fromEntries(
+    Object.entries(functionalities || {}).filter(([, value]) => value !== null && value !== false)
+  )
+}
+
+function toProductMethod(method) {
+  return {
+    id: method.id,
+    name: method.name ?? null,
+    productCode: method.shipping_product_code ?? null,
+    weightKg: toWeightRangeKg(method.properties),
+    functionalities: enabledFunctionalities(method.functionalities),
+  }
+}
+
+function toShippingProduct(product) {
+  return {
+    code: product.code ?? null,
+    name: product.name ?? null,
+    carrier: product.carrier ?? null,
+    servicePointsCarrier: product.service_points_carrier ?? null,
+    weightKg: toWeightRangeKg(product.weight_range),
+    methods: (product.methods || []).map(toProductMethod),
+  }
+}
+
+function toOpeningTimes(formatted) {
+  if (!formatted) return null
+
+  return Object.fromEntries(WEEKDAYS.map((day, index) => [day, (formatted[index] || []).join(', ') || CLOSED_LABEL]))
+}
+
+function toServicePoint(point) {
+  return {
+    id: point.id,
+    code: point.code ?? null,
+    name: point.name ?? null,
+    carrier: point.carrier ?? null,
+    shopType: point.shop_type ?? null,
+    isActive: point.is_active ?? null,
+    address: [point.street, point.house_number].filter(Boolean).join(' ') || null,
+    postalCode: point.postal_code ?? null,
+    city: point.city ?? null,
+    country: point.country ?? null,
+    distanceMeters: point.distance ?? null,
+    openingTimes: toOpeningTimes(point.formatted_opening_times),
+  }
+}
+
+function parseAddressToValidate(input) {
+  const address = {
+    address_line_1: requireValue(parseText(input.addressLine1, 'address line'), 'address line'),
+    house_number: parseText(input.houseNumber, 'house number'),
+    address_line_2: parseText(input.addressLine2, 'second address line'),
+    postal_code: requireValue(parsePostalCode(input.postalCode), 'postal code'),
+    city: requireValue(parseText(input.city, 'city'), 'city'),
+    country_code: requireValue(parseCountry(input.countryCode), 'country'),
+    state_province_code: parseText(input.stateProvinceCode, 'state or province code'),
+  }
+
+  return { address: withoutEmpty(address), carrier_code: requireValue(parseCarrier(input.carrier), 'carrier code') }
+}
+
+function toValidatedAddress(address) {
+  if (!address) return null
+
+  return Object.fromEntries(Object.entries(ADDRESS_FIELDS).map(([field, key]) => [field, address[key] || null]))
+}
+
+function toAddressResult(result) {
+  return {
+    recommended: Boolean(result.recommended),
+    address: toValidatedAddress(result.address),
+    reasons: result.analysis?.validation_result?.reasons ?? [],
+  }
+}
+
+function toIntegration(integration) {
+  return {
+    id: integration.id ?? null,
+    shopName: integration.shop_name ?? null,
+    system: integration.system ?? null,
+    webhookActive: integration.webhook_active ?? null,
+    failingSince: integration.failing_since ?? null,
+    lastFetch: integration.last_fetch ?? null,
+    lastUpdatedAt: integration.last_updated_at ?? null,
+    servicePointEnabled: integration.service_point_enabled ?? null,
+    servicePointCarriers: integration.service_point_carriers ?? [],
+  }
+}
+
 export async function listAccounts() {
   const accounts = await getSendcloudAccounts()
 
@@ -482,11 +680,16 @@ export async function getReturn(accountName, returnId) {
   return { account: account.name, id: Number(id), ...toReturn(data) }
 }
 
-export async function listShippingMethods(accountName, { isReturn = false, toCountry = null } = {}) {
+export async function listShippingMethods(accountName, options = {}) {
   const account = await resolveAccount(accountName)
-  const country = parseCountry(toCountry)
+  const params = {
+    is_return: options.isReturn ? 'true' : '',
+    from_country: parseCountry(options.fromCountry),
+    from_postal_code: parsePostalCode(options.fromPostalCode),
+    to_country: parseCountry(options.toCountry),
+    to_postal_code: parsePostalCode(options.toPostalCode),
+  }
 
-  const params = { is_return: isReturn ? 'true' : '', to_country: country }
   const data = await request(account, `/v2/shipping_methods${query(params)}`)
   const methods = (data.shipping_methods || []).map(toShippingMethod)
 
@@ -495,6 +698,83 @@ export async function listShippingMethods(accountName, { isReturn = false, toCou
     carriers: [...new Set(methods.map(method => method.carrier).filter(Boolean))].sort(),
     shippingMethods: methods,
   }
+}
+
+export async function listShippingProducts(accountName, options = {}) {
+  const account = await resolveAccount(accountName)
+  const params = {
+    from_country: requireValue(parseCountry(options.fromCountry), 'origin country'),
+    from_postal_code: parsePostalCode(options.fromPostalCode),
+    to_country: parseCountry(options.toCountry),
+    to_postal_code: parsePostalCode(options.toPostalCode),
+    carrier: parseCarrier(options.carrier),
+    contract: parseOptionalId(options.contractId, 'contract'),
+    returns: options.isReturn ? 'true' : 'false',
+  }
+
+  const data = await request(account, `/v2/shipping-products${query(params)}`)
+
+  return { account: account.name, products: (Array.isArray(data) ? data : []).map(toShippingProduct) }
+}
+
+export async function getPickup(accountName, pickupId) {
+  const account = await resolveAccount(accountName)
+  const id = parseNumericId(pickupId, 'pickup')
+
+  const data = await request(account, `/v2/pickups/${id}`)
+
+  return { account: account.name, ...toPickup(data) }
+}
+
+export async function searchServicePoints(accountName, options = {}) {
+  const account = await resolveAccount(accountName)
+  const params = {
+    country: requireValue(parseCountry(options.country), 'country'),
+    carrier: parseCarrier(options.carrier),
+    city: parseText(options.city, 'city'),
+    address: parseText(options.address, 'address'),
+  }
+
+  const data = await request(account, `/v2/service-points${query(params)}`, { baseUrl: SERVICE_POINTS_BASE_URL })
+  const points = Array.isArray(data) ? data : []
+
+  return {
+    account: account.name,
+    servicePoints: points.slice(0, MAX_SERVICE_POINTS).map(toServicePoint),
+    total: points.length,
+    truncated: points.length > MAX_SERVICE_POINTS,
+  }
+}
+
+export async function getServicePoint(accountName, servicePointId) {
+  const account = await resolveAccount(accountName)
+  const id = parseNumericId(servicePointId, 'service point')
+
+  const data = await request(account, `/v2/service-points/${id}`, { baseUrl: SERVICE_POINTS_BASE_URL })
+
+  return { account: account.name, ...toServicePoint(data) }
+}
+
+export async function validateAddress(accountName, input = {}) {
+  const account = await resolveAccount(accountName)
+  const body = parseAddressToValidate(input)
+
+  const data = await request(account, '/v3/addresses/validate', { body })
+
+  return {
+    account: account.name,
+    isValid: Boolean(data.input_address_is_valid),
+    results: (data.results || []).map(toAddressResult),
+  }
+}
+
+export async function getIntegration(accountName, integrationId) {
+  const account = await resolveAccount(accountName)
+  const id = parseNumericId(integrationId, 'integration')
+
+  const data = await request(account, `/v3/integrations/${id}`)
+
+  return { account: account.name, ...toIntegration(data.data || {}) }
 }
 
 export async function isConfigured() {

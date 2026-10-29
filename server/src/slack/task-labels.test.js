@@ -27,6 +27,10 @@ describe('describeToolCall', () => {
       details: 'JVGL0612345',
     })
     expect(describeToolCall('sendcloud_list_returns', '{}')).toEqual({ title: 'Listing Sendcloud returns' })
+    expect(describeToolCall('sendcloud_get_pickup', JSON.stringify({ pickupId: '770001' }))).toEqual({
+      title: 'Reading Sendcloud pickup',
+      details: '770001',
+    })
   })
 
   it('picks the argument configured for each tool', () => {

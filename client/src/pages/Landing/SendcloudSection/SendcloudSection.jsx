@@ -27,7 +27,9 @@ export default function SendcloudSection() {
             <li>Parcels by order number, tracking number or reference — every parcel of a split order</li>
             <li>The full tracking timeline, with the delay or failed delivery spelled out</li>
             <li>Returns with their reason, refund type and status history</li>
-            <li>The shipping methods and carriers each account ships with</li>
+            <li>The shipping methods and carrier products for a route, with their weight ranges</li>
+            <li>Booked pickups, service points with their opening times, and an address check before a label fails</li>
+            <li>Whether an integration's webhook stopped pushing status updates</li>
             <li>Read-only: it never creates a label, cancels a parcel or edits an address</li>
           </ul>
         </div>

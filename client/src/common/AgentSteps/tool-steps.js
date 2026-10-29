@@ -61,6 +61,12 @@ const TOOL_LABELS = {
   sendcloud_list_returns: 'Listing Sendcloud returns',
   sendcloud_get_return: 'Reading Sendcloud return',
   sendcloud_list_shipping_methods: 'Listing Sendcloud shipping methods',
+  sendcloud_list_shipping_products: 'Listing Sendcloud shipping products',
+  sendcloud_get_pickup: 'Reading Sendcloud pickup',
+  sendcloud_search_service_points: 'Searching Sendcloud service points',
+  sendcloud_get_service_point: 'Reading Sendcloud service point',
+  sendcloud_validate_address: 'Validating address in Sendcloud',
+  sendcloud_get_integration: 'Checking Sendcloud integration',
   post_slack_message: 'Posting to Slack',
   render_artifact: 'Writing artifact',
 }

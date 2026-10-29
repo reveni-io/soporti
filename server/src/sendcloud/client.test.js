@@ -12,6 +12,12 @@ const {
   listReturns,
   getReturn,
   listShippingMethods,
+  listShippingProducts,
+  getPickup,
+  searchServicePoints,
+  getServicePoint,
+  validateAddress,
+  getIntegration,
   isConfigured,
 } = await import('./client.js')
 
@@ -227,7 +233,36 @@ describe('getParcel', () => {
       },
       items: [{ description: 'Sneakers', quantity: 1, sku: 'SNK-42', value: '89.00' }],
       errors: [],
+      servicePointId: null,
+      contractId: null,
+      documents: [],
     })
+  })
+
+  it('names the service point, the contract and the documents of a parcel', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        parcel: {
+          ...PARCEL,
+          to_service_point: 880001,
+          contract: 55501,
+          documents: [
+            { type: 'label', link: 'https://panel.sendcloud.sc/api/v2/parcels/501/documents/label' },
+            { type: 'commercial-invoice', link: 'https://panel.sendcloud.sc/api/v2/parcels/501/documents/ci' },
+            { link: 'https://panel.sendcloud.sc/api/v2/parcels/501/documents/unknown' },
+          ],
+        },
+      })
+    )
+
+    const parcel = await getParcel(null, '501')
+
+    expect(parcel).toMatchObject({
+      servicePointId: 880001,
+      contractId: 55501,
+      documents: ['label', 'commercial-invoice'],
+    })
+    expect(JSON.stringify(parcel)).not.toContain('/documents/')
   })
 
   it('refuses an id that is not a number', async () => {
@@ -730,6 +765,413 @@ describe('listShippingMethods', () => {
 
   it('refuses a country that is not a two-letter code', async () => {
     await expect(listShippingMethods(null, { toCountry: 'Germany' })).rejects.toThrow('two-letter country code')
+  })
+
+  it('narrows the methods to one route', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ shipping_methods: [] }))
+
+    await listShippingMethods(null, {
+      fromCountry: 'es',
+      fromPostalCode: ' 28013 ',
+      toCountry: 'PT',
+      toPostalCode: '1000-001',
+    })
+
+    expect(Object.fromEntries(requestedUrl().searchParams)).toEqual({
+      from_country: 'ES',
+      from_postal_code: '28013',
+      to_country: 'PT',
+      to_postal_code: '1000-001',
+    })
+  })
+
+  it('refuses a postal code that could carry anything else', async () => {
+    await expect(listShippingMethods(null, { fromPostalCode: '28013&carrier=ups' })).rejects.toThrow(
+      '"28013&carrier=ups" does not look like a postal code.'
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('listShippingProducts', () => {
+  const PRODUCT = {
+    code: 'correos:paq',
+    name: 'Correos Paq',
+    carrier: 'correos',
+    service_points_carrier: 'correos',
+    weight_range: { min_weight: 1, max_weight: 30000 },
+    methods: [
+      {
+        id: 4936,
+        name: 'Correos Paq 0-2kg',
+        shipping_product_code: 'correos:paq',
+        properties: { min_weight: 1, max_weight: 2000 },
+        functionalities: { returns: true, signature: false, age_check: null, delivery_deadline: 'standard' },
+      },
+    ],
+  }
+
+  it('lists the products of a route with their weights in kilograms', async () => {
+    global.fetch.mockResolvedValue(jsonResponse([PRODUCT]))
+
+    const result = await listShippingProducts('acme eu', {
+      fromCountry: 'ES',
+      toCountry: 'pt',
+      carrier: ' Correos ',
+      contractId: '55501',
+      isReturn: true,
+    })
+
+    expect(requestedUrl().pathname).toBe('/api/v2/shipping-products')
+    expect(Object.fromEntries(requestedUrl().searchParams)).toEqual({
+      from_country: 'ES',
+      to_country: 'PT',
+      carrier: 'correos',
+      contract: '55501',
+      returns: 'true',
+    })
+    expect(result).toEqual({
+      account: 'Acme EU',
+      products: [
+        {
+          code: 'correos:paq',
+          name: 'Correos Paq',
+          carrier: 'correos',
+          servicePointsCarrier: 'correos',
+          weightKg: { min: 0.001, max: 30 },
+          methods: [
+            {
+              id: 4936,
+              name: 'Correos Paq 0-2kg',
+              productCode: 'correos:paq',
+              weightKg: { min: 0.001, max: 2 },
+              functionalities: { returns: true, delivery_deadline: 'standard' },
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('asks for the outbound products when it is not a return', async () => {
+    global.fetch.mockResolvedValue(jsonResponse([{ code: 'x' }]))
+
+    const result = await listShippingProducts(null, { fromCountry: 'ES' })
+
+    expect(Object.fromEntries(requestedUrl().searchParams)).toEqual({ from_country: 'ES', returns: 'false' })
+    expect(result.products).toEqual([
+      { code: 'x', name: null, carrier: null, servicePointsCarrier: null, weightKg: null, methods: [] },
+    ])
+  })
+
+  it('leaves a missing weight unknown instead of reading it as 0 kg', async () => {
+    global.fetch.mockResolvedValue(jsonResponse([{ code: 'x', weight_range: { min_weight: null, max_weight: 'n/a' } }]))
+
+    const [product] = (await listShippingProducts(null, { fromCountry: 'ES' })).products
+
+    expect(product.weightKg).toEqual({ min: null, max: null })
+  })
+
+  it('reads an answer that is not a list as no products', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ error: 'unexpected' }))
+
+    expect((await listShippingProducts(null, { fromCountry: 'ES' })).products).toEqual([])
+  })
+
+  it.each([
+    [{}, 'Give the origin country.'],
+    [{ fromCountry: 'ES', carrier: 'dhl&returns=true' }, '"dhl&returns=true" is not a Sendcloud carrier code'],
+    [{ fromCountry: 'ES', contractId: 'abc' }, '"abc" is not a Sendcloud contract id'],
+  ])('refuses %j before calling Sendcloud', async (options, message) => {
+    await expect(listShippingProducts(null, options)).rejects.toThrow(message)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('getPickup', () => {
+  it('reads a pickup with its window and address', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        id: 770001,
+        pickup_from: '2026-10-03T08:00:00Z',
+        pickup_until: '2026-10-03T14:00:00Z',
+        country: 'ES',
+        carrier: 'correos_express',
+        tracking_number: 'JJD000390001',
+        pickup_status: 'Created',
+        created_at: '2026-10-01T10:03:04Z',
+        cancelled_at: null,
+        contract: 55501,
+        city: 'Madrid',
+        address: 'Calle Mayor 1',
+        address_2: '2B',
+        postal_code: '28013',
+        quantity: 2,
+        name: 'Carla Customer',
+        email: 'carla@example.com',
+        telephone: '+34600000000',
+        reference: 'PICKUP-1042',
+        special_instructions: '',
+        total_weight: '3.00',
+      })
+    )
+
+    const result = await getPickup(null, '770001')
+
+    expect(requestedUrl().pathname).toBe('/api/v2/pickups/770001')
+    expect(result).toEqual({
+      account: 'Acme EU',
+      id: 770001,
+      status: 'Created',
+      carrier: 'correos_express',
+      pickupFrom: '2026-10-03T08:00:00Z',
+      pickupUntil: '2026-10-03T14:00:00Z',
+      trackingNumber: 'JJD000390001',
+      reference: 'PICKUP-1042',
+      quantity: 2,
+      totalWeight: '3.00',
+      contractId: 55501,
+      createdAt: '2026-10-01T10:03:04Z',
+      cancelledAt: null,
+      name: 'Carla Customer',
+      address: 'Calle Mayor 1, 2B',
+      postalCode: '28013',
+      city: 'Madrid',
+      country: 'ES',
+      specialInstructions: null,
+    })
+    expect(JSON.stringify(result)).not.toContain('carla@example.com')
+  })
+
+  it('refuses an id that is not a number', async () => {
+    await expect(getPickup(null, '../parcels')).rejects.toThrow('"../parcels" is not a Sendcloud pickup id')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('service points', () => {
+  const POINT = {
+    id: 880001,
+    code: 'ES-28013-01',
+    name: 'Kiosko Sol',
+    carrier: 'correos',
+    shop_type: 'kiosk',
+    is_active: true,
+    street: 'Calle Mayor',
+    house_number: '1',
+    postal_code: '28013',
+    city: 'Madrid',
+    country: 'ES',
+    distance: 240,
+    formatted_opening_times: { 0: ['09:00 - 14:00', '17:00 - 20:00'], 5: ['10:00 - 13:00'], 6: [] },
+  }
+  const MAPPED_POINT = {
+    id: 880001,
+    code: 'ES-28013-01',
+    name: 'Kiosko Sol',
+    carrier: 'correos',
+    shopType: 'kiosk',
+    isActive: true,
+    address: 'Calle Mayor 1',
+    postalCode: '28013',
+    city: 'Madrid',
+    country: 'ES',
+    distanceMeters: 240,
+    openingTimes: {
+      monday: '09:00 - 14:00, 17:00 - 20:00',
+      tuesday: 'closed',
+      wednesday: 'closed',
+      thursday: 'closed',
+      friday: 'closed',
+      saturday: '10:00 - 13:00',
+      sunday: 'closed',
+    },
+  }
+
+  it('searches the service points host with the account keys', async () => {
+    global.fetch.mockResolvedValue(jsonResponse([POINT]))
+
+    const result = await searchServicePoints(null, { country: 'es', carrier: 'Correos', city: 'Madrid', address: null })
+
+    expect(requestedUrl().origin).toBe('https://servicepoints.sendcloud.sc')
+    expect(requestedUrl().pathname).toBe('/api/v2/service-points')
+    expect(Object.fromEntries(requestedUrl().searchParams)).toEqual({
+      country: 'ES',
+      carrier: 'correos',
+      city: 'Madrid',
+    })
+    expect(requestedAuthorization()).toBe(basic(EU))
+    expect(result).toEqual({ account: 'Acme EU', servicePoints: [MAPPED_POINT], total: 1, truncated: false })
+  })
+
+  it('keeps the first 20 service points and says there were more', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(Array.from({ length: 25 }, (_, index) => ({ id: index }))))
+
+    const result = await searchServicePoints(null, { country: 'ES' })
+
+    expect(result.servicePoints).toHaveLength(20)
+    expect(result.servicePoints[0]).toMatchObject({ id: 0, address: null, openingTimes: null })
+    expect(result).toMatchObject({ total: 25, truncated: true })
+  })
+
+  it('reads an answer that is not a list as no service points', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({}))
+
+    expect(await searchServicePoints(null, { country: 'ES' })).toEqual({
+      account: 'Acme EU',
+      servicePoints: [],
+      total: 0,
+      truncated: false,
+    })
+  })
+
+  it('needs a country and refuses an address that is too long', async () => {
+    await expect(searchServicePoints(null, { city: 'Madrid' })).rejects.toThrow('Give the country.')
+    await expect(searchServicePoints(null, { country: 'ES', address: 'x'.repeat(101) })).rejects.toThrow(
+      'The address is too long (max 100 characters).'
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('reads one service point by id', async () => {
+    global.fetch.mockResolvedValue(jsonResponse(POINT))
+
+    const result = await getServicePoint(null, '880001')
+
+    expect(requestedUrl().href).toBe('https://servicepoints.sendcloud.sc/api/v2/service-points/880001')
+    expect(result).toEqual({ account: 'Acme EU', ...MAPPED_POINT })
+  })
+})
+
+describe('validateAddress', () => {
+  const ADDRESS = {
+    addressLine1: ' Calle Mayor ',
+    houseNumber: null,
+    addressLine2: '',
+    postalCode: '28013',
+    city: 'Madrid',
+    countryCode: 'es',
+    stateProvinceCode: null,
+    carrier: 'UPS',
+  }
+
+  it('posts the address and reports the verdict with its suggestions', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        input_address_is_valid: false,
+        results: [
+          {
+            recommended: true,
+            address: { address_line_1: 'Calle Mayor', house_number: '1', postal_code: '28013', city: 'Madrid' },
+            analysis: { validation_result: { reasons: ['HOUSE_NUMBER_TOO_SHORT'] } },
+          },
+          { address: null },
+        ],
+      })
+    )
+
+    const result = await validateAddress(null, ADDRESS)
+    const [url, init] = global.fetch.mock.calls[0]
+
+    expect(url).toBe(`${BASE_URL}/v3/addresses/validate`)
+    expect(init.method).toBe('POST')
+    expect(init.headers['Content-Type']).toBe('application/json')
+    expect(init.headers.Authorization).toBe(basic(EU))
+    expect(JSON.parse(init.body)).toEqual({
+      address: { address_line_1: 'Calle Mayor', postal_code: '28013', city: 'Madrid', country_code: 'ES' },
+      carrier_code: 'ups',
+    })
+    expect(result).toEqual({
+      account: 'Acme EU',
+      isValid: false,
+      results: [
+        {
+          recommended: true,
+          address: {
+            addressLine1: 'Calle Mayor',
+            houseNumber: '1',
+            addressLine2: null,
+            postalCode: '28013',
+            city: 'Madrid',
+            stateProvinceCode: null,
+          },
+          reasons: ['HOUSE_NUMBER_TOO_SHORT'],
+        },
+        { recommended: false, address: null, reasons: [] },
+      ],
+    })
+  })
+
+  it('sends the house number when there is one', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({ input_address_is_valid: true }))
+
+    const result = await validateAddress(null, { ...ADDRESS, houseNumber: '1' })
+
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).address.house_number).toBe('1')
+    expect(result).toEqual({ account: 'Acme EU', isValid: true, results: [] })
+  })
+
+  it.each([
+    ['addressLine1', 'Give the address line.'],
+    ['postalCode', 'Give the postal code.'],
+    ['city', 'Give the city.'],
+    ['countryCode', 'Give the country.'],
+    ['carrier', 'Give the carrier code.'],
+  ])('refuses an address without its %s', async (field, message) => {
+    await expect(validateAddress(null, { ...ADDRESS, [field]: '  ' })).rejects.toThrow(message)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('getIntegration', () => {
+  it('reports whether the webhook of an integration is active, without its url', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        data: {
+          id: 4512,
+          shop_name: 'Acme EU',
+          system: 'api',
+          webhook_active: false,
+          webhook_url: 'https://hooks.example.com/sendcloud?token=secret-token',
+          failing_since: '2026-10-20T08:00:00Z',
+          last_fetch: '2026-10-28T10:00:00Z',
+          last_updated_at: '2026-10-21T09:00:00Z',
+          service_point_enabled: true,
+          service_point_carriers: ['correos'],
+        },
+      })
+    )
+
+    const result = await getIntegration(null, '4512')
+
+    expect(requestedUrl().pathname).toBe('/api/v3/integrations/4512')
+    expect(result).toEqual({
+      account: 'Acme EU',
+      id: 4512,
+      shopName: 'Acme EU',
+      system: 'api',
+      webhookActive: false,
+      failingSince: '2026-10-20T08:00:00Z',
+      lastFetch: '2026-10-28T10:00:00Z',
+      lastUpdatedAt: '2026-10-21T09:00:00Z',
+      servicePointEnabled: true,
+      servicePointCarriers: ['correos'],
+    })
+    expect(JSON.stringify(result)).not.toContain('secret-token')
+  })
+
+  it('reads an empty answer as unknown values', async () => {
+    global.fetch.mockResolvedValue(jsonResponse({}))
+
+    expect(await getIntegration(null, '4512')).toMatchObject({
+      id: null,
+      webhookActive: null,
+      servicePointCarriers: [],
+    })
+  })
+
+  it('refuses an id that is not a number', async () => {
+    await expect(getIntegration(null, 'abc')).rejects.toThrow('"abc" is not a Sendcloud integration id')
   })
 })
 

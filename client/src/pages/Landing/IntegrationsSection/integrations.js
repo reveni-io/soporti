@@ -54,7 +54,7 @@ export const INTEGRATIONS = [
   {
     id: 'sendcloud',
     name: 'Sendcloud',
-    desc: 'Finds the parcels of an order, follows their tracking timeline, reads returns with their reason and refund, and lists the carriers you ship with — across every Sendcloud account you link, one per brand or store. Read-only: it never creates a label or cancels a parcel.',
+    desc: 'Finds the parcels of an order, follows their tracking timeline, reads returns with their reason and refund, checks carriers and products for a route, pickups, service points and addresses, and spots a webhook that stopped updating — across every Sendcloud account you link, one per brand or store. Read-only: it never creates a label or cancels a parcel.',
   },
   {
     id: 'figma',

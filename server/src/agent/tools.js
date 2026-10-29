@@ -934,7 +934,7 @@ const searchSendcloudParcelsTool = tool({
 const getSendcloudParcelTool = tool({
   name: 'sendcloud_get_parcel',
   description:
-    'Read one Sendcloud parcel by its numeric id: status, order number, tracking number and url, carrier, shipping method, whether it is a return, weight, the recipient with their address, email and phone, the items it carries and any carrier errors. Use sendcloud_search_parcels first when all you have is an order or tracking number.',
+    'Read one Sendcloud parcel by its numeric id: status, order number, tracking number and url, carrier, shipping method, whether it is a return, weight, the recipient with their address, email and phone, the items it carries, any carrier errors, the service point it goes to (`servicePointId`), its carrier contract and the documents it has (e.g. label, commercial invoice). Use sendcloud_search_parcels first when all you have is an order or tracking number.',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     parcelId: z.string().describe('Numeric Sendcloud parcel id, e.g. "123456789".'),
@@ -980,16 +980,105 @@ const getSendcloudReturnTool = tool({
   execute: async input => JSON.stringify(await sendcloud.getReturn(input.account, input.returnId)),
 })
 
+const SENDCLOUD_ROUTE_PARAMS = {
+  fromCountry: optionalSendcloudText('Two-letter origin country code, e.g. "ES". Null for any origin.'),
+  fromPostalCode: optionalSendcloudText('Origin postal code. Null to skip.'),
+  toCountry: optionalSendcloudText('Two-letter destination country code, e.g. "DE". Null for any destination.'),
+  toPostalCode: optionalSendcloudText('Destination postal code. Null to skip.'),
+}
+
 const listSendcloudShippingMethodsTool = tool({
   name: 'sendcloud_list_shipping_methods',
   description:
-    'List the shipping methods enabled in a Sendcloud account, with their id, name, carrier, weight range, whether they deliver to a service point and the destination countries, plus the list of carriers in use. Use it for "which carriers do we ship with" or "can we ship this to Germany".',
+    'List the shipping methods a Sendcloud account offers, optionally for one route (origin and destination country and postal code), with their id, name, carrier, weight range, whether they deliver to a service point and the destination countries, plus the list of carriers in use. Use it for "which carriers do we ship with", "can we ship this to Germany" or "why is there no method for this route".',
   parameters: z.object({
     account: SENDCLOUD_ACCOUNT_PARAM,
     isReturn: z.boolean().default(false).describe('True to list only the methods usable for returns.'),
-    toCountry: optionalSendcloudText('Two-letter destination country code, e.g. "DE". Null for every country.'),
+    ...SENDCLOUD_ROUTE_PARAMS,
   }),
   execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.listShippingMethods(account, options)),
+})
+
+const listSendcloudShippingProductsTool = tool({
+  name: 'sendcloud_list_shipping_products',
+  description:
+    'List the shipping products a Sendcloud account can use from an origin country, optionally narrowed to a destination, postal codes, a carrier, a carrier contract and returns: each product with its code, carrier, weight range in kg and its methods (id, name, product code, weight range in kg and the functionalities it supports, e.g. signature, age check or returns). Use it to check whether a carrier offers a service on a route and for a given weight — for example to explain why a label could not be created.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    fromCountry: z.string().describe('Two-letter origin country code, e.g. "ES".'),
+    fromPostalCode: SENDCLOUD_ROUTE_PARAMS.fromPostalCode,
+    toCountry: SENDCLOUD_ROUTE_PARAMS.toCountry,
+    toPostalCode: SENDCLOUD_ROUTE_PARAMS.toPostalCode,
+    carrier: optionalSendcloudText('Sendcloud carrier code, e.g. "correos" or "ups". Null for every carrier.'),
+    contractId: optionalSendcloudText('Numeric id of a carrier contract in Sendcloud. Null to skip.'),
+    isReturn: z.boolean().default(false).describe('True for the products usable for returns.'),
+  }),
+  execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.listShippingProducts(account, options)),
+})
+
+const getSendcloudPickupTool = tool({
+  name: 'sendcloud_get_pickup',
+  description:
+    'Read one carrier pickup booked through Sendcloud by its numeric id: its status, carrier, the time window the driver should come, the pickup address, the number of parcels and weight, its reference and when it was created or cancelled. Use it for "did the courier come" or "when is the pickup".',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    pickupId: z.string().describe('Numeric Sendcloud pickup id, e.g. "770001".'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getPickup(input.account, input.pickupId)),
+})
+
+const searchSendcloudServicePointsTool = tool({
+  name: 'sendcloud_search_service_points',
+  description:
+    'Find carrier service points (shops and lockers where a parcel is dropped off or collected) in a country, optionally for one carrier and near a city or address: id, name, carrier, address, distance, whether it is active and its opening times. Returns up to 20; `truncated` says there were more. Use it for "where can the customer drop the parcel" or to check a service point a customer picked.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    country: z.string().describe('Two-letter country code, e.g. "ES".'),
+    carrier: optionalSendcloudText('Sendcloud carrier code, e.g. "correos". Null for every carrier enabled.'),
+    city: optionalSendcloudText('City to search in. Null to skip.'),
+    address: optionalSendcloudText('Street address or postal code to search near. Null to skip.'),
+  }),
+  execute: async ({ account, ...options }) => JSON.stringify(await sendcloud.searchServicePoints(account, options)),
+})
+
+const getSendcloudServicePointTool = tool({
+  name: 'sendcloud_get_service_point',
+  description:
+    'Read one carrier service point by its numeric id — e.g. the `servicePointId` of a parcel: name, carrier, address, whether it is still active and its opening times.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    servicePointId: z.string().describe('Numeric Sendcloud service point id.'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getServicePoint(input.account, input.servicePointId)),
+})
+
+const validateSendcloudAddressTool = tool({
+  name: 'sendcloud_validate_address',
+  description:
+    "Ask Sendcloud whether an address is deliverable by one carrier. Returns `isValid` and Sendcloud's results: each with the address it matched, whether it is `recommended` and the reason codes it found (e.g. ADDRESS_NOT_VALID, HOUSE_NUMBER_TOO_SHORT). It only checks — nothing is saved or changed. Use it when a label fails over the address or a customer cannot get past an address step.",
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    addressLine1: z.string().describe('Street, e.g. "Calle Mayor".'),
+    houseNumber: optionalSendcloudText('House number. Null when it is part of the street or missing.'),
+    addressLine2: optionalSendcloudText('Floor, door or extra line. Null to skip.'),
+    postalCode: z.string().describe('Postal code.'),
+    city: z.string().describe('City.'),
+    countryCode: z.string().describe('Two-letter country code, e.g. "ES".'),
+    stateProvinceCode: optionalSendcloudText('State or province code, e.g. "IT-RM". Null to skip.'),
+    carrier: z.string().describe('Sendcloud carrier code to validate for, e.g. "ups" or "correos".'),
+  }),
+  execute: async ({ account, ...input }) => JSON.stringify(await sendcloud.validateAddress(account, input)),
+})
+
+const getSendcloudIntegrationTool = tool({
+  name: 'sendcloud_get_integration',
+  description:
+    'Read one Sendcloud integration (a shop or API connection of the account) by its numeric id: shop name, system, whether its webhook is active, since when it is failing, when it last synced, and its service point settings. Use it when parcel statuses stop updating in the system that created them: an inactive webhook means Sendcloud stopped pushing status changes. It only reads — it cannot reactivate anything.',
+  parameters: z.object({
+    account: SENDCLOUD_ACCOUNT_PARAM,
+    integrationId: z.string().describe('Numeric Sendcloud integration id, from Settings → Integrations in the panel.'),
+  }),
+  execute: async input => JSON.stringify(await sendcloud.getIntegration(input.account, input.integrationId)),
 })
 
 const SENDCLOUD_TOOLS = [
@@ -1000,6 +1089,12 @@ const SENDCLOUD_TOOLS = [
   listSendcloudReturnsTool,
   getSendcloudReturnTool,
   listSendcloudShippingMethodsTool,
+  listSendcloudShippingProductsTool,
+  getSendcloudPickupTool,
+  searchSendcloudServicePointsTool,
+  getSendcloudServicePointTool,
+  validateSendcloudAddressTool,
+  getSendcloudIntegrationTool,
 ]
 
 const DEFAULT_FIGMA_NODE_DEPTH = 3

@@ -55,6 +55,12 @@ const TOOL_LABELS = {
   sendcloud_list_returns: { label: 'Listing Sendcloud returns' },
   sendcloud_get_return: { label: 'Reading Sendcloud return', arg: 'returnId' },
   sendcloud_list_shipping_methods: { label: 'Listing Sendcloud shipping methods' },
+  sendcloud_list_shipping_products: { label: 'Listing Sendcloud shipping products', arg: 'carrier' },
+  sendcloud_get_pickup: { label: 'Reading Sendcloud pickup', arg: 'pickupId' },
+  sendcloud_search_service_points: { label: 'Searching Sendcloud service points', arg: 'city' },
+  sendcloud_get_service_point: { label: 'Reading Sendcloud service point', arg: 'servicePointId' },
+  sendcloud_validate_address: { label: 'Validating address in Sendcloud', arg: 'city' },
+  sendcloud_get_integration: { label: 'Checking Sendcloud integration', arg: 'integrationId' },
   post_slack_message: { label: 'Posting to Slack', arg: 'channel' },
 }
 
