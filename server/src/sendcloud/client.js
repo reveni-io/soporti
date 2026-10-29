@@ -2,7 +2,6 @@ import { getSendcloudAccounts, isSendcloudConfigured } from './settings.js'
 
 const API_BASE_URL = 'https://panel.sendcloud.sc/api'
 const REQUEST_TIMEOUT_MS = 15_000
-const MAX_ERROR_CHARS = 300
 const RETURNS_PAGE_SIZE = 40
 const DEFAULT_RETURNS_WINDOW_DAYS = 30
 const DAY_MS = 86_400_000
@@ -14,6 +13,9 @@ const NOT_CONFIGURED_MESSAGE = 'Sendcloud is not configured. An admin has to lin
 const REJECTED_MESSAGE =
   'Sendcloud rejected the API keys of this account. They may have been revoked — an admin has to link the account again in /admin → Sendcloud.'
 const FORBIDDEN_MESSAGE = 'Sendcloud refused the request: the API keys of this account are not allowed to read that.'
+const INVALID_REQUEST_STATUSES = new Set([400, 422])
+const RATE_LIMITED_STATUS = 429
+const SERVER_ERROR_STATUS = 500
 const PARCEL_FILTERS = {
   orderNumber: 'order_number',
   trackingNumber: 'tracking_number',
@@ -24,13 +26,21 @@ function authorization({ publicKey, secretKey }) {
   return `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString('base64')}`
 }
 
-async function describeFailure(res, path) {
-  if (res.status === 401) return REJECTED_MESSAGE
-  if (res.status === 403) return FORBIDDEN_MESSAGE
-  if (res.status === 404) return `Sendcloud has nothing at ${path}: check the id or number and the account.`
+function describeFailure(status, path) {
+  if (status === 401) return REJECTED_MESSAGE
+  if (status === 403) return FORBIDDEN_MESSAGE
+  if (status === 404) return `Sendcloud has nothing at ${path}: check the id or number and the account.`
+  if (INVALID_REQUEST_STATUSES.has(status)) {
+    return `Sendcloud refused the request to ${path} as invalid (${status}): check the filters, ids and dates.`
+  }
+  if (status === RATE_LIMITED_STATUS) {
+    return 'Sendcloud is rate limiting this account (429): wait a moment and try again.'
+  }
+  if (status >= SERVER_ERROR_STATUS) {
+    return `Sendcloud is not answering properly right now (${status}): try again later.`
+  }
 
-  const text = (await res.text()).slice(0, MAX_ERROR_CHARS)
-  return `Sendcloud API ${path} failed (${res.status}): ${text}`
+  return `Sendcloud API ${path} failed (${status}).`
 }
 
 async function request(account, path) {
@@ -43,7 +53,7 @@ async function request(account, path) {
       headers: { Authorization: authorization(account), Accept: 'application/json' },
     })
 
-    if (!res.ok) throw new Error(await describeFailure(res, path))
+    if (!res.ok) throw new Error(describeFailure(res.status, path))
 
     return res.json()
   } finally {
@@ -193,10 +203,13 @@ function toTrackingNumber(entry) {
   }
 }
 
-function newestFirst(history) {
-  return [...(history || [])].sort((left, right) =>
-    String(right.carrier_update_timestamp ?? '').localeCompare(String(left.carrier_update_timestamp ?? ''))
-  )
+function timestampOf(value) {
+  const time = Date.parse(value ?? '')
+  return Number.isNaN(time) ? 0 : time
+}
+
+function newestFirst(entries, field) {
+  return [...(entries || [])].sort((left, right) => timestampOf(right[field]) - timestampOf(left[field]))
 }
 
 function toStatusEntry(entry) {
@@ -228,36 +241,39 @@ function toMoney(amount) {
   return { value: amount.value ?? null, currency: amount.currency ?? null }
 }
 
-function toReturnSummary(item) {
-  const [latest] = newestFirst(item.status_history)
+function toReturnItem(item) {
+  return {
+    description: item.description ?? null,
+    quantity: item.quantity ?? null,
+    sku: item.sku || null,
+    value: toMoney(item.value),
+    returnReasonId: item.return_reason_id ?? null,
+    customerMessage: item.return_message || null,
+  }
+}
+
+function toReturn(item) {
+  const history = newestFirst(item.status_history, 'carrier_update_timestamp')
 
   return {
-    id: item.id ?? null,
     status: item.status ?? null,
-    parcelStatus: latest?.parent_status ?? null,
+    parcelStatus: history[0]?.parent_status ?? null,
     orderNumber: item.order_number || null,
     trackingNumber: item.tracking_number || null,
     trackingUrl: item.tracking_url || null,
     reason: item.reason?.description ?? null,
     refundType: item.refund?.refund_type ?? null,
-    customer: item.from_address?.name ?? null,
+    refundMessage: item.refund?.message || null,
     createdAt: item.created_at ?? null,
-  }
-}
-
-function toReturn(item) {
-  return {
-    ...toReturnSummary(item),
     deliveredAt: item.delivered_at_iso ?? null,
     isCancellable: Boolean(item.is_cancellable),
-    refundMessage: item.refund?.message || null,
     from: toAddress(item.from_address),
     to: toAddress(item.to_address),
     shippingOption: item.shipping_option?.code ?? null,
     labelCost: toMoney(item.label_cost),
     returnFee: toMoney(item.return_fee),
-    items: (item.parcel_items || []).map(toParcelItem),
-    statusHistory: newestFirst(item.status_history).map(toStatusEntry),
+    items: (item.parcel_items || []).map(toReturnItem),
+    statusHistory: history.map(toStatusEntry),
   }
 }
 
@@ -350,7 +366,7 @@ export async function getTracking(accountName, trackingNumber) {
     isReturn: Boolean(data.details?.is_return),
     toServicePoint: Boolean(data.details?.is_to_service_point),
     trackingNumbers: (data.tracking_numbers || []).map(toTrackingNumber),
-    events: (data.events || []).map(toTrackingEvent),
+    events: newestFirst(data.events, 'event_at').map(toTrackingEvent),
   }
 }
 
@@ -372,7 +388,7 @@ export async function listReturns(accountName, options = {}) {
     account: account.name,
     from,
     to,
-    returns: (data.data || []).map(toReturnSummary),
+    returns: (data.data || []).map(toReturn),
     truncated: Boolean(nextCursor),
     nextCursor,
   }
@@ -384,7 +400,7 @@ export async function getReturn(accountName, returnId) {
 
   const data = await request(account, `/v3/returns/${id}`)
 
-  return { account: account.name, ...toReturn({ ...data, id: data.id ?? Number(id) }) }
+  return { account: account.name, id: Number(id), ...toReturn(data) }
 }
 
 export async function listShippingMethods(accountName, { isReturn = false, toCountry = null } = {}) {

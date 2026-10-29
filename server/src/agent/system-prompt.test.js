@@ -101,6 +101,8 @@ describe('buildBasePrompt', () => {
     expect(prompt).toContain('sendcloud_list_accounts')
     expect(prompt).toContain('search each account in turn')
     expect(prompt).toContain('You cannot change anything in Sendcloud')
+    expect(prompt).toContain('an empty list is not proof that a customer has no return')
+    expect(prompt).toContain('The list does not return ids — never guess one.')
   })
 
   it('leaves the Sendcloud section out while no account is linked', () => {

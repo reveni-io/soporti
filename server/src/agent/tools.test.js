@@ -1478,6 +1478,15 @@ describe('buildAgentTools with Sendcloud', () => {
     ])
   })
 
+  it('warns that an empty returns list does not prove there is no return', () => {
+    const description = sendcloudTool('sendcloud_list_returns').description
+
+    expect(description).toContain('an empty list does NOT prove there is no return')
+    expect(description).toContain('sendcloud_search_parcels')
+    expect(description).not.toContain('Read one with sendcloud_get_return')
+    expect(sendcloudTool('sendcloud_get_return').description).toContain('never guess one')
+  })
+
   it('lists the linked accounts', async () => {
     const sendcloudMod = await import('../sendcloud/client.js')
     sendcloudMod.listAccounts.mockResolvedValue({ accounts: [{ name: 'Acme EU' }] })

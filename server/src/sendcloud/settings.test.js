@@ -10,8 +10,8 @@ vi.mock('../db/sendcloud-accounts.js', () => ({
 }))
 
 const {
-  INVALID_SENDCLOUD_ACCOUNT,
   DUPLICATE_SENDCLOUD_ACCOUNT,
+  parseSendcloudAccount,
   getSendcloudAccounts,
   describeSendcloudAccount,
   addSendcloudAccount,
@@ -61,39 +61,48 @@ describe('describeSendcloudAccount', () => {
   })
 })
 
+describe('parseSendcloudAccount', () => {
+  it('trims every field', () => {
+    expect(parseSendcloudAccount(INPUT)).toEqual({
+      value: { name: 'Acme US', publicKey: 'public-key-789', secretKey: 'secret-key-000' },
+    })
+  })
+
+  it.each([
+    [{ ...INPUT, name: '   ' }, 'The account name must be between 1 and 60 characters.'],
+    [{ ...INPUT, name: 'x'.repeat(61) }, 'The account name must be between 1 and 60 characters.'],
+    [{ ...INPUT, publicKey: 'short' }, 'That does not look like a Sendcloud public key.'],
+    [{ ...INPUT, secretKey: 'has spaces inside' }, 'That does not look like a Sendcloud secret key.'],
+    [{ name: 'Acme US' }, 'That does not look like a Sendcloud public key.'],
+  ])('rejects %j', (input, error) => {
+    expect(parseSendcloudAccount(input)).toEqual({ error })
+  })
+
+  it('rejects a missing body', () => {
+    expect(parseSendcloudAccount()).toEqual({ error: 'The account name must be between 1 and 60 characters.' })
+  })
+})
+
 describe('addSendcloudAccount', () => {
-  it('stores the trimmed account and drops the cached list', async () => {
+  const ACCOUNT = { name: 'Acme US', publicKey: 'public-key-789', secretKey: 'secret-key-000' }
+
+  it('stores the account and drops the cached list', async () => {
     createSendcloudAccount.mockResolvedValue({ id: 2, name: 'Acme US', createdAt: CREATED_AT })
     await getSendcloudAccounts()
 
-    const created = await addSendcloudAccount(INPUT)
+    const created = await addSendcloudAccount(ACCOUNT)
     await getSendcloudAccounts()
 
     expect(created).toEqual({ id: 2, name: 'Acme US', createdAt: CREATED_AT })
     expect(createSendcloudAccount).toHaveBeenCalledTimes(1)
-    expect(createSendcloudAccount).toHaveBeenCalledWith({
-      name: 'Acme US',
-      publicKey: 'public-key-789',
-      secretKey: 'secret-key-000',
-    })
+    expect(createSendcloudAccount).toHaveBeenCalledWith(ACCOUNT)
     expect(listSendcloudAccounts).toHaveBeenCalledTimes(2)
   })
 
-  it.each([
-    [{ ...INPUT, name: '   ' }, /account name/],
-    [{ ...INPUT, name: 'x'.repeat(61) }, /account name/],
-    [{ ...INPUT, publicKey: 'short' }, /public key/],
-    [{ ...INPUT, secretKey: 'has spaces inside' }, /secret key/],
-    [{ name: 'Acme US' }, /public key/],
-  ])('rejects %j', async (input, message) => {
-    await expect(addSendcloudAccount(input)).rejects.toMatchObject({ code: INVALID_SENDCLOUD_ACCOUNT })
-    await expect(addSendcloudAccount(input)).rejects.toThrow(message)
-    expect(createSendcloudAccount).not.toHaveBeenCalled()
-  })
-
   it('refuses a name already in use, whatever its case', async () => {
-    await expect(addSendcloudAccount({ ...INPUT, name: 'acme eu' })).rejects.toMatchObject({
+    await expect(addSendcloudAccount({ ...ACCOUNT, name: 'acme eu' })).rejects.toMatchObject({
       code: DUPLICATE_SENDCLOUD_ACCOUNT,
+      message: 'A Sendcloud account with this name already exists.',
     })
     expect(createSendcloudAccount).not.toHaveBeenCalled()
   })
