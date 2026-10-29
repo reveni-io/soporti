@@ -9,6 +9,7 @@ import * as betterstack from '../betterstack/client.js'
 import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
+import * as sendcloud from '../sendcloud/client.js'
 import { ALWAYS_AVAILABLE_INTEGRATIONS, INTEGRATIONS } from '../agent/integrations.js'
 
 export const GITHUB_INTEGRATION_ID = 'github'
@@ -45,6 +46,11 @@ const CATALOG = [
     'zendesk',
     'Read and search your own Zendesk tickets and views, and post internal notes on them',
     zendesk.isConfigured
+  ),
+  catalogEntry(
+    'sendcloud',
+    'Track parcels, returns and shipping methods across the linked Sendcloud accounts (read-only)',
+    sendcloud.isConfigured
   ),
 ]
 

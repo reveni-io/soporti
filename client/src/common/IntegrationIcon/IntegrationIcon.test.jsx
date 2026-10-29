@@ -14,6 +14,7 @@ describe('IntegrationIcon', () => {
     'betterstack',
     'figma',
     'zendesk',
+    'sendcloud',
     'openai',
     'anthropic',
   ])('renders the %s brand mark', id => {
@@ -27,6 +28,15 @@ describe('IntegrationIcon', () => {
     const { container } = render(<IntegrationIcon id="anthropic" />)
 
     expect(container.querySelector('svg[data-icon="anthropic"]')).toHaveAttribute('viewBox', '0 0 248 248')
+  })
+
+  it('centres the Sendcloud cloud in a square viewBox so it stays legible at 16px', () => {
+    const { container } = render(<IntegrationIcon id="sendcloud" size={16} />)
+    const svg = container.querySelector('svg[data-icon="sendcloud"]')
+
+    expect(svg).toHaveAttribute('viewBox', '0 -8.29 51.64 51.64')
+    expect(svg).toHaveAttribute('fill', 'currentColor')
+    expect(svg).toHaveAttribute('width', '16')
   })
 
   it('keeps the 24 grid for a mark that has no viewBox of its own', () => {

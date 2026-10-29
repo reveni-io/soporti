@@ -1,0 +1,2 @@
+ALTER TABLE "sendcloud_accounts" DROP CONSTRAINT "sendcloud_accounts_name_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "sendcloud_accounts_name_lower_idx" ON "sendcloud_accounts" USING btree (lower("name"));

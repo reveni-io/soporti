@@ -1,0 +1,56 @@
+.lp-sendcloud {
+  padding: var(--sp6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.lp-sendcloud__question {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lp-sendcloud__meta {
+  margin: var(--sp1) 0 var(--sp4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.lp-sendcloud__timeline {
+  display: grid;
+  gap: var(--sp3);
+  margin: 0;
+  padding: 0 0 0 var(--sp4);
+  list-style: none;
+  border-left: 2px solid var(--border-default);
+}
+
+.lp-sendcloud__event {
+  display: grid;
+  gap: var(--sp1);
+  padding-left: var(--sp3);
+  border-left: 3px solid var(--green-chart);
+}
+
+.lp-sendcloud__event--warning {
+  border-left-color: var(--orange-500);
+}
+
+.lp-sendcloud__time {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.lp-sendcloud__label {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.lp-sendcloud__event--warning .lp-sendcloud__label {
+  color: var(--orange-700);
+  font-weight: 600;
+}

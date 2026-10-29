@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { createSession, requireAdmin } from '../middleware/auth.js'
 import adminStatsRouter from './admin-stats.js'
+import adminSendcloudRouter from './admin-sendcloud.js'
 import { hashPassword, validatePassword } from '../auth/password.js'
 import { verifySetupCode, announceSetupCode } from '../auth/setup-code.js'
 import { getAllowedDomains, setAllowedDomains } from '../auth/allowed-domains.js'
@@ -117,6 +118,7 @@ import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { isZendeskConfigured } from '../zendesk/settings.js'
+import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { isConfigured as isShopifyConfigured } from '../shopify/client.js'
 import {
   getOwnApiKey,
@@ -157,6 +159,7 @@ const INTEGRATION_CHECKS = {
   granola: isGranolaConfigured,
   figma: isFigmaConfigured,
   zendesk: isZendeskConfigured,
+  sendcloud: isSendcloudConfigured,
 }
 
 function validEmail(email) {
@@ -314,6 +317,7 @@ router.post('/bootstrap', async (req, res) => {
 router.use(requireAdmin)
 
 router.use('/stats', adminStatsRouter)
+router.use('/config/sendcloud', adminSendcloudRouter)
 
 router.get('/users', async (_req, res) => {
   try {

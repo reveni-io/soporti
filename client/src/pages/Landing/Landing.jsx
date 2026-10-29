@@ -17,6 +17,7 @@ import ProfilesSection from './ProfilesSection/ProfilesSection.jsx'
 import ProvidersSection from './ProvidersSection/ProvidersSection.jsx'
 import RendersSection from './RendersSection/RendersSection.jsx'
 import SafetySection from './SafetySection/SafetySection.jsx'
+import SendcloudSection from './SendcloudSection/SendcloudSection.jsx'
 import SearchSection from './SearchSection/SearchSection.jsx'
 import SkillsSection from './SkillsSection/SkillsSection.jsx'
 import SlackSection from './SlackSection/SlackSection.jsx'
@@ -42,6 +43,7 @@ export default function Landing({ hideCta = false }) {
       <RendersSection />
       <ArtifactsSection />
       <IntegrationsSection />
+      <SendcloudSection />
       <SlackSection />
       <AttachmentsSection />
       <ProvidersSection />

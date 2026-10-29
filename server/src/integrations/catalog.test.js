@@ -11,6 +11,7 @@ const betterstackIsConfigured = vi.fn()
 const granolaIsConfigured = vi.fn()
 const figmaIsConfigured = vi.fn()
 const zendeskIsConfigured = vi.fn()
+const sendcloudIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({ isConfigured: (...args) => notionIsConfigured(...args) }))
 vi.mock('../postgres/client.js', () => ({ isConfigured: (...args) => postgresIsConfigured(...args) }))
@@ -23,6 +24,7 @@ vi.mock('../betterstack/client.js', () => ({ isConfigured: (...args) => betterst
 vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsConfigured(...args) }))
 vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigured(...args) }))
 vi.mock('../zendesk/client.js', () => ({ isConfigured: (...args) => zendeskIsConfigured(...args) }))
+vi.mock('../sendcloud/client.js', () => ({ isConfigured: (...args) => sendcloudIsConfigured(...args) }))
 
 const { listConfiguredIntegrations, GITHUB_INTEGRATION_ID } = await import('./catalog.js')
 
@@ -38,6 +40,7 @@ function configureAll(value) {
   granolaIsConfigured.mockResolvedValue(value)
   figmaIsConfigured.mockResolvedValue(value)
   zendeskIsConfigured.mockResolvedValue(value)
+  sendcloudIsConfigured.mockResolvedValue(value)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -61,6 +64,7 @@ describe('listConfiguredIntegrations', () => {
       'betterstack',
       'figma',
       'zendesk',
+      'sendcloud',
     ])
     expect(integrations.find(integration => integration.id === 'betterstack')).toEqual({
       id: 'betterstack',
@@ -90,6 +94,7 @@ describe('listConfiguredIntegrations', () => {
       betterstack: true,
       figma: true,
       zendesk: true,
+      sendcloud: true,
     })
   })
 
@@ -128,5 +133,19 @@ describe('listConfiguredIntegrations', () => {
 
     expect(zendeskIsConfigured).toHaveBeenCalledWith(7)
     expect(integrations.map(integration => integration.id)).toEqual(['github', 'zendesk'])
+  })
+
+  it('lists Sendcloud once an account is linked', async () => {
+    configureAll(false)
+    sendcloudIsConfigured.mockResolvedValue(true)
+
+    const integrations = await listConfiguredIntegrations(7)
+
+    expect(integrations.find(integration => integration.id === 'sendcloud')).toEqual({
+      id: 'sendcloud',
+      name: 'Sendcloud',
+      description: 'Track parcels, returns and shipping methods across the linked Sendcloud accounts (read-only)',
+      selectable: true,
+    })
   })
 })
