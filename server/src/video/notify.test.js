@@ -33,6 +33,17 @@ describe('notifyVersionOutcome', () => {
     )
   })
 
+  it('DMs a Slack-only owner by their Slack id', async () => {
+    findUserById.mockResolvedValue({ id: 7, slackId: 'U0999ZZZZ', email: null })
+
+    const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 7000 })
+
+    expect(sent).toBe(true)
+    expect(findUserById).toHaveBeenCalledWith(7)
+    expect(postDirectMessage).toHaveBeenCalledTimes(1)
+    expect(postDirectMessage.mock.calls[0][0]).toEqual({ slackId: 'U0999ZZZZ', email: null })
+  })
+
   it('DMs the failure in one sentence when a version fails', async () => {
     await notifyVersionOutcome({ job: JOB, status: 'failed', error: 'The page threw on boot.' })
 

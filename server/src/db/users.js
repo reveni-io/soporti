@@ -86,7 +86,11 @@ export async function findUserByEmail(email) {
 }
 
 export async function findUserById(id) {
-  const [user] = await getDb().select(userColumns).from(users).where(eq(users.id, id)).limit(1)
+  const [user] = await getDb()
+    .select({ ...userColumns, slackId: users.slackId })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1)
   return user ?? null
 }
 
