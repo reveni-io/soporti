@@ -100,6 +100,7 @@ const config = {
     renderWorkers: parseInt(process.env.VIDEO_RENDER_WORKERS || '', 10) || defaultRenderWorkers(),
     maxSubframes: parseInt(process.env.VIDEO_MAX_SUBFRAMES || '16', 10) || 16,
     ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+    maxTurns: parseInt(process.env.VIDEO_MAX_TURNS || '300', 10) || 300,
   },
 
   review: {

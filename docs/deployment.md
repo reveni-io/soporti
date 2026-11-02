@@ -286,6 +286,7 @@ API's event loop.
 | `VIDEO_RENDER_WORKERS` | `max(1, min(4, CPUs - 1))` | Render processes working in parallel, each with its own Chromium. Lower it on a small instance |
 | `VIDEO_MAX_SUBFRAMES` | `16` | Cap on the motion-blur subframes captured per frame |
 | `FFMPEG_PATH` | `ffmpeg` | ffmpeg binary that encodes the videos |
+| `VIDEO_MAX_TURNS` | `300` | Safety net of agent turns per video version. At the limit the agent wraps up, and the version only succeeds if the last check of its files passed |
 
 **Render time.** Seeking a frame takes ~3 ms, but each captured subframe (seek +
 PNG screenshot at 1080p) costs ~100–150 ms of CPU, and motion blur averages ~3

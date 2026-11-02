@@ -8,6 +8,7 @@ const CHANNEL_LABELS = {
   auto_diagnose: 'Ticket auto-diagnose',
   mcp: 'MCP',
   video_storyboard: 'Video storyboards',
+  video: 'Video generation',
 }
 
 const SOURCE_LABELS = {
