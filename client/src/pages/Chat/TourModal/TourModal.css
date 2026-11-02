@@ -75,10 +75,7 @@
   color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .tour-modal__example:hover {

@@ -17,9 +17,7 @@
   padding: 2px var(--sp2);
   cursor: pointer;
   font-size: var(--fs-base);
-  transition:
-    background 0.15s,
-    border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .feedback__btn:hover {
