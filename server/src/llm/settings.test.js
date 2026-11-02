@@ -15,6 +15,7 @@ const {
   setAnthropicApiKey,
   getAnthropicModel,
   setAnthropicModel,
+  getProviderModel,
   getReasoningEffort,
   setReasoningEffort,
   REASONING_EFFORT_KEY,
@@ -162,6 +163,17 @@ describe('getAnthropicModel', () => {
 
     expect(await getAnthropicModel()).toBe('claude-opus-5')
     expect(setConfigValue).toHaveBeenCalledWith(ANTHROPIC_MODEL_KEY, 'claude-opus-5')
+  })
+})
+
+describe('getProviderModel', () => {
+  it('returns the stored model of the named provider', async () => {
+    getConfigValue.mockImplementation(async key => (key === ANTHROPIC_MODEL_KEY ? 'claude-opus-5' : 'gpt-5.2'))
+
+    expect(await getProviderModel('anthropic')).toBe('claude-opus-5')
+    expect(await getProviderModel('openai')).toBe('gpt-5.2')
+    expect(getConfigValue).toHaveBeenCalledTimes(2)
+    expect(getConfigValue).toHaveBeenCalledWith(OPENAI_MODEL_KEY)
   })
 })
 

@@ -7,6 +7,8 @@ export const ANTHROPIC_API_KEY_KEY = 'anthropic_api_key'
 export const ANTHROPIC_MODEL_KEY = 'anthropic_model'
 export const REASONING_EFFORT_KEY = 'reasoning_effort'
 
+const MODEL_KEYS = { openai: OPENAI_MODEL_KEY, anthropic: ANTHROPIC_MODEL_KEY }
+
 const CACHE_TTL_MS = 60_000
 const cache = new Map()
 
@@ -65,6 +67,10 @@ export async function getAnthropicModel() {
 
 export async function setAnthropicModel(model) {
   await setValue(ANTHROPIC_MODEL_KEY, model)
+}
+
+export async function getProviderModel(providerId) {
+  return getCachedValue(MODEL_KEYS[providerId])
 }
 
 export async function getReasoningEffort() {

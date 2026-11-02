@@ -176,6 +176,15 @@ describe('modelSettings', () => {
     })
   })
 
+  it('caps the efforts openai rejects at high', () => {
+    expect(provider.modelSettings('gpt-5.2', { effort: 'max' })).toEqual({ reasoning: { effort: 'high' } })
+    expect(provider.modelSettings('o3', { effort: 'xhigh' })).toEqual({ reasoning: { effort: 'high' } })
+    expect(provider.modelSettings('gpt-5.2-codex', { effort: 'max' })).toEqual({
+      reasoning: { effort: 'high' },
+      text: { verbosity: 'medium' },
+    })
+  })
+
   it('leaves a non-reasoning model on the SDK defaults, because it would reject the effort', () => {
     expect(provider.modelSettings('gpt-4o', { effort: 'high' })).toEqual({})
   })
