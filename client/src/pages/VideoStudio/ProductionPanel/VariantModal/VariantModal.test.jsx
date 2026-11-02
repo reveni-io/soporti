@@ -29,6 +29,25 @@ describe('VariantModal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('shows why the variant failed once it is sent, not an error left from before it opened', async () => {
+    const user = userEvent.setup()
+    render(
+      <VariantModal
+        busy={false}
+        error="Failed to create the variant."
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(false)}
+      />
+    )
+
+    expect(screen.queryByText('Failed to create the variant.')).toBeNull()
+
+    await user.type(screen.getByRole('textbox', { name: 'What should change?' }), 'Shorter')
+    await user.click(screen.getByRole('button', { name: 'Create variant' }))
+
+    expect(screen.getByText('Failed to create the variant.')).toHaveClass('alert', 'alert--error')
+  })
+
   it('needs a change and an idle studio before it can be sent', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<VariantModal busy={false} onClose={vi.fn()} onSubmit={vi.fn()} />)

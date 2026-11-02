@@ -7,8 +7,9 @@ const CHANGE_ROWS = 4
 const CHANGE_MAX_LENGTH = 4000
 const CHANGE_PLACEHOLDER = 'e.g. Brand it for Acme: their logo and colors, and the copy in Spanish.'
 
-export default function VariantModal({ busy, onClose, onSubmit }) {
+export default function VariantModal({ busy, error, onClose, onSubmit }) {
   const [draft, setDraft] = useState('')
+  const [hasSubmitted, setHasSubmitted] = useState(false)
   const overlayProps = useOverlayDismiss(onClose)
   const fieldId = useId()
   const change = draft.trim()
@@ -16,6 +17,7 @@ export default function VariantModal({ busy, onClose, onSubmit }) {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    setHasSubmitted(true)
     if (await onSubmit(change)) onClose()
   }
 
@@ -45,6 +47,8 @@ export default function VariantModal({ busy, onClose, onSubmit }) {
           value={draft}
           onChange={event => setDraft(event.target.value)}
         />
+
+        {hasSubmitted && error && <p className="alert alert--error">{error}</p>}
 
         <div className="modal__actions">
           <button type="button" className="btn btn--secondary" onClick={onClose}>

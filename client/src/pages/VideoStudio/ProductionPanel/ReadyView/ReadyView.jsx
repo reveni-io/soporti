@@ -34,7 +34,12 @@ export default function ReadyView({ video, version, token, onLogout, busy, actio
       </div>
 
       {isCreatingVariant && (
-        <VariantModal busy={busy} onClose={() => setIsCreatingVariant(false)} onSubmit={actions.createVariant} />
+        <VariantModal
+          busy={busy}
+          error={actions.error}
+          onClose={() => setIsCreatingVariant(false)}
+          onSubmit={actions.createVariant}
+        />
       )}
     </div>
   )

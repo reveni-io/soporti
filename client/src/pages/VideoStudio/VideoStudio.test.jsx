@@ -449,6 +449,29 @@ describe('VideoStudio in production', () => {
     expect(JSON.parse(callsTo('POST', `${VIDEO_URL}/variants`)[0][1].body)).toEqual({ request: 'Brand it for Acme' })
   })
 
+  it('shows a failed variant request inside the dialog and keeps it open', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      [`GET ${VIDEO_URL}`]: respond({ video: productionVideo([readyVersionFixture]) }),
+      [`GET ${VERSION_URL}/1/video`]: respondBlob('mp4'),
+      [`POST ${VIDEO_URL}/variants`]: respond({ error: 'Failed to create the variant.' }, 500),
+    })
+    render(
+      <MemoryRouter>
+        <VideoStudio id={VIDEO_ID} />
+      </MemoryRouter>
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Create variant' }))
+    const dialog = screen.getByRole('dialog', { name: 'Create a variant' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'What should change?' }), 'Brand it for Acme')
+    await user.click(within(dialog).getByRole('button', { name: 'Create variant' }))
+
+    expect(await within(dialog).findByText('Failed to create the variant.')).toHaveClass('alert', 'alert--error')
+    expect(screen.getByRole('dialog', { name: 'Create a variant' })).toBeInTheDocument()
+    expect(callsTo('POST', `${VIDEO_URL}/variants`)).toHaveLength(1)
+  })
+
   it('shows why a version failed and retries it', async () => {
     const user = userEvent.setup()
     const failed = {
