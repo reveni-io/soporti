@@ -44,6 +44,10 @@ vi.mock('./db/users.js', () => ({
   countAdmins: vi.fn().mockResolvedValue(1),
 }))
 
+vi.mock('./video/storyboard.js', () => ({
+  recoverInterruptedDrafts: vi.fn().mockResolvedValue(0),
+}))
+
 vi.mock('./github/settings.js', () => ({
   getGithubToken: vi.fn().mockResolvedValue('test-token'),
   getWebhookSecret: vi.fn().mockResolvedValue('test-secret'),
@@ -174,6 +178,14 @@ app.use((_req, res) => {
 })
 
 describe('index.js app setup', () => {
+  describe('boot', () => {
+    it('fails the storyboard drafts a restart interrupted', async () => {
+      const { recoverInterruptedDrafts } = await import('./video/storyboard.js')
+
+      await vi.waitFor(() => expect(recoverInterruptedDrafts).toHaveBeenCalledTimes(1))
+    })
+  })
+
   describe('POST /api/auth/google', () => {
     it('is mounted and returns a session token', async () => {
       const res = await request(app).post('/api/auth/google').send({ credential: 'x' })

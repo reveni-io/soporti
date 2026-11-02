@@ -148,6 +148,13 @@
       "when": 1793272004296,
       "tag": "0020_concerned_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793621290604,
+      "tag": "0021_thin_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

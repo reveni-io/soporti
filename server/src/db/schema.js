@@ -345,3 +345,40 @@ export const artifactShares = pgTable(
   },
   table => [uniqueIndex('artifact_shares_artifact_version_idx').on(table.artifactId, table.version)]
 )
+
+export const videos = pgTable(
+  'videos',
+  {
+    id: uuid('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    brief: jsonb('brief').notNull(),
+    storyboard: jsonb('storyboard'),
+    stage: text('stage').notNull(),
+    storyboardError: text('storyboard_error'),
+    parentVideoId: uuid('parent_video_id').references(() => videos.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [
+    index('videos_user_created_idx').on(table.userId, table.createdAt),
+    index('videos_stage_idx').on(table.stage),
+  ]
+)
+
+export const videoMessages = pgTable(
+  'video_messages',
+  {
+    id: serial('id').primaryKey(),
+    videoId: uuid('video_id')
+      .notNull()
+      .references(() => videos.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    content: text('content').notNull(),
+    version: integer('version'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('video_messages_video_idx').on(table.videoId)]
+)
