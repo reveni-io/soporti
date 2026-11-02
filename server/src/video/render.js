@@ -299,9 +299,18 @@ function stopWorker(child) {
   })
 }
 
+function createSettlement() {
+  const settlement = {}
+  settlement.promise = new Promise((resolve, reject) => {
+    settlement.resolve = resolve
+    settlement.reject = reject
+  })
+  return settlement
+}
+
 async function runWorkers({ jobPath, workerCount, chunkCount, onFrame, signal }) {
   const pool = { queue: Array.from({ length: chunkCount }, (_, index) => index), finished: 0, chunkCount, onFrame }
-  pool.settle = Promise.withResolvers()
+  pool.settle = createSettlement()
 
   const children = Array.from({ length: workerCount }, () => spawnWorker(pool, jobPath))
   const forget = onAbort(signal, () => pool.settle.reject(cancelledError()))
