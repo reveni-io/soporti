@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
-import { useVideos } from './hooks/useVideos/useVideos.js'
+import { useVideos } from '../../hooks/useVideos/useVideos.js'
 import { ROUTES } from '../../router/constants.js'
 import VideoGrid from './VideoGrid/VideoGrid.jsx'
 import NewVideoModal from './NewVideoModal/NewVideoModal.jsx'

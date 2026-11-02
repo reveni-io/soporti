@@ -166,7 +166,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/config/sentry
 })
 ```
 
-New service functions delegate to the private `request()` helper and pass a human `errorMessage` fallback. The only escape hatches are `streamChat` (returns the raw `Response` because SSE needs `body.getReader()`) and `absoluteApiUrl` (builds a displayable absolute URL).
+New service functions delegate to the private `request()` helper and pass a human `errorMessage` fallback. The only escape hatches are `streamChat` (returns the raw `Response` because SSE needs `body.getReader()`), `absoluteApiUrl` (builds a displayable absolute URL) and the private `requestBlob()` next to `request()`, which returns the response as a `Blob` for binary endpoints (a video's MP4, thumbnail and contact sheets) — a component turns it into an object URL with `useBlobUrl`, which revokes it on change and on unmount.
 
 **HANDLE 401 BEFORE ANY OTHER ERROR**: every call that can 401 checks `isUnauthorized(err)` and logs the user out instead of rendering an error.
 

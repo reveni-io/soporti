@@ -76,4 +76,19 @@ describe('useVideos', () => {
     expect(onLogout).toHaveBeenCalledTimes(1)
     expect(result.current.error).toBeNull()
   })
+
+  it.each([
+    ['queued', true],
+    ['running', true],
+    ['drafting', false],
+    ['ready', false],
+  ])('tells whether a video is being generated when one is %s', async (status, expected) => {
+    global.fetch = vi.fn().mockResolvedValue(respond({ videos: [summary('a', 'failed'), summary('b', status)] }))
+
+    const { result } = renderHook(() => useVideos('tok', vi.fn()))
+    expect(result.current.isGenerating).toBe(false)
+    await advance(0)
+
+    expect(result.current.isGenerating).toBe(expected)
+  })
 })
