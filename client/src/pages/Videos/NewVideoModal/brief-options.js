@@ -16,7 +16,7 @@ export const FORMAT_OPTIONS = [
   { value: '9:16', label: '9:16' },
 ]
 
-export const DURATION_OPTIONS = [20, 30, 60, 90].map(seconds => ({ value: seconds, label: `~${seconds} s` }))
+export const DURATION_OPTIONS = [10, 20, 30, 60, 90].map(seconds => ({ value: seconds, label: `~${seconds} s` }))
 
 export const PACE_OPTIONS = [
   { value: 'relaxed', label: 'Relaxed' },

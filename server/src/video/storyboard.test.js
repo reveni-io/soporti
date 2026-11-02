@@ -9,9 +9,9 @@ vi.mock('@openai/agents', () => {
       this.clone = vi.fn(overrides => ({ ...config, ...overrides }))
     }),
     MaxTurnsExceededError: FakeMaxTurnsExceededError,
-    run: vi.fn(),
   }
 })
+vi.mock('../agent/run-streamed.js', () => ({ runStreamed: vi.fn() }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: vi.fn() }))
 vi.mock('../agent/tools.js', () => ({ buildRepoTools: vi.fn() }))
 vi.mock('../agent/run-tracking.js', () => {
@@ -26,7 +26,8 @@ vi.mock('../db/videos.js', () => {
 })
 vi.mock('./settings.js', () => ({ getVideoModelSelection: vi.fn(), isVideoConfigured: vi.fn() }))
 
-const { Agent, run } = await import('@openai/agents')
+const { Agent } = await import('@openai/agents')
+const { runStreamed } = await import('../agent/run-streamed.js')
 const { resolveModelForAgent } = await import('../llm/model.js')
 const { buildRepoTools } = await import('../agent/tools.js')
 const { trackAgentRun } = await import('../agent/run-tracking.js')
@@ -104,7 +105,7 @@ beforeEach(() => {
 
 describe('startStoryboardDraft', () => {
   it('runs the agent with the video model and the brief repos, then saves the storyboard and the reply', async () => {
-    run.mockResolvedValue({ finalOutput: agentOutput([scene(0, 6, 'Hook'), scene(6, 30, 'Refund')]) })
+    runStreamed.mockResolvedValue({ finalOutput: agentOutput([scene(0, 6, 'Hook'), scene(6, 30, 'Refund')]) })
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
@@ -118,9 +119,9 @@ describe('startStoryboardDraft', () => {
       modelSettings: MODEL_SETTINGS,
     })
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'video_storyboard', subject: VIDEO_ID, userId: 7 })
-    expect(run).toHaveBeenCalledTimes(1)
-    expect(run.mock.calls[0][1]).toContain('Draft the storyboard for this brief.')
-    expect(run.mock.calls[0][2]).toMatchObject({ maxTurns: 80 })
+    expect(runStreamed).toHaveBeenCalledTimes(1)
+    expect(runStreamed.mock.calls[0][1]).toContain('Draft the storyboard for this brief.')
+    expect(runStreamed.mock.calls[0][2]).toMatchObject({ maxTurns: 80 })
     expect(saveStoryboard).toHaveBeenCalledTimes(1)
     expect(saveStoryboard).toHaveBeenCalledWith(VIDEO_ID, 7, {
       title: 'Refunds',
@@ -131,7 +132,7 @@ describe('startStoryboardDraft', () => {
   })
 
   it('makes the scenes contiguous from 0 and fits them to the requested duration', async () => {
-    run.mockResolvedValue({
+    runStreamed.mockResolvedValue({
       finalOutput: agentOutput([scene(10, 20, 'Second'), scene(1, 6, 'First'), scene(22, 22, 'Third')], {
         durationSeconds: 24,
       }),
@@ -156,13 +157,13 @@ describe('startStoryboardDraft', () => {
     ]
     getVideo.mockResolvedValue(video({ brief: { ...video().brief, attachments } }))
     getAttachmentImages.mockResolvedValue(new Map([[IMAGE_ID, 'data:image/png;base64,aGk=']]))
-    run.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
+    runStreamed.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
 
     expect(getAttachmentImages).toHaveBeenCalledWith([IMAGE_ID], 7)
-    const [message] = run.mock.calls[0][1]
+    const [message] = runStreamed.mock.calls[0][1]
     expect(message.content[0].text).toContain('- screen.png (attached below)')
     expect(message.content[0].text).toContain('### spec.pdf\n\nRefund spec')
     expect(message.content[1]).toEqual({ type: 'input_image', image: 'data:image/png;base64,aGk=' })
@@ -170,7 +171,7 @@ describe('startStoryboardDraft', () => {
 
   it('records a readable error when the agent fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    run.mockRejectedValue(new Error('upstream 500'))
+    runStreamed.mockRejectedValue(new Error('upstream 500'))
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
@@ -183,7 +184,7 @@ describe('startStoryboardDraft', () => {
 
   it('says so when the agent runs out of turns', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    run.mockRejectedValue(new FakeMaxTurnsExceededError('max turns'))
+    runStreamed.mockRejectedValue(new FakeMaxTurnsExceededError('max turns'))
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
@@ -197,28 +198,28 @@ describe('startStoryboardDraft', () => {
   })
 
   it('asks for the final answer at the turn limit with the final-answer settings', async () => {
-    run.mockImplementationOnce(async (_agent, _input, options) => {
+    runStreamed.mockImplementationOnce(async (_agent, _input, options) => {
       return options.errorHandlers.maxTurns({ context: {}, runData: { history: [{ role: 'user', content: 'go' }] } })
     })
-    run.mockResolvedValueOnce({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
+    runStreamed.mockResolvedValueOnce({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
 
-    expect(run).toHaveBeenCalledTimes(2)
-    expect(run.mock.calls[1][0]).toMatchObject({ modelSettings: FINAL_SETTINGS })
-    expect(run.mock.calls[1][1].at(-1).content).toContain('all 80 turns')
-    expect(run.mock.calls[1][2]).toMatchObject({ maxTurns: 1 })
+    expect(runStreamed).toHaveBeenCalledTimes(2)
+    expect(runStreamed.mock.calls[1][0]).toMatchObject({ modelSettings: FINAL_SETTINGS })
+    expect(runStreamed.mock.calls[1][1].at(-1).content).toContain('all 80 turns')
+    expect(runStreamed.mock.calls[1][2]).toMatchObject({ maxTurns: 1 })
     expect(saveStoryboard).toHaveBeenCalledTimes(1)
   })
 
   it('fails the draft when the wrap-up at the turn limit fails too', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    run.mockImplementationOnce(async (_agent, _input, options) => {
+    runStreamed.mockImplementationOnce(async (_agent, _input, options) => {
       const handled = await options.errorHandlers.maxTurns({ context: {}, runData: { history: [] } })
       return handled ?? { finalOutput: null }
     })
-    run.mockRejectedValueOnce(new Error('wrap-up failed'))
+    runStreamed.mockRejectedValueOnce(new Error('wrap-up failed'))
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
@@ -228,7 +229,7 @@ describe('startStoryboardDraft', () => {
   })
 
   it('rejects a storyboard without scenes', async () => {
-    run.mockResolvedValue({ finalOutput: agentOutput([]) })
+    runStreamed.mockResolvedValue({ finalOutput: agentOutput([]) })
 
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
@@ -242,7 +243,7 @@ describe('startStoryboardDraft', () => {
     startStoryboardDraft(VIDEO_ID, 7)
     await settle()
 
-    expect(run).not.toHaveBeenCalled()
+    expect(runStreamed).not.toHaveBeenCalled()
     expect(failStoryboard).toHaveBeenCalledWith(
       VIDEO_ID,
       7,
@@ -257,40 +258,40 @@ describe('startStoryboardDraft', () => {
     await vi.waitFor(() => expect(getVideo).toHaveBeenCalledTimes(1))
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(run).not.toHaveBeenCalled()
+    expect(runStreamed).not.toHaveBeenCalled()
     expect(saveStoryboard).not.toHaveBeenCalled()
     expect(failStoryboard).not.toHaveBeenCalled()
   })
 
   it('runs one draft per video at a time', async () => {
     let finish
-    run.mockImplementation(() => new Promise(resolve => (finish = resolve)))
+    runStreamed.mockImplementation(() => new Promise(resolve => (finish = resolve)))
 
     startStoryboardDraft(VIDEO_ID, 7)
-    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(runStreamed).toHaveBeenCalledTimes(1))
     startStoryboardDraft(VIDEO_ID, 7)
     finish({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
     await settle()
 
     expect(getVideo).toHaveBeenCalledTimes(1)
-    expect(run).toHaveBeenCalledTimes(1)
+    expect(runStreamed).toHaveBeenCalledTimes(1)
     expect(saveStoryboard).toHaveBeenCalledTimes(1)
 
-    run.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Again')]) })
+    runStreamed.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Again')]) })
     startStoryboardDraft(VIDEO_ID, 7)
     await vi.waitFor(() => expect(saveStoryboard).toHaveBeenCalledTimes(2))
-    expect(run).toHaveBeenCalledTimes(2)
+    expect(runStreamed).toHaveBeenCalledTimes(2)
   })
 
   it('records nothing when the draft is cancelled', async () => {
-    run.mockImplementation((_agent, _input, { signal }) => {
+    runStreamed.mockImplementation((_agent, _input, { signal }) => {
       return new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new Error('aborted')))
       })
     })
 
     startStoryboardDraft(VIDEO_ID, 7)
-    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(runStreamed).toHaveBeenCalledTimes(1))
     cancelStoryboardDraft(VIDEO_ID)
     await new Promise(resolve => setTimeout(resolve, 0))
 
@@ -300,7 +301,7 @@ describe('startStoryboardDraft', () => {
 
   it('logs when saving the outcome fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    run.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
+    runStreamed.mockResolvedValue({ finalOutput: agentOutput([scene(0, 30, 'Only')]) })
     saveStoryboard.mockRejectedValue(new Error('db down'))
 
     startStoryboardDraft(VIDEO_ID, 7)

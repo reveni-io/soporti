@@ -1,8 +1,9 @@
-import { Agent, MaxTurnsExceededError, run } from '@openai/agents'
+import { Agent, MaxTurnsExceededError } from '@openai/agents'
 import config from '../config.js'
 import { resolveModelForAgent } from '../llm/model.js'
 import { buildAgentInput } from '../agent/agent-input.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
+import { runStreamed } from '../agent/run-streamed.js'
 import { listProjectFiles } from '../db/video-files.js'
 import { getVersionSummary } from '../db/video-versions.js'
 import { getVideoModelSelection, isVideoConfigured } from './settings.js'
@@ -74,7 +75,7 @@ async function buildComposer(ctx) {
 function wrapUpHandler({ agent, finalAnswerModelSettings, ctx }) {
   return async ({ context, runData }) => {
     try {
-      const result = await run(
+      const result = await runStreamed(
         agent.clone({ modelSettings: finalAnswerModelSettings }),
         [...runData.history, { role: 'user', content: buildCompositionTurnLimitMessage(config.video.maxTurns) }],
         { context, maxTurns: WRAP_UP_TURNS, signal: ctx.signal, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR }
@@ -101,7 +102,7 @@ function runComposer({ agent, finalAnswerModelSettings, input, ctx }) {
     },
     async () => {
       const result = await traceAgentRun({ sessionId: job.videoId, userId, question: brief.idea }, () => {
-        return run(agent, input, {
+        return runStreamed(agent, input, {
           maxTurns: config.video.maxTurns,
           signal,
           toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,

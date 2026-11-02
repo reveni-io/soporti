@@ -14,6 +14,7 @@ describe('VideosSection', () => {
     const { container } = render(<VideosSection />)
 
     expect(container.querySelectorAll('.lp-points li')).toHaveLength(6)
+    expect(screen.getByText(/from a 10-second clip to 90 seconds/i)).toBeInTheDocument()
     expect(screen.getByText(/synthesized from code/i)).toBeInTheDocument()
     expect(screen.getByText(/share a link or ask for a change as a new version/i)).toBeInTheDocument()
     expect(screen.getByText(/create a variant/i)).toBeInTheDocument()

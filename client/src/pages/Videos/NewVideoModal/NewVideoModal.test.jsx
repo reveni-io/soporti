@@ -120,6 +120,22 @@ describe('NewVideoModal', () => {
     })
   })
 
+  it('offers a 10-second video', async () => {
+    mockApi()
+    const onCreated = vi.fn()
+    const user = userEvent.setup()
+    render(<NewVideoModal token="tok" onLogout={vi.fn()} onClose={vi.fn()} onCreated={onCreated} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'What should the video tell?' }), 'Refunds')
+    await user.click(await screen.findByRole('checkbox', { name: /reveni\/app/ }))
+    await user.click(screen.getByRole('radio', { name: '~10 s' }))
+    await user.click(screen.getByRole('button', { name: 'Create video' }))
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1))
+    expect(createCall()).toHaveLength(1)
+    expect(JSON.parse(createCall()[0][1].body).brief.durationSeconds).toBe(10)
+  })
+
   it('uploads attachments and sends documents as text and images by id', async () => {
     mockApi({
       'POST /api/attachments': respond({ attachment: { name: 'spec.pdf', text: 'Refund rules', truncated: false } }),

@@ -4,7 +4,7 @@ import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
 import './VideosSection.css'
 
 const POINTS = [
-  'Write a brief: the idea, the repos, the audience, the language, the format (16:9, 1:1 or 9:16), the length and the pace',
+  'Write a brief: the idea, the repos, the audience, the language, the format (16:9, 1:1 or 9:16), the length (from a 10-second clip to 90 seconds) and the pace',
   'Approve a storyboard first: scenes, on-screen text, sound and a music direction, revised in a conversation until it fits',
   'Generation runs in the background: follow the phase, the frames the agent reviewed and its notes, or close the page and get a Slack message when it is ready',
   'Music and sound effects are synthesized from code in sync with the scenes: no sample library, no licences',
