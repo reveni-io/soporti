@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const anthropicFactory = vi.fn()
+const innerModel = {
+  specificationVersion: 'v3',
+  provider: 'anthropic.messages',
+  supportedUrls: { 'image/*': [/^https?:\/\/.*$/] },
+  doGenerate: vi.fn(),
+  doStream: vi.fn(),
+}
 const createAnthropic = vi.fn(opts => {
   anthropicFactory(opts)
-  return modelId => ({ provider: 'anthropic', modelId })
+  return modelId => ({ ...innerModel, modelId })
 })
 vi.mock('@ai-sdk/anthropic', () => ({ createAnthropic }))
 
@@ -17,6 +24,8 @@ vi.mock('./settings.js', () => ({ getAnthropicApiKey, getAnthropicModel }))
 const provider = await import('./anthropic.js')
 
 const CONTEXT_WINDOW_TOKENS = 1_000_000
+const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUg=='
+const SCREENSHOT_URL = 'https://figma-alpha-api.s3.us-west-2.amazonaws.com/images/frame.png'
 
 beforeEach(() => {
   anthropicFactory.mockReset()
@@ -24,7 +33,25 @@ beforeEach(() => {
   aisdk.mockClear()
   getAnthropicApiKey.mockReset()
   getAnthropicModel.mockReset()
+  innerModel.doGenerate.mockReset()
+  innerModel.doStream.mockReset()
 })
+
+function anthropicMessageResponse() {
+  return new Response(
+    JSON.stringify({
+      type: 'message',
+      id: 'msg_1',
+      role: 'assistant',
+      model: 'claude-opus-5',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  )
+}
 
 describe('the anthropic provider descriptor', () => {
   it('is registered as anthropic and never round-trips a continuation token', () => {
@@ -65,9 +92,11 @@ describe('buildModel', () => {
     const { modelId, model } = await provider.buildModel()
 
     expect(modelId).toBe('claude-opus-5')
+    expect(anthropicFactory).toHaveBeenCalledTimes(1)
     expect(anthropicFactory).toHaveBeenCalledWith({ apiKey: 'sk-ant-abc' })
-    expect(aisdk).toHaveBeenCalledWith({ provider: 'anthropic', modelId: 'claude-opus-5' })
-    expect(model).toEqual({ wrapped: { provider: 'anthropic', modelId: 'claude-opus-5' } })
+    expect(aisdk).toHaveBeenCalledTimes(1)
+    expect(model.wrapped.provider).toBe('anthropic.messages')
+    expect(model.wrapped.modelId).toBe('claude-opus-5')
   })
 
   it('rebuilds against the current key so rotation needs no restart', async () => {
@@ -97,10 +126,10 @@ describe('buildModel', () => {
     getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
     getAnthropicModel.mockResolvedValue('claude-opus-5')
 
-    const { modelId } = await provider.buildModel({ modelId: 'claude-sonnet-5' })
+    const { modelId, model } = await provider.buildModel({ modelId: 'claude-sonnet-5' })
 
     expect(modelId).toBe('claude-sonnet-5')
-    expect(aisdk).toHaveBeenCalledWith({ provider: 'anthropic', modelId: 'claude-sonnet-5' })
+    expect(model.wrapped.modelId).toBe('claude-sonnet-5')
   })
 
   it('falls back to the stored model when the override is null', async () => {
@@ -115,6 +144,138 @@ describe('buildModel', () => {
   it('still refuses an override when no key is configured', async () => {
     getAnthropicApiKey.mockResolvedValue(null)
     await expect(provider.buildModel({ modelId: 'claude-sonnet-5' })).rejects.toThrow(/API key not configured/i)
+  })
+})
+
+describe('the model handed to the adapter', () => {
+  async function buildWrappedModel() {
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
+
+    const { model } = await provider.buildModel()
+    return model.wrapped
+  }
+
+  function screenshotToolMessage(value) {
+    return {
+      role: 'tool',
+      content: [
+        {
+          type: 'tool-result',
+          toolCallId: 'call_1',
+          toolName: 'get_figma_screenshot',
+          output: { type: 'content', value },
+        },
+      ],
+    }
+  }
+
+  it('exposes the identity of the anthropic model it wraps', async () => {
+    const wrapped = await buildWrappedModel()
+
+    expect(wrapped.specificationVersion).toBe('v3')
+    expect(wrapped.provider).toBe('anthropic.messages')
+    expect(wrapped.modelId).toBe('claude-opus-5')
+    expect(wrapped.supportedUrls).toBe(innerModel.supportedUrls)
+  })
+
+  it.each(['doGenerate', 'doStream'])(
+    'turns the media parts of a tool result into anthropic image parts on %s',
+    async method => {
+      const result = { content: [] }
+      innerModel[method].mockResolvedValue(result)
+      const wrapped = await buildWrappedModel()
+      const base64Part = { type: 'media', data: PNG_BASE64, mediaType: 'image/png' }
+      const urlPart = { type: 'media', data: SCREENSHOT_URL, mediaType: 'image/*' }
+      const prompt = [screenshotToolMessage([{ type: 'text', text: '{"nodeId":"1:2"}' }, base64Part, urlPart])]
+
+      const returned = await wrapped[method]({ prompt, maxOutputTokens: 512 })
+
+      expect(returned).toBe(result)
+      expect(innerModel[method]).toHaveBeenCalledTimes(1)
+      const [sent] = innerModel[method].mock.calls[0]
+      expect(sent.maxOutputTokens).toBe(512)
+      expect(sent.prompt[0].content[0].output.value).toEqual([
+        { type: 'text', text: '{"nodeId":"1:2"}' },
+        { type: 'image-data', data: PNG_BASE64, mediaType: 'image/png' },
+        { type: 'image-url', url: SCREENSHOT_URL },
+      ])
+      expect(prompt[0].content[0].output.value[1]).toBe(base64Part)
+      expect(base64Part).toEqual({ type: 'media', data: PNG_BASE64, mediaType: 'image/png' })
+    }
+  )
+
+  it.each(['doGenerate', 'doStream'])('passes every other message and part through untouched on %s', async method => {
+    const wrapped = await buildWrappedModel()
+    const userMessage = { role: 'user', content: [{ type: 'text', text: 'show me the frame' }] }
+    const assistantMessage = {
+      role: 'assistant',
+      content: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'get_figma_screenshot', input: {} }],
+    }
+    const textResult = {
+      type: 'tool-result',
+      toolCallId: 'call_2',
+      toolName: 'search',
+      output: { type: 'text', value: 'ok' },
+    }
+    const approval = { type: 'tool-approval-response', approvalId: 'approval_1', approved: true }
+    const svgPart = { type: 'media', data: 'PHN2Zz48L3N2Zz4=', mediaType: 'image/svg+xml' }
+    const imagePart = { type: 'image-data', data: PNG_BASE64, mediaType: 'image/png' }
+    const toolMessage = screenshotToolMessage([svgPart, imagePart])
+    toolMessage.content.push(textResult, approval)
+    const tools = [{ type: 'function', name: 'search', inputSchema: {} }]
+
+    await wrapped[method]({ prompt: [userMessage, assistantMessage, toolMessage], tools })
+
+    expect(innerModel[method]).toHaveBeenCalledTimes(1)
+    const [sent] = innerModel[method].mock.calls[0]
+    expect(sent.tools).toBe(tools)
+    expect(sent.prompt[0]).toBe(userMessage)
+    expect(sent.prompt[1]).toBe(assistantMessage)
+    expect(sent.prompt[2].content[0].output.value[0]).toBe(svgPart)
+    expect(sent.prompt[2].content[0].output.value[1]).toBe(imagePart)
+    expect(sent.prompt[2].content[1]).toBe(textResult)
+    expect(sent.prompt[2].content[2]).toBe(approval)
+  })
+
+  it('sends an image a tool returned to anthropic as an image block of the tool result', async () => {
+    const { createAnthropic: realCreateAnthropic } = await vi.importActual('@ai-sdk/anthropic')
+    const { aisdk: realAisdk } = await vi.importActual('@openai/agents-extensions/ai-sdk')
+    const { withTrace } = await import('@openai/agents')
+    const fetch = vi.fn().mockResolvedValue(anthropicMessageResponse())
+    createAnthropic.mockImplementationOnce(opts => realCreateAnthropic({ ...opts, fetch }))
+    aisdk.mockImplementationOnce(realAisdk)
+    getAnthropicApiKey.mockResolvedValue('sk-ant-abc')
+    getAnthropicModel.mockResolvedValue('claude-opus-5')
+    const input = [
+      { type: 'message', role: 'user', content: 'show me the frame' },
+      { type: 'function_call', callId: 'call_1', name: 'get_figma_screenshot', arguments: '{}', status: 'completed' },
+      {
+        type: 'function_call_result',
+        callId: 'call_1',
+        name: 'get_figma_screenshot',
+        status: 'completed',
+        output: [
+          { type: 'input_text', text: 'frame 1:2' },
+          { type: 'input_image', image: `data:image/png;base64,${PNG_BASE64}` },
+          { type: 'input_image', image: SCREENSHOT_URL },
+        ],
+      },
+    ]
+
+    const { model } = await provider.buildModel()
+    const request = { input, modelSettings: {}, tools: [], handoffs: [], outputType: 'text', tracing: false }
+    await withTrace('anthropic-tool-image-test', () => model.getResponse(request))
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetch.mock.calls[0][1].body)
+    const toolResult = body.messages.flatMap(message => message.content).find(block => block.type === 'tool_result')
+    expect(toolResult.tool_use_id).toBe('call_1')
+    expect(toolResult.content).toEqual([
+      { type: 'text', text: 'frame 1:2' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_BASE64 } },
+      { type: 'image', source: { type: 'url', url: SCREENSHOT_URL } },
+    ])
   })
 })
 
@@ -178,21 +339,7 @@ describe('modelSettings on the wire', () => {
   async function sendThroughRealAdapter(modelSettings) {
     const { createAnthropic: realCreateAnthropic } = await vi.importActual('@ai-sdk/anthropic')
     const { aisdk: realAisdk } = await vi.importActual('@openai/agents-extensions/ai-sdk')
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          type: 'message',
-          id: 'msg_1',
-          role: 'assistant',
-          model: 'claude-opus-5',
-          content: [{ type: 'text', text: 'ok' }],
-          stop_reason: 'end_turn',
-          stop_sequence: null,
-          usage: { input_tokens: 1, output_tokens: 1 },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
-      )
-    )
+    const fetch = vi.fn().mockResolvedValue(anthropicMessageResponse())
 
     const { withTrace } = await import('@openai/agents')
     const model = realAisdk(realCreateAnthropic({ apiKey: 'sk-test', fetch })('claude-opus-5'))
