@@ -414,6 +414,7 @@
 
 .sidebar__schedules,
 .sidebar__artifacts,
+.sidebar__videos,
 .sidebar__settings,
 .sidebar__logout {
   margin-top: var(--sp2);
@@ -431,10 +432,39 @@
 
 .sidebar__schedules:hover,
 .sidebar__artifacts:hover,
+.sidebar__videos:hover,
 .sidebar__settings:hover,
 .sidebar__logout:hover {
   background-color: var(--sidebar-hover);
   color: var(--sidebar-text);
+}
+
+.sidebar__videos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp2);
+  text-decoration: none;
+}
+
+.sidebar__videos-dot {
+  width: var(--sp2);
+  height: var(--sp2);
+  border-radius: var(--radius-pill);
+  background: var(--green-bright);
+  animation: sidebar-videos-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sidebar-videos-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar__videos-dot {
+    animation: none;
+  }
 }
 
 @media (max-width: 768px) {

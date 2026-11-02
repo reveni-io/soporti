@@ -97,4 +97,5 @@ export const HUBSPOT_LEVEL_LABELS = { off: 'Off', read: 'Read', write: 'Write', 
 
 export const VIDEO_STAGES = { DRAFTING: 'drafting', STORYBOARD: 'storyboard', PRODUCTION: 'production' }
 export const ACTIVE_VIDEO_STATUSES = ['drafting', 'queued', 'running']
+export const GENERATING_VIDEO_STATUSES = ['queued', 'running']
 export const VIDEO_MAX_ATTACHMENTS = 5

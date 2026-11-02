@@ -62,6 +62,12 @@ async function request(path, options = {}) {
   return readJson(response)
 }
 
+async function requestBlob(path, options = {}) {
+  const response = await send(path, options)
+  await assertOk(response, options.errorMessage)
+  return response.blob()
+}
+
 export function getAuthMethods() {
   return request('/api/auth/methods', { errorMessage: 'unavailable' })
 }
@@ -910,4 +916,63 @@ export function generateVideo(token, id) {
 
 export function deleteVideo(token, id) {
   return request(`/api/videos/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete the video' })
+}
+
+export function cancelVideo(token, id) {
+  return request(`/api/videos/${id}/cancel`, { method: 'POST', token, errorMessage: 'Failed to cancel the video' })
+}
+
+export function retryVideoVersion(token, id, version) {
+  return request(`/api/videos/${id}/versions/${version}/retry`, {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to retry the version',
+  })
+}
+
+export function renderVideoVersion(token, id, version) {
+  return request(`/api/videos/${id}/versions/${version}/render`, {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to render the version',
+  })
+}
+
+export function getVideoPreview(token, id, version) {
+  return request(`/api/videos/${id}/versions/${version}/preview`, {
+    token,
+    errorMessage: 'Failed to load the preview',
+  })
+}
+
+export function getVideoFile(token, id, version) {
+  return requestBlob(`/api/videos/${id}/versions/${version}/video`, { token, errorMessage: 'Failed to load the video' })
+}
+
+export function getVideoThumbnail(token, id, version) {
+  return requestBlob(`/api/videos/${id}/versions/${version}/thumbnail`, {
+    token,
+    errorMessage: 'Failed to load the thumbnail',
+  })
+}
+
+export function getVideoFrame(token, id, frameId) {
+  return requestBlob(`/api/videos/${id}/frames/${frameId}`, { token, errorMessage: 'Failed to load the frames' })
+}
+
+export function shareVideoVersion(token, id, version) {
+  return request(`/api/videos/${id}/versions/${version}/share`, {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to create the link',
+  })
+}
+
+export function createVideoVariant(token, id, change) {
+  return request(`/api/videos/${id}/variants`, {
+    method: 'POST',
+    token,
+    body: { request: change },
+    errorMessage: 'Failed to create the variant',
+  })
 }

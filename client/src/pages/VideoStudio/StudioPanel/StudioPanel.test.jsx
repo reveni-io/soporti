@@ -7,13 +7,21 @@ describe('StudioPanel', () => {
   it('shows a skeleton while the first storyboard is drafted', () => {
     const video = { ...storyboardVideoFixture, status: 'drafting', stage: 'drafting', storyboard: null }
 
-    render(<StudioPanel video={video} busy={false} onGenerate={vi.fn()} />)
+    render(<StudioPanel video={video} token="tok" onLogout={vi.fn()} busy={false} actions={{ generate: vi.fn() }} />)
 
     expect(screen.getByRole('status')).toHaveTextContent('Reading the repos and drafting scenes…')
   })
 
   it('shows the storyboard ready to generate', () => {
-    render(<StudioPanel video={storyboardVideoFixture} busy={false} onGenerate={vi.fn()} />)
+    render(
+      <StudioPanel
+        video={storyboardVideoFixture}
+        token="tok"
+        onLogout={vi.fn()}
+        busy={false}
+        actions={{ generate: vi.fn() }}
+      />
+    )
 
     expect(screen.getByRole('heading', { name: 'Liquid email templates' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate video' })).toBeEnabled()
@@ -22,13 +30,21 @@ describe('StudioPanel', () => {
   it('keeps the previous storyboard visible but locked while it is revised', () => {
     const video = { ...storyboardVideoFixture, status: 'drafting', stage: 'drafting' }
 
-    render(<StudioPanel video={video} busy={false} onGenerate={vi.fn()} />)
+    render(<StudioPanel video={video} token="tok" onLogout={vi.fn()} busy={false} actions={{ generate: vi.fn() }} />)
 
     expect(screen.getByRole('button', { name: 'Generate video' })).toBeDisabled()
   })
 
   it('locks Generate while another action runs', () => {
-    render(<StudioPanel video={storyboardVideoFixture} busy={true} onGenerate={vi.fn()} />)
+    render(
+      <StudioPanel
+        video={storyboardVideoFixture}
+        token="tok"
+        onLogout={vi.fn()}
+        busy={true}
+        actions={{ generate: vi.fn() }}
+      />
+    )
 
     expect(screen.getByRole('button', { name: 'Generate video' })).toBeDisabled()
   })
@@ -36,7 +52,7 @@ describe('StudioPanel', () => {
   it('explains what to do when drafting failed before any storyboard', () => {
     const video = { ...storyboardVideoFixture, storyboard: null, storyboardError: 'The agent failed.' }
 
-    render(<StudioPanel video={video} busy={false} onGenerate={vi.fn()} />)
+    render(<StudioPanel video={video} token="tok" onLogout={vi.fn()} busy={false} actions={{ generate: vi.fn() }} />)
 
     expect(screen.getByText(/no storyboard yet/i)).toBeInTheDocument()
   })
@@ -46,12 +62,13 @@ describe('StudioPanel', () => {
       ...storyboardVideoFixture,
       status: 'running',
       stage: 'production',
-      versions: [{ version: 1, status: 'running', phase: 'composing', progress: 10 }],
+      versions: [{ version: 1, status: 'queued', phase: null, progress: null }],
+      queuePosition: 2,
     }
 
-    render(<StudioPanel video={video} busy={false} onGenerate={vi.fn()} />)
+    render(<StudioPanel video={video} token="tok" onLogout={vi.fn()} busy={false} actions={{ generate: vi.fn() }} />)
 
-    expect(screen.getByText('Generating · Composing · 10%')).toBeInTheDocument()
+    expect(screen.getByText('Another video is being generated. Yours starts in about 30 min.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Generate video' })).toBeNull()
   })
 })

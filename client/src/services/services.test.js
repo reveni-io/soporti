@@ -8,7 +8,9 @@ import {
   createShare,
   createSkill,
   createSubagent,
+  cancelVideo,
   createVideo,
+  createVideoVariant,
   deleteConversation,
   deleteSchedule,
   deleteSkill,
@@ -28,10 +30,16 @@ import {
   getSkills,
   getSubagents,
   getVideo,
+  getVideoFile,
+  getVideoFrame,
+  getVideoPreview,
+  getVideoThumbnail,
   isUnauthorized,
   listVideos,
   redraftStoryboard,
   renderMermaid,
+  renderVideoVersion,
+  retryVideoVersion,
   saveDatabaseMaxRows,
   saveGithubToken,
   saveHubspotPermissions,
@@ -41,6 +49,7 @@ import {
   searchConversations,
   sendFeedback,
   sendVideoMessage,
+  shareVideoVersion,
   signInWithGoogle,
   signInWithPassword,
   streamChat,
@@ -575,5 +584,69 @@ describe('videos', () => {
     await expect(deleteVideo('tok', VIDEO_ID)).resolves.toEqual({})
     expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}`)
     expect(lastCall()[1].method).toBe('DELETE')
+  })
+
+  it('cancels the latest version', async () => {
+    await cancelVideo('tok', VIDEO_ID)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/videos/${VIDEO_ID}/cancel`)
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('retries and renders a version by number', async () => {
+    await retryVideoVersion('tok', VIDEO_ID, 2)
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/2/retry`)
+    expect(lastCall()[1].method).toBe('POST')
+
+    await renderVideoVersion('tok', VIDEO_ID, 1)
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/1/render`)
+    expect(lastCall()[1].method).toBe('POST')
+  })
+
+  it('reads the preview bundle of a version', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ html: '<!doctype html>' }))
+
+    await expect(getVideoPreview('tok', VIDEO_ID, 3)).resolves.toEqual({ html: '<!doctype html>' })
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/3/preview`)
+  })
+
+  it('downloads the binary files as blobs with the token', async () => {
+    const blob = new Blob(['bytes'])
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, blob: async () => blob })
+
+    await expect(getVideoFile('tok', VIDEO_ID, 2)).resolves.toBe(blob)
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/2/video`)
+    expect(lastCall()[1].headers.Authorization).toBe('Bearer tok')
+
+    await expect(getVideoThumbnail('tok', VIDEO_ID, 1)).resolves.toBe(blob)
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/1/thumbnail`)
+
+    await expect(getVideoFrame('tok', VIDEO_ID, 42)).resolves.toBe(blob)
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/frames/42`)
+  })
+
+  it('rejects a binary request with the server reason', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(404, { error: 'Video not found.' }))
+
+    await expect(getVideoFile('tok', VIDEO_ID, 1)).rejects.toMatchObject({ message: 'Video not found.', status: 404 })
+  })
+
+  it('creates a share link for a version', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ url: '/api/share/videos/abc' }))
+
+    await expect(shareVideoVersion('tok', VIDEO_ID, 2)).resolves.toEqual({ url: '/api/share/videos/abc' })
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/versions/2/share`)
+    expect(lastCall()[1].method).toBe('POST')
+  })
+
+  it('creates a variant with the requested change', async () => {
+    await createVideoVariant('tok', VIDEO_ID, 'Brand it for Acme')
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/videos/${VIDEO_ID}/variants`)
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ request: 'Brand it for Acme' })
   })
 })

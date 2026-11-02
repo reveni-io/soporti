@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
-import { useVideos } from './hooks/useVideos/useVideos.js'
+import { useVideos } from '../../hooks/useVideos/useVideos.js'
 import { ROUTES } from '../../router/constants.js'
 import VideoGrid from './VideoGrid/VideoGrid.jsx'
 import NewVideoModal from './NewVideoModal/NewVideoModal.jsx'
@@ -30,7 +30,7 @@ export default function Videos() {
       </header>
 
       <main className="videos__body">
-        <VideoGrid videos={videos} loading={loading} error={error} />
+        <VideoGrid videos={videos} loading={loading} error={error} token={token} onLogout={logout} />
       </main>
 
       {isCreating && (

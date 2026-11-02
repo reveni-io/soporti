@@ -8,8 +8,8 @@ function respond(body, status = 200) {
   return { ok: status < 400, status, json: async () => body }
 }
 
-function detail(status) {
-  return { video: { id: VIDEO_ID, status, stage: status === 'drafting' ? 'drafting' : 'storyboard' } }
+function detail(status, versions = []) {
+  return { video: { id: VIDEO_ID, status, stage: status === 'drafting' ? 'drafting' : 'storyboard', versions } }
 }
 
 function advance(ms) {
@@ -65,6 +65,25 @@ describe('useVideo', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(2)
     expect(result.current.video.status).toBe('storyboard')
+  })
+
+  it('keeps polling while an older version renders again under a ready latest one', async () => {
+    const rerendering = [
+      { version: 2, status: 'ready' },
+      { version: 1, status: 'running' },
+    ]
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(detail('ready', rerendering)))
+      .mockResolvedValue(respond(detail('ready', [rerendering[0], { version: 1, status: 'ready' }])))
+
+    const { result } = renderHook(() => useVideo('tok', VIDEO_ID, vi.fn()))
+    await advance(0)
+    await advance(2000)
+    await advance(10000)
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(result.current.video.versions[1].status).toBe('ready')
   })
 
   it('stops polling on unmount', async () => {

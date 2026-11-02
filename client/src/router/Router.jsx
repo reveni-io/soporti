@@ -51,7 +51,7 @@ function VideoRoute() {
   }
   return (
     <AuthGate>
-      <VideoStudio id={id} />
+      <VideoStudio key={id} id={id} />
     </AuthGate>
   )
 }

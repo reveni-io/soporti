@@ -1,0 +1,33 @@
+.screen-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  background: var(--green-deep);
+  color: var(--green-inverse);
+  font-size: var(--fs-md);
+}
+
+.screen-frame--wide {
+  aspect-ratio: 16 / 9;
+}
+
+.screen-frame--square {
+  max-width: 32rem;
+  aspect-ratio: 1 / 1;
+}
+
+.screen-frame--tall {
+  max-width: 22rem;
+  aspect-ratio: 9 / 16;
+}
+
+.screen-frame > iframe,
+.screen-frame > video {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}

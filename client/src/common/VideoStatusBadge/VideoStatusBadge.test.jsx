@@ -27,6 +27,13 @@ describe('VideoStatusBadge', () => {
     expect(screen.getByText('Ready')).toHaveClass('badge--success')
   })
 
+  it('leaves out the progress the server keeps at 100% once a video is ready', () => {
+    render(<VideoStatusBadge status="ready" phase={null} progress={100} />)
+
+    expect(screen.getByText('Ready')).toBeInTheDocument()
+    expect(screen.queryByText(/100%/)).toBeNull()
+  })
+
   it('marks a failed video', () => {
     render(<VideoStatusBadge status="failed" />)
 

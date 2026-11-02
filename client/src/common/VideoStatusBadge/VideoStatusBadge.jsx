@@ -18,6 +18,8 @@ const PHASE_LABELS = {
   finalizing: 'Finalizing',
 }
 
+const RUNNING_STATUS = 'running'
+
 const STATUS_MODIFIERS = {
   ready: 'badge--success',
   failed: 'video-status-badge--failed',
@@ -25,7 +27,7 @@ const STATUS_MODIFIERS = {
 
 function describeStatus({ status, phase, progress }) {
   const parts = [STATUS_LABELS[status] ?? status, PHASE_LABELS[phase]]
-  if (progress != null) parts.push(`${progress}%`)
+  if (status === RUNNING_STATUS && progress != null) parts.push(`${progress}%`)
 
   return parts.filter(Boolean).join(' · ')
 }

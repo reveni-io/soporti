@@ -1,4 +1,4 @@
-import { formatTimecode } from './format-timecode.js'
+import { formatTimecode } from '../format-timecode.js'
 import './StoryboardPanel.css'
 
 function describeMusic({ style, bpm, mood }) {
