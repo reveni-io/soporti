@@ -75,6 +75,7 @@ vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) 
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
 vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () => null) }))
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured: vi.fn(async () => false) }))
+vi.mock('../hubspot/settings.js', () => ({ resolveHubspotAccess: vi.fn(async () => null) }))
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
@@ -96,6 +97,8 @@ const { isGranolaConfigured } = await import('../granola/settings.js')
 const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
 const { getZendeskConnection } = await import('../zendesk/settings.js')
 const { isSendcloudConfigured } = await import('../sendcloud/settings.js')
+const { resolveHubspotAccess } = await import('../hubspot/settings.js')
+const { normalizeHubspotPermissions } = await import('../hubspot/permissions.js')
 const { isSlackConfigured } = await import('../slack/settings.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
@@ -549,6 +552,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        hubspot: null,
       }
     )
   })
@@ -571,6 +575,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        hubspot: null,
       }
     )
   })
@@ -593,6 +598,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        hubspot: null,
       }
     )
   })
@@ -697,6 +703,83 @@ describe('createAgent with Sendcloud', () => {
       expect.anything()
     )
     expect(agent.instructions).not.toContain('## Sendcloud integration')
+  })
+})
+
+describe('createAgent with HubSpot', () => {
+  const access = {
+    permissions: normalizeHubspotPermissions({ contacts: 'off', deals: 'write' }),
+    attended: true,
+    canReply: false,
+  }
+
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    areShortcutWritesEnabled.mockResolvedValue(false)
+    buildRepoCatalogPrompt.mockResolvedValue('')
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getZendeskConnection.mockReset().mockResolvedValue(null)
+    resolveHubspotAccess.mockReset().mockResolvedValue(null)
+  })
+
+  it('resolves the HubSpot access of the run and hands it to the tool builder', async () => {
+    resolveHubspotAccess.mockResolvedValue(access)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'search_hubspot_records']))
+
+    const agent = await createAgent(['integration:hubspot'], 'support', { userId: 7 })
+
+    expect(resolveHubspotAccess).toHaveBeenCalledTimes(1)
+    expect(resolveHubspotAccess).toHaveBeenCalledWith({ userId: 7, unattended: false, delegated: false })
+    expect(buildAgentTools).toHaveBeenCalledTimes(1)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ hubspotConfigured: true }),
+      expect.objectContaining({ userId: 7, hubspot: access })
+    )
+    expect(agent.instructions).toContain('## HubSpot integration')
+  })
+
+  it('puts the level of every HubSpot area and the write rules of the registered tools in the prompt', async () => {
+    resolveHubspotAccess.mockResolvedValue(access)
+    buildAgentTools.mockReturnValue(
+      toolList([...AVAILABLE_TOOL_NAMES, 'search_hubspot_records', 'update_hubspot_record'])
+    )
+
+    const agent = await createAgent(['integration:hubspot'], 'support', { userId: 7 })
+
+    expect(agent.instructions).toContain('- Contacts: **off**')
+    expect(agent.instructions).toContain('- Deals: **write**')
+    expect(agent.instructions).toContain('### Changing HubSpot records')
+    expect(agent.instructions).not.toContain('### Replying to customers')
+    expect(agent.instructions).toContain('The user has enabled the **HubSpot** integration.')
+  })
+
+  it('tells HubSpot that the run is unattended', async () => {
+    await createAgent(['integration:hubspot'], 'support', { userId: 7, unattended: true })
+
+    expect(resolveHubspotAccess).toHaveBeenCalledTimes(1)
+    expect(resolveHubspotAccess).toHaveBeenCalledWith({ userId: 7, unattended: true, delegated: false })
+  })
+
+  it('tells HubSpot that the run is delegated without making it unattended', async () => {
+    const agent = await createAgent(['integration:hubspot'], 'support', { userId: 7, delegated: true })
+
+    expect(resolveHubspotAccess).toHaveBeenCalledTimes(1)
+    expect(resolveHubspotAccess).toHaveBeenCalledWith({ userId: 7, unattended: false, delegated: true })
+    expect(agent.instructions).not.toContain('## This run is unattended')
+  })
+
+  it('leaves HubSpot unconfigured and out of the prompt without a key', async () => {
+    const agent = await createAgent(['integration:hubspot'], 'support', { userId: 7 })
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ hubspotConfigured: false }),
+      expect.objectContaining({ hubspot: null })
+    )
+    expect(agent.instructions).not.toContain('## HubSpot integration')
   })
 })
 

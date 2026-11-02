@@ -61,6 +61,10 @@ vi.mock('../sendcloud/client.js', () => ({
   isConfigured: vi.fn(() => false),
 }))
 
+vi.mock('../hubspot/client.js', () => ({
+  isConfigured: vi.fn(() => false),
+}))
+
 vi.mock('../notion/client.js', () => ({
   isConfigured: vi.fn(() => false),
 }))
@@ -411,6 +415,7 @@ describe('Slack bot', () => {
       const betterstack = await import('../betterstack/client.js')
       const figma = await import('../figma/client.js')
       const sendcloud = await import('../sendcloud/client.js')
+      const hubspot = await import('../hubspot/client.js')
 
       notion.isConfigured.mockReturnValue(true)
       postgres.isConfigured.mockReturnValue(true)
@@ -420,6 +425,7 @@ describe('Slack bot', () => {
       betterstack.isConfigured.mockReturnValue(true)
       figma.isConfigured.mockReturnValue(true)
       sendcloud.isConfigured.mockReturnValue(true)
+      hubspot.isConfigured.mockReturnValue(true)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -446,6 +452,7 @@ describe('Slack bot', () => {
       expect(values).toContain('integration:betterstack')
       expect(values).toContain('integration:figma')
       expect(values).toContain('integration:sendcloud')
+      expect(values).toContain('integration:hubspot')
     })
 
     it('omits integration source options when their integrations are not configured', async () => {
@@ -454,11 +461,13 @@ describe('Slack bot', () => {
       const betterstack = await import('../betterstack/client.js')
       const figma = await import('../figma/client.js')
       const sendcloud = await import('../sendcloud/client.js')
+      const hubspot = await import('../hubspot/client.js')
       notion.isConfigured.mockReturnValue(false)
       googleDrive.isConfigured.mockReturnValue(false)
       betterstack.isConfigured.mockReturnValue(false)
       figma.isConfigured.mockReturnValue(false)
       sendcloud.isConfigured.mockReturnValue(false)
+      hubspot.isConfigured.mockReturnValue(false)
 
       listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
 
@@ -482,6 +491,7 @@ describe('Slack bot', () => {
       expect(values).not.toContain('integration:betterstack')
       expect(values).not.toContain('integration:figma')
       expect(values).not.toContain('integration:sendcloud')
+      expect(values).not.toContain('integration:hubspot')
     })
 
     it('adds thread context into the question sent to processMessage', async () => {

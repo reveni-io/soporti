@@ -122,3 +122,9 @@ export const REVIEW_BLOCKING_SEVERITIES = new Set(['critical', 'major'])
 export const REVIEW_OVERVIEW_PASS = 'overview'
 export const REVIEW_PASS_COMPLETED = 'completed'
 export const REVIEW_PASS_FAILED = 'failed'
+
+export const HUBSPOT_API_VERSION = '2026-09'
+export const HUBSPOT_MAX_FILTER_GROUPS = 5
+export const HUBSPOT_MAX_FILTERS_PER_GROUP = 6
+export const HUBSPOT_MAX_FILTERS = 18
+export const HUBSPOT_MAX_SEARCH_LIMIT = 200

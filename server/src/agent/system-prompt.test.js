@@ -10,9 +10,10 @@ import {
   buildSubagentsPrompt,
   buildCurrentDatePrompt,
 } from './system-prompt.js'
-import { buildSourcePolicy } from './sources.js'
+import { buildSourcePolicy, INTEGRATION_WRITE_TOOL_NAMES } from './sources.js'
 import { INTEGRATIONS } from './integrations.js'
 import { TIME_TOOL_NAMES } from './time-tools.js'
+import { normalizeHubspotPermissions } from '../hubspot/permissions.js'
 
 const ALL_CONFIGURED = {
   shortcutConfigured: true,
@@ -27,6 +28,7 @@ const ALL_CONFIGURED = {
   figmaConfigured: true,
   zendeskConfigured: true,
   sendcloudConfigured: true,
+  hubspotConfigured: true,
 }
 
 describe('constants', () => {
@@ -57,6 +59,7 @@ describe('buildBasePrompt', () => {
       'Figma',
       'Zendesk',
       'Sendcloud',
+      'HubSpot',
     ]) {
       expect(prompt).toContain(`## ${section} integration`)
     }
@@ -122,6 +125,156 @@ describe('buildBasePrompt', () => {
       expect(prompt).toContain(name)
     }
     expect(prompt).toContain('you cannot reactivate it')
+  })
+
+  it('tells the agent to resolve HubSpot names and to treat a disabled area as final once a key is saved', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), { configured: ALL_CONFIGURED })
+
+    expect(prompt).toContain('## HubSpot integration')
+    expect(prompt).toContain('describe_hubspot_object')
+    expect(prompt).toContain('A disabled area is final.')
+  })
+
+  it('summarizes the level of every HubSpot area from the saved permissions', () => {
+    const permissions = normalizeHubspotPermissions({ contacts: 'off', deals: 'write' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: true, canReply: false },
+    })
+
+    expect(prompt).toContain('### What /admin → HubSpot enables')
+    expect(prompt).toContain('- Contacts: **off**')
+    expect(prompt).toContain('- Deals: **write**')
+    expect(prompt).toContain('- Companies: **read**')
+    expect(prompt).toContain('- Marketing: **read**')
+    expect(prompt).not.toContain('Not available in this')
+  })
+
+  it('adds each HubSpot write subsection only when one of its tools was registered', () => {
+    const policy = buildSourcePolicy(['integration:hubspot'])
+    const subsections = [
+      '### Changing HubSpot records',
+      '### Archiving, merging and removing associations',
+      '### Replying to customers',
+    ]
+
+    function sectionsWith(toolNames) {
+      const prompt = buildBasePrompt(policy, { configured: ALL_CONFIGURED, toolNames: new Set(toolNames) })
+
+      return subsections.filter(heading => prompt.includes(heading))
+    }
+
+    expect(sectionsWith(['search_hubspot_records', 'hubspot_api_get'])).toEqual([])
+    expect(sectionsWith(['create_hubspot_record'])).toEqual(['### Changing HubSpot records'])
+    expect(sectionsWith(['update_hubspot_list_membership'])).toEqual(['### Changing HubSpot records'])
+    expect(sectionsWith(['update_hubspot_record', 'merge_hubspot_records'])).toEqual(subsections.slice(0, 2))
+    expect(sectionsWith(['reply_hubspot_conversation'])).toEqual(['### Replying to customers'])
+    expect(sectionsWith(INTEGRATION_WRITE_TOOL_NAMES.hubspot)).toEqual(subsections)
+  })
+
+  it('tells the model to read before an update and to show each change as old and new', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      toolNames: new Set(INTEGRATION_WRITE_TOOL_NAMES.hubspot),
+    })
+
+    expect(prompt).toContain('Read before you update.')
+    expect(prompt).toContain('`property: old → new`')
+    expect(prompt).toContain('One write per confirmation.')
+    expect(prompt).toContain('records the key Soporti uses as the author of every property change')
+    expect(prompt).toContain('restored from HubSpot for 90 days')
+    expect(prompt).toContain('A merge is permanent')
+    expect(prompt).toContain('It goes out as the person asking.')
+    expect(prompt).toContain('One reply per confirmation.')
+  })
+
+  it('names the HubSpot capabilities an unattended run lacks even though /admin allows them', () => {
+    const permissions = normalizeHubspotPermissions({ deals: 'full', lists: 'write', conversations: 'reply' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: false, canReply: false },
+    })
+
+    expect(prompt).toContain(
+      '**Not available in this run: archiving records, merging records, removing associations, changing list members and replying to conversations.**'
+    )
+    expect(prompt).toContain('nobody is following this run')
+    expect(prompt).not.toContain('Not available in this channel')
+  })
+
+  it('tells a run that came through MCP to send the confirmed actions to the web chat', () => {
+    const permissions = normalizeHubspotPermissions({ deals: 'full', conversations: 'reply' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: false, delegated: true, canReply: false },
+    })
+
+    expect(prompt).toContain(
+      '**Not available in this run: archiving records, merging records, removing associations and replying to conversations.**'
+    )
+    expect(prompt).toContain('came through another assistant over MCP')
+    expect(prompt).toContain('from the Soporti web chat or in HubSpot itself')
+    expect(prompt).not.toContain('nobody is following this run')
+  })
+
+  it('names only the unattended capabilities the saved permissions enable', () => {
+    const permissions = normalizeHubspotPermissions({ activities: 'full' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: false, canReply: false },
+    })
+
+    expect(prompt).toContain('**Not available in this run: archiving records and removing associations.**')
+  })
+
+  it('leaves the unattended note out when /admin only allows writes that need no confirmation', () => {
+    const permissions = normalizeHubspotPermissions({ deals: 'write', tickets: 'write' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: false, canReply: false },
+    })
+
+    expect(prompt).toContain('- Deals: **write**')
+    expect(prompt).not.toContain('Not available in this')
+  })
+
+  it('explains that replies are not available in a channel without an email, such as Slack', () => {
+    const permissions = normalizeHubspotPermissions({ deals: 'full', conversations: 'reply' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: true, canReply: false },
+    })
+
+    expect(prompt).toContain('**Not available in this channel: replying to conversations.**')
+    expect(prompt).toContain('Slack users have none')
+    expect(prompt).toContain('never send it another way')
+    expect(prompt).not.toContain('Not available in this run')
+  })
+
+  it('adds no availability note when the person asking can reply', () => {
+    const permissions = normalizeHubspotPermissions({ deals: 'full', lists: 'write', conversations: 'reply' })
+
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: ALL_CONFIGURED,
+      hubspot: { permissions, attended: true, canReply: true },
+    })
+
+    expect(prompt).toContain('- Conversations: **reply**')
+    expect(prompt).not.toContain('Not available in this')
+  })
+
+  it('leaves the HubSpot section out without a key', () => {
+    const prompt = buildBasePrompt(buildSourcePolicy(['integration:hubspot']), {
+      configured: { ...ALL_CONFIGURED, hubspotConfigured: false },
+    })
+
+    expect(prompt).not.toContain('## HubSpot integration')
   })
 
   it('leaves the Sendcloud section out while no account is linked', () => {
@@ -531,6 +684,22 @@ describe('buildSourceInstructions', () => {
     expect(result).toContain('zendesk_get_ticket')
     expect(result).toContain('never reply to the requester or change a ticket')
     expect(result).toContain('status, assignee or fields')
+  })
+
+  it('tells the agent to resolve HubSpot names and cite the record when HubSpot is selected', () => {
+    const result = buildSourceInstructions(['integration:hubspot'], { hubspotConfigured: true })
+
+    expect(result).toContain('The user has enabled the **HubSpot** integration.')
+    expect(result).toContain('search_hubspot_records')
+    expect(result).toContain('describe_hubspot_object before you filter')
+    expect(result).toContain('only what /admin → HubSpot enables is reachable')
+    expect(result).toContain('cite the record url')
+  })
+
+  it('leaves the HubSpot instructions out when HubSpot is not configured', () => {
+    const result = buildSourceInstructions(['integration:hubspot'], { hubspotConfigured: false })
+
+    expect(result).not.toContain('**HubSpot** integration')
   })
 
   it('tells the agent it reads Sendcloud without changing anything', () => {

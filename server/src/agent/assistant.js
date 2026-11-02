@@ -26,6 +26,7 @@ import { isGranolaConfigured } from '../granola/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
 import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
+import { resolveHubspotAccess } from '../hubspot/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
 import * as shopify from '../shopify/client.js'
 
@@ -43,6 +44,7 @@ export async function createAgent(
     onNestedToolResult = null,
     onNestedUsage = null,
     unattended = false,
+    delegated = false,
     timezone = null,
   } = {}
 ) {
@@ -63,6 +65,7 @@ export async function createAgent(
     figmaConfigured,
     zendeskConnection,
     sendcloudConfigured,
+    hubspotAccess,
     shortcutWrites,
     figmaCommentsEnabled,
     slackConfigured,
@@ -82,6 +85,7 @@ export async function createAgent(
     isFigmaConfigured(),
     getZendeskConnection(userId),
     isSendcloudConfigured(),
+    resolveHubspotAccess({ userId, unattended, delegated }),
     areShortcutWritesEnabled(),
     getFigmaCommentsEnabled(),
     isSlackConfigured(),
@@ -102,6 +106,7 @@ export async function createAgent(
     figmaConfigured,
     zendeskConfigured: Boolean(zendeskConnection),
     sendcloudConfigured,
+    hubspotConfigured: Boolean(hubspotAccess),
   }
 
   const registered = buildAgentTools(policy, configured, {
@@ -113,6 +118,7 @@ export async function createAgent(
     figmaComments: figmaConfigured && figmaCommentsEnabled,
     zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
     slackConfigured,
+    hubspot: hubspotAccess,
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
@@ -142,6 +148,7 @@ export async function createAgent(
       hasRepoTools,
       toolNames: parentToolNames,
       unattended,
+      hubspot: hubspotAccess,
     }),
   ]
   const datePrompt = buildCurrentDatePrompt(describeInstant(new Date(), zone), {

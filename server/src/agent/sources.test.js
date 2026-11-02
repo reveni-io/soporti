@@ -7,8 +7,20 @@ import {
   buildSourcesFooter,
   INTEGRATION_TOOL_NAMES,
   INTEGRATION_WRITE_TOOL_NAMES,
+  WRITE_TOOL_NAMES,
   hasWriteTools,
 } from './sources.js'
+
+const HUBSPOT_WRITE_TOOLS = [
+  'create_hubspot_record',
+  'update_hubspot_record',
+  'associate_hubspot_records',
+  'archive_hubspot_record',
+  'remove_hubspot_association',
+  'merge_hubspot_records',
+  'update_hubspot_list_membership',
+  'reply_hubspot_conversation',
+]
 
 describe('INTEGRATION_WRITE_TOOL_NAMES', () => {
   it('lists every write tool inside its integration group, so it can be granted and labelled', () => {
@@ -19,6 +31,18 @@ describe('INTEGRATION_WRITE_TOOL_NAMES', () => {
       for (const name of names) expect(INTEGRATION_TOOL_NAMES[id], id).toContain(name)
     }
   })
+
+  it('lists the eight HubSpot write tools after its thirteen read tools', () => {
+    expect(INTEGRATION_WRITE_TOOL_NAMES.hubspot).toEqual(HUBSPOT_WRITE_TOOLS)
+    expect(INTEGRATION_TOOL_NAMES.hubspot).toHaveLength(21)
+    expect(INTEGRATION_TOOL_NAMES.hubspot.slice(13)).toEqual(HUBSPOT_WRITE_TOOLS)
+    expect(INTEGRATION_TOOL_NAMES.hubspot.slice(0, 13)).toContain('search_hubspot_records')
+  })
+
+  it('counts every HubSpot write tool among the write tools', () => {
+    for (const name of HUBSPOT_WRITE_TOOLS) expect(WRITE_TOOL_NAMES, name).toContain(name)
+    expect(WRITE_TOOL_NAMES).not.toContain('search_hubspot_records')
+  })
 })
 
 describe('hasWriteTools', () => {
@@ -27,6 +51,11 @@ describe('hasWriteTools', () => {
     expect(hasWriteTools('shortcut', new Set(['get_shortcut_story']))).toBe(false)
     expect(hasWriteTools('figma', new Set(['post_figma_comment']))).toBe(true)
     expect(hasWriteTools('figma', new Set())).toBe(false)
+  })
+
+  it('tells whether any HubSpot write tool survived', () => {
+    expect(hasWriteTools('hubspot', new Set(['search_hubspot_records', 'update_hubspot_record']))).toBe(true)
+    expect(hasWriteTools('hubspot', new Set(['search_hubspot_records', 'hubspot_api_get']))).toBe(false)
   })
 
   it('is false for integrations without write tools', () => {
@@ -127,6 +156,17 @@ describe('collectConsultedSources', () => {
       { name: 'query_logs', arguments: '{"sql":"SELECT 1"}' },
     ]
     expect(collectConsultedSources(calls).integrations).toEqual(['Better Stack'])
+  })
+
+  it('credits HubSpot once for its read and write tools', () => {
+    const calls = [
+      { name: 'search_hubspot_records', arguments: '{"objectType":"contacts"}' },
+      { name: 'hubspot_api_get', arguments: '{}' },
+      { name: 'reply_hubspot_conversation', arguments: '{"threadId":"1"}' },
+    ]
+
+    expect(collectConsultedSources(calls).integrations).toEqual(['HubSpot'])
+    expect(buildSourcesFooter(calls)).toContain('_Sources consulted: HubSpot_')
   })
 
   it('ignores list_repos discovery calls', () => {

@@ -35,6 +35,7 @@ import { resolveAvailableIntegrations } from './integrations.js'
 import { INTEGRATION_TOOL_NAMES } from './sources.js'
 import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
+import { buildHubspotTools } from './hubspot-tools.js'
 
 export const listReposTool = tool({
   name: 'list_repos',
@@ -1289,6 +1290,7 @@ const INTEGRATION_TOOLS = {
   figma: ({ figmaComments }) => (figmaComments ? [...FIGMA_TOOLS, ...FIGMA_WRITE_TOOLS] : FIGMA_TOOLS),
   zendesk: ({ userId, zendeskWrites }) => buildZendeskTools(userId, zendeskWrites),
   sendcloud: SENDCLOUD_TOOLS,
+  hubspot: ({ hubspot, userId }) => buildHubspotTools({ ...hubspot, userId }),
 }
 
 export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])

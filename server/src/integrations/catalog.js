@@ -10,6 +10,7 @@ import * as granola from '../granola/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
 import * as sendcloud from '../sendcloud/client.js'
+import * as hubspot from '../hubspot/client.js'
 import { ALWAYS_AVAILABLE_INTEGRATIONS, INTEGRATIONS } from '../agent/integrations.js'
 
 export const GITHUB_INTEGRATION_ID = 'github'
@@ -52,6 +53,7 @@ const CATALOG = [
     'Track parcels, returns and shipping methods across the linked Sendcloud accounts (read-only)',
     sendcloud.isConfigured
   ),
+  catalogEntry('hubspot', 'Search and read HubSpot CRM records, and write what /admin allows', hubspot.isConfigured),
 ]
 
 export async function listConfiguredIntegrations(userId) {

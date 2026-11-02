@@ -131,6 +131,7 @@ const isShopifyConfigured = vi.fn()
 const isFigmaConfigured = vi.fn()
 const isZendeskConfigured = vi.fn()
 const isSendcloudConfigured = vi.fn()
+const isHubspotConfigured = vi.fn()
 const INTEGRATION_CHECK_MOCKS = [
   isShortcutConfigured,
   isSentryConfigured,
@@ -144,6 +145,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isFigmaConfigured,
   isZendeskConfigured,
   isSendcloudConfigured,
+  isHubspotConfigured,
 ]
 
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
@@ -285,6 +287,17 @@ vi.mock('./admin-sendcloud.js', async () => {
   sendcloudRouter.delete('/accounts/:id', sendcloudRouteReached)
   return { default: sendcloudRouter }
 })
+vi.mock('../hubspot/settings.js', () => ({ isHubspotConfigured }))
+const hubspotRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
+vi.mock('./admin-hubspot.js', async () => {
+  const { Router } = await import('express')
+  const hubspotRouter = Router()
+  hubspotRouter.get('/', hubspotRouteReached)
+  hubspotRouter.put('/token', hubspotRouteReached)
+  hubspotRouter.put('/permissions', hubspotRouteReached)
+  hubspotRouter.post('/test', hubspotRouteReached)
+  return { default: hubspotRouter }
+})
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
 const REPO_TOOL_NAMES = new Set([
   'list_repos',
@@ -415,6 +428,7 @@ beforeEach(() => {
   for (const check of INTEGRATION_CHECK_MOCKS) check.mockReset().mockResolvedValue(false)
   currentDbRole = 'admin'
   sendcloudRouteReached.mockClear()
+  hubspotRouteReached.mockClear()
 })
 
 describe('GET /api/admin/status', () => {
@@ -548,6 +562,33 @@ describe('/api/admin/config/sendcloud', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reached: true })
     expect(sendcloudRouteReached).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('/api/admin/config/hubspot', () => {
+  const HUBSPOT_REQUESTS = [
+    ['get', '/api/admin/config/hubspot'],
+    ['put', '/api/admin/config/hubspot/token'],
+    ['put', '/api/admin/config/hubspot/permissions'],
+    ['post', '/api/admin/config/hubspot/test'],
+  ]
+
+  it.each(HUBSPOT_REQUESTS)('rejects a non-admin %s %s with 403 before the HubSpot routes', async (method, path) => {
+    currentDbRole = 'user'
+
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Admin access required.' })
+    expect(hubspotRouteReached).not.toHaveBeenCalled()
+  })
+
+  it.each(HUBSPOT_REQUESTS)('lets an admin %s %s reach the HubSpot routes', async (method, path) => {
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reached: true })
+    expect(hubspotRouteReached).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -2402,6 +2443,21 @@ describe('GET /api/admin/subagents', () => {
         'zendesk_post_internal_note',
       ],
     })
+  })
+
+  it('offers the HubSpot tools as a group, configured only once a key is saved', async () => {
+    const withoutKey = await request(app).get('/api/admin/subagents')
+    isHubspotConfigured.mockResolvedValue(true)
+    const withKey = await request(app).get('/api/admin/subagents')
+
+    const group = withKey.body.tools.groups.find(candidate => candidate.id === 'hubspot')
+    expect(withoutKey.body.tools.groups.find(candidate => candidate.id === 'hubspot').configured).toBe(false)
+    expect(group.label).toBe('HubSpot')
+    expect(group.configured).toBe(true)
+    expect(group.tools).toHaveLength(21)
+    expect(group.tools).toContain('search_hubspot_records')
+    expect(group.tools).toContain('reply_hubspot_conversation')
+    expect(isHubspotConfigured).toHaveBeenCalledTimes(2)
   })
 
   it('returns 500 when the rows cannot be read', async () => {
