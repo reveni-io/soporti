@@ -9,7 +9,7 @@ const SCRIPT_BREAKOUT_RE = /<(?=\/script|!--)/gi
 const PROJECT_LINE_RE = /^window\.__PROJECT__ = (.+)$/m
 const RESERVED_PREFIXES = ['assets/', 'kit/']
 const TEXT_EXTENSIONS = new Set(['.js', '.css', '.json', '.svg'])
-const ASSET_MIME_TYPES = {
+export const ASSET_MIME_TYPES = {
   '.woff2': 'font/woff2',
   '.woff': 'font/woff',
   '.ttf': 'font/ttf',
@@ -23,13 +23,13 @@ const ASSET_MIME_TYPES = {
 }
 const KB = 1024
 const MB = 1024 * KB
-const MAX_FILES = 40
-const MAX_FILE_BYTES = 400 * KB
-const MAX_FILES_BYTES = 2 * MB
-const MAX_ASSET_BYTES = 2 * MB
-const MAX_ASSETS_BYTES = 15 * MB
+export const MAX_FILES = 40
+export const MAX_FILE_BYTES = 400 * KB
+export const MAX_FILES_BYTES = 2 * MB
+export const MAX_ASSET_BYTES = 2 * MB
+export const MAX_ASSETS_BYTES = 15 * MB
 const MAX_TITLE_LENGTH = 200
-const FORMATS = [
+export const FORMATS = [
   { width: 1920, height: 1080, label: '16:9' },
   { width: 1080, height: 1080, label: '1:1' },
   { width: 1080, height: 1920, label: '9:16' },
@@ -38,12 +38,12 @@ const FRAME_RATES = [30, 60]
 const FORMAT_LIST = FORMATS.map(({ width, height, label }) => `${width}×${height} (${label})`).join(', ')
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }
 
-function formatSize(bytes) {
+export function formatSize(bytes) {
   if (bytes >= MB) return `${(bytes / MB).toFixed(1)} MB`
   return `${Math.ceil(bytes / KB)} KB`
 }
 
-function describePathProblem(path) {
+export function describePathProblem(path) {
   if (!FILE_PATH_RE.test(path)) {
     return `"${path}" is not a valid file path: use lowercase letters, digits, ".", "_" and "-", with "/" between folders.`
   }
@@ -84,7 +84,7 @@ function validateFiles(files) {
   }
 }
 
-function validateAsset(name, asset) {
+export function validateAsset(name, asset) {
   if (!ASSET_NAME_RE.test(name)) {
     throw new VideoProjectError(`"${name}" is not a valid asset name: use lowercase letters, digits, ".", "_" and "-".`)
   }
