@@ -9,6 +9,10 @@ export const continuationToken = true
 const CODEX_MODELS = /codex/i
 const REASONING_MODELS = /^(gpt-5|o\d)/i
 const CODEX_VERBOSITY = 'medium'
+const EFFORT_FALLBACKS = new Map([
+  ['xhigh', 'high'],
+  ['max', 'high'],
+])
 
 let clientInstance = null
 let clientInstanceKey = null
@@ -44,12 +48,18 @@ export async function buildModel({ modelId: override = null } = {}) {
   return { modelId, model: modelId }
 }
 
+function supportedEffort(effort) {
+  return EFFORT_FALLBACKS.get(effort) ?? effort
+}
+
 export function modelSettings(modelId, { effort } = {}) {
   if (!effort) return {}
-  if (CODEX_MODELS.test(modelId)) return { reasoning: { effort }, text: { verbosity: CODEX_VERBOSITY } }
+
+  const reasoning = { effort: supportedEffort(effort) }
+  if (CODEX_MODELS.test(modelId)) return { reasoning, text: { verbosity: CODEX_VERBOSITY } }
   if (!REASONING_MODELS.test(modelId)) return {}
 
-  return { reasoning: { effort } }
+  return { reasoning }
 }
 
 export function finalAnswerSettings() {

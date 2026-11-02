@@ -18,6 +18,7 @@ import AdminSlack from './AdminSlack/AdminSlack.jsx'
 import AdminStats from './AdminStats/AdminStats.jsx'
 import AdminSubagents from './AdminSubagents/AdminSubagents.jsx'
 import AdminUsers from './AdminUsers/AdminUsers.jsx'
+import AdminVideo from './AdminVideo/AdminVideo.jsx'
 
 export const SECTIONS = [
   { path: 'stats', label: 'Stats', icon: 'chart', Component: AdminStats },
@@ -25,6 +26,7 @@ export const SECTIONS = [
   { path: 'authentication', label: 'Authentication', icon: 'shield', Component: AdminAuthentication },
   { path: 'llm', label: 'LLM', icon: 'spark', Component: AdminLlm },
   { path: 'subagents', label: 'Subagents', icon: 'subagents', Component: AdminSubagents },
+  { path: 'video', label: 'Video', icon: 'video', Component: AdminVideo },
   { path: 'knowledge', label: 'Knowledge base', icon: 'help-center', Component: AdminKnowledge },
   { path: 'github', label: 'GitHub', icon: 'github', Component: AdminGithub },
   { path: 'google-drive', label: 'Google Drive', icon: 'google-drive', Component: AdminGoogleDrive },

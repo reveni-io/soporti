@@ -1,12 +1,14 @@
 import { getProvider } from './registry.js'
 import { getLlmProvider, getReasoningEffort } from './settings.js'
-import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_LEVELS } from '../constants.js'
+import { DEFAULT_REASONING_EFFORT, EXTENDED_REASONING_EFFORT_LEVELS, REASONING_EFFORT_LEVELS } from '../constants.js'
 
 async function resolveProvider() {
   return getProvider(await getLlmProvider())
 }
 
-async function resolveEffort() {
+async function resolveEffort(override) {
+  if (EXTENDED_REASONING_EFFORT_LEVELS.includes(override)) return override
+
   const stored = await getReasoningEffort()
   return REASONING_EFFORT_LEVELS.includes(stored) ? stored : DEFAULT_REASONING_EFFORT
 }
@@ -21,10 +23,13 @@ export async function isConfigured() {
   return provider.isConfigured()
 }
 
-export async function resolveModelForAgent({ provider: providerId = null, model: modelId = null } = {}) {
+export async function resolveModelForAgent({ provider: providerId = null, model: modelId = null, effort = null } = {}) {
   const provider = providerId ? getProvider(providerId) : await resolveProvider()
-  const [{ modelId: resolved, model }, effort] = await Promise.all([provider.buildModel({ modelId }), resolveEffort()])
-  const modelSettings = provider.modelSettings(resolved, { effort })
+  const [{ modelId: resolved, model }, resolvedEffort] = await Promise.all([
+    provider.buildModel({ modelId }),
+    resolveEffort(effort),
+  ])
+  const modelSettings = provider.modelSettings(resolved, { effort: resolvedEffort })
 
   return { model, modelSettings, finalAnswerModelSettings: { ...modelSettings, ...provider.finalAnswerSettings() } }
 }

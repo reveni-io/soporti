@@ -203,6 +203,28 @@ describe('resolveModelForAgent', () => {
     expect(getReasoningEffort).toHaveBeenCalledTimes(1)
     expect(anthropicProvider.modelSettings).toHaveBeenCalledWith('claude-sonnet-5', { effort: 'high' })
   })
+
+  it('uses a given effort over the shared one, including the extended levels', async () => {
+    getReasoningEffort.mockResolvedValue('low')
+    anthropicProvider.buildModel.mockResolvedValue({ modelId: 'claude-opus-5', model: 'wrapped' })
+    anthropicProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent({ provider: 'anthropic', model: 'claude-opus-5', effort: 'max' })
+
+    expect(anthropicProvider.modelSettings).toHaveBeenCalledTimes(1)
+    expect(anthropicProvider.modelSettings).toHaveBeenCalledWith('claude-opus-5', { effort: 'max' })
+    expect(getReasoningEffort).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the shared effort when the given one is not a supported level', async () => {
+    getReasoningEffort.mockResolvedValue('high')
+    openaiProvider.buildModel.mockResolvedValue({ modelId: 'gpt-5.2', model: 'gpt-5.2' })
+    openaiProvider.modelSettings.mockReturnValue({})
+
+    await resolveModelForAgent({ provider: 'openai', model: 'gpt-5.2', effort: 'extreme' })
+
+    expect(openaiProvider.modelSettings).toHaveBeenCalledWith('gpt-5.2', { effort: 'high' })
+  })
 })
 
 describe('isProviderConfigured', () => {

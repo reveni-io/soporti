@@ -82,6 +82,8 @@ export const MAX_FIND_RESULTS = 200
 
 export const REASONING_EFFORT_LEVELS = ['low', 'medium', 'high']
 export const DEFAULT_REASONING_EFFORT = 'medium'
+export const EXTENDED_REASONING_EFFORT_LEVELS = [...REASONING_EFFORT_LEVELS, 'xhigh', 'max']
+export const DEFAULT_VIDEO_REASONING_EFFORT = 'max'
 
 export const TOOL_NOT_FOUND_BEHAVIOR = 'return_error_to_model'
 
