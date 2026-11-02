@@ -8,6 +8,9 @@ import OAuthConsent from '../pages/OAuthConsent/OAuthConsent.jsx'
 import Lmstfy from '../pages/Lmstfy/Lmstfy.jsx'
 import ArtifactView from '../pages/ArtifactView/ArtifactView.jsx'
 import SharedArtifact from '../pages/SharedArtifact/SharedArtifact.jsx'
+import Videos from '../pages/Videos/Videos.jsx'
+import VideoStudio from '../pages/VideoStudio/VideoStudio.jsx'
+import AuthGate from '../common/AuthGate/AuthGate.jsx'
 import { QUESTION_PARAM, SHARE_ID_RE, UUID_RE } from '../constants.js'
 import { ROUTES } from './constants.js'
 
@@ -41,6 +44,18 @@ function SharedArtifactRoute() {
   return <SharedArtifact shareId={shareId} />
 }
 
+function VideoRoute() {
+  const { id } = useParams()
+  if (!UUID_RE.test(id)) {
+    return <Landing />
+  }
+  return (
+    <AuthGate>
+      <VideoStudio id={id} />
+    </AuthGate>
+  )
+}
+
 export default function Router() {
   return (
     <Routes>
@@ -52,6 +67,15 @@ export default function Router() {
       <Route path={ROUTES.LMSTFY} element={<Lmstfy />} />
       <Route path={ROUTES.ARTIFACT} element={<ArtifactRoute />} />
       <Route path={ROUTES.ARTIFACT_SHARE} element={<SharedArtifactRoute />} />
+      <Route
+        path={ROUTES.VIDEOS}
+        element={
+          <AuthGate>
+            <Videos />
+          </AuthGate>
+        }
+      />
+      <Route path={ROUTES.VIDEO} element={<VideoRoute />} />
       <Route path="*" element={<Landing />} />
     </Routes>
   )

@@ -1,0 +1,27 @@
+.video-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  min-height: 0;
+  padding: var(--sp4);
+}
+
+.video-conversation__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.video-conversation__alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+}
+
+@media (max-width: 768px) {
+  .video-conversation__messages {
+    max-height: 60vh;
+  }
+}

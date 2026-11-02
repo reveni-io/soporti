@@ -1,0 +1,50 @@
+.video-studio {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-app);
+}
+
+.video-studio__notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--sp8) var(--sp4);
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+}
+
+.video-studio__alert {
+  margin: var(--sp3) var(--sp4) 0;
+}
+
+.video-studio__columns {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--sp4);
+  min-height: 0;
+  padding: var(--sp4);
+}
+
+.video-studio__panel {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .video-studio {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .video-studio__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .video-studio__panel {
+    overflow: visible;
+  }
+}

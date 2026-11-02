@@ -874,3 +874,40 @@ export function saveSlackCredential(token, { endpoint, bodyKey, value }) {
     errorMessage: 'Failed to save',
   })
 }
+
+export function listVideos(token) {
+  return request('/api/videos', { token, errorMessage: 'Failed to load your videos' })
+}
+
+export function createVideo(token, brief) {
+  return request('/api/videos', { method: 'POST', token, body: { brief }, errorMessage: 'Failed to create the video' })
+}
+
+export function getVideo(token, id) {
+  return request(`/api/videos/${id}`, { token, errorMessage: 'Failed to load the video' })
+}
+
+export function sendVideoMessage(token, id, text) {
+  return request(`/api/videos/${id}/messages`, {
+    method: 'POST',
+    token,
+    body: { text },
+    errorMessage: 'Failed to send the message',
+  })
+}
+
+export function redraftStoryboard(token, id) {
+  return request(`/api/videos/${id}/storyboard`, {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to draft the storyboard again',
+  })
+}
+
+export function generateVideo(token, id) {
+  return request(`/api/videos/${id}/generate`, { method: 'POST', token, errorMessage: 'Failed to start the video' })
+}
+
+export function deleteVideo(token, id) {
+  return request(`/api/videos/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete the video' })
+}

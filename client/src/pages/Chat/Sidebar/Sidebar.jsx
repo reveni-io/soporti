@@ -1,6 +1,6 @@
 import { YOLO_SOURCE } from '../../../constants.js'
 import { useConversations } from '../hooks/useConversations/useConversations.js'
-import { useRepos } from '../hooks/useRepos/useRepos.js'
+import { useRepos } from '../../../hooks/useRepos/useRepos.js'
 import { useSourceSearch } from '../hooks/useSourceSearch/useSourceSearch.js'
 import ConversationList from './ConversationList/ConversationList.jsx'
 import ProfileToggle from './ProfileToggle/ProfileToggle.jsx'

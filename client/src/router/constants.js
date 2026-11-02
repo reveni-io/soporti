@@ -8,4 +8,6 @@ export const ROUTES = {
   LMSTFY: '/lmstfy',
   ARTIFACT: '/artifacts/:id',
   ARTIFACT_SHARE: '/a/:shareId',
+  VIDEOS: '/videos',
+  VIDEO: '/videos/:id',
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getRepos, isUnauthorized } from '../../../../services/services.js'
+import { getRepos, isUnauthorized } from '../../services/services.js'
 
 export function useRepos(token, onLogout) {
   const [repos, setRepos] = useState([])
