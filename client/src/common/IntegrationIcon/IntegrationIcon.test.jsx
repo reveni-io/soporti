@@ -15,6 +15,7 @@ describe('IntegrationIcon', () => {
     'figma',
     'zendesk',
     'sendcloud',
+    'hubspot',
     'openai',
     'anthropic',
   ])('renders the %s brand mark', id => {
@@ -43,6 +44,12 @@ describe('IntegrationIcon', () => {
     const { container } = render(<IntegrationIcon id="openai" />)
 
     expect(container.querySelector('svg[data-icon="openai"]')).toHaveAttribute('viewBox', '0 0 24 24')
+  })
+
+  it('draws the HubSpot sprocket on the 24 grid', () => {
+    const { container } = render(<IntegrationIcon id="hubspot" />)
+
+    expect(container.querySelector('svg[data-icon="hubspot"]')).toHaveAttribute('viewBox', '0 0 24 24')
   })
 
   it('renders a fallback glyph for unknown ids', () => {

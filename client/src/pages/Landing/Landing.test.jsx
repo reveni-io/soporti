@@ -58,6 +58,14 @@ describe('Landing', () => {
     expect(container.querySelector('#sendcloud')).toHaveTextContent('Where is the parcel?')
   })
 
+  it('presents the HubSpot integration in its own section, right after Sendcloud', () => {
+    const { container } = render(<Landing />)
+    const hubspot = container.querySelector('#hubspot')
+
+    expect(hubspot).toHaveTextContent('Ask and update the CRM without leaving Soporti')
+    expect(container.querySelector('#sendcloud').nextElementSibling).toBe(hubspot)
+  })
+
   it('lists the supported LLM providers', () => {
     const { container } = render(<Landing />)
     const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)

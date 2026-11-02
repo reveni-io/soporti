@@ -721,6 +721,36 @@ export function removeSendcloudAccount(token, id) {
   })
 }
 
+export function getHubspotConfig(token) {
+  return request('/api/admin/config/hubspot', { token, errorMessage: 'Failed to load the HubSpot settings' })
+}
+
+export function saveHubspotToken(token, value) {
+  return request('/api/admin/config/hubspot/token', {
+    method: 'PUT',
+    token,
+    body: { token: value },
+    errorMessage: 'Failed to save the HubSpot key',
+  })
+}
+
+export function saveHubspotPermissions(token, permissions) {
+  return request('/api/admin/config/hubspot/permissions', {
+    method: 'PUT',
+    token,
+    body: { permissions },
+    errorMessage: 'Failed to save the HubSpot permissions',
+  })
+}
+
+export function testHubspotConnection(token) {
+  return request('/api/admin/config/hubspot/test', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to test the HubSpot connection',
+  })
+}
+
 export function getLangfuseConfig(token) {
   return request('/api/admin/config/langfuse', { token, errorMessage: 'Failed to load the Langfuse settings' })
 }

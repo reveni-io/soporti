@@ -5,6 +5,7 @@ import AdminFigma from './AdminFigma/AdminFigma.jsx'
 import AdminGithub from './AdminGithub/AdminGithub.jsx'
 import AdminGoogleDrive from './AdminGoogleDrive/AdminGoogleDrive.jsx'
 import AdminHelpjuice from './AdminHelpjuice/AdminHelpjuice.jsx'
+import AdminHubspot from './AdminHubspot/AdminHubspot.jsx'
 import AdminKnowledge from './AdminKnowledge/AdminKnowledge.jsx'
 import AdminLangfuse from './AdminLangfuse/AdminLangfuse.jsx'
 import AdminLlm from './AdminLlm/AdminLlm.jsx'
@@ -32,6 +33,7 @@ export const SECTIONS = [
   { path: 'database', label: 'Database', icon: 'database', Component: AdminDatabase },
   { path: 'shopify', label: 'Shopify', icon: 'shopify', Component: AdminShopify },
   { path: 'sendcloud', label: 'Sendcloud', icon: 'sendcloud', Component: AdminSendcloud },
+  { path: 'hubspot', label: 'HubSpot', icon: 'hubspot', Component: AdminHubspot },
   { path: 'shortcut', label: 'Shortcut', icon: 'shortcut', Component: AdminShortcut },
   { path: 'figma', label: 'Figma', icon: 'figma', Component: AdminFigma },
   { path: 'sentry', label: 'Sentry', icon: 'sentry', Component: AdminSentry },

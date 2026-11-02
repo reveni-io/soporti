@@ -1,0 +1,61 @@
+.lp-hubspot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+}
+
+.lp-hubspot__levels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding: var(--sp4);
+}
+
+.lp-hubspot__areas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  list-style: none;
+}
+
+.lp-hubspot__area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+}
+
+.lp-hubspot__area-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lp-hubspot__options {
+  display: flex;
+  gap: var(--sp1);
+}
+
+.lp-hubspot__chat {
+  padding: var(--sp4) var(--sp4) 0;
+}
+
+.lp-hubspot__answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  max-width: 92%;
+}
+
+.lp-hubspot__draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+}
+
+.lp-hubspot__signature {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
