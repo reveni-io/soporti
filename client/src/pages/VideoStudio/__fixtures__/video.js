@@ -1,0 +1,49 @@
+export const storyboardFixture = {
+  title: 'Liquid email templates',
+  summary: 'A merchant writes a template and sends the first email.',
+  durationSeconds: 30,
+  scenes: [
+    {
+      start: 0,
+      end: 6,
+      title: 'Hook',
+      visual: 'The template editor opens',
+      onScreenText: 'Emails that sound like you',
+      sound: 'Soft whoosh',
+    },
+    {
+      start: 6,
+      end: 30,
+      title: 'Send',
+      visual: 'The first email lands in the inbox',
+      onScreenText: 'Live in minutes',
+      sound: 'Notification chime',
+    },
+  ],
+  music: { style: 'Lo-fi house', bpm: 112, mood: 'Warm' },
+}
+
+export const storyboardVideoFixture = {
+  id: '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601',
+  title: 'Liquid email templates',
+  status: 'storyboard',
+  stage: 'storyboard',
+  brief: { idea: 'Liquid templates', repos: ['reveni/app'], format: '16:9', durationSeconds: 30 },
+  storyboard: storyboardFixture,
+  storyboardError: null,
+  parentVideoId: null,
+  messages: [
+    { id: 1, role: 'user', content: 'Explain Liquid templates', version: null, createdAt: '2026-10-30T10:00:00Z' },
+    {
+      id: 2,
+      role: 'assistant',
+      content: 'Here is a **storyboard**.',
+      version: null,
+      createdAt: '2026-10-30T10:01:00Z',
+    },
+  ],
+  versions: [],
+  queuePosition: null,
+  createdAt: '2026-10-30T10:00:00Z',
+  updatedAt: '2026-10-30T10:01:00Z',
+}

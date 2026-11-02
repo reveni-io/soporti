@@ -1,0 +1,55 @@
+.segmented-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+  border: none;
+}
+
+.segmented-control__legend {
+  margin-bottom: var(--sp1);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.segmented-control__options {
+  display: flex;
+  padding: var(--sp1);
+  background: var(--bg-cool);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.segmented-control__option {
+  flex: 1;
+  padding: var(--sp1) var(--sp2);
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  text-align: center;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.segmented-control__option:has(.segmented-control__input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.segmented-control__option--selected {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-card-hover);
+}
+
+.segmented-control__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control__hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}

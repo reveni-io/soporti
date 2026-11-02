@@ -1,0 +1,15 @@
+.video-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp2);
+}
+
+.video-composer__input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+}
+
+.video-composer__send {
+  flex-shrink: 0;
+}

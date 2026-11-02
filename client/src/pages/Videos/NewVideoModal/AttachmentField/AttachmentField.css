@@ -1,0 +1,44 @@
+.attachment-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.attachment-field__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+}
+
+.attachment-field__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.attachment-field__hint {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.attachment-field__button--locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.attachment-field__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.attachment-field__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  list-style: none;
+}

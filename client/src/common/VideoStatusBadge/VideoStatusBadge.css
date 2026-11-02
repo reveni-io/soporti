@@ -1,0 +1,9 @@
+.video-status-badge {
+  white-space: nowrap;
+}
+
+.video-status-badge--failed {
+  color: var(--orange-900);
+  background-color: var(--orange-50);
+  border-color: var(--orange-300);
+}

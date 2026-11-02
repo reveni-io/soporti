@@ -1,0 +1,11 @@
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--sp4);
+  list-style: none;
+}
+
+.video-grid__status {
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+}

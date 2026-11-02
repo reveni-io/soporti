@@ -1,0 +1,34 @@
+.studio-panel__empty,
+.studio-panel__skeleton-text {
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+}
+
+.studio-panel__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.studio-panel__skeleton-row {
+  height: var(--sp16);
+  background: linear-gradient(90deg, var(--bg-cool), var(--bg-surface), var(--bg-cool));
+  background-size: 200% 100%;
+  animation: studio-panel-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes studio-panel-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-panel__skeleton-row {
+    animation: none;
+  }
+}
