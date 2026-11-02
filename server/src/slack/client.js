@@ -14,6 +14,7 @@ const SLACK_ERROR_MESSAGES = {
     'Slack cannot find this channel. Check the name — a private channel is only visible to the bot once it has been invited.',
   is_archived: 'This channel is archived, so nobody can post in it.',
   restricted_action: 'A workspace setting prevents the bot from posting in this channel.',
+  users_not_found: 'No Slack user has that email address.',
 }
 
 function describeSlackError(method, code) {
@@ -65,8 +66,7 @@ async function findPermalink(channel, ts) {
   }
 }
 
-export async function postMessage(channel, text) {
-  const target = toChannelArgument(channel)
+function toMessageBody(text) {
   const body = redactSecrets(String(text ?? '').trim())
 
   if (!body) throw new Error('A Slack message needs some text.')
@@ -76,6 +76,28 @@ export async function postMessage(channel, text) {
     )
   }
 
+  return body
+}
+
+async function resolveDirectChannel({ slackId, email }) {
+  if (slackId) return slackId
+  if (!email) throw new Error('The recipient has neither a Slack id nor an email address.')
+
+  const found = await callSlack('users.lookupByEmail', { email })
+  return found.user.id
+}
+
+export async function postDirectMessage(recipient, text) {
+  const body = toMessageBody(text)
+  const channel = await resolveDirectChannel(recipient)
+  const posted = await callSlack('chat.postMessage', { channel, markdown_text: body })
+
+  return { channel: posted.channel, ts: posted.ts }
+}
+
+export async function postMessage(channel, text) {
+  const target = toChannelArgument(channel)
+  const body = toMessageBody(text)
   const posted = await callSlack('chat.postMessage', { channel: target, markdown_text: body })
 
   return { channel: posted.channel, ts: posted.ts, permalink: await findPermalink(posted.channel, posted.ts) }
