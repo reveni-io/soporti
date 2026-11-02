@@ -66,6 +66,17 @@ export async function getAttachmentImages(ids, userId) {
   return new Map(rows.map(row => [row.id, toDataUri(row)]))
 }
 
+export async function findOwnedAttachmentImageIds(ids, userId) {
+  if (ids.length === 0) return new Set()
+
+  const rows = await getDb()
+    .select({ id: attachmentImages.id })
+    .from(attachmentImages)
+    .where(and(inArray(attachmentImages.id, ids), eq(attachmentImages.userId, userId), unexpired()))
+
+  return new Set(rows.map(row => row.id))
+}
+
 export async function deleteExpiredAttachmentImages() {
   const deleted = await getDb()
     .delete(attachmentImages)

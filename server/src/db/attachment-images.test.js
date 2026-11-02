@@ -44,6 +44,7 @@ const {
   setAttachmentImageThumbnail,
   getAttachmentPreview,
   getAttachmentImages,
+  findOwnedAttachmentImageIds,
   deleteExpiredAttachmentImages,
 } = await import('./attachment-images.js')
 
@@ -150,6 +151,23 @@ describe('getAttachmentImages', () => {
 
   it('does not query when there are no ids', async () => {
     expect(await getAttachmentImages([], 7)).toEqual(new Map())
+    expect(calls).toHaveLength(0)
+  })
+})
+
+describe('findOwnedAttachmentImageIds', () => {
+  it('returns the ids of the images the user still owns', async () => {
+    queue = [[{ id: 'a' }]]
+
+    const ids = await findOwnedAttachmentImageIds(['a', 'gone'], 7)
+
+    expect(ids).toEqual(new Set(['a']))
+    expect(calls).toHaveLength(1)
+    expect(calls[0].op).toBe('select')
+  })
+
+  it('does not query when there are no ids', async () => {
+    expect(await findOwnedAttachmentImageIds([], 7)).toEqual(new Set())
     expect(calls).toHaveLength(0)
   })
 })

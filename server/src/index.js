@@ -22,6 +22,7 @@ import userRouter from './routes/user.js'
 import skillsRouter from './routes/skills.js'
 import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
+import videosRouter from './routes/videos.js'
 import mcpRoute from './mcp/route.js'
 import oauthRouter from './oauth/route.js'
 import { buildAuthorizationServerMetadata, buildProtectedResourceMetadata } from './oauth/metadata.js'
@@ -38,6 +39,7 @@ import { announceSetupCode } from './auth/setup-code.js'
 import { getGithubToken, getWebhookSecret } from './github/settings.js'
 import { describeProvider } from './llm/model.js'
 import { registerLangfuseTracing } from './langfuse/tracing.js'
+import { recoverInterruptedDrafts } from './video/storyboard.js'
 
 registerLangfuseTracing()
 
@@ -77,6 +79,7 @@ app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
+app.use('/api/videos', videosRouter)
 app.use(OAUTH_BASE_PATH, oauthRouter)
 app.use('/api/mcp', mcpRoute(conversationStore))
 
@@ -101,6 +104,12 @@ app.listen(config.port, async () => {
     await runMigrations()
   } catch (err) {
     console.error('Failed to run database migrations:', err.message)
+  }
+
+  try {
+    await recoverInterruptedDrafts()
+  } catch (err) {
+    console.error('Failed to recover interrupted storyboard drafts:', err.message)
   }
 
   try {

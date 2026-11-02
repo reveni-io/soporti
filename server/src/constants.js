@@ -85,6 +85,12 @@ export const DEFAULT_REASONING_EFFORT = 'medium'
 export const EXTENDED_REASONING_EFFORT_LEVELS = [...REASONING_EFFORT_LEVELS, 'xhigh', 'max']
 export const DEFAULT_VIDEO_REASONING_EFFORT = 'max'
 
+export const VIDEO_STAGE_DRAFTING = 'drafting'
+export const VIDEO_STAGE_STORYBOARD = 'storyboard'
+export const VIDEO_STAGE_PRODUCTION = 'production'
+export const VIDEO_ROLE_USER = 'user'
+export const VIDEO_ROLE_ASSISTANT = 'assistant'
+
 export const TOOL_NOT_FOUND_BEHAVIOR = 'return_error_to_model'
 
 export const AGENT_CHANNEL_WEB = 'web'
@@ -95,6 +101,7 @@ export const AGENT_CHANNEL_PR_MENTION = 'pr_mention'
 export const AGENT_CHANNEL_PR_REVIEW_VERIFY = 'pr_review_verify'
 export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
 export const AGENT_CHANNEL_MCP = 'mcp'
+export const AGENT_CHANNEL_VIDEO_STORYBOARD = 'video_storyboard'
 export const RUN_STATUS_OK = 'ok'
 export const RUN_STATUS_ERROR = 'error'
 export const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'
