@@ -22,4 +22,12 @@ export default [
       'sonarjs/cognitive-complexity': ['error', 15],
     },
   },
+  {
+    files: ['src/video/kit/**/*.js'],
+    ignores: ['src/video/kit/**/*.test.js'],
+    languageOptions: {
+      globals: globals.browser,
+      sourceType: 'script',
+    },
+  },
 ]
