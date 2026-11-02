@@ -3,6 +3,7 @@ import { createSession, requireAdmin } from '../middleware/auth.js'
 import adminStatsRouter from './admin-stats.js'
 import adminSendcloudRouter from './admin-sendcloud.js'
 import adminHubspotRouter from './admin-hubspot.js'
+import adminVideoRouter from './admin-video.js'
 import { hashPassword, validatePassword } from '../auth/password.js'
 import { verifySetupCode, announceSetupCode } from '../auth/setup-code.js'
 import { getAllowedDomains, setAllowedDomains } from '../auth/allowed-domains.js'
@@ -322,6 +323,7 @@ router.use(requireAdmin)
 router.use('/stats', adminStatsRouter)
 router.use('/config/sendcloud', adminSendcloudRouter)
 router.use('/config/hubspot', adminHubspotRouter)
+router.use('/config/video', adminVideoRouter)
 
 router.get('/users', async (_req, res) => {
   try {

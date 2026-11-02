@@ -13,6 +13,8 @@ const EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max'])
 const CLEAR_TOOL_RESULTS_TRIGGER_TOKENS = 600_000
 const KEPT_TOOL_USES = 10
 const MIN_CLEARED_TOKENS = 100_000
+const HTTP_URL_RE = /^https?:\/\//
+const ANTHROPIC_IMAGE_MEDIA_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const CONTEXT_MANAGEMENT = {
   edits: [
     {
@@ -41,7 +43,50 @@ export async function buildModel({ modelId: override = null } = {}) {
     throw new Error('Anthropic model not configured. Set it in the admin panel (LLM section).')
   }
 
-  return { modelId, model: aisdk(createAnthropic({ apiKey: key })(modelId)) }
+  return { modelId, model: aisdk(withToolResultImages(createAnthropic({ apiKey: key })(modelId))) }
+}
+
+function toAnthropicToolContentPart(part) {
+  if (part.type !== 'media') return part
+  if (HTTP_URL_RE.test(part.data)) return { type: 'image-url', url: part.data }
+  if (!ANTHROPIC_IMAGE_MEDIA_TYPES.has(part.mediaType)) return part
+
+  return { type: 'image-data', data: part.data, mediaType: part.mediaType }
+}
+
+function toAnthropicToolPart(part) {
+  if (part.type !== 'tool-result' || part.output.type !== 'content') return part
+
+  return { ...part, output: { ...part.output, value: part.output.value.map(toAnthropicToolContentPart) } }
+}
+
+function toAnthropicMessage(message) {
+  if (message.role !== 'tool') return message
+
+  return { ...message, content: message.content.map(toAnthropicToolPart) }
+}
+
+function toAnthropicCallOptions(options) {
+  return { ...options, prompt: options.prompt.map(toAnthropicMessage) }
+}
+
+function withToolResultImages(model) {
+  return {
+    get specificationVersion() {
+      return model.specificationVersion
+    },
+    get provider() {
+      return model.provider
+    },
+    get modelId() {
+      return model.modelId
+    },
+    get supportedUrls() {
+      return model.supportedUrls
+    },
+    doGenerate: options => model.doGenerate(toAnthropicCallOptions(options)),
+    doStream: options => model.doStream(toAnthropicCallOptions(options)),
+  }
 }
 
 export function retryPolicy({ normalized }) {

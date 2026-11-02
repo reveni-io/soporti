@@ -447,6 +447,37 @@ export function saveAnthropicModel(token, model) {
   })
 }
 
+export function getVideoConfig(token) {
+  return request('/api/admin/config/video', { token, errorMessage: 'Failed to load the video settings' })
+}
+
+export function saveVideoProvider(token, provider) {
+  return request('/api/admin/config/video/provider', {
+    method: 'PUT',
+    token,
+    body: { provider },
+    errorMessage: 'Failed to save the video provider',
+  })
+}
+
+export function saveVideoModel(token, model) {
+  return request('/api/admin/config/video/model', {
+    method: 'PUT',
+    token,
+    body: { model },
+    errorMessage: 'Failed to save the video model',
+  })
+}
+
+export function saveVideoEffort(token, effort) {
+  return request('/api/admin/config/video/effort', {
+    method: 'PUT',
+    token,
+    body: { effort },
+    errorMessage: 'Failed to save the video reasoning effort',
+  })
+}
+
 export function getSubagents(token) {
   return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
 }

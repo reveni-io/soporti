@@ -298,6 +298,16 @@ vi.mock('./admin-hubspot.js', async () => {
   hubspotRouter.post('/test', hubspotRouteReached)
   return { default: hubspotRouter }
 })
+const videoRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
+vi.mock('./admin-video.js', async () => {
+  const { Router } = await import('express')
+  const videoRouter = Router()
+  videoRouter.get('/', videoRouteReached)
+  videoRouter.put('/provider', videoRouteReached)
+  videoRouter.put('/model', videoRouteReached)
+  videoRouter.put('/effort', videoRouteReached)
+  return { default: videoRouter }
+})
 vi.mock('../shopify/client.js', () => ({ isConfigured: isShopifyConfigured }))
 const REPO_TOOL_NAMES = new Set([
   'list_repos',
@@ -429,6 +439,7 @@ beforeEach(() => {
   currentDbRole = 'admin'
   sendcloudRouteReached.mockClear()
   hubspotRouteReached.mockClear()
+  videoRouteReached.mockClear()
 })
 
 describe('GET /api/admin/status', () => {
@@ -589,6 +600,33 @@ describe('/api/admin/config/hubspot', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reached: true })
     expect(hubspotRouteReached).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('/api/admin/config/video', () => {
+  const VIDEO_REQUESTS = [
+    ['get', '/api/admin/config/video'],
+    ['put', '/api/admin/config/video/provider'],
+    ['put', '/api/admin/config/video/model'],
+    ['put', '/api/admin/config/video/effort'],
+  ]
+
+  it.each(VIDEO_REQUESTS)('rejects a non-admin %s %s with 403 before the video routes', async (method, path) => {
+    currentDbRole = 'user'
+
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Admin access required.' })
+    expect(videoRouteReached).not.toHaveBeenCalled()
+  })
+
+  it.each(VIDEO_REQUESTS)('lets an admin %s %s reach the video routes', async (method, path) => {
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reached: true })
+    expect(videoRouteReached).toHaveBeenCalledTimes(1)
   })
 })
 
