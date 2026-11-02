@@ -269,6 +269,13 @@ API's event loop.
 | `VIDEO_MAX_SUBFRAMES` | `16` | Cap on the motion-blur subframes captured per frame |
 | `FFMPEG_PATH` | `ffmpeg` | ffmpeg binary that encodes the videos |
 
+**Render time.** Seeking a frame takes ~3 ms, but each captured subframe (seek +
+PNG screenshot at 1080p) costs ~100–150 ms of CPU, and motion blur averages ~3
+subframes per frame at 60 fps (measured on the kit example). One worker
+therefore renders roughly 2–3 frames per second: a 60 s video at 60 fps (3,600
+frames) takes about 20–35 min on one vCPU and about 10 min with 4 workers. At
+30 fps it takes half as long.
+
 **Cost.** The one-click manifests ask for 2 GB instances so a fresh deploy can
 render: `apps-s-1vcpu-2gb` on DigitalOcean App Platform ($25/month, up from $5
 for the 512 MB `basic-xxs`) and `standard` on Render ($25/month, up from $7 for
