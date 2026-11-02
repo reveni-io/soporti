@@ -11,8 +11,11 @@ vi.mock('../db/artifacts.js', () => ({
   getSharedArtifact: vi.fn(),
 }))
 
+vi.mock('../db/video-shares.js', () => ({ getSharedVideo: vi.fn() }))
+
 const { createOrRefreshShare, getShare } = await import('../db/shares.js')
 const { getSharedArtifact } = await import('../db/artifacts.js')
+const { getSharedVideo } = await import('../db/video-shares.js')
 const { default: shareRouter } = await import('./share.js')
 
 const CONVERSATION_ID = 'a3bb189e-8bf9-4888-9912-ace4e6543002'
@@ -164,5 +167,49 @@ describe('GET /artifact/:shareId', () => {
 
     expect(res.status).toBe(500)
     expect(res.body.error).not.toContain('boom')
+  })
+})
+
+describe('GET /videos/:shareId', () => {
+  const MP4 = Buffer.from('0123456789')
+  let app
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    app = express()
+    app.use('/', shareRouter)
+  })
+
+  it('serves the shared MP4 inline to anyone with the link', async () => {
+    getSharedVideo.mockResolvedValue({ title: 'Refunds', version: 2, mp4: MP4 })
+
+    const res = await request(app).get(`/videos/${SHARE_ID}`).buffer(true)
+
+    expect(res.status).toBe(200)
+    expect(getSharedVideo).toHaveBeenCalledWith(SHARE_ID)
+    expect(res.headers['content-type']).toBe('video/mp4')
+    expect(res.headers['content-disposition']).toBe('inline')
+    expect(Buffer.from(res.body).equals(MP4)).toBe(true)
+  })
+
+  it('serves a byte range so browsers can seek', async () => {
+    getSharedVideo.mockResolvedValue({ title: 'Refunds', version: 2, mp4: MP4 })
+
+    const res = await request(app).get(`/videos/${SHARE_ID}`).set('Range', 'bytes=2-4').buffer(true)
+
+    expect(res.status).toBe(206)
+    expect(res.headers['content-range']).toBe('bytes 2-4/10')
+    expect(Buffer.from(res.body).toString()).toBe('234')
+  })
+
+  it('returns 400 for a malformed link, 404 for an expired one and 500 when the DB fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getSharedVideo.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('boom'))
+
+    expect((await request(app).get('/videos/nope')).status).toBe(400)
+    expect((await request(app).get(`/videos/${SHARE_ID}`)).status).toBe(404)
+    expect((await request(app).get(`/videos/${SHARE_ID}`)).status).toBe(500)
+    expect(consoleError).toHaveBeenCalledTimes(1)
+    consoleError.mockRestore()
   })
 })

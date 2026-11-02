@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { createOrRefreshShare, getShare } from '../db/shares.js'
 import { getSharedArtifact } from '../db/artifacts.js'
+import { getSharedVideo } from '../db/video-shares.js'
+import { sendMp4 } from '../video/mp4-response.js'
 import { SHARE_ID_RE, UUID_RE } from '../constants.js'
 
 const router = Router()
@@ -34,6 +36,23 @@ router.get('/artifact/:shareId', async (req, res) => {
   } catch (err) {
     console.error('Failed to load the shared artifact:', err)
     res.status(500).json({ error: 'Failed to load the shared artifact.' })
+  }
+})
+
+router.get('/videos/:shareId', async (req, res) => {
+  if (!SHARE_ID_RE.test(req.params.shareId)) {
+    return res.status(400).json({ error: 'Invalid share link.' })
+  }
+
+  try {
+    const video = await getSharedVideo(req.params.shareId)
+    if (!video) return res.status(404).json({ error: 'Shared video not found or expired.' })
+
+    res.set('Content-Disposition', 'inline')
+    sendMp4(req, res, video.mp4)
+  } catch (err) {
+    console.error('Failed to load the shared video:', err)
+    res.status(500).json({ error: 'Failed to load the shared video.' })
   }
 })
 
