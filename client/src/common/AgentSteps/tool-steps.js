@@ -67,6 +67,27 @@ const TOOL_LABELS = {
   sendcloud_get_service_point: 'Reading Sendcloud service point',
   sendcloud_validate_address: 'Validating address in Sendcloud',
   sendcloud_get_integration: 'Checking Sendcloud integration',
+  search_hubspot_records: 'Searching HubSpot records',
+  get_hubspot_record: 'Reading HubSpot record',
+  get_hubspot_timeline: 'Reading HubSpot timeline',
+  describe_hubspot_object: 'Describing HubSpot object',
+  list_hubspot_owners: 'Listing HubSpot owners',
+  list_hubspot_custom_objects: 'Listing HubSpot custom objects',
+  list_hubspot_lists: 'Listing HubSpot lists',
+  get_hubspot_list_members: 'Reading HubSpot list members',
+  list_hubspot_conversations: 'Listing HubSpot conversations',
+  get_hubspot_conversation: 'Reading HubSpot conversation',
+  list_hubspot_campaigns: 'Listing HubSpot campaigns',
+  get_hubspot_marketing_email: 'Reading HubSpot marketing email',
+  hubspot_api_get: 'Calling the HubSpot API',
+  create_hubspot_record: 'Creating HubSpot record',
+  update_hubspot_record: 'Updating HubSpot record',
+  associate_hubspot_records: 'Associating HubSpot records',
+  archive_hubspot_record: 'Archiving HubSpot record',
+  remove_hubspot_association: 'Removing HubSpot association',
+  merge_hubspot_records: 'Merging HubSpot records',
+  update_hubspot_list_membership: 'Updating HubSpot list members',
+  reply_hubspot_conversation: 'Replying on HubSpot conversation',
   post_slack_message: 'Posting to Slack',
   render_artifact: 'Writing artifact',
 }
@@ -97,7 +118,8 @@ function humanizeToolName(tool) {
 function formatDetail(input) {
   if (!input) return ''
 
-  const { repo, path, query } = input
+  const { repo, path } = input
+  const query = typeof input.query === 'string' ? input.query : ''
 
   if (query) return repo ? `"${query}" in ${repo}` : `"${query}"`
   if (repo) return path ? `${repo}/${path}` : `${repo}/`

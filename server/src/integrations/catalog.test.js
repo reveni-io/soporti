@@ -12,6 +12,7 @@ const granolaIsConfigured = vi.fn()
 const figmaIsConfigured = vi.fn()
 const zendeskIsConfigured = vi.fn()
 const sendcloudIsConfigured = vi.fn()
+const hubspotIsConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({ isConfigured: (...args) => notionIsConfigured(...args) }))
 vi.mock('../postgres/client.js', () => ({ isConfigured: (...args) => postgresIsConfigured(...args) }))
@@ -25,6 +26,7 @@ vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsCon
 vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigured(...args) }))
 vi.mock('../zendesk/client.js', () => ({ isConfigured: (...args) => zendeskIsConfigured(...args) }))
 vi.mock('../sendcloud/client.js', () => ({ isConfigured: (...args) => sendcloudIsConfigured(...args) }))
+vi.mock('../hubspot/client.js', () => ({ isConfigured: (...args) => hubspotIsConfigured(...args) }))
 
 const { listConfiguredIntegrations, GITHUB_INTEGRATION_ID } = await import('./catalog.js')
 
@@ -41,6 +43,7 @@ function configureAll(value) {
   figmaIsConfigured.mockResolvedValue(value)
   zendeskIsConfigured.mockResolvedValue(value)
   sendcloudIsConfigured.mockResolvedValue(value)
+  hubspotIsConfigured.mockResolvedValue(value)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -65,6 +68,7 @@ describe('listConfiguredIntegrations', () => {
       'figma',
       'zendesk',
       'sendcloud',
+      'hubspot',
     ])
     expect(integrations.find(integration => integration.id === 'betterstack')).toEqual({
       id: 'betterstack',
@@ -95,6 +99,7 @@ describe('listConfiguredIntegrations', () => {
       figma: true,
       zendesk: true,
       sendcloud: true,
+      hubspot: true,
     })
   })
 
@@ -145,6 +150,22 @@ describe('listConfiguredIntegrations', () => {
       id: 'sendcloud',
       name: 'Sendcloud',
       description: 'Track parcels, returns and shipping methods across the linked Sendcloud accounts (read-only)',
+      selectable: true,
+    })
+  })
+
+  it('lists HubSpot once a key is saved', async () => {
+    configureAll(false)
+    hubspotIsConfigured.mockResolvedValue(true)
+
+    const integrations = await listConfiguredIntegrations(7)
+
+    expect(hubspotIsConfigured).toHaveBeenCalledTimes(1)
+    expect(integrations.map(integration => integration.id)).toEqual(['github', 'hubspot'])
+    expect(integrations.find(integration => integration.id === 'hubspot')).toEqual({
+      id: 'hubspot',
+      name: 'HubSpot',
+      description: 'Search and read HubSpot CRM records, and write what /admin allows',
       selectable: true,
     })
   })

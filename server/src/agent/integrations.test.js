@@ -79,6 +79,11 @@ describe('integrationLabels', () => {
     ])
   })
 
+  it('labels HubSpot with its own capitalization', () => {
+    expect(integrationLabels(['hubspot'])).toEqual(['HubSpot'])
+    expect(INTEGRATIONS.hubspot.flag).toBe('hubspotConfigured')
+  })
+
   it('returns an empty list for an empty selection', () => {
     expect(integrationLabels([])).toEqual([])
   })

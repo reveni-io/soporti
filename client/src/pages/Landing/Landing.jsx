@@ -4,6 +4,7 @@ import AskSection from './AskSection/AskSection.jsx'
 import ArtifactsSection from './ArtifactsSection/ArtifactsSection.jsx'
 import AttachmentsSection from './AttachmentsSection/AttachmentsSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
+import HubspotSection from './HubspotSection/HubspotSection.jsx'
 import McpSection from './McpSection/McpSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
 import InstructionsSection from './InstructionsSection/InstructionsSection.jsx'
@@ -44,6 +45,7 @@ export default function Landing({ hideCta = false }) {
       <ArtifactsSection />
       <IntegrationsSection />
       <SendcloudSection />
+      <HubspotSection />
       <SlackSection />
       <AttachmentsSection />
       <ProvidersSection />

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import { describeToolCall } from './task-labels.js'
+import { INTEGRATION_TOOL_NAMES } from '../agent/sources.js'
 
 describe('describeToolCall', () => {
   it('returns a human label and the relevant argument', () => {
@@ -31,6 +32,33 @@ describe('describeToolCall', () => {
       title: 'Reading Sendcloud pickup',
       details: '770001',
     })
+  })
+
+  it('labels the HubSpot tools with the object type or the id they work on', () => {
+    expect(describeToolCall('search_hubspot_records', JSON.stringify({ objectType: 'deals', query: 'acme' }))).toEqual({
+      title: 'Searching HubSpot records',
+      details: 'deals',
+    })
+    expect(describeToolCall('get_hubspot_record', JSON.stringify({ objectType: 'contacts', idOrUrl: '501' }))).toEqual({
+      title: 'Reading HubSpot record',
+      details: '501',
+    })
+    expect(
+      describeToolCall('merge_hubspot_records', JSON.stringify({ primaryIdOrUrl: '7', mergedIdOrUrl: '8' }))
+    ).toEqual({ title: 'Merging HubSpot records', details: '7' })
+    expect(describeToolCall('reply_hubspot_conversation', JSON.stringify({ threadId: '9001', text: 'Hi' }))).toEqual({
+      title: 'Replying on HubSpot conversation',
+      details: '9001',
+    })
+    expect(describeToolCall('list_hubspot_owners', JSON.stringify({ email: 'ana@example.com' }))).toEqual({
+      title: 'Listing HubSpot owners',
+    })
+  })
+
+  it('has a step label for every HubSpot tool', () => {
+    for (const name of INTEGRATION_TOOL_NAMES.hubspot) {
+      expect(describeToolCall(name, '{}').title).not.toBe(name)
+    }
   })
 
   it('picks the argument configured for each tool', () => {

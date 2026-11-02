@@ -11,6 +11,7 @@ export const INTEGRATIONS = {
   figma: { label: 'Figma', flag: 'figmaConfigured' },
   zendesk: { label: 'Zendesk', flag: 'zendeskConfigured' },
   sendcloud: { label: 'Sendcloud', flag: 'sendcloudConfigured' },
+  hubspot: { label: 'HubSpot', flag: 'hubspotConfigured' },
 }
 
 export const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])

@@ -1,0 +1,18 @@
+.hubspot-permissions__areas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.hubspot-permissions__scopes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.hubspot-permissions__scopes-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp3);
+}

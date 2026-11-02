@@ -66,6 +66,7 @@ export async function executeAskSoporti({
     skills,
     skillArguments: question,
     userId,
+    delegated: true,
     onNestedToolCall: call => nestedToolCalls.push(call),
     onNestedUsage: usage => nestedUsage.push(usage),
   })

@@ -34,6 +34,16 @@ export const INTEGRATION_WRITE_TOOL_NAMES = {
   ],
   figma: ['post_figma_comment'],
   zendesk: ['zendesk_post_internal_note'],
+  hubspot: [
+    'create_hubspot_record',
+    'update_hubspot_record',
+    'associate_hubspot_records',
+    'archive_hubspot_record',
+    'remove_hubspot_association',
+    'merge_hubspot_records',
+    'update_hubspot_list_membership',
+    'reply_hubspot_conversation',
+  ],
 }
 
 export const WRITE_TOOL_NAMES = [...Object.values(INTEGRATION_WRITE_TOOL_NAMES).flat(), SLACK_POST_TOOL_NAME]
@@ -80,6 +90,22 @@ export const INTEGRATION_TOOL_NAMES = {
     'sendcloud_get_service_point',
     'sendcloud_validate_address',
     'sendcloud_get_integration',
+  ],
+  hubspot: [
+    'search_hubspot_records',
+    'get_hubspot_record',
+    'get_hubspot_timeline',
+    'describe_hubspot_object',
+    'list_hubspot_owners',
+    'list_hubspot_custom_objects',
+    'list_hubspot_lists',
+    'get_hubspot_list_members',
+    'list_hubspot_conversations',
+    'get_hubspot_conversation',
+    'list_hubspot_campaigns',
+    'get_hubspot_marketing_email',
+    'hubspot_api_get',
+    ...INTEGRATION_WRITE_TOOL_NAMES.hubspot,
   ],
   figma: [
     'get_figma_file',

@@ -133,6 +133,15 @@ vi.mock('../sendcloud/client.js', () => ({
   isConfigured: vi.fn(async () => true),
 }))
 
+vi.mock('../hubspot/client.js', () => ({
+  replyToConversation: vi.fn(),
+  isConfigured: vi.fn(async () => true),
+}))
+
+vi.mock('../hubspot/settings.js', () => ({
+  getHubspotPermissions: vi.fn(),
+}))
+
 vi.mock('../slack/client.js', () => ({
   postMessage: vi.fn(),
 }))
@@ -201,6 +210,11 @@ const {
 } = await import('./tools.js')
 const { INTEGRATIONS } = await import('./integrations.js')
 const { TIME_TOOL_NAMES } = await import('./time-tools.js')
+const { describeHubspotAreas } = await import('../hubspot/permissions.js')
+
+const HUBSPOT_HIGHEST_ACCESS = Object.fromEntries(describeHubspotAreas().map(area => [area.id, area.levels.at(-1)]))
+const HUBSPOT_READ_ACCESS = Object.fromEntries(describeHubspotAreas().map(area => [area.id, 'read']))
+const HUBSPOT_WEB_RUN = { permissions: HUBSPOT_HIGHEST_ACCESS, attended: true, canReply: true }
 
 describe('tool definitions', () => {
   it('exports all core tools', () => {
@@ -647,8 +661,20 @@ describe('buildAgentTools', () => {
     const { WRITE_TOOL_NAMES } = await import('./sources.js')
     const configured = Object.fromEntries(Object.values(INTEGRATIONS).map(({ flag }) => [flag, true]))
     const policy = { unrestricted: true, repos: [], integrations: [] }
-    const writes = { shortcutWrites: true, figmaComments: true, zendeskWrites: true, slackConfigured: true }
-    const noWrites = { shortcutWrites: false, figmaComments: false, zendeskWrites: false, slackConfigured: false }
+    const writes = {
+      shortcutWrites: true,
+      figmaComments: true,
+      zendeskWrites: true,
+      slackConfigured: true,
+      hubspot: HUBSPOT_WEB_RUN,
+    }
+    const noWrites = {
+      shortcutWrites: false,
+      figmaComments: false,
+      zendeskWrites: false,
+      slackConfigured: false,
+      hubspot: { ...HUBSPOT_WEB_RUN, permissions: HUBSPOT_READ_ACCESS },
+    }
 
     const withWrites = names(buildAgentTools(policy, configured, { userId: 'u-1', ...writes }))
     const withoutWrites = new Set(names(buildAgentTools(policy, configured, { userId: 'u-1', ...noWrites })))
@@ -1669,6 +1695,51 @@ describe('buildAgentTools with Sendcloud', () => {
     expect(sendcloudMod.validateAddress).toHaveBeenCalledWith(null, address)
     expect(sendcloudTool('sendcloud_validate_address').description).toContain('nothing is saved or changed')
     expect(sendcloudTool('sendcloud_get_integration').description).toContain('it cannot reactivate anything')
+  })
+})
+
+describe('buildAgentTools with HubSpot', () => {
+  const selection = { unrestricted: false, repos: [], integrations: ['hubspot'] }
+  const names = tools => tools.map(t => t.name).filter(name => name.includes('hubspot'))
+
+  beforeEach(() => vi.clearAllMocks())
+
+  it('registers no HubSpot tool without a key', () => {
+    expect(names(buildAgentTools(selection, { hubspotConfigured: false }, { userId: 7, hubspot: null }))).toEqual([])
+  })
+
+  it('registers every HubSpot tool sources.js lists, in the same order, for a web run with every area at its top', async () => {
+    const { INTEGRATION_TOOL_NAMES } = await import('./sources.js')
+
+    const tools = buildAgentTools(selection, { hubspotConfigured: true }, { userId: 7, hubspot: HUBSPOT_WEB_RUN })
+
+    expect(names(tools)).toEqual(INTEGRATION_TOOL_NAMES.hubspot)
+  })
+
+  it('hands the run to the HubSpot tools, so an unattended one gets no archive and no reply', () => {
+    const unattended = { ...HUBSPOT_WEB_RUN, attended: false, canReply: false }
+
+    const tools = names(buildAgentTools(selection, { hubspotConfigured: true }, { userId: 7, hubspot: unattended }))
+
+    expect(tools).toContain('create_hubspot_record')
+    expect(tools).not.toContain('archive_hubspot_record')
+    expect(tools).not.toContain('reply_hubspot_conversation')
+  })
+
+  it('sends a HubSpot reply as the user of the run', async () => {
+    const hubspotMod = await import('../hubspot/client.js')
+    const { getHubspotPermissions } = await import('../hubspot/settings.js')
+    getHubspotPermissions.mockResolvedValue(HUBSPOT_HIGHEST_ACCESS)
+    hubspotMod.replyToConversation.mockResolvedValue({ sentBy: 'ana@acme.com', channel: 'Email' })
+    const reply = buildAgentTools(selection, { hubspotConfigured: true }, { userId: 7, hubspot: HUBSPOT_WEB_RUN }).find(
+      candidate => candidate.name === 'reply_hubspot_conversation'
+    )
+
+    const result = await reply.execute({ threadId: '123', text: 'Your refund is on its way.' })
+
+    expect(JSON.parse(result)).toEqual({ sentBy: 'ana@acme.com', channel: 'Email' })
+    expect(hubspotMod.replyToConversation).toHaveBeenCalledTimes(1)
+    expect(hubspotMod.replyToConversation).toHaveBeenCalledWith('123', 'Your refund is on its way.', { userId: 7 })
   })
 })
 

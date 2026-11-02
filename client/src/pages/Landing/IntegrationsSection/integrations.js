@@ -57,6 +57,11 @@ export const INTEGRATIONS = [
     desc: 'Finds the parcels of an order, follows their tracking timeline, reads returns with their reason and refund, checks carriers and products for a route, pickups, service points and addresses, and spots a webhook that stopped updating — across every Sendcloud account you link, one per brand or store. Read-only: it never creates a label or cancels a parcel.',
   },
   {
+    id: 'hubspot',
+    name: 'HubSpot',
+    desc: 'Searches and reads your CRM — contacts, companies, deals, tickets, their activity timeline, lists, inbox conversations and marketing campaigns — and, only in the areas you open up in /admin, creates and updates records, logs calls and notes signed “Via Soporti” and replies to customers as your own HubSpot user. In a conversation it shows you the change first and only makes it once you say yes.',
+  },
+  {
     id: 'figma',
     name: 'Figma',
     desc: 'Opens the designs you link: lists pages and frames, reads the layers of a screen — copy, fonts, colors, components — and renders a screenshot it can see and show in the chat. Switch comments on and it can leave feedback on a frame for you.',

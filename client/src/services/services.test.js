@@ -17,6 +17,7 @@ import {
   getAuthConfig,
   getAuthMethods,
   getConversation,
+  getHubspotConfig,
   getRepos,
   getSchedules,
   getSharedConversation,
@@ -27,6 +28,8 @@ import {
   renderMermaid,
   saveDatabaseMaxRows,
   saveGithubToken,
+  saveHubspotPermissions,
+  saveHubspotToken,
   saveSlackCredential,
   saveUserInstructions,
   searchConversations,
@@ -34,12 +37,15 @@ import {
   signInWithGoogle,
   signInWithPassword,
   streamChat,
+  testHubspotConnection,
   updateSchedule,
   updateSkill,
   updateSubagent,
 } from './services.js'
 
 const ORIGINAL_BASE = import.meta.env.VITE_API_URL
+const REJECTED_KEY =
+  'HubSpot rejected the key (401): it is invalid, expired or was revoked. An admin has to add a Service Key in /admin → HubSpot.'
 
 function ok(body = {}) {
   return { ok: true, status: 200, json: async () => body }
@@ -340,6 +346,62 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/admin/config/github/token')
     expect(JSON.parse(options.body)).toEqual({ token: 'ghp_new' })
+  })
+
+  it('reads the HubSpot settings', async () => {
+    await getHubspotConfig('tok')
+
+    const [url, options] = lastCall()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(url).toBe('/api/admin/config/hubspot')
+    expect(options.method).toBe('GET')
+    expect(options.headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+
+  it('saves the HubSpot key under the token key', async () => {
+    await saveHubspotToken('tok', 'pat-eu1-new')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/hubspot/token')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ token: 'pat-eu1-new' })
+  })
+
+  it('saves the HubSpot permissions as one map', async () => {
+    await saveHubspotPermissions('tok', { contacts: 'write', conversations: 'reply' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/hubspot/permissions')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ permissions: { contacts: 'write', conversations: 'reply' } })
+  })
+
+  it('tests the HubSpot connection and returns the portal details', async () => {
+    global.fetch.mockResolvedValueOnce(ok({ portalId: 123, uiDomain: 'app-eu1.hubspot.com' }))
+
+    const account = await testHubspotConnection('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/hubspot/test')
+    expect(options.method).toBe('POST')
+    expect(options.body).toBeUndefined()
+    expect(account).toEqual({ portalId: 123, uiDomain: 'app-eu1.hubspot.com' })
+  })
+
+  it('surfaces the reason HubSpot rejected the key when the connection test fails', async () => {
+    global.fetch.mockResolvedValueOnce(fail(422, { error: REJECTED_KEY }))
+
+    const error = await testHubspotConnection('tok').catch(err => err)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.status).toBe(422)
+    expect(error.message).toBe(REJECTED_KEY)
+  })
+
+  it('falls back to a generic message when the connection test fails without a reason', async () => {
+    global.fetch.mockResolvedValueOnce(fail(500))
+
+    await expect(testHubspotConnection('tok')).rejects.toThrow('Failed to test the HubSpot connection')
   })
 
   it('saves the query row limit', async () => {

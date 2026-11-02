@@ -1,3 +1,4 @@
+import { stripHtml } from '../integrations/html.js'
 import { getHelpjuiceApiKey, getHelpjuiceAccount, isHelpjuiceConfigured } from './settings.js'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -30,20 +31,6 @@ async function request(method, path) {
   } finally {
     clearTimeout(timer)
   }
-}
-
-function stripHtml(html) {
-  if (!html) return ''
-  return html
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 export async function searchArticles(query) {

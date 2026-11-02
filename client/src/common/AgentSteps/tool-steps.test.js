@@ -28,6 +28,24 @@ describe('describeToolCall', () => {
     )
   })
 
+  it('labels the HubSpot tools', () => {
+    expect(describeToolCall({ tool: 'search_hubspot_records', input: {} }).label).toBe('Searching HubSpot records')
+    expect(describeToolCall({ tool: 'merge_hubspot_records', input: {} }).label).toBe('Merging HubSpot records')
+    expect(describeToolCall({ tool: 'reply_hubspot_conversation', input: {} }).label).toBe(
+      'Replying on HubSpot conversation'
+    )
+  })
+
+  it('shows the path of a HubSpot API call instead of its query parameters', () => {
+    const step = describeToolCall({
+      tool: 'hubspot_api_get',
+      input: { path: '/crm/pipelines/2026-03/deals', query: [{ name: 'limit', value: '10' }] },
+    })
+
+    expect(step.label).toBe('Calling the HubSpot API')
+    expect(step.detail).toBe('/crm/pipelines/2026-03/deals')
+  })
+
   it('labels the Slack posting tool', () => {
     expect(describeToolCall({ tool: 'post_slack_message', input: {} }).label).toBe('Posting to Slack')
   })

@@ -1,0 +1,35 @@
+.permission-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3);
+}
+
+.permission-field__area {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.permission-field__levels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp1);
+}
+
+.permission-field__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.permission-field__level:has(.permission-field__input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.permission-field__level:has(.permission-field__input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
