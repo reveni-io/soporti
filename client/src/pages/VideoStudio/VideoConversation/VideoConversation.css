@@ -20,6 +20,11 @@
   gap: var(--sp2);
 }
 
+.video-conversation__hint {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
 @media (max-width: 768px) {
   .video-conversation__messages {
     max-height: 60vh;

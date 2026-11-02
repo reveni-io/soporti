@@ -1,0 +1,19 @@
+.ready-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+}
+
+.ready-view__loading {
+  color: var(--sidebar-text-soft);
+}
+
+.ready-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}
+
+.ready-view__actions .btn {
+  text-decoration: none;
+}

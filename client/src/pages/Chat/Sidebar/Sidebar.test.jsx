@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import Sidebar from './Sidebar.jsx'
 
 const defaultProps = {
@@ -19,32 +20,61 @@ const defaultProps = {
   onClose: vi.fn(),
 }
 
+const NO_VIDEOS = { videos: [] }
+
+function withVideos(respond, videos = NO_VIDEOS) {
+  return (url, options) => {
+    if (url === '/api/videos') return Promise.resolve({ ok: true, status: 200, json: async () => videos })
+    return respond(url, options)
+  }
+}
+
 describe('Sidebar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    global.fetch = vi.fn().mockImplementation(url => {
-      if (url.includes('/api/repos')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            repos: [
-              { fullName: 'org/app', description: 'Main app', language: 'JavaScript' },
-              { fullName: 'org/lib', description: 'Library', language: 'TypeScript' },
-            ],
-          }),
-        })
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) })
-    })
+    global.fetch = vi.fn().mockImplementation(
+      withVideos(url => {
+        if (url.includes('/api/repos')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              repos: [
+                { fullName: 'org/app', description: 'Main app', language: 'JavaScript' },
+                { fullName: 'org/lib', description: 'Library', language: 'TypeScript' },
+              ],
+            }),
+          })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) })
+      })
+    )
+  })
+
+  it('links to the videos and marks it while a video is being generated', async () => {
+    const generating = { videos: [{ id: 'v1', title: 'Launch', status: 'running', phase: 'composing', progress: 20 }] }
+    global.fetch = vi.fn().mockImplementation(withVideos(global.fetch.getMockImplementation(), generating))
+
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
+
+    expect(screen.getByRole('link', { name: 'Videos' })).toHaveAttribute('href', '/videos')
+    expect(await screen.findByRole('img', { name: 'A video is being generated' })).toBeInTheDocument()
+    expect(global.fetch.mock.calls.filter(([url]) => url === '/api/videos')).toHaveLength(1)
+  })
+
+  it('shows no mark when no video is being generated', async () => {
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
+
+    await waitFor(() => expect(global.fetch.mock.calls.some(([url]) => url === '/api/videos')).toBe(true))
+    expect(screen.queryByRole('img', { name: 'A video is being generated' })).toBeNull()
   })
 
   it('renders sidebar title', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     expect(screen.getByText('Soporti')).toBeInTheDocument()
   })
 
   it('renders repos after loading', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
       expect(screen.getByText('org/lib')).toBeInTheDocument()
@@ -54,7 +84,7 @@ describe('Sidebar', () => {
   it('calls onToggleSource when a repo source is clicked', async () => {
     const onToggleSource = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onToggleSource={onToggleSource} />)
+    render(<Sidebar {...defaultProps} onToggleSource={onToggleSource} />, { wrapper: MemoryRouter })
 
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
@@ -65,7 +95,7 @@ describe('Sidebar', () => {
   })
 
   it('renders profile toggle', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     expect(screen.getByRole('button', { name: /^support$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^tech$/i })).toBeInTheDocument()
   })
@@ -73,7 +103,7 @@ describe('Sidebar', () => {
   it('calls onNewChat when New Chat clicked', async () => {
     const onNewChat = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onNewChat={onNewChat} />)
+    render(<Sidebar {...defaultProps} onNewChat={onNewChat} />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText(/new chat/i))
     expect(onNewChat).toHaveBeenCalled()
@@ -82,7 +112,7 @@ describe('Sidebar', () => {
   it('calls onLogout when Logout clicked', async () => {
     const onLogout = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onLogout={onLogout} />)
+    render(<Sidebar {...defaultProps} onLogout={onLogout} />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText(/log out/i))
     expect(onLogout).toHaveBeenCalled()
@@ -90,7 +120,7 @@ describe('Sidebar', () => {
 
   it('filters repos by search', async () => {
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
 
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
@@ -104,14 +134,14 @@ describe('Sidebar', () => {
   })
 
   it('renders integrations', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('Notion')).toBeInTheDocument()
     })
   })
 
   it('does not offer non-selectable integrations as sources', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('Notion')).toBeInTheDocument()
     })
@@ -119,14 +149,16 @@ describe('Sidebar', () => {
   })
 
   it('handles fetch error for repos', async () => {
-    global.fetch = vi.fn().mockImplementation(url => {
-      if (url.includes('/api/repos')) {
-        return Promise.reject(new Error('Network error'))
-      }
-      return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-    })
+    global.fetch = vi.fn().mockImplementation(
+      withVideos(url => {
+        if (url.includes('/api/repos')) {
+          return Promise.reject(new Error('Network error'))
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
+      })
+    )
 
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument()
     })
@@ -134,42 +166,48 @@ describe('Sidebar', () => {
 
   it('handles 401 response by calling onLogout', async () => {
     const onLogout = vi.fn()
-    global.fetch = vi.fn().mockImplementation(url => {
-      if (url.includes('/api/repos')) {
-        return Promise.resolve({ ok: false, status: 401 })
-      }
-      return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-    })
+    global.fetch = vi.fn().mockImplementation(
+      withVideos(url => {
+        if (url.includes('/api/repos')) {
+          return Promise.resolve({ ok: false, status: 401 })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
+      })
+    )
 
-    render(<Sidebar {...defaultProps} onLogout={onLogout} />)
+    render(<Sidebar {...defaultProps} onLogout={onLogout} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(onLogout).toHaveBeenCalled()
     })
   })
 
   it('handles non-ok repos response', async () => {
-    global.fetch = vi.fn().mockImplementation(url => {
-      if (url.includes('/api/repos')) {
-        return Promise.resolve({ ok: false, status: 500 })
-      }
-      return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-    })
+    global.fetch = vi.fn().mockImplementation(
+      withVideos(url => {
+        if (url.includes('/api/repos')) {
+          return Promise.resolve({ ok: false, status: 500 })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
+      })
+    )
 
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('Failed to fetch repos')).toBeInTheDocument()
     })
   })
 
   it('shows message when no repos found', async () => {
-    global.fetch = vi.fn().mockImplementation(url => {
-      if (url.includes('/api/repos')) {
-        return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
-      }
-      return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-    })
+    global.fetch = vi.fn().mockImplementation(
+      withVideos(url => {
+        if (url.includes('/api/repos')) {
+          return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
+      })
+    )
 
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText(/no repos found/i)).toBeInTheDocument()
     })
@@ -178,7 +216,7 @@ describe('Sidebar', () => {
   it('calls onSelectProfile when profile button is clicked', async () => {
     const onSelectProfile = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onSelectProfile={onSelectProfile} />)
+    render(<Sidebar {...defaultProps} onSelectProfile={onSelectProfile} />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByRole('button', { name: /^tech$/i }))
     expect(onSelectProfile).toHaveBeenCalledWith('tech')
@@ -187,7 +225,7 @@ describe('Sidebar', () => {
   it('toggles integration selection', async () => {
     const onToggleSource = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onToggleSource={onToggleSource} />)
+    render(<Sidebar {...defaultProps} onToggleSource={onToggleSource} />, { wrapper: MemoryRouter })
 
     await waitFor(() => {
       expect(screen.getByText('Notion')).toBeInTheDocument()
@@ -198,7 +236,7 @@ describe('Sidebar', () => {
   })
 
   it('shows selected checkmark for selected sources', async () => {
-    render(<Sidebar {...defaultProps} selectedSources={['org/app']} />)
+    render(<Sidebar {...defaultProps} selectedSources={['org/app']} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
     })
@@ -207,27 +245,27 @@ describe('Sidebar', () => {
   })
 
   it('applies open class when isOpen is true', () => {
-    const { container } = render(<Sidebar {...defaultProps} isOpen={true} />)
+    const { container } = render(<Sidebar {...defaultProps} isOpen={true} />, { wrapper: MemoryRouter })
     expect(container.querySelector('.sidebar--open')).toBeTruthy()
   })
 
   it('does not apply open class when isOpen is false', () => {
-    const { container } = render(<Sidebar {...defaultProps} isOpen={false} />)
+    const { container } = render(<Sidebar {...defaultProps} isOpen={false} />, { wrapper: MemoryRouter })
     expect(container.querySelector('.sidebar--open')).toBeNull()
   })
 
   it('shows profile hint for tech profile', () => {
-    render(<Sidebar {...defaultProps} selectedProfile="tech" />)
+    render(<Sidebar {...defaultProps} selectedProfile="tech" />, { wrapper: MemoryRouter })
     expect(screen.getByText('Detailed code, architecture, and file paths')).toBeInTheDocument()
   })
 
   it('shows profile hint for support profile', () => {
-    render(<Sidebar {...defaultProps} selectedProfile="support" />)
+    render(<Sidebar {...defaultProps} selectedProfile="support" />, { wrapper: MemoryRouter })
     expect(screen.getByText('Simplified explanations focused on behavior')).toBeInTheDocument()
   })
 
   it('shows repo description and language', async () => {
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('Main app')).toBeInTheDocument()
       expect(screen.getByText('JavaScript')).toBeInTheDocument()
@@ -236,7 +274,7 @@ describe('Sidebar', () => {
 
   it('filters repos by language', async () => {
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} />)
+    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
 
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
@@ -252,14 +290,14 @@ describe('Sidebar', () => {
   it('calls onClose when close button is clicked', async () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
-    render(<Sidebar {...defaultProps} onClose={onClose} isOpen={true} />)
+    render(<Sidebar {...defaultProps} onClose={onClose} isOpen={true} />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByLabelText('Close sidebar'))
     expect(onClose).toHaveBeenCalled()
   })
 
   it('shows active class on selected profile button', () => {
-    render(<Sidebar {...defaultProps} selectedProfile="tech" />)
+    render(<Sidebar {...defaultProps} selectedProfile="tech" />, { wrapper: MemoryRouter })
     const techBtn = screen.getByRole('button', { name: /^tech$/i })
     expect(techBtn.className).toContain('sidebar__profile-btn--active')
     const supportBtn = screen.getByRole('button', { name: /^support$/i })
@@ -268,23 +306,25 @@ describe('Sidebar', () => {
 
   describe('conversations history', () => {
     function mockWithConversations(conversations) {
-      global.fetch = vi.fn().mockImplementation((url, opts) => {
-        if (url.includes('/api/conversations') && opts?.method === 'DELETE') {
-          return Promise.resolve({ ok: true, json: async () => ({ ok: true }) })
-        }
-        if (url.includes('/api/conversations')) {
-          return Promise.resolve({ ok: true, json: async () => ({ conversations }) })
-        }
-        if (url.includes('/api/repos')) {
-          return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-      })
+      global.fetch = vi.fn().mockImplementation(
+        withVideos((url, opts) => {
+          if (url.includes('/api/conversations') && opts?.method === 'DELETE') {
+            return Promise.resolve({ ok: true, json: async () => ({ ok: true }) })
+          }
+          if (url.includes('/api/conversations')) {
+            return Promise.resolve({ ok: true, json: async () => ({ conversations }) })
+          }
+          if (url.includes('/api/repos')) {
+            return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
+          }
+          return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
+        })
+      )
     }
 
     it('does not render the section when there are no conversations', async () => {
       mockWithConversations([])
-      render(<Sidebar {...defaultProps} />)
+      render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
       await waitFor(() => expect(global.fetch).toHaveBeenCalled())
       expect(screen.queryByText('Conversations')).not.toBeInTheDocument()
     })
@@ -296,7 +336,7 @@ describe('Sidebar', () => {
       ])
       const onLoadConversation = vi.fn()
       const user = userEvent.setup()
-      render(<Sidebar {...defaultProps} onLoadConversation={onLoadConversation} />)
+      render(<Sidebar {...defaultProps} onLoadConversation={onLoadConversation} />, { wrapper: MemoryRouter })
 
       await waitFor(() => expect(screen.getByText('Auth question')).toBeInTheDocument())
       expect(screen.getByText('Untitled conversation')).toBeInTheDocument()
@@ -309,7 +349,7 @@ describe('Sidebar', () => {
       mockWithConversations([{ id: 'c1', title: 'Auth question', updatedAt: new Date().toISOString() }])
       const onLoadConversation = vi.fn()
       const user = userEvent.setup()
-      render(<Sidebar {...defaultProps} onLoadConversation={onLoadConversation} />)
+      render(<Sidebar {...defaultProps} onLoadConversation={onLoadConversation} />, { wrapper: MemoryRouter })
 
       await waitFor(() => expect(screen.getByText('Auth question')).toBeInTheDocument())
 
@@ -324,7 +364,8 @@ describe('Sidebar', () => {
         <Sidebar
           {...defaultProps}
           activeConversations={[{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }]}
-        />
+        />,
+        { wrapper: MemoryRouter }
       )
 
       await waitFor(() => expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument())
@@ -338,7 +379,8 @@ describe('Sidebar', () => {
         <Sidebar
           {...defaultProps}
           activeConversations={[{ id: 'c2', title: 'Why did the payout fail?', isStreaming: true }]}
-        />
+        />,
+        { wrapper: MemoryRouter }
       )
 
       await waitFor(() => expect(global.fetch).toHaveBeenCalled())
@@ -349,7 +391,8 @@ describe('Sidebar', () => {
     it('does not duplicate the in-flight conversation once the server list has it', async () => {
       mockWithConversations([{ id: 'c1', title: 'Payout failure', updatedAt: new Date().toISOString() }])
       render(
-        <Sidebar {...defaultProps} activeConversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]} />
+        <Sidebar {...defaultProps} activeConversations={[{ id: 'c1', title: 'Payout failure', isStreaming: true }]} />,
+        { wrapper: MemoryRouter }
       )
 
       await waitFor(() => expect(screen.getByText('Payout failure')).toBeInTheDocument())
@@ -366,7 +409,8 @@ describe('Sidebar', () => {
             { id: 'c2', title: 'Why did the payout fail?', isStreaming: true },
             { id: 'c1', title: 'Auth question', isStreaming: true },
           ]}
-        />
+        />,
+        { wrapper: MemoryRouter }
       )
 
       await waitFor(() => expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument())
@@ -379,7 +423,7 @@ describe('Sidebar', () => {
         { id: 'c1', title: 'Auth question', updatedAt: new Date().toISOString() },
         { id: 'c2', title: 'Payout failure', updatedAt: new Date().toISOString() },
       ])
-      const { container } = render(<Sidebar {...defaultProps} selectedConversationId="c2" />)
+      const { container } = render(<Sidebar {...defaultProps} selectedConversationId="c2" />, { wrapper: MemoryRouter })
 
       await waitFor(() => expect(screen.getByText('Payout failure')).toBeInTheDocument())
 
@@ -390,7 +434,7 @@ describe('Sidebar', () => {
 
     it('reloads the list when conversationsReloadKey changes', async () => {
       mockWithConversations([{ id: 'c1', title: 'First', updatedAt: new Date().toISOString() }])
-      const { rerender } = render(<Sidebar {...defaultProps} conversationsReloadKey={0} />)
+      const { rerender } = render(<Sidebar {...defaultProps} conversationsReloadKey={0} />, { wrapper: MemoryRouter })
       await waitFor(() => expect(screen.getByText('First')).toBeInTheDocument())
 
       const convCalls = () => global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/conversations')).length
@@ -400,30 +444,32 @@ describe('Sidebar', () => {
     })
 
     it('searches the conversations and restores the full list when the search is cleared', async () => {
-      global.fetch = vi.fn().mockImplementation(url => {
-        if (url.includes('/api/conversations?q=refund')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              conversations: [{ id: 'c2', title: 'Vague title', snippet: 'we checked the refund window' }],
-            }),
-          })
-        }
-        if (url.includes('/api/conversations')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              conversations: [
-                { id: 'c1', title: 'Auth question' },
-                { id: 'c2', title: 'Vague title' },
-              ],
-            }),
-          })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
-      })
+      global.fetch = vi.fn().mockImplementation(
+        withVideos(url => {
+          if (url.includes('/api/conversations?q=refund')) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({
+                conversations: [{ id: 'c2', title: 'Vague title', snippet: 'we checked the refund window' }],
+              }),
+            })
+          }
+          if (url.includes('/api/conversations')) {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({
+                conversations: [
+                  { id: 'c1', title: 'Auth question' },
+                  { id: 'c2', title: 'Vague title' },
+                ],
+              }),
+            })
+          }
+          return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
+        })
+      )
       const user = userEvent.setup()
-      render(<Sidebar {...defaultProps} />)
+      render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
       await waitFor(() => expect(screen.getByText('Auth question')).toBeInTheDocument())
 
       const searchBox = screen.getByRole('textbox', { name: 'Search conversations' })

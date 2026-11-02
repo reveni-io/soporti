@@ -1,22 +1,31 @@
 import StoryboardPanel from '../StoryboardPanel/StoryboardPanel.jsx'
-import ProductionStatus from '../ProductionStatus/ProductionStatus.jsx'
+import ProductionPanel from '../ProductionPanel/ProductionPanel.jsx'
 import { VIDEO_STAGES } from '../../../constants.js'
 import './StudioPanel.css'
 
 const SKELETON_ROWS = ['first', 'second', 'third']
 
-export default function StudioPanel({ video, busy, onGenerate }) {
+export default function StudioPanel({ video, token, onLogout, busy, actions }) {
   const { stage, storyboard } = video
 
   if (stage === VIDEO_STAGES.PRODUCTION) {
-    return <ProductionStatus version={video.versions[0]} queuePosition={video.queuePosition} />
+    return (
+      <ProductionPanel
+        key={video.versions[0]?.version}
+        video={video}
+        token={token}
+        onLogout={onLogout}
+        busy={busy}
+        actions={actions}
+      />
+    )
   }
   if (storyboard) {
     return (
       <StoryboardPanel
         storyboard={storyboard}
         canGenerate={stage === VIDEO_STAGES.STORYBOARD && !busy}
-        onGenerate={onGenerate}
+        onGenerate={actions.generate}
       />
     )
   }

@@ -1,6 +1,7 @@
 import { YOLO_SOURCE } from '../../../constants.js'
 import { useConversations } from '../hooks/useConversations/useConversations.js'
 import { useRepos } from '../../../hooks/useRepos/useRepos.js'
+import { useVideos } from '../../../hooks/useVideos/useVideos.js'
 import { useSourceSearch } from '../hooks/useSourceSearch/useSourceSearch.js'
 import ConversationList from './ConversationList/ConversationList.jsx'
 import ProfileToggle from './ProfileToggle/ProfileToggle.jsx'
@@ -29,6 +30,7 @@ export default function Sidebar({
   onClose,
 }) {
   const { repos, loading, error } = useRepos(token, onLogout)
+  const { isGenerating: isVideoGenerating } = useVideos(token, onLogout)
   const {
     conversations,
     remove,
@@ -90,6 +92,7 @@ export default function Sidebar({
       </div>
 
       <SidebarFooter
+        isVideoGenerating={isVideoGenerating}
         onOpenSchedules={onOpenSchedules}
         onOpenArtifacts={onOpenArtifacts}
         onOpenSettings={onOpenSettings}

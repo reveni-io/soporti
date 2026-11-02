@@ -1,0 +1,10 @@
+.variant-modal__lead {
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+}
+
+.variant-modal__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}

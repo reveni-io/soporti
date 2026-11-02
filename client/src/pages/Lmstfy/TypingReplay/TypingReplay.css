@@ -72,7 +72,9 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-pill);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .lmstfy-replay__address--focused {
@@ -111,7 +113,9 @@
   left: 52%;
   z-index: 1;
   pointer-events: none;
-  transition: top 0.5s ease-in-out, left 0.5s ease-in-out;
+  transition:
+    top 0.5s ease-in-out,
+    left 0.5s ease-in-out;
 }
 
 .lmstfy-replay__cursor--address {

@@ -1,0 +1,15 @@
+.live-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.live-preview__loading {
+  color: var(--sidebar-text-soft);
+}
+
+.live-preview__hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}

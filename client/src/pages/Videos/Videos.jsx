@@ -30,7 +30,7 @@ export default function Videos() {
       </header>
 
       <main className="videos__body">
-        <VideoGrid videos={videos} loading={loading} error={error} />
+        <VideoGrid videos={videos} loading={loading} error={error} token={token} onLogout={logout} />
       </main>
 
       {isCreating && (

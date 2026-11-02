@@ -80,4 +80,59 @@ describe('useVideoActions', () => {
     expect(onLogout).toHaveBeenCalledTimes(1)
     expect(result.current.error).toBeNull()
   })
+
+  it.each([
+    ['cancel', [], '/cancel'],
+    ['retry', [2], '/versions/2/retry'],
+    ['render', [1], '/versions/1/render'],
+  ])('%s posts to the video and hands the updated video over', async (action, args, path) => {
+    const queued = { id: VIDEO_ID, status: 'queued', stage: 'production' }
+    global.fetch = vi.fn().mockResolvedValue(respond({ video: queued }, 202))
+    const onVideo = vi.fn()
+
+    const { result } = renderHook(() => useVideoActions({ token: 'tok', id: VIDEO_ID, onLogout: vi.fn(), onVideo }))
+    await act(() => result.current[action](...args))
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch.mock.calls[0][0]).toBe(`/api/videos/${VIDEO_ID}${path}`)
+    expect(global.fetch.mock.calls[0][1].method).toBe('POST')
+    expect(onVideo).toHaveBeenCalledTimes(1)
+    expect(onVideo).toHaveBeenCalledWith(queued)
+  })
+
+  it('creates a share link with the absolute api url and closes it', async () => {
+    global.fetch = vi.fn().mockResolvedValue(respond({ url: '/api/share/videos/abc123' }))
+
+    const { result } = renderHook(() =>
+      useVideoActions({ token: 'tok', id: VIDEO_ID, onLogout: vi.fn(), onVideo: vi.fn() })
+    )
+    await act(() => result.current.share(2))
+
+    expect(global.fetch.mock.calls[0][0]).toBe(`/api/videos/${VIDEO_ID}/versions/2/share`)
+    expect(result.current.shareUrl).toBe(`${window.location.origin}/api/share/videos/abc123`)
+
+    act(() => result.current.closeShare())
+
+    expect(result.current.shareUrl).toBeNull()
+  })
+
+  it('creates a variant and hands the new video over', async () => {
+    const variant = { id: 'b1c2d3e4-5f60-4a71-8b92-c3d4e5f60718', status: 'queued', stage: 'production' }
+    global.fetch = vi.fn().mockResolvedValue(respond({ video: variant }, 201))
+    const onVariant = vi.fn()
+
+    const { result } = renderHook(() =>
+      useVideoActions({ token: 'tok', id: VIDEO_ID, onLogout: vi.fn(), onVideo: vi.fn(), onVariant })
+    )
+    let created
+    await act(async () => {
+      created = await result.current.createVariant('Brand it for Acme')
+    })
+
+    expect(created).toBe(true)
+    expect(global.fetch.mock.calls[0][0]).toBe(`/api/videos/${VIDEO_ID}/variants`)
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ request: 'Brand it for Acme' })
+    expect(onVariant).toHaveBeenCalledTimes(1)
+    expect(onVariant).toHaveBeenCalledWith(variant)
+  })
 })

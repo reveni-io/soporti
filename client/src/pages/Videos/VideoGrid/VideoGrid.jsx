@@ -1,7 +1,7 @@
 import VideoCard from './VideoCard/VideoCard.jsx'
 import './VideoGrid.css'
 
-export default function VideoGrid({ videos, loading, error }) {
+export default function VideoGrid({ videos, loading, error, token, onLogout }) {
   if (loading) return <p className="video-grid__status">Loading your videos…</p>
   if (error) return <p className="alert alert--error">{error}</p>
   if (videos.length === 0) {
@@ -11,7 +11,7 @@ export default function VideoGrid({ videos, loading, error }) {
   return (
     <ul className="video-grid">
       {videos.map(video => (
-        <VideoCard key={video.id} video={video} />
+        <VideoCard key={video.id} video={video} token={token} onLogout={onLogout} />
       ))}
     </ul>
   )

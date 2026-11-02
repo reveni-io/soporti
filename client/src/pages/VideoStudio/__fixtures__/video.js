@@ -47,3 +47,26 @@ export const storyboardVideoFixture = {
   createdAt: '2026-10-30T10:00:00Z',
   updatedAt: '2026-10-30T10:01:00Z',
 }
+
+export const readyVersionFixture = {
+  version: 1,
+  kind: 'compose',
+  status: 'ready',
+  phase: null,
+  progress: null,
+  step: null,
+  etaSeconds: null,
+  events: [],
+  frames: [],
+  request: null,
+  basedOn: null,
+  error: null,
+  previewReady: true,
+  hasVideo: true,
+  hasThumbnail: true,
+  durationMs: 30000,
+  sizeBytes: 4200000,
+  createdAt: '2026-10-30T10:10:00Z',
+  startedAt: '2026-10-30T10:10:05Z',
+  finishedAt: '2026-10-30T10:40:00Z',
+}

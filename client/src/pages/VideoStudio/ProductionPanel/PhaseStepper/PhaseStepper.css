@@ -1,0 +1,30 @@
+.phase-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  list-style: none;
+}
+
+.phase-stepper__step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+
+.phase-stepper__step:not(:last-child)::after {
+  content: '';
+  width: var(--sp4);
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.phase-stepper__step--done {
+  color: var(--text-secondary);
+}
+
+.phase-stepper__step--current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
