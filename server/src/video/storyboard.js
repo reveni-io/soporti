@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import { Agent, MaxTurnsExceededError, run } from '@openai/agents'
+import { Agent, MaxTurnsExceededError } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
 import { buildRepoTools } from '../agent/tools.js'
 import { buildAgentInput } from '../agent/agent-input.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
+import { runStreamed } from '../agent/run-streamed.js'
 import { failInterruptedStoryboards, failStoryboard, getVideo, saveStoryboard } from '../db/videos.js'
 import { getVideoModelSelection, isVideoConfigured } from './settings.js'
 import { loadBriefImages } from './brief.js'
@@ -100,7 +101,7 @@ async function runStoryboardAgent(video, { userId, signal }) {
 
   async function wrapUp({ context, runData }) {
     try {
-      const result = await run(
+      const result = await runStreamed(
         agent.clone({ modelSettings: finalAnswerModelSettings }),
         [...runData.history, { role: 'user', content: buildStoryboardTurnLimitMessage(STORYBOARD_MAX_TURNS) }],
         { context, maxTurns: WRAP_UP_TURNS, signal, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR }
@@ -122,7 +123,7 @@ async function runStoryboardAgent(video, { userId, signal }) {
     },
     () => {
       return traceAgentRun({ sessionId: video.id, userId, question: video.brief.idea }, () => {
-        return run(agent, input, {
+        return runStreamed(agent, input, {
           maxTurns: STORYBOARD_MAX_TURNS,
           signal,
           toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,

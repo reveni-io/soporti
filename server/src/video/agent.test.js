@@ -13,9 +13,9 @@ vi.mock('@openai/agents', () => {
       this.clone = vi.fn(overrides => ({ ...config, ...overrides }))
     }),
     MaxTurnsExceededError: FakeMaxTurnsExceededError,
-    run: vi.fn(),
   }
 })
+vi.mock('../agent/run-streamed.js', () => ({ runStreamed: vi.fn() }))
 vi.mock('../config.js', () => ({ default: { video: { maxTurns: 300 } } }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: vi.fn() }))
 vi.mock('../agent/run-tracking.js', () => {
@@ -41,7 +41,8 @@ vi.mock('./tools.js', () => {
   }
 })
 
-const { Agent, run } = await import('@openai/agents')
+const { Agent } = await import('@openai/agents')
+const { runStreamed } = await import('../agent/run-streamed.js')
 const { resolveModelForAgent } = await import('../llm/model.js')
 const { trackAgentRun, traceAgentRun } = await import('../agent/run-tracking.js')
 const { listProjectFiles } = await import('../db/video-files.js')
@@ -113,7 +114,7 @@ beforeEach(() => {
   listProjectFiles.mockResolvedValue([])
   getVersionSummary.mockResolvedValue(null)
   checksAs(PASSING)
-  run.mockResolvedValue({ finalOutput: '  A short tour of one-click refunds.  ' })
+  runStreamed.mockResolvedValue({ finalOutput: '  A short tour of one-click refunds.  ' })
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -124,7 +125,7 @@ describe('composeVideo', () => {
     await expect(composeVideo(job(), { signal: new AbortController().signal, reporter })).rejects.toThrow(
       'Video generation is not configured yet.'
     )
-    expect(run).not.toHaveBeenCalled()
+    expect(runStreamed).not.toHaveBeenCalled()
   })
 
   it('runs the composer with the video model, its tools, the brief images and the turn limit', async () => {
@@ -144,8 +145,8 @@ describe('composeVideo', () => {
     expect(buildVideoTools).toHaveBeenCalledWith(
       expect.objectContaining({ job: expect.objectContaining({ id: 41 }), reporter })
     )
-    expect(run).toHaveBeenCalledTimes(1)
-    const [, input, options] = run.mock.calls[0]
+    expect(runStreamed).toHaveBeenCalledTimes(1)
+    const [, input, options] = runStreamed.mock.calls[0]
     expect(input[0].content[0].text).toContain('Compose the video from scratch with the approved storyboard.')
     expect(input[0].content[0].text).toContain('- shot.png (attached below)')
     expect(input[0].content[1]).toEqual({ type: 'input_image', image: 'data:image/png;base64,AAAA' })
@@ -172,7 +173,7 @@ describe('composeVideo', () => {
       reporter,
     })
 
-    const text = run.mock.calls[0][1][0].content[0].text
+    const text = runStreamed.mock.calls[0][1][0].content[0].text
     expect(getVersionSummary).toHaveBeenCalledWith(VIDEO_ID, 1)
     expect(text).toContain('## Version 1')
     expect(text).toContain('What it shows: A tour of the refunds page.')
@@ -185,7 +186,7 @@ describe('composeVideo', () => {
 
     await composeVideo(job({ resume: true }), { signal: new AbortController().signal, reporter })
 
-    expect(run.mock.calls[0][1][0].content[0].text).toContain('continue from them instead of starting over')
+    expect(runStreamed.mock.calls[0][1][0].content[0].text).toContain('continue from them instead of starting over')
   })
 
   it('checks the final files itself when the last change came after the last check', async () => {
@@ -212,7 +213,7 @@ describe('composeVideo', () => {
   })
 
   it('falls back to a default summary when the agent says nothing', async () => {
-    run.mockResolvedValue({ finalOutput: '' })
+    runStreamed.mockResolvedValue({ finalOutput: '' })
 
     const result = await composeVideo(job(), { signal: new AbortController().signal, reporter })
 
@@ -220,14 +221,14 @@ describe('composeVideo', () => {
   })
 
   it('wraps up at the turn limit with one last turn that cannot call tools', async () => {
-    run.mockResolvedValueOnce({ finalOutput: 'Done.' }).mockResolvedValueOnce({ finalOutput: 'Wrapped up.' })
+    runStreamed.mockResolvedValueOnce({ finalOutput: 'Done.' }).mockResolvedValueOnce({ finalOutput: 'Wrapped up.' })
     await composeVideo(job(), { signal: new AbortController().signal, reporter })
-    const { maxTurns: wrapUp } = run.mock.calls[0][2].errorHandlers
+    const { maxTurns: wrapUp } = runStreamed.mock.calls[0][2].errorHandlers
 
     const output = await wrapUp({ context: { ctx: true }, runData: { history: [{ role: 'user', content: 'hi' }] } })
 
     expect(output).toEqual({ finalOutput: 'Wrapped up.' })
-    const [agent, history, options] = run.mock.calls[1]
+    const [agent, history, options] = runStreamed.mock.calls[1]
     expect(agent.modelSettings).toEqual(FINAL_SETTINGS)
     expect(history.at(-1).content).toContain('You have used all 300 turns of this run')
     expect(options).toMatchObject({ maxTurns: 1, context: { ctx: true } })
@@ -235,9 +236,9 @@ describe('composeVideo', () => {
 
   it('lets the turn limit error through when the wrap-up fails, as a sentence', async () => {
     checksAs(null)
-    run.mockRejectedValue(new FakeMaxTurnsExceededError('max turns'))
+    runStreamed.mockRejectedValue(new FakeMaxTurnsExceededError('max turns'))
     let wrapUpResult
-    run.mockImplementationOnce(async (_agent, _input, options) => {
+    runStreamed.mockImplementationOnce(async (_agent, _input, options) => {
       wrapUpResult = await options.errorHandlers.maxTurns({ context: {}, runData: { history: [] } })
       throw new FakeMaxTurnsExceededError('max turns')
     })
@@ -255,7 +256,7 @@ describe('composeVideo', () => {
 
   it('lets any other error through untouched', async () => {
     checksAs(null)
-    run.mockRejectedValue(new Error('provider down'))
+    runStreamed.mockRejectedValue(new Error('provider down'))
 
     await expect(composeVideo(job(), { signal: new AbortController().signal, reporter })).rejects.toThrow(
       'provider down'
