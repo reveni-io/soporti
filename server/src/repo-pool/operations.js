@@ -131,6 +131,24 @@ export async function getFileContentsAt(
   return { path: safePath, ...pageLines(allLines, range, 'File') }
 }
 
+export function readBinaryFile(repoFullName, path, { maxBytes }) {
+  return withClone(repoFullName, localPath => readBinaryFileAt(localPath, path, { maxBytes }))
+}
+
+async function readBinaryFileAt(localPath, path, { maxBytes }) {
+  const safePath = sanitizePath(path)
+  if (!safePath) throw new Error('A file path is required.')
+
+  const target = await resolveInsideClone(localPath, safePath)
+  const info = await stat(target)
+  if (info.isDirectory()) throw new Error(`"${safePath}" is a directory, not a file.`)
+  if (info.size > maxBytes) {
+    throw new Error(`"${safePath}" is ${info.size} bytes: the limit is ${maxBytes} bytes.`)
+  }
+
+  return readFile(target)
+}
+
 export function pageLines(allLines, range, label) {
   const totalLines = allLines.length
   const slice = allLines.slice(range.offset, range.offset + range.limit)

@@ -1,5 +1,5 @@
 import { listRepos } from '../github/client.js'
-import { findOwnedAttachmentImageIds } from '../db/attachment-images.js'
+import { findOwnedAttachmentImageIds, getAttachmentImages } from '../db/attachment-images.js'
 import { isValidAttachmentName } from '../documents/attachments.js'
 import { UUID_RE } from '../constants.js'
 
@@ -168,4 +168,11 @@ export function briefTitle(brief) {
   if (firstLine.length <= MAX_TITLE_LENGTH) return firstLine
 
   return `${firstLine.slice(0, MAX_TITLE_LENGTH - ELLIPSIS.length).trimEnd()}${ELLIPSIS}`
+}
+
+export async function loadBriefImages(brief, userId) {
+  const ids = brief.attachments.filter(attachment => attachment.imageId).map(attachment => attachment.imageId)
+  const stored = await getAttachmentImages(ids, userId)
+
+  return ids.filter(id => stored.has(id)).map(id => ({ id, image: stored.get(id) }))
 }

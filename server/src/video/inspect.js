@@ -1,9 +1,9 @@
 import { launchBrowser, openProjectPage, withTimeout } from './browser.js'
 import { readSoundtrack, tallySamples } from './soundtrack.js'
 
-const WORDS_PER_SECOND = { relaxed: 2.5, normal: 3, fast: 4 }
+export const WORDS_PER_SECOND = { relaxed: 2.5, normal: 3, fast: 4 }
 const DEFAULT_PACE = 'relaxed'
-const READING_BASE_SECONDS = 0.5
+export const READING_BASE_SECONDS = 0.5
 const MIN_DURATION_SECONDS = 1
 const MAX_DURATION_SECONDS = 600
 const RANDOM_SEEKS = 5

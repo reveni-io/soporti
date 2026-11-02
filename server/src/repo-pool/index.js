@@ -2,6 +2,7 @@ export { pool } from './pool.js'
 export {
   getDirectoryContents,
   getFileContents,
+  readBinaryFile,
   searchCode,
   findFiles,
   gitLogFile,

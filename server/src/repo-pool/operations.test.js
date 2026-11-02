@@ -23,6 +23,7 @@ import { execFile } from 'node:child_process'
 import {
   getDirectoryContents,
   getFileContents,
+  readBinaryFile,
   searchCode,
   findFiles,
   gitLogFile,
@@ -858,5 +859,49 @@ describe('gitDiffAt', () => {
     )
     await expect(gitDiffAt('/tmp/wt-pr-7', 'a.js', { baseSha: null })).rejects.toThrow('A base commit is required.')
     expect(execFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('readBinaryFile', () => {
+  const release = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    pool.acquire.mockResolvedValue({ localPath: '/clones/acme/web', release })
+  })
+
+  it('reads the bytes of a file inside the clone and releases it', async () => {
+    const bytes = Buffer.from([0x77, 0x4f, 0x46, 0x32])
+    stat.mockResolvedValue({ isDirectory: () => false, size: bytes.length })
+    readFile.mockResolvedValue(bytes)
+
+    const result = await readBinaryFile('acme/web', 'public/fonts/inter.woff2', { maxBytes: 1024 })
+
+    expect(result).toBe(bytes)
+    expect(readFile).toHaveBeenCalledTimes(1)
+    expect(readFile).toHaveBeenCalledWith('/clones/acme/web/public/fonts/inter.woff2')
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a file larger than the limit without reading it', async () => {
+    stat.mockResolvedValue({ isDirectory: () => false, size: 4096 })
+
+    await expect(readBinaryFile('acme/web', 'logo.png', { maxBytes: 1024 })).rejects.toThrow(
+      '"logo.png" is 4096 bytes: the limit is 1024 bytes.'
+    )
+    expect(readFile).not.toHaveBeenCalled()
+  })
+
+  it('refuses a directory', async () => {
+    stat.mockResolvedValue({ isDirectory: () => true, size: 0 })
+
+    await expect(readBinaryFile('acme/web', 'public', { maxBytes: 1024 })).rejects.toThrow('is a directory')
+  })
+
+  it('refuses an empty path, traversal and blocked paths', async () => {
+    await expect(readBinaryFile('acme/web', '', { maxBytes: 1024 })).rejects.toThrow('A file path is required.')
+    await expect(readBinaryFile('acme/web', '../etc/passwd', { maxBytes: 1024 })).rejects.toThrow('Path traversal')
+    await expect(readBinaryFile('acme/web', '.env', { maxBytes: 1024 })).rejects.toThrow('not allowed')
+    expect(readFile).not.toHaveBeenCalled()
   })
 })

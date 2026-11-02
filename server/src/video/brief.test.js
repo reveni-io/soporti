@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../github/client.js', () => ({ listRepos: vi.fn() }))
-vi.mock('../db/attachment-images.js', () => ({ findOwnedAttachmentImageIds: vi.fn() }))
+vi.mock('../db/attachment-images.js', () => ({ findOwnedAttachmentImageIds: vi.fn(), getAttachmentImages: vi.fn() }))
 
 const { listRepos } = await import('../github/client.js')
-const { findOwnedAttachmentImageIds } = await import('../db/attachment-images.js')
-const { parseBrief, briefTitle } = await import('./brief.js')
+const { findOwnedAttachmentImageIds, getAttachmentImages } = await import('../db/attachment-images.js')
+const { parseBrief, briefTitle, loadBriefImages } = await import('./brief.js')
 
 const IMAGE_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -161,5 +161,26 @@ describe('briefTitle', () => {
 
     expect(title).toHaveLength(80)
     expect(title.endsWith('…')).toBe(true)
+  })
+})
+
+describe('loadBriefImages', () => {
+  it('loads the images of the brief that are still stored, in order', async () => {
+    const other = '22222222-2222-4222-8222-222222222222'
+    getAttachmentImages.mockResolvedValue(new Map([[IMAGE_ID, 'data:image/png;base64,AAAA']]))
+
+    const images = await loadBriefImages(
+      {
+        attachments: [
+          { name: 'a.png', imageId: IMAGE_ID },
+          { name: 'notes.pdf', text: 'x' },
+          { name: 'b.png', imageId: other },
+        ],
+      },
+      7
+    )
+
+    expect(getAttachmentImages).toHaveBeenCalledWith([IMAGE_ID, other], 7)
+    expect(images).toEqual([{ id: IMAGE_ID, image: 'data:image/png;base64,AAAA' }])
   })
 })

@@ -47,6 +47,9 @@ vi.mock('./db/users.js', () => ({
 vi.mock('./video/storyboard.js', () => {
   return { recoverInterruptedDrafts: vi.fn().mockResolvedValue(0) }
 })
+vi.mock('./video/runner.js', () => {
+  return { startVideoRunner: vi.fn().mockResolvedValue(undefined), stopVideoRunner: vi.fn() }
+})
 
 vi.mock('./github/settings.js', () => ({
   getGithubToken: vi.fn().mockResolvedValue('test-token'),
@@ -183,6 +186,12 @@ describe('index.js app setup', () => {
       const { recoverInterruptedDrafts } = await import('./video/storyboard.js')
 
       await vi.waitFor(() => expect(recoverInterruptedDrafts).toHaveBeenCalledTimes(1))
+    })
+
+    it('starts the video runner, which re-queues the versions a restart interrupted', async () => {
+      const { startVideoRunner } = await import('./video/runner.js')
+
+      await vi.waitFor(() => expect(startVideoRunner).toHaveBeenCalledTimes(1))
     })
   })
 
