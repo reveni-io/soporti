@@ -103,7 +103,7 @@ HubSpot has no single switch: `/admin` → HubSpot gives each area — Contacts,
 - Git
 - A PostgreSQL database (provided automatically by Docker Compose — see below)
 - An OpenAI or Anthropic API key — configured from the `/admin` panel after the first boot, not an env var
-- Only to render videos outside Docker: ffmpeg on the `PATH` (or `FFMPEG_PATH`) and Playwright's Chromium headless shell (`npx playwright install --only-shell chromium` from `server/`). The server's Docker image ships both
+- Only to render videos outside Docker: ffmpeg and Chromium's headless shell (see [Rendering videos locally](#rendering-videos-locally)); the Docker images ship both
 
 Optional, also configured from `/admin` later: a GitHub Personal Access Token, a Google OAuth Client ID for Google sign-in, Slack/Notion/Google Drive/Helpjuice/Figma/HubSpot credentials.
 
@@ -155,6 +155,17 @@ npm run dev
 
 This starts both the server (port 3001) and client (port 5173) concurrently. Open http://localhost:5173.
 
+### Rendering videos locally
+
+The Docker images already carry ffmpeg and Chromium's headless shell. To render videos with `npm run dev`, install both on your machine:
+
+```bash
+sudo apt-get install ffmpeg                       # macOS: brew install ffmpeg
+cd server && npx playwright-core install --with-deps --only-shell chromium
+```
+
+`--with-deps` installs Chromium's system libraries with apt and only applies to Linux; drop it on macOS. Set `FFMPEG_PATH` in `.env` if ffmpeg is not on your `PATH`. Rendering needs RAM: each render worker runs its own Chromium (see [Video rendering](docs/deployment.md#video-rendering)).
+
 ### First run
 
 1. Boot the app. With no admin user yet, the server prints a **one-time setup code** in its logs.
@@ -202,7 +213,7 @@ All integrations are conditionally loaded — tools are only registered with the
 - **Langfuse** — host plus a project's public and secret key (`/admin` → Langfuse; create the pair under the project's **Settings → API Keys**). Works with any Langfuse Cloud region (`https://cloud.langfuse.com`, `https://us.cloud.langfuse.com`, …) or a self-hosted instance on **v3.22.0 or later**, which is when its OpenTelemetry endpoint shipped. Spans are sent as OTLP/JSON to `<host>/api/public/otel/v1/traces`; nothing is exported until all three values are set, and a rejected export (wrong keys, wrong host, an older self-hosted version) shows in that admin section. Costs come from Langfuse's model prices: it ships prices for most models, and for one it does not know yet (a new Claude release, for example) add it under the project's **Settings → Models** with prices for `input`, `input_cache_read`, `input_cache_creation` and `output`. The cache split needs v3.125.0 or later; older versions show the same token totals without it. By default a trace carries the full content, including what the tools read (files, query rows, tickets, logs); turn on **Send metadata only** to export just names, models, token counts, timings and errors (no questions, answers, session or user ids).
 - **Better Stack** — Telemetry API token plus the connect host, username and password of a ClickHouse HTTP client connection (`/admin` → Better Stack). Get the token under **API tokens → Team-based tokens**, and the other three from **Integrations → SQL API → Connect** on *ClickHouse HTTP client* (the password is only shown once, in the creation banner). Searches log lines and runs read-only SQL over them.
 - **Video** — the provider, model and reasoning effort for video work (`/admin` → Video), chosen independently of the chat. It reuses that provider's API key from `/admin` → LLM, and an empty model falls back to that provider's chat model. Videos render inside the server (Chromium headless shell + ffmpeg), so there is no worker service to deploy; the ready and failed messages go out through the Slack bot when it is configured.
-- **Slack bot** — bot token, app token and signing secret (`/admin` → Slack); the bot (re)connects in place when they are saved. Uses Socket Mode (no public URL required). Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) with scopes: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`, `im:read`. Posting to a channel uses the same `chat:write` scope, so the bot only posts in channels it has been invited to (`/invite @<bot>`). The live progress card streams over `chat:write` and needs no extra scope, but it is a Slack AI feature and some of those require a paid plan — a free [Developer Program](https://api.slack.com/developer-program) sandbox has them all if you only need to try it.
+- **Slack bot** — bot token, app token and signing secret (`/admin` → Slack); the bot (re)connects in place when they are saved. Uses Socket Mode (no public URL required). Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) with scopes: `app_mentions:read`, `chat:write`, `channels:history`, `im:history`, `im:read`, `users:read.email` (to DM the owner of a video when it is ready or has failed, found by email when they signed in with Google). Posting to a channel uses the same `chat:write` scope, so the bot only posts in channels it has been invited to (`/invite @<bot>`). The live progress card streams over `chat:write` and needs no extra scope, but it is a Slack AI feature and some of those require a paid plan — a free [Developer Program](https://api.slack.com/developer-program) sandbox has them all if you only need to try it.
 
 ### Connected per user
 

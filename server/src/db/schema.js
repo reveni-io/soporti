@@ -384,3 +384,97 @@ export const videoMessages = pgTable(
   },
   table => [index('video_messages_video_idx').on(table.videoId)]
 )
+
+export const videoVersions = pgTable(
+  'video_versions',
+  {
+    id: serial('id').primaryKey(),
+    videoId: uuid('video_id')
+      .notNull()
+      .references(() => videos.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    kind: text('kind').notNull(),
+    status: text('status').notNull(),
+    phase: text('phase'),
+    progress: integer('progress'),
+    step: text('step'),
+    etaSeconds: integer('eta_seconds'),
+    events: jsonb('events').notNull().default([]),
+    request: text('request'),
+    basedOn: integer('based_on'),
+    summary: text('summary'),
+    error: text('error'),
+    resume: boolean('resume').notNull().default(false),
+    cancelRequested: boolean('cancel_requested').notNull().default(false),
+    attempts: integer('attempts').notNull().default(0),
+    previewReady: boolean('preview_ready').notNull().default(false),
+    durationMs: integer('duration_ms'),
+    sizeBytes: integer('size_bytes'),
+    mp4: bytea('mp4'),
+    thumbnail: bytea('thumbnail'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  table => [
+    uniqueIndex('video_versions_video_version_idx').on(table.videoId, table.version),
+    index('video_versions_status_queued_idx').on(table.status, table.queuedAt),
+  ]
+)
+
+export const videoFiles = pgTable(
+  'video_files',
+  {
+    id: serial('id').primaryKey(),
+    versionId: integer('version_id')
+      .notNull()
+      .references(() => videoVersions.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    content: text('content').notNull(),
+  },
+  table => [uniqueIndex('video_files_version_path_idx').on(table.versionId, table.path)]
+)
+
+export const videoAssets = pgTable(
+  'video_assets',
+  {
+    id: serial('id').primaryKey(),
+    videoId: uuid('video_id')
+      .notNull()
+      .references(() => videos.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    data: bytea('data').notNull(),
+    sha256: text('sha256').notNull(),
+  },
+  table => [uniqueIndex('video_assets_video_name_idx').on(table.videoId, table.name)]
+)
+
+export const videoFrames = pgTable(
+  'video_frames',
+  {
+    id: serial('id').primaryKey(),
+    versionId: integer('version_id')
+      .notNull()
+      .references(() => videoVersions.id, { onDelete: 'cascade' }),
+    times: jsonb('times').notNull(),
+    image: bytea('image').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('video_frames_version_idx').on(table.versionId)]
+)
+
+export const videoShares = pgTable(
+  'video_shares',
+  {
+    id: text('id').primaryKey(),
+    videoId: uuid('video_id')
+      .notNull()
+      .references(() => videos.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  table => [uniqueIndex('video_shares_video_version_idx').on(table.videoId, table.version)]
+)

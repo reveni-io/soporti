@@ -4,9 +4,9 @@ import { resolveModelForAgent } from '../llm/model.js'
 import { buildRepoTools } from '../agent/tools.js'
 import { buildAgentInput } from '../agent/agent-input.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
-import { getAttachmentImages } from '../db/attachment-images.js'
 import { failInterruptedStoryboards, failStoryboard, getVideo, saveStoryboard } from '../db/videos.js'
 import { getVideoModelSelection, isVideoConfigured } from './settings.js'
+import { loadBriefImages } from './brief.js'
 import { STORYBOARD_INSTRUCTIONS, buildStoryboardPrompt, buildStoryboardTurnLimitMessage } from './storyboard-prompt.js'
 import { AGENT_CHANNEL_VIDEO_STORYBOARD, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
 
@@ -71,13 +71,6 @@ function normalizeStoryboard(storyboard, durationSeconds) {
   if (storyboard.scenes.length === 0) throw new StoryboardError(NO_SCENES_ERROR)
 
   return { ...storyboard, durationSeconds, scenes: retimeScenes(storyboard.scenes, durationSeconds) }
-}
-
-async function loadBriefImages(brief, userId) {
-  const ids = brief.attachments.filter(attachment => attachment.imageId).map(attachment => attachment.imageId)
-  const stored = await getAttachmentImages(ids, userId)
-
-  return ids.filter(id => stored.has(id)).map(id => ({ id, image: stored.get(id) }))
 }
 
 async function buildStoryboardAgent(brief) {

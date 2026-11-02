@@ -1,4 +1,5 @@
 import dotenv from 'dotenv'
+import { availableParallelism } from 'os'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -21,6 +22,10 @@ function parseCsvList(value) {
     .split(',')
     .map(s => s.trim())
     .filter(Boolean)
+}
+
+function defaultRenderWorkers() {
+  return Math.max(1, Math.min(4, availableParallelism() - 1))
 }
 
 function normalizeBaseUrl(value) {
@@ -89,6 +94,13 @@ const config = {
 
   schedules: {
     maxTurns: parseInt(process.env.SCHEDULE_MAX_TURNS || '500', 10) || 500,
+  },
+
+  video: {
+    renderWorkers: parseInt(process.env.VIDEO_RENDER_WORKERS || '', 10) || defaultRenderWorkers(),
+    maxSubframes: parseInt(process.env.VIDEO_MAX_SUBFRAMES || '16', 10) || 16,
+    ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+    maxTurns: parseInt(process.env.VIDEO_MAX_TURNS || '300', 10) || 300,
   },
 
   review: {

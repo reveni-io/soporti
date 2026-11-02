@@ -40,6 +40,7 @@ import { getGithubToken, getWebhookSecret } from './github/settings.js'
 import { describeProvider } from './llm/model.js'
 import { registerLangfuseTracing } from './langfuse/tracing.js'
 import { recoverInterruptedDrafts } from './video/storyboard.js'
+import { startVideoRunner, stopVideoRunner } from './video/runner.js'
 
 registerLangfuseTracing()
 
@@ -113,6 +114,12 @@ app.listen(config.port, async () => {
   }
 
   try {
+    await startVideoRunner()
+  } catch (err) {
+    console.error('Failed to start the video runner:', err.message)
+  }
+
+  try {
     console.log(`PostgreSQL: ${(await isPostgresConfigured()) ? 'configured' : 'not configured'}`)
     if ((await countAdmins()) === 0) {
       console.log('[auth] No admin account exists yet. Open /admin in the web app to create one.')
@@ -147,6 +154,7 @@ app.listen(config.port, async () => {
 })
 
 async function shutdown() {
+  stopVideoRunner()
   stopSchedulePoller()
   stopImageRetention()
   await stopSlackBot()

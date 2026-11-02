@@ -6,7 +6,7 @@ vi.mock('./settings.js', () => ({ getSlackBotToken }))
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-const { postMessage } = await import('./client.js')
+const { postDirectMessage, postMessage } = await import('./client.js')
 
 function slackResponse(data, { ok = true, status = 200 } = {}) {
   return { ok, status, json: async () => data }
@@ -125,6 +125,51 @@ describe('postMessage', () => {
     getSlackBotToken.mockResolvedValue(null)
 
     await expect(postMessage('#support', 'hello')).rejects.toThrow(/Slack is not configured/)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('postDirectMessage', () => {
+  it('posts to the Slack id of the recipient without looking it up', async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: true, channel: 'D0123ABCD', ts: '1730000000.000200' }))
+
+    const result = await postDirectMessage({ slackId: 'U0123ABCD', email: 'ana@acme.com' }, 'Your video is ready.')
+
+    expect(result).toEqual({ channel: 'D0123ABCD', ts: '1730000000.000200' })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch.mock.calls[0][0]).toBe('https://slack.com/api/chat.postMessage')
+    expect(sentParams(0)).toEqual({ channel: 'U0123ABCD', markdown_text: 'Your video is ready.' })
+  })
+
+  it('looks the recipient up by email when there is no Slack id', async () => {
+    mockFetch
+      .mockResolvedValueOnce(slackResponse({ ok: true, user: { id: 'U0999ZZZZ' } }))
+      .mockResolvedValueOnce(slackResponse({ ok: true, channel: 'D0999ZZZZ', ts: '1730000000.000300' }))
+
+    await postDirectMessage({ slackId: null, email: 'ana@acme.com' }, 'Your video is ready.')
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch.mock.calls[0][0]).toBe('https://slack.com/api/users.lookupByEmail')
+    expect(sentParams(0)).toEqual({ email: 'ana@acme.com' })
+    expect(sentParams(1)).toEqual({ channel: 'U0999ZZZZ', markdown_text: 'Your video is ready.' })
+  })
+
+  it('explains that nobody in Slack has that email', async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: false, error: 'users_not_found' }))
+
+    await expect(postDirectMessage({ email: 'ghost@acme.com' }, 'Hi')).rejects.toThrow(
+      'No Slack user has that email address.'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a recipient with neither a Slack id nor an email', async () => {
+    await expect(postDirectMessage({}, 'Hi')).rejects.toThrow('neither a Slack id nor an email address')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('refuses an empty message', async () => {
+    await expect(postDirectMessage({ slackId: 'U0123ABCD' }, '  ')).rejects.toThrow('needs some text')
     expect(mockFetch).not.toHaveBeenCalled()
   })
 })

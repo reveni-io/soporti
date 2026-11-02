@@ -41,8 +41,15 @@ vi.mock('./index.js', () => ({
   }),
 }))
 
-const { upsertGoogleUser, findUserByEmail, createUserWithPassword, countAdmins, listUsers, setAdminCredentials } =
-  await import('./users.js')
+const {
+  upsertGoogleUser,
+  findUserByEmail,
+  findUserById,
+  createUserWithPassword,
+  countAdmins,
+  listUsers,
+  setAdminCredentials,
+} = await import('./users.js')
 
 beforeEach(() => {
   queue = []
@@ -118,6 +125,24 @@ describe('findUserByEmail', () => {
 
     queue = [[]]
     expect(await findUserByEmail('missing@x.io')).toBeNull()
+  })
+})
+
+describe('findUserById', () => {
+  it('selects the slackId with the profile, and never the password hash', async () => {
+    const row = { id: 7, googleId: null, email: null, name: 'Ana', picture: null, role: 'user', slackId: 'U0123ABCD' }
+    queue = [[row]]
+
+    const user = await findUserById(7)
+
+    expect(user).toEqual(row)
+    expect(Object.keys(calls[0].arg)).toEqual(['id', 'googleId', 'email', 'name', 'picture', 'role', 'slackId'])
+  })
+
+  it('returns null for an unknown id', async () => {
+    queue = [[]]
+
+    expect(await findUserById(99)).toBeNull()
   })
 })
 

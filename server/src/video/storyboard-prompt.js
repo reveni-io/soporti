@@ -37,9 +37,9 @@ const PACE_GUIDES = {
   fast: 'fast: an energetic cut. Keep each on-screen text up for at least 0.6 seconds plus 0.3 seconds per word, and give each scene at least 2 seconds.',
 }
 
-const LANGUAGE_NAMES = { en: 'English', es: 'Spanish' }
+export const LANGUAGE_NAMES = { en: 'English', es: 'Spanish' }
 
-const FORMAT_DESCRIPTIONS = {
+export const FORMAT_DESCRIPTIONS = {
   '16:9': '16:9 (1920×1080, landscape)',
   '1:1': '1:1 (1080×1080, square)',
   '9:16': '9:16 (1080×1920, vertical)',
@@ -60,7 +60,7 @@ function renderBrief(brief) {
 - Pace: ${PACE_GUIDES[brief.pace]}`
 }
 
-function renderDocuments(attachments) {
+export function renderDocuments(attachments) {
   const documents = attachments.filter(attachment => attachment.text)
   if (documents.length === 0) return null
 
@@ -68,7 +68,7 @@ function renderDocuments(attachments) {
   return `## Attached documents\n\n${rendered.join('\n\n')}`
 }
 
-function renderImages(attachments, availableImageIds) {
+export function renderImages(attachments, availableImageIds) {
   const images = attachments.filter(attachment => attachment.imageId)
   if (images.length === 0) return null
 

@@ -22,7 +22,8 @@ spec:
       dockerfile_path: server/Dockerfile
       http_port: 8080
       instance_count: 1
-      instance_size_slug: basic-xxs
+      # 2 GiB: rendering a video runs Chromium and ffmpeg next to the API.
+      instance_size_slug: apps-s-1vcpu-2gb
       # Express serves everything under /api, so the prefix must reach the
       # container unstripped.
       routes:
