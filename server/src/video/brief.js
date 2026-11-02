@@ -20,7 +20,7 @@ const CHOICE_FIELDS = {
   audience: ['merchants', 'internal', 'sales', 'developers'],
   language: ['en', 'es'],
   format: ['16:9', '1:1', '9:16'],
-  durationSeconds: [20, 30, 60, 90],
+  durationSeconds: [10, 20, 30, 60, 90],
   pace: ['relaxed', 'normal', 'fast'],
 }
 

@@ -96,7 +96,7 @@ describe('parseBrief', () => {
     ['audience', 'investors', '"audience" must be one of: merchants, internal, sales, developers.'],
     ['language', 'fr', '"language" must be one of: en, es.'],
     ['format', '4:3', '"format" must be one of: 16:9, 1:1, 9:16.'],
-    ['durationSeconds', 45, '"durationSeconds" must be one of: 20, 30, 60, 90.'],
+    ['durationSeconds', 45, '"durationSeconds" must be one of: 10, 20, 30, 60, 90.'],
     ['pace', undefined, '"pace" must be one of: relaxed, normal, fast.'],
   ])('rejects an unknown %s', async (field, value, error) => {
     expect(await parseBrief(validBrief({ [field]: value }), 7)).toEqual({ error })
