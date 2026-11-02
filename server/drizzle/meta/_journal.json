@@ -155,6 +155,13 @@
       "when": 1793621290604,
       "tag": "0021_thin_weapon_omega",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793626342959,
+      "tag": "0022_chubby_grim_reaper",
+      "breakpoints": true
     }
   ]
 }
