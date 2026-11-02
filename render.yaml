@@ -14,7 +14,8 @@ services:
     name: soporti-server
     runtime: docker
     rootDir: server
-    plan: starter
+    # 2 GB: rendering a video runs Chromium and ffmpeg next to the API.
+    plan: standard
     healthCheckPath: /api/auth/methods
     envVars:
       - key: JWT_SECRET
