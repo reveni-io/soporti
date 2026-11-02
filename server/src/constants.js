@@ -102,6 +102,13 @@ export const VIDEO_PHASE_COMPOSING = 'composing'
 export const VIDEO_PHASE_MUSIC = 'music'
 export const VIDEO_PHASE_RENDERING = 'rendering'
 export const VIDEO_PHASE_FINALIZING = 'finalizing'
+export const VIDEO_RESULT_OK = 'ok'
+export const VIDEO_RESULT_NOT_FOUND = 'not_found'
+export const VIDEO_RESULT_BUSY = 'busy'
+export const VIDEO_RESULT_CONFLICT = 'conflict'
+export const VIDEO_RESULT_IDLE = 'idle'
+export const VIDEO_RESULT_CANCELLED = 'cancelled'
+export const VIDEO_RESULT_CANCELLING = 'cancelling'
 
 export const TOOL_NOT_FOUND_BEHAVIOR = 'return_error_to_model'
 

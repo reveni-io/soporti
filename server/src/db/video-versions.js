@@ -7,6 +7,13 @@ import {
   VIDEO_KIND_RENDER,
   VIDEO_PHASE_MUSIC,
   VIDEO_PHASE_PREPARING,
+  VIDEO_RESULT_BUSY,
+  VIDEO_RESULT_CANCELLED,
+  VIDEO_RESULT_CANCELLING,
+  VIDEO_RESULT_CONFLICT,
+  VIDEO_RESULT_IDLE,
+  VIDEO_RESULT_NOT_FOUND,
+  VIDEO_RESULT_OK,
   VIDEO_ROLE_ASSISTANT,
   VIDEO_ROLE_USER,
   VIDEO_STAGE_PRODUCTION,
@@ -136,12 +143,12 @@ async function cancelRenderingVersion(tx, latest) {
 export async function createChangeRequest(videoId, userId, request) {
   return getDb().transaction(async tx => {
     const [video] = await lockVideo(tx, videoId, userId)
-    if (!video) return { status: 'not_found' }
-    if (video.stage !== VIDEO_STAGE_PRODUCTION) return { status: 'conflict' }
+    if (!video) return { status: VIDEO_RESULT_NOT_FOUND }
+    if (video.stage !== VIDEO_STAGE_PRODUCTION) return { status: VIDEO_RESULT_CONFLICT }
 
     const versions = await listVersionStates(tx, videoId)
     const [latest] = versions
-    if (latest && isComposing(latest)) return { status: 'busy' }
+    if (latest && isComposing(latest)) return { status: VIDEO_RESULT_BUSY }
 
     const cancelledVersionId = await cancelRenderingVersion(tx, latest)
     const version = (latest?.version ?? 0) + 1
@@ -153,7 +160,7 @@ export async function createChangeRequest(videoId, userId, request) {
     await insertMessage(tx, { videoId, role: VIDEO_ROLE_USER, content: request, version })
     await touchVideo(tx, videoId)
 
-    return { status: 'ok', version, cancelledVersionId }
+    return { status: VIDEO_RESULT_OK, version, cancelledVersionId }
   })
 }
 
@@ -194,10 +201,10 @@ function findNewestPreview(tx, videoId) {
 export async function createVariant(sourceId, userId, request) {
   return getDb().transaction(async tx => {
     const [source] = await tx.select(jobVideoColumns).from(videos).where(ownedVideo(sourceId, userId)).limit(1)
-    if (!source) return { status: 'not_found' }
+    if (!source) return { status: VIDEO_RESULT_NOT_FOUND }
 
     const [preview] = await findNewestPreview(tx, sourceId)
-    if (!preview) return { status: 'conflict' }
+    if (!preview) return { status: VIDEO_RESULT_CONFLICT }
 
     const id = randomUUID()
     const { title, brief, storyboard } = source
@@ -213,7 +220,7 @@ export async function createVariant(sourceId, userId, request) {
     await copyFiles(tx, { fromVersionId: preview.id, toVersionId: version.id })
     await insertMessage(tx, { videoId: id, role: VIDEO_ROLE_USER, content: request, version: 1 })
 
-    return { status: 'ok', id }
+    return { status: VIDEO_RESULT_OK, id }
   })
 }
 
@@ -394,20 +401,20 @@ async function cancelVersionRow(tx, latest) {
       .update(videoVersions)
       .set({ status: VIDEO_STATUS_CANCELLED, ...CLEARED_PROGRESS, finishedAt: new Date() })
       .where(eq(videoVersions.id, latest.id))
-    return { status: 'cancelled', versionId: latest.id }
+    return { status: VIDEO_RESULT_CANCELLED, versionId: latest.id }
   }
 
   await tx.update(videoVersions).set({ cancelRequested: true }).where(eq(videoVersions.id, latest.id))
-  return { status: 'cancelling', versionId: latest.id }
+  return { status: VIDEO_RESULT_CANCELLING, versionId: latest.id }
 }
 
 export async function cancelLatestVersion(videoId, userId) {
   return getDb().transaction(async tx => {
     const [video] = await lockVideo(tx, videoId, userId)
-    if (!video) return { status: 'not_found' }
+    if (!video) return { status: VIDEO_RESULT_NOT_FOUND }
 
     const [latest] = await listVersionStates(tx, videoId)
-    if (!latest || !ACTIVE_STATUSES.includes(latest.status)) return { status: 'idle' }
+    if (!latest || !ACTIVE_STATUSES.includes(latest.status)) return { status: VIDEO_RESULT_IDLE }
 
     return cancelVersionRow(tx, latest)
   })
@@ -461,10 +468,10 @@ export async function requeueVersion({ videoId, userId, version, mode }) {
     })
     .where(and(target, rule.where))
     .returning({ id: videoVersions.id })
-  if (requeued) return 'ok'
+  if (requeued) return VIDEO_RESULT_OK
 
   const [existing] = await db.select({ id: videoVersions.id }).from(videoVersions).where(target).limit(1)
-  return existing ? 'conflict' : 'not_found'
+  return existing ? VIDEO_RESULT_CONFLICT : VIDEO_RESULT_NOT_FOUND
 }
 
 export async function listVersions(videoId) {

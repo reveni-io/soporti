@@ -24,7 +24,16 @@ import { bundleProject } from '../video/bundle.js'
 import { loadKit } from '../video/kit.js'
 import { sendMp4 } from '../video/mp4-response.js'
 import { VideoProjectError } from '../video/project-error.js'
-import { UUID_RE, VIDEO_STAGE_DRAFTING, VIDEO_STAGE_PRODUCTION, VIDEO_STATUS_QUEUED } from '../constants.js'
+import {
+  UUID_RE,
+  VIDEO_RESULT_BUSY,
+  VIDEO_RESULT_CONFLICT,
+  VIDEO_RESULT_IDLE,
+  VIDEO_RESULT_NOT_FOUND,
+  VIDEO_STAGE_DRAFTING,
+  VIDEO_STAGE_PRODUCTION,
+  VIDEO_STATUS_QUEUED,
+} from '../constants.js'
 
 const MAX_MESSAGE_LENGTH = 4000
 const POSITIVE_INT_RE = /^[1-9]\d{0,8}$/
@@ -111,9 +120,9 @@ async function requestChange(req, res, request) {
   const { id } = req.params
 
   const result = await createChangeRequest(id, req.user.id, request)
-  if (result.status === 'not_found') return res.status(404).json({ error: NOT_FOUND_ERROR })
-  if (result.status === 'busy') return res.status(409).json({ error: BUSY_ERROR })
-  if (result.status === 'conflict') return res.status(409).json({ error: DRAFTING_CONFLICT_ERROR })
+  if (result.status === VIDEO_RESULT_NOT_FOUND) return res.status(404).json({ error: NOT_FOUND_ERROR })
+  if (result.status === VIDEO_RESULT_BUSY) return res.status(409).json({ error: BUSY_ERROR })
+  if (result.status === VIDEO_RESULT_CONFLICT) return res.status(409).json({ error: DRAFTING_CONFLICT_ERROR })
 
   if (result.cancelledVersionId) cancelVideoVersion(result.cancelledVersionId)
   wakeVideoRunner()
@@ -122,8 +131,8 @@ async function requestChange(req, res, request) {
 
 async function requeue(req, res, mode) {
   const status = await requeueVersion({ ...versionTarget(req), mode })
-  if (status === 'not_found') return res.status(404).json({ error: VERSION_NOT_FOUND_ERROR })
-  if (status === 'conflict') return res.status(409).json({ error: REQUEUE_CONFLICTS[mode] })
+  if (status === VIDEO_RESULT_NOT_FOUND) return res.status(404).json({ error: VERSION_NOT_FOUND_ERROR })
+  if (status === VIDEO_RESULT_CONFLICT) return res.status(409).json({ error: REQUEUE_CONFLICTS[mode] })
 
   wakeVideoRunner()
   await sendDetail(res, 202, req.params.id, req.user.id)
@@ -251,8 +260,8 @@ router.post('/:id/cancel', async (req, res) => {
 
   try {
     const result = await cancelLatestVersion(id, req.user.id)
-    if (result.status === 'not_found') return res.status(404).json({ error: NOT_FOUND_ERROR })
-    if (result.status === 'idle') return res.status(409).json({ error: IDLE_ERROR })
+    if (result.status === VIDEO_RESULT_NOT_FOUND) return res.status(404).json({ error: NOT_FOUND_ERROR })
+    if (result.status === VIDEO_RESULT_IDLE) return res.status(409).json({ error: IDLE_ERROR })
 
     cancelVideoVersion(result.versionId)
     await sendDetail(res, 200, id, req.user.id)
@@ -350,8 +359,8 @@ router.post('/:id/variants', async (req, res) => {
 
   try {
     const result = await createVariant(req.params.id, req.user.id, request.value)
-    if (result.status === 'not_found') return res.status(404).json({ error: NOT_FOUND_ERROR })
-    if (result.status === 'conflict') {
+    if (result.status === VIDEO_RESULT_NOT_FOUND) return res.status(404).json({ error: NOT_FOUND_ERROR })
+    if (result.status === VIDEO_RESULT_CONFLICT) {
       return res.status(409).json({ error: 'The video has no version with a ready preview to start a variant from.' })
     }
 
