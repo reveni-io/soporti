@@ -33,7 +33,7 @@ import {
 const MAX_RUNNING_VERSIONS = 1
 const POLL_INTERVAL_MS = 15_000
 const THUMBNAIL_POSITION = 0.35
-const WORK_DIR_PREFIX = 'soporti-video-'
+const WORK_ROOT = join(tmpdir(), 'soporti-videos')
 const GENERIC_FAILURE = 'Something went wrong while making this version. Try again.'
 
 const RENDER_STEPS = {
@@ -74,7 +74,7 @@ async function bundleForRender(job) {
 async function renderPhases(job, { signal, reporter }) {
   reporter.update({ phase: VIDEO_PHASE_MUSIC, progress: 0, step: RENDER_STEPS[VIDEO_PHASE_MUSIC]() })
   const html = await bundleForRender(job)
-  const workDir = join(tmpdir(), `${WORK_DIR_PREFIX}${job.id}-${Date.now()}`)
+  const workDir = join(WORK_ROOT, `${job.id}-${Date.now()}`)
 
   try {
     const video = await renderVideo({
@@ -188,6 +188,7 @@ export function wakeVideoRunner() {
 }
 
 export async function startVideoRunner() {
+  await rm(WORK_ROOT, { recursive: true, force: true })
   const requeued = await requeueInterruptedVersions()
   if (requeued > 0) console.log(`[videos] Re-queued ${requeued} video version(s) interrupted by the restart.`)
 

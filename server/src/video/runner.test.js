@@ -113,6 +113,7 @@ describe('video runner', () => {
 
     expect(versions.requeueInterruptedVersions).toHaveBeenCalledTimes(1)
     expect(console.log).toHaveBeenCalledWith('[videos] Re-queued 2 video version(s) interrupted by the restart.')
+    expect(rm).toHaveBeenCalledWith(expect.stringMatching(/soporti-videos$/), { recursive: true, force: true })
   })
 
   it('prepares, composes, renders and stores a compose version, then tells the owner', async () => {
@@ -135,7 +136,10 @@ describe('video runner', () => {
       mode: 'render',
     })
     expect(renderVideo).toHaveBeenCalledWith(
-      expect.objectContaining({ html: '<html>bundle</html>', workDir: expect.stringContaining('soporti-video-41-') })
+      expect.objectContaining({
+        html: '<html>bundle</html>',
+        workDir: expect.stringMatching(/soporti-videos\/41-\d+$/),
+      })
     )
     expect(extractThumbnail).toHaveBeenCalledWith({ mp4Path: '/tmp/work/video.mp4', atSeconds: 21.7 })
     expect(versions.completeVersion).toHaveBeenCalledWith(expect.objectContaining({ id: 41 }), {
@@ -145,7 +149,7 @@ describe('video runner', () => {
       sizeBytes: MP4.length,
       message: 'Version 2 is ready (1:02).',
     })
-    expect(rm).toHaveBeenCalledWith(expect.stringContaining('soporti-video-41-'), { recursive: true, force: true })
+    expect(rm).toHaveBeenCalledWith(expect.stringMatching(/soporti-videos\/41-\d+$/), { recursive: true, force: true })
     expect(notifyVersionOutcome).toHaveBeenCalledWith({
       job: expect.objectContaining({ id: 41 }),
       status: 'ready',
