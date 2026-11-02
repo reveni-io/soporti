@@ -58,7 +58,7 @@ describe('VideoConversation', () => {
       ...storyboardVideoFixture,
       status,
       stage: 'production',
-      versions: [{ version: 2, status, phase }],
+      versions: [{ version: 2, status, phase, previewReady: false }],
     }
 
     render(<VideoConversation video={video} token="tok" busy={false} onSend={vi.fn()} onRetry={vi.fn()} />)
@@ -75,7 +75,7 @@ describe('VideoConversation', () => {
       ...storyboardVideoFixture,
       status: 'running',
       stage: 'production',
-      versions: [{ version: 1, status: 'running', phase: 'rendering' }],
+      versions: [{ version: 1, status: 'running', phase: 'rendering', previewReady: true }],
     }
     render(<VideoConversation video={video} token="tok" busy={false} onSend={onSend} onRetry={vi.fn()} />)
 
@@ -85,6 +85,20 @@ describe('VideoConversation', () => {
 
     expect(onSend).toHaveBeenCalledTimes(1)
     expect(onSend).toHaveBeenCalledWith('Slower outro')
+  })
+
+  it('takes a change request as soon as the preview is ready, even before the phase moves on', () => {
+    const video = {
+      ...storyboardVideoFixture,
+      status: 'running',
+      stage: 'production',
+      versions: [{ version: 1, status: 'running', phase: 'composing', previewReady: true }],
+    }
+
+    render(<VideoConversation video={video} token="tok" busy={false} onSend={vi.fn()} onRetry={vi.fn()} />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled()
+    expect(screen.getByText('Sending a change stops the current render and starts a new version.')).toBeInTheDocument()
   })
 
   it('takes change requests without a hint once the version is ready', () => {

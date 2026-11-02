@@ -30,7 +30,8 @@ export default function ProductionPanel({ video, token, onLogout, busy, actions 
 
   if (versions.length === 0) return <p className="production-panel__note">Preparing the first version…</p>
 
-  const version = versions.find(candidate => candidate.version === selectedNumber) ?? versions[0]
+  const [latest] = versions
+  const version = versions.find(candidate => candidate.version === selectedNumber) ?? latest
   const View = viewFor(version)
 
   return (
@@ -43,6 +44,7 @@ export default function ProductionPanel({ video, token, onLogout, busy, actions 
         key={version.version}
         video={video}
         version={version}
+        isLatest={version === latest}
         token={token}
         onLogout={onLogout}
         busy={busy}
@@ -73,7 +75,13 @@ function VersionTabs({ versions, selected, onSelect }) {
   )
 }
 
-function QueuedView({ video, busy, actions }) {
+function QueuedView({ video, isLatest, busy, actions }) {
+  if (!isLatest) {
+    return (
+      <p className="production-panel__lead">This version is queued: it renders once the videos ahead of it are done.</p>
+    )
+  }
+
   return (
     <div className="production-panel__view">
       <p className="production-panel__lead">

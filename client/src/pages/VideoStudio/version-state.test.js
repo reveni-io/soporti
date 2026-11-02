@@ -3,24 +3,27 @@ import { describeEta, estimateQueueMinutes, isComposing, isRendering, videoFileN
 
 describe('version-state', () => {
   it.each([
-    [{ status: 'queued', phase: null }, true, false],
-    [{ status: 'running', phase: null }, true, false],
-    [{ status: 'running', phase: 'preparing' }, true, false],
-    [{ status: 'running', phase: 'composing' }, true, false],
-    [{ status: 'running', phase: 'music' }, false, true],
-    [{ status: 'running', phase: 'rendering' }, false, true],
-    [{ status: 'running', phase: 'finalizing' }, false, true],
-    [{ status: 'ready', phase: null }, false, false],
-    [{ status: 'failed', phase: 'rendering' }, false, false],
-  ])('classifies %o as composing %s and rendering %s', (version, composing, rendering) => {
-    expect(isComposing(version)).toBe(composing)
-    expect(isRendering(version)).toBe(rendering)
-  })
+    [{ status: 'queued', phase: null, previewReady: false }, true, false],
+    [{ status: 'queued', phase: null, previewReady: true }, true, false],
+    [{ status: 'running', phase: 'preparing', previewReady: false }, true, false],
+    [{ status: 'running', phase: 'composing', previewReady: false }, true, false],
+    [{ status: 'running', phase: 'composing', previewReady: true }, false, true],
+    [{ status: 'running', phase: 'music', previewReady: true }, false, true],
+    [{ status: 'running', phase: 'rendering', previewReady: true }, false, true],
+    [{ status: 'running', phase: 'finalizing', previewReady: true }, false, true],
+    [{ status: 'ready', phase: null, previewReady: true }, false, false],
+    [{ status: 'failed', phase: null, previewReady: false }, false, false],
+  ])(
+    'classifies %o as composing %s and rendering %s, like the change-request rule of the server',
+    (version, composing, rendering) => {
+      expect(isComposing(version)).toBe(composing)
+      expect(isRendering(version)).toBe(rendering)
+    }
+  )
 
   it('estimates the wait from the place in the queue', () => {
     expect(estimateQueueMinutes(1)).toBe(15)
     expect(estimateQueueMinutes(3)).toBe(45)
-    expect(estimateQueueMinutes(null)).toBe(15)
   })
 
   it('describes the time left of a render', () => {

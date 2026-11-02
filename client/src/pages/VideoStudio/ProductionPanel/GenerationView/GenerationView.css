@@ -9,6 +9,17 @@
   font-size: var(--fs-base);
 }
 
+.generation-view__follow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp3);
+}
+
+.generation-view__note {
+  flex: 1 1 16rem;
+}
+
 .generation-view__render {
   display: flex;
   flex-direction: column;

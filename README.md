@@ -103,7 +103,6 @@ HubSpot has no single switch: `/admin` → HubSpot gives each area — Contacts,
 - Git
 - A PostgreSQL database (provided automatically by Docker Compose — see below)
 - An OpenAI or Anthropic API key — configured from the `/admin` panel after the first boot, not an env var
-- Only to render videos outside Docker: ffmpeg and Chromium's headless shell (see [Rendering videos locally](#rendering-videos-locally)); the Docker images ship both
 
 Optional, also configured from `/admin` later: a GitHub Personal Access Token, a Google OAuth Client ID for Google sign-in, Slack/Notion/Google Drive/Helpjuice/Figma/HubSpot credentials.
 

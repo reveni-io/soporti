@@ -397,8 +397,9 @@ describe('VideoStudio in production', () => {
 
     expect(callsTo('POST', `${VERSION_URL}/1/render`)).toHaveLength(1)
     expect(
-      await screen.findByText('Another video is being generated. Yours starts in about 15 min.')
+      await screen.findByText('This version is queued: it renders once the videos ahead of it are done.')
     ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
   })
 
   it('copies a public link to the version', async () => {
@@ -476,6 +477,40 @@ describe('VideoStudio in production', () => {
       await screen.findByText('Another video is being generated. Yours starts in about 15 min.')
     ).toBeInTheDocument()
     expect(callsTo('POST', `${VERSION_URL}/1/retry`)).toHaveLength(1)
+  })
+
+  it('keeps polling an older version rendering again under a ready latest one until its MP4 is ready', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const latest = { ...readyVersionFixture, version: 2 }
+    const first = { ...readyVersionFixture, hasVideo: false }
+    const rendering = { ...first, kind: 'render', status: 'running', phase: 'rendering', progress: 40 }
+    const routes = {
+      [`GET ${VIDEO_URL}`]: respond({ video: productionVideo([latest, first]) }),
+      [`GET ${VERSION_URL}/2/video`]: respondBlob('v2'),
+      [`GET ${VERSION_URL}/1/preview`]: respond({ html: BUNDLE }),
+      [`GET ${VERSION_URL}/1/video`]: respondBlob('v1'),
+      [`POST ${VERSION_URL}/1/render`]: respond({ video: productionVideo([latest, rendering]) }, 202),
+    }
+    mockApi(routes)
+    render(
+      <MemoryRouter>
+        <VideoStudio id={VIDEO_ID} />
+      </MemoryRouter>
+    )
+
+    await user.click(await screen.findByRole('tab', { name: 'v1' }))
+    await user.click(await screen.findByRole('button', { name: 'Render this version' }))
+    expect(await screen.findByText('Rendering the MP4 · 40%')).toBeInTheDocument()
+
+    routes[`GET ${VIDEO_URL}`] = respond({
+      video: productionVideo([latest, { ...first, kind: 'render', hasVideo: true }]),
+    })
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(await screen.findByLabelText('Version 1')).toHaveAttribute('src', expect.stringMatching(/^blob:/))
+    expect(callsTo('GET', `${VERSION_URL}/1/video`)).toHaveLength(1)
+    vi.useRealTimers()
   })
 
   it('polls the video and shows the preview once it is ready', async () => {

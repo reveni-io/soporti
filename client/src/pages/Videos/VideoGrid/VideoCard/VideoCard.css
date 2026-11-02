@@ -14,7 +14,15 @@
   text-decoration: none;
 }
 
+.video-card__media {
+  position: relative;
+}
+
 .video-card__media .progress-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   border-radius: 0;
 }
 
