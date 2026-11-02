@@ -373,13 +373,19 @@ export async function markVersionCancelled(id) {
 }
 
 export async function requeueInterruptedVersions() {
-  const requeued = await getDb()
-    .update(videoVersions)
-    .set({ status: VIDEO_STATUS_QUEUED, ...CLEARED_PROGRESS, resume: true })
-    .where(eq(videoVersions.status, VIDEO_STATUS_RUNNING))
-    .returning({ id: videoVersions.id })
+  return getDb().transaction(async tx => {
+    await tx
+      .update(videoVersions)
+      .set({ status: VIDEO_STATUS_CANCELLED, ...CLEARED_PROGRESS, finishedAt: new Date() })
+      .where(and(eq(videoVersions.status, VIDEO_STATUS_RUNNING), eq(videoVersions.cancelRequested, true)))
+    const requeued = await tx
+      .update(videoVersions)
+      .set({ status: VIDEO_STATUS_QUEUED, ...CLEARED_PROGRESS, resume: true })
+      .where(eq(videoVersions.status, VIDEO_STATUS_RUNNING))
+      .returning({ id: videoVersions.id })
 
-  return requeued.length
+    return requeued.length
+  })
 }
 
 async function cancelVersionRow(tx, latest) {

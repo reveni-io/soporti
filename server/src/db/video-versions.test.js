@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { and, eq } from 'drizzle-orm'
 
 let queue = []
 let calls = []
@@ -46,6 +47,7 @@ const handle = {
 
 vi.mock('./index.js', () => ({ getDb: () => handle }))
 
+const { videoVersions } = await import('./schema.js')
 const db = await import('./video-versions.js')
 
 const VIDEO_ID = '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601'
@@ -361,11 +363,18 @@ describe('progress and outcomes', () => {
     expect(writes('update', 'video_versions')[0].steps.set).toMatchObject({ status: 'cancelled', phase: null })
   })
 
-  it('re-queues the versions a restart left running, to resume', async () => {
-    queue = [[{ id: 1 }, { id: 2 }]]
+  it('cancels the interrupted versions whose cancel was requested, then re-queues the rest to resume', async () => {
+    queue = [[], [{ id: 1 }, { id: 2 }]]
 
     expect(await db.requeueInterruptedVersions()).toBe(2)
-    expect(writes('update', 'video_versions')[0].steps.set).toMatchObject({ status: 'queued', resume: true })
+    const [cancelled, requeued] = writes('update', 'video_versions')
+    expect(cancelled.steps.set).toMatchObject({ status: 'cancelled', phase: null, progress: null, step: null })
+    expect(cancelled.steps.set.finishedAt).toBeInstanceOf(Date)
+    expect(cancelled.steps.where).toEqual(
+      and(eq(videoVersions.status, 'running'), eq(videoVersions.cancelRequested, true))
+    )
+    expect(requeued.steps.set).toMatchObject({ status: 'queued', resume: true })
+    expect(requeued.steps.where).toEqual(eq(videoVersions.status, 'running'))
   })
 })
 
