@@ -144,6 +144,17 @@ npm run dev
 
 This starts both the server (port 3001) and client (port 5173) concurrently. Open http://localhost:5173.
 
+### Rendering videos locally
+
+The Docker images already carry ffmpeg and Chromium's headless shell. To render videos with `npm run dev`, install both on your machine:
+
+```bash
+sudo apt-get install ffmpeg                       # macOS: brew install ffmpeg
+cd server && npx playwright-core install --with-deps --only-shell chromium
+```
+
+`--with-deps` installs Chromium's system libraries with apt and only applies to Linux; drop it on macOS. Set `FFMPEG_PATH` in `.env` if ffmpeg is not on your `PATH`. Rendering needs RAM: each render worker runs its own Chromium (see [Video rendering](docs/deployment.md#video-rendering)).
+
 ### First run
 
 1. Boot the app. With no admin user yet, the server prints a **one-time setup code** in its logs.
