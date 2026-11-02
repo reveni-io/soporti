@@ -71,6 +71,19 @@ describe('parseBrief', () => {
     expect((await parseBrief(validBrief({ path: undefined }), 7)).value.path).toBeNull()
   })
 
+  it('trims long runs of edge slashes', async () => {
+    const path = `${'/'.repeat(100)}apps/dashboard${'/'.repeat(100)}`
+
+    expect((await parseBrief(validBrief({ path }), 7)).value.path).toBe('apps/dashboard')
+    expect((await parseBrief(validBrief({ path: '/'.repeat(300) }), 7)).value.path).toBeNull()
+  })
+
+  it('rejects a folder longer than 300 characters before parsing it', async () => {
+    const result = await parseBrief(validBrief({ path: `${'/'.repeat(500_000)}a` }), 7)
+
+    expect(result).toEqual({ error: 'The folder must be a path inside the repo, like "apps/dashboard/src".' })
+  })
+
   it('rejects a folder that leaves the repo or is not a path', async () => {
     const error = 'The folder must be a path inside the repo, like "apps/dashboard/src".'
 

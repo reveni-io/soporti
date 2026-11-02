@@ -115,7 +115,7 @@ async function runStoryboardAgent(video, { userId, signal }) {
 
       return { finalOutput: result.finalOutput }
     } catch (err) {
-      console.error(`[videos] Failed to wrap up the storyboard of video ${video.id} at the turn limit:`, err)
+      console.error('[videos] Failed to wrap up a storyboard at the turn limit:', video.id, err)
       return undefined
     }
   }
@@ -177,7 +177,7 @@ async function recordOutcome(videoId, userId, { draft, error }) {
   if (!error) return
 
   if (!(error instanceof StoryboardError)) {
-    console.error(`[videos] Failed to draft the storyboard of video ${videoId}:`, error)
+    console.error('[videos] Failed to draft the storyboard of a video:', videoId, error)
   }
   await failStoryboard(videoId, userId, describeFailure(error))
 }
@@ -189,7 +189,7 @@ async function draftInBackground(videoId, userId, controller) {
   try {
     await recordOutcome(videoId, userId, outcome)
   } catch (err) {
-    console.error(`[videos] Failed to save the storyboard outcome of video ${videoId}:`, err)
+    console.error('[videos] Failed to save the storyboard outcome of a video:', videoId, err)
   }
 }
 

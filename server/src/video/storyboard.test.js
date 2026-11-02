@@ -306,7 +306,8 @@ describe('startStoryboardDraft', () => {
     startStoryboardDraft(VIDEO_ID, 7)
     await vi.waitFor(() => expect(consoleError).toHaveBeenCalledTimes(1))
 
-    expect(consoleError.mock.calls[0][0]).toContain(`Failed to save the storyboard outcome of video ${VIDEO_ID}`)
+    expect(consoleError.mock.calls[0][0]).toBe('[videos] Failed to save the storyboard outcome of a video:')
+    expect(consoleError.mock.calls[0][1]).toBe(VIDEO_ID)
     consoleError.mockRestore()
   })
 })

@@ -10,9 +10,10 @@ const MAX_ATTACHMENTS = 5
 const MAX_DOCUMENT_CHARS = 20_000
 const MAX_TITLE_LENGTH = 80
 const ELLIPSIS = '…'
+const SLASH = '/'
+const INVALID_PATH_ERROR = 'The folder must be a path inside the repo, like "apps/dashboard/src".'
 const PATH_RE = /^[\w.-]+(\/[\w.-]+)*$/
 const DOT_SEGMENT_RE = /(^|\/)\.{1,2}(\/|$)/
-const EDGE_SLASHES_RE = /^\/+|\/+$/g
 const WHITESPACE_RE = /\s+/g
 
 const CHOICE_FIELDS = {
@@ -47,15 +48,24 @@ async function parseRepos(value) {
   return { value: repos }
 }
 
+function trimEdgeSlashes(path) {
+  let start = 0
+  let end = path.length
+
+  while (start < end && path[start] === SLASH) start++
+  while (end > start && path[end - 1] === SLASH) end--
+
+  return path.slice(start, end)
+}
+
 function parsePath(value) {
   if (value === undefined || value === null) return { value: null }
   if (typeof value !== 'string') return { error: 'The folder must be a path inside the repo.' }
+  if (value.length > MAX_PATH_LENGTH) return { error: INVALID_PATH_ERROR }
 
-  const path = value.trim().replace(EDGE_SLASHES_RE, '')
+  const path = trimEdgeSlashes(value.trim())
   if (!path) return { value: null }
-  if (path.length > MAX_PATH_LENGTH || !PATH_RE.test(path) || DOT_SEGMENT_RE.test(path)) {
-    return { error: 'The folder must be a path inside the repo, like "apps/dashboard/src".' }
-  }
+  if (!PATH_RE.test(path) || DOT_SEGMENT_RE.test(path)) return { error: INVALID_PATH_ERROR }
 
   return { value: path }
 }
