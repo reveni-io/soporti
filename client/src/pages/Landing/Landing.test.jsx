@@ -66,6 +66,14 @@ describe('Landing', () => {
     expect(container.querySelector('#sendcloud').nextElementSibling).toBe(hubspot)
   })
 
+  it('presents the product videos in their own section, right after artifacts', () => {
+    const { container } = render(<Landing />)
+    const videos = container.querySelector('#videos')
+
+    expect(videos).toHaveTextContent('From a brief to a product video, with its own soundtrack.')
+    expect(container.querySelector('#artifacts').nextElementSibling).toBe(videos)
+  })
+
   it('lists the supported LLM providers', () => {
     const { container } = render(<Landing />)
     const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)

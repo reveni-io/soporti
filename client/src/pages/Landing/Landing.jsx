@@ -24,6 +24,7 @@ import SkillsSection from './SkillsSection/SkillsSection.jsx'
 import SlackSection from './SlackSection/SlackSection.jsx'
 import SubagentsSection from './SubagentsSection/SubagentsSection.jsx'
 import StatsSection from './StatsSection/StatsSection.jsx'
+import VideosSection from './VideosSection/VideosSection.jsx'
 import './Landing.css'
 
 const LOGGED_IN_CTA = { href: ROUTES.CHAT, label: 'Open Soporti' }
@@ -43,6 +44,7 @@ export default function Landing({ hideCta = false }) {
       <SearchSection />
       <RendersSection />
       <ArtifactsSection />
+      <VideosSection />
       <IntegrationsSection />
       <SendcloudSection />
       <HubspotSection />
