@@ -362,10 +362,12 @@ export const videos = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [
-    index('videos_user_created_idx').on(table.userId, table.createdAt),
-    index('videos_stage_idx').on(table.stage),
-  ]
+  table => {
+    return [
+      index('videos_user_created_idx').on(table.userId, table.createdAt),
+      index('videos_stage_idx').on(table.stage),
+    ]
+  }
 )
 
 export const videoMessages = pgTable(

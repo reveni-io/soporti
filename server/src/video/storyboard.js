@@ -127,15 +127,16 @@ async function runStoryboardAgent(video, { userId, signal }) {
       userId,
       failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR),
     },
-    () =>
-      traceAgentRun({ sessionId: video.id, userId, question: video.brief.idea }, () =>
-        run(agent, input, {
+    () => {
+      return traceAgentRun({ sessionId: video.id, userId, question: video.brief.idea }, () => {
+        return run(agent, input, {
           maxTurns: STORYBOARD_MAX_TURNS,
           signal,
           toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
           errorHandlers: { maxTurns: wrapUp },
         })
-      )
+      })
+    }
   )
 
   return result.finalOutput

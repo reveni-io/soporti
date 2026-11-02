@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import express from 'express'
 import request from 'supertest'
 
-vi.mock('../db/videos.js', () => ({
-  listVideoSummaries: vi.fn(),
-  createVideo: vi.fn(),
-  getVideo: vi.fn(),
-  claimStoryboardDraft: vi.fn(),
-  deleteVideo: vi.fn(),
-}))
+vi.mock('../db/videos.js', () => {
+  return {
+    listVideoSummaries: vi.fn(),
+    createVideo: vi.fn(),
+    getVideo: vi.fn(),
+    claimStoryboardDraft: vi.fn(),
+    deleteVideo: vi.fn(),
+  }
+})
 vi.mock('../video/brief.js', () => ({ parseBrief: vi.fn(), briefTitle: vi.fn() }))
 vi.mock('../video/storyboard.js', () => ({ startStoryboardDraft: vi.fn(), cancelStoryboardDraft: vi.fn() }))
 

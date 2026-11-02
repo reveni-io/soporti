@@ -44,9 +44,9 @@ vi.mock('./db/users.js', () => ({
   countAdmins: vi.fn().mockResolvedValue(1),
 }))
 
-vi.mock('./video/storyboard.js', () => ({
-  recoverInterruptedDrafts: vi.fn().mockResolvedValue(0),
-}))
+vi.mock('./video/storyboard.js', () => {
+  return { recoverInterruptedDrafts: vi.fn().mockResolvedValue(0) }
+})
 
 vi.mock('./github/settings.js', () => ({
   getGithubToken: vi.fn().mockResolvedValue('test-token'),

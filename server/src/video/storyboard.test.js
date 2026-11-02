@@ -2,27 +2,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 class FakeMaxTurnsExceededError extends Error {}
 
-vi.mock('@openai/agents', () => ({
-  Agent: vi.fn(function (config) {
-    this.config = config
-    this.clone = vi.fn(overrides => ({ ...config, ...overrides }))
-  }),
-  MaxTurnsExceededError: FakeMaxTurnsExceededError,
-  run: vi.fn(),
-}))
+vi.mock('@openai/agents', () => {
+  return {
+    Agent: vi.fn(function (config) {
+      this.config = config
+      this.clone = vi.fn(overrides => ({ ...config, ...overrides }))
+    }),
+    MaxTurnsExceededError: FakeMaxTurnsExceededError,
+    run: vi.fn(),
+  }
+})
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: vi.fn() }))
 vi.mock('../agent/tools.js', () => ({ buildRepoTools: vi.fn() }))
-vi.mock('../agent/run-tracking.js', () => ({
-  trackAgentRun: vi.fn(async (_options, runAgent) => ({ result: await runAgent() })),
-  traceAgentRun: vi.fn((_options, runAgent) => runAgent()),
-}))
+vi.mock('../agent/run-tracking.js', () => {
+  return {
+    trackAgentRun: vi.fn(async (_options, runAgent) => ({ result: await runAgent() })),
+    traceAgentRun: vi.fn((_options, runAgent) => runAgent()),
+  }
+})
 vi.mock('../db/attachment-images.js', () => ({ getAttachmentImages: vi.fn() }))
-vi.mock('../db/videos.js', () => ({
-  getVideo: vi.fn(),
-  saveStoryboard: vi.fn(),
-  failStoryboard: vi.fn(),
-  failInterruptedStoryboards: vi.fn(),
-}))
+vi.mock('../db/videos.js', () => {
+  return { getVideo: vi.fn(), saveStoryboard: vi.fn(), failStoryboard: vi.fn(), failInterruptedStoryboards: vi.fn() }
+})
 vi.mock('./settings.js', () => ({ getVideoModelSelection: vi.fn(), isVideoConfigured: vi.fn() }))
 
 const { Agent, run } = await import('@openai/agents')
