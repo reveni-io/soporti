@@ -8,11 +8,14 @@ import {
   createShare,
   createSkill,
   createSubagent,
+  createVideo,
   deleteConversation,
   deleteSchedule,
   deleteSkill,
   deleteSubagent,
+  deleteVideo,
   decideOAuthAuthorization,
+  generateVideo,
   getAdminStatus,
   getAuthConfig,
   getAuthMethods,
@@ -24,7 +27,10 @@ import {
   getSkill,
   getSkills,
   getSubagents,
+  getVideo,
   isUnauthorized,
+  listVideos,
+  redraftStoryboard,
   renderMermaid,
   saveDatabaseMaxRows,
   saveGithubToken,
@@ -34,6 +40,7 @@ import {
   saveUserInstructions,
   searchConversations,
   sendFeedback,
+  sendVideoMessage,
   signInWithGoogle,
   signInWithPassword,
   streamChat,
@@ -504,5 +511,69 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/admin/subagents/4')
     expect(options.method).toBe('DELETE')
+  })
+})
+
+describe('videos', () => {
+  const VIDEO_ID = '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601'
+
+  it('lists the videos', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ videos: [] }))
+
+    await expect(listVideos('tok')).resolves.toEqual({ videos: [] })
+    expect(lastCall()[0]).toBe('/api/videos')
+  })
+
+  it('creates a video with the brief wrapped in the body', async () => {
+    const brief = { idea: 'Explain refunds', repos: ['reveni/app'], format: '16:9' }
+
+    await createVideo('tok', brief)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/videos')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ brief })
+  })
+
+  it('reads a video by id', async () => {
+    await getVideo('tok', VIDEO_ID)
+
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}`)
+  })
+
+  it('sends a message to the video conversation', async () => {
+    await sendVideoMessage('tok', VIDEO_ID, 'Shorter intro')
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/videos/${VIDEO_ID}/messages`)
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ text: 'Shorter intro' })
+  })
+
+  it('asks for the storyboard to be drafted again', async () => {
+    await redraftStoryboard('tok', VIDEO_ID)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/videos/${VIDEO_ID}/storyboard`)
+    expect(options.method).toBe('POST')
+    expect(options.body).toBeUndefined()
+  })
+
+  it('surfaces the reason generation was refused', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(409, { error: 'Generation is not available yet.' }))
+
+    await expect(generateVideo('tok', VIDEO_ID)).rejects.toMatchObject({
+      message: 'Generation is not available yet.',
+      status: 409,
+    })
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}/generate`)
+  })
+
+  it('deletes a video', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+
+    await expect(deleteVideo('tok', VIDEO_ID)).resolves.toEqual({})
+    expect(lastCall()[0]).toBe(`/api/videos/${VIDEO_ID}`)
+    expect(lastCall()[1].method).toBe('DELETE')
   })
 })

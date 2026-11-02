@@ -30,6 +30,15 @@ vi.mock('../pages/ArtifactView/ArtifactView.jsx', () => ({
 vi.mock('../pages/SharedArtifact/SharedArtifact.jsx', () => ({
   default: ({ shareId }) => <div data-testid="shared-artifact">{shareId}</div>,
 }))
+vi.mock('../pages/Videos/Videos.jsx', () => ({
+  default: () => <div data-testid="videos-page" />,
+}))
+vi.mock('../pages/VideoStudio/VideoStudio.jsx', () => ({
+  default: ({ id }) => <div data-testid="video-studio">{id}</div>,
+}))
+vi.mock('../common/AuthGate/AuthGate.jsx', () => ({
+  default: ({ children }) => <div data-testid="auth-gate">{children}</div>,
+}))
 
 function renderAt(path) {
   return render(
@@ -112,6 +121,23 @@ describe('Router', () => {
     renderAt('/a/short')
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     expect(screen.queryByTestId('shared-artifact')).toBeNull()
+  })
+
+  it('renders the videos page behind the sign-in gate at /videos', () => {
+    renderAt('/videos')
+    expect(screen.getByTestId('auth-gate')).toContainElement(screen.getByTestId('videos-page'))
+  })
+
+  it('renders the video studio behind the sign-in gate for a uuid', () => {
+    renderAt('/videos/3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601')
+    expect(screen.getByTestId('auth-gate')).toContainElement(screen.getByTestId('video-studio'))
+    expect(screen.getByTestId('video-studio')).toHaveTextContent('3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601')
+  })
+
+  it('falls back to the landing page for a video id that is not a uuid', () => {
+    renderAt('/videos/42')
+    expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('video-studio')).toBeNull()
   })
 
   it('renders the landing page at the root', () => {
