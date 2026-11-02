@@ -35,10 +35,9 @@ function rms(samples, from, to) {
 
 function dataUrls(assets) {
   return Object.fromEntries(
-    Object.entries(assets).map(([name, asset]) => [
-      name,
-      `data:${asset.mimeType};base64,${asset.data.toString('base64')}`,
-    ])
+    Object.entries(assets).map(([name, asset]) => {
+      return [name, `data:${asset.mimeType};base64,${asset.data.toString('base64')}`]
+    })
   )
 }
 
