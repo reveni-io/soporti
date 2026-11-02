@@ -1,0 +1,5 @@
+.video-meta {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}

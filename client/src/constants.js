@@ -94,3 +94,7 @@ export const SHARE_ID_RE = /^[a-f0-9]{32}$/
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export const HUBSPOT_LEVEL_LABELS = { off: 'Off', read: 'Read', write: 'Write', full: 'Full', reply: 'Reply' }
+
+export const VIDEO_STAGES = { DRAFTING: 'drafting', STORYBOARD: 'storyboard', PRODUCTION: 'production' }
+export const ACTIVE_VIDEO_STATUSES = ['drafting', 'queued', 'running']
+export const VIDEO_MAX_ATTACHMENTS = 5
