@@ -126,7 +126,7 @@ function toCompositionError(error, ctx) {
 export async function composeVideo(job, { signal, reporter }) {
   if (!(await isVideoConfigured())) throw new VideoProjectError(NOT_CONFIGURED_ERROR)
 
-  const ctx = { job, reporter, signal, state: { lastCheck: null } }
+  const ctx = { job, reporter, signal, state: { lastCheck: null, revision: 0 } }
   const { agent, finalAnswerModelSettings } = await buildComposer(ctx)
   const input = await buildInput(job)
 

@@ -53,7 +53,7 @@ function context() {
       },
     },
     reporter: { event: vi.fn() },
-    state: { lastCheck: { ok: true } },
+    state: { lastCheck: { ok: true }, revision: 0 },
   }
 }
 
@@ -375,6 +375,32 @@ describe('check_video', () => {
     expect(inspectProject).not.toHaveBeenCalled()
     expect(result.ok).toBe(false)
     expect(result.errors[0]).toContain('project.json is missing')
+    expect(ctx.state.lastCheck).toBe(result)
+  })
+
+  it('discards its report when a write lands while the page is being inspected', async () => {
+    ctx.state.lastCheck = null
+    let finishInspection
+    inspectProject.mockImplementation(() => new Promise(resolve => (finishInspection = resolve)))
+
+    const checking = invoke('check_video', {})
+    await vi.waitFor(() => expect(inspectProject).toHaveBeenCalledTimes(1))
+    await invokeJson('write_project_file', { path: 'scenes.js', content: 'R.video({ duration: 7 })' })
+    finishInspection(report())
+    const result = JSON.parse(await checking)
+
+    expect(result.ok).toBe(true)
+    expect(ctx.state.revision).toBe(1)
+    expect(ctx.state.lastCheck).toBeNull()
+  })
+
+  it('keeps the report of a check that nothing overlapped', async () => {
+    ctx.state.lastCheck = null
+    await invokeJson('write_project_file', { path: 'scenes.js', content: 'x' })
+
+    const result = await runVideoCheck(ctx)
+
+    expect(ctx.state.revision).toBe(1)
     expect(ctx.state.lastCheck).toBe(result)
   })
 

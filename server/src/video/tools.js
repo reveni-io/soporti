@@ -65,6 +65,11 @@ async function guarded(run) {
   }
 }
 
+function invalidateCheck(ctx) {
+  ctx.state.revision += 1
+  ctx.state.lastCheck = null
+}
+
 async function findFileWriteProblem(versionId, path, content) {
   const problem = describePathProblem(path)
   if (problem) return problem
@@ -90,7 +95,7 @@ async function writeFile(ctx, path, content) {
   if (problem) return errorResult(problem)
 
   await saveProjectFile(ctx.job.id, path, content)
-  ctx.state.lastCheck = null
+  invalidateCheck(ctx)
 
   return json({ path, bytes: Buffer.byteLength(content) })
 }
@@ -175,7 +180,7 @@ function buildFileTools(ctx) {
       execute: async ({ path }) => {
         if (!(await deleteProjectFile(versionId, path))) return errorResult(`"${path}" does not exist.`)
 
-        ctx.state.lastCheck = null
+        invalidateCheck(ctx)
         return json({ deleted: path })
       },
     }),
@@ -195,7 +200,7 @@ async function storeAsset(ctx, { name, data }) {
 
   const mimeType = ASSET_MIME_TYPES[extname(name)]
   await saveVideoAsset(ctx.job.videoId, { name, mimeType, data })
-  ctx.state.lastCheck = null
+  invalidateCheck(ctx)
 
   return json({ name, mimeType, bytes: data.length, css: `url("assets/${name}")`, js: `R.asset('${name}')` })
 }
@@ -277,16 +282,20 @@ function failedCheck(error) {
   return { ok: false, errors: [error.message], warnings: [], meta: null, cues: [], captions: [], seekMs: null }
 }
 
-export async function runVideoCheck(ctx) {
-  let report
+async function inspectVersion(ctx) {
   try {
-    report = await inspectProject({ html: await bundleVersion(ctx), pace: ctx.job.video.brief.pace })
+    return await inspectProject({ html: await bundleVersion(ctx), pace: ctx.job.video.brief.pace })
   } catch (error) {
     if (!(error instanceof VideoProjectError)) throw error
-    report = failedCheck(error)
+    return failedCheck(error)
   }
+}
 
-  ctx.state.lastCheck = report
+export async function runVideoCheck(ctx) {
+  const { revision } = ctx.state
+  const report = await inspectVersion(ctx)
+  if (ctx.state.revision === revision) ctx.state.lastCheck = report
+
   return report
 }
 
