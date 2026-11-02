@@ -1,15 +1,34 @@
 import { chromium } from 'playwright-core'
 import { readBundleProject } from './bundle.js'
 
-const LAUNCH_ARGS = ['--font-render-hinting=none', '--disable-lcd-text']
+const LAUNCH_ARGS = [
+  '--font-render-hinting=none',
+  '--disable-lcd-text',
+  '--host-resolver-rules=MAP * ~NOTFOUND',
+  '--proxy-server=127.0.0.1:9',
+  '--proxy-bypass-list=<-loopback>',
+  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+]
+const ENV_KEYS = new Set(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LANGUAGE', 'TZ', 'PLAYWRIGHT_BROWSERS_PATH'])
+const ENV_PREFIXES = ['LC_', 'FONTCONFIG_', 'XDG_']
 const BOOT_TIMEOUT_MS = 60_000
 const MAX_PROBLEMS = 20
 const MAX_URL_LENGTH = 160
 const RESOURCE_FAILURE_PREFIX = 'Failed to load resource'
 const STACK_FRAME_RE = /^\s*at .+$/m
 
+export function isolatedEnv(env = process.env) {
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => ENV_KEYS.has(key) || ENV_PREFIXES.some(prefix => key.startsWith(prefix)))
+  )
+}
+
 export function launchBrowser() {
-  return chromium.launch({ args: LAUNCH_ARGS })
+  return chromium.launch({ args: LAUNCH_ARGS, env: isolatedEnv() })
+}
+
+function removePeerConnections() {
+  for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel']) delete globalThis[name]
 }
 
 export function withTimeout(promise, { timeoutMs, message }) {
@@ -77,6 +96,7 @@ export async function openProjectPage(browser, html) {
     serviceWorkers: 'block',
   })
 
+  await context.addInitScript(removePeerConnections)
   await context.route('**/*', route => blockRequest(route, problems))
   await context.routeWebSocket(/.*/, socket => blockWebSocket(socket, problems))
 

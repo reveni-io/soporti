@@ -3,7 +3,7 @@ import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import config from '../config.js'
-import { launchBrowser, openProjectPage, withTimeout } from './browser.js'
+import { isolatedEnv, launchBrowser, openProjectPage, withTimeout } from './browser.js'
 import { runFfmpeg } from './ffmpeg.js'
 import { VideoProjectError } from './project-error.js'
 import { writeSoundtrack } from './soundtrack.js'
@@ -278,7 +278,7 @@ const WORKER_MESSAGES = {
 }
 
 function spawnWorker(pool, jobPath) {
-  const child = fork(WORKER_PATH, [jobPath], { execArgv: [] })
+  const child = fork(WORKER_PATH, [jobPath], { execArgv: [], env: isolatedEnv() })
   child.on('message', message => WORKER_MESSAGES[message.type]?.(pool, child, message))
   child.on('exit', code => {
     if (code !== 0) pool.settle.reject(new Error(`A render worker stopped unexpectedly (exit code ${code}).`))

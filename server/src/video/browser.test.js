@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('playwright-core', () => ({ chromium: { launch: vi.fn() } }))
 
 const { chromium } = await import('playwright-core')
-const { launchBrowser, openProjectPage, withTimeout, describePageError } = await import('./browser.js')
+const { launchBrowser, openProjectPage, withTimeout, describePageError, isolatedEnv } = await import('./browser.js')
 
 const HTML =
   '<script>window.__MODE__ = "render"\nwindow.__PROJECT__ = {"title":"T","width":1080,"height":1920,"fps":30}\n</script>'
@@ -25,6 +25,7 @@ function createBrowser(page) {
   const context = {
     route: vi.fn().mockResolvedValue(),
     routeWebSocket: vi.fn().mockResolvedValue(),
+    addInitScript: vi.fn().mockResolvedValue(),
     newPage: vi.fn().mockResolvedValue(page),
   }
   return { context, browser: { newContext: vi.fn().mockResolvedValue(context) } }
@@ -35,14 +36,64 @@ function consoleMessage(type, text) {
 }
 
 describe('launchBrowser', () => {
-  it('launches the headless shell without font hinting or LCD text', async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('launches the headless shell cut off from the network and from the server secrets', async () => {
+    vi.stubEnv('JWT_SECRET', 'secret')
+    vi.stubEnv('DATABASE_URL', 'postgresql://app')
+    vi.stubEnv('PLAYWRIGHT_BROWSERS_PATH', '/ms-playwright')
     chromium.launch.mockResolvedValue('browser')
 
     const browser = await launchBrowser()
+    const options = chromium.launch.mock.calls[0][0]
 
     expect(browser).toBe('browser')
     expect(chromium.launch).toHaveBeenCalledTimes(1)
-    expect(chromium.launch).toHaveBeenCalledWith({ args: ['--font-render-hinting=none', '--disable-lcd-text'] })
+    expect(options.args).toEqual([
+      '--font-render-hinting=none',
+      '--disable-lcd-text',
+      '--host-resolver-rules=MAP * ~NOTFOUND',
+      '--proxy-server=127.0.0.1:9',
+      '--proxy-bypass-list=<-loopback>',
+      '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+    ])
+    expect(options.env.PLAYWRIGHT_BROWSERS_PATH).toBe('/ms-playwright')
+    expect(options.env).not.toHaveProperty('JWT_SECRET')
+    expect(options.env).not.toHaveProperty('DATABASE_URL')
+  })
+})
+
+describe('isolatedEnv', () => {
+  it('keeps only what Chromium and the workers need', () => {
+    const env = isolatedEnv({
+      PATH: '/usr/bin',
+      HOME: '/home/node',
+      TMPDIR: '/tmp',
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8',
+      TZ: 'UTC',
+      FONTCONFIG_PATH: '/etc/fonts',
+      XDG_CACHE_HOME: '/cache',
+      PLAYWRIGHT_BROWSERS_PATH: '/ms-playwright',
+      DATABASE_URL: 'postgresql://app',
+      JWT_SECRET: 'secret',
+      NODE_OPTIONS: '--inspect',
+      FFMPEG_PATH: '/usr/bin/ffmpeg',
+    })
+
+    expect(env).toEqual({
+      PATH: '/usr/bin',
+      HOME: '/home/node',
+      TMPDIR: '/tmp',
+      LANG: 'C.UTF-8',
+      LC_ALL: 'C.UTF-8',
+      TZ: 'UTC',
+      FONTCONFIG_PATH: '/etc/fonts',
+      XDG_CACHE_HOME: '/cache',
+      PLAYWRIGHT_BROWSERS_PATH: '/ms-playwright',
+    })
   })
 })
 
@@ -66,6 +117,23 @@ describe('openProjectPage', () => {
     expect(session.bootError).toBeNull()
     expect(session.project).toEqual({ title: 'T', width: 1080, height: 1920, fps: 30 })
     expect(session.page).toBe(page)
+  })
+
+  it('removes WebRTC from every frame before the bundle runs', async () => {
+    const page = createPage()
+    const { browser, context } = createBrowser(page)
+    globalThis.RTCPeerConnection = class {}
+    globalThis.webkitRTCPeerConnection = class {}
+    globalThis.RTCDataChannel = class {}
+
+    await openProjectPage(browser, HTML)
+    context.addInitScript.mock.calls[0][0]()
+
+    expect(context.addInitScript).toHaveBeenCalledTimes(1)
+    expect(context.addInitScript.mock.invocationCallOrder[0]).toBeLessThan(page.setContent.mock.invocationCallOrder[0])
+    expect(globalThis.RTCPeerConnection).toBeUndefined()
+    expect(globalThis.webkitRTCPeerConnection).toBeUndefined()
+    expect(globalThis.RTCDataChannel).toBeUndefined()
   })
 
   it('blocks every request and websocket and says how to fix it', async () => {

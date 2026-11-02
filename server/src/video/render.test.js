@@ -148,7 +148,9 @@ describe('renderVideo', () => {
     expect(await readdir(workDir)).toEqual(['video.mp4'])
     expect(fork).toHaveBeenCalledTimes(2)
     expect(fork.mock.calls[0][0].endsWith('/video/render-worker.js')).toBe(true)
-    expect(fork.mock.calls[0][2]).toEqual({ execArgv: [] })
+    expect(fork.mock.calls[0][2].execArgv).toEqual([])
+    expect(fork.mock.calls[0][2].env).not.toHaveProperty('JWT_SECRET')
+    expect(fork.mock.calls[0][2].env).not.toHaveProperty('DATABASE_URL')
     expect(jobs[0]).toMatchObject({
       ffmpegPath: '/usr/bin/ffmpeg',
       width: 1920,

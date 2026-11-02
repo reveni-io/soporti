@@ -256,6 +256,24 @@ Most of the growth is ffmpeg with the libraries Debian builds it against, and
 the headless shell with its system libraries and fallback fonts (Latin, CJK,
 emoji).
 
+**Isolation.** The page a video is drawn from runs code the video agent wrote,
+so the render browser is cut off from the network and from the server's
+secrets:
+
+- Playwright aborts every HTTP request and WebSocket the page opens, and blocks
+  service workers.
+- Chromium itself resolves no hostname, sends anything that slips past that to
+  a dead proxy, and allows WebRTC only through that proxy; the page also has no
+  `RTCPeerConnection`. Assets reach the page as `data:` URLs, which need no
+  network.
+- Chromium and the render workers start with only `PATH`, `HOME`, `TMPDIR`,
+  `PLAYWRIGHT_BROWSERS_PATH` and the locale, time zone, fontconfig and XDG
+  variables, never `DATABASE_URL` or `JWT_SECRET`.
+- The image runs as the unprivileged `node` user. Chromium's own sandbox stays
+  off (`--no-sandbox`) because it needs user namespaces that Docker's default
+  seccomp profile does not allow, so a browser escape would still run as the
+  same user as the API inside its container.
+
 **Memory.** A render forks `VIDEO_RENDER_WORKERS` child processes. Each one runs
 its own Chromium (~300–500 MB) and an ffmpeg encoder, and the server opens one
 more Chromium to synthesize the soundtrack and plan the frames. Give the server
