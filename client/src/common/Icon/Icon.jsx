@@ -122,6 +122,12 @@ const ICON_SHAPES = {
       <path d="M12 8v4M5 16v-2h14v2" />
     </>
   ),
+  video: (
+    <>
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+      <polygon points="22 8 16 12 22 16 22 8" />
+    </>
+  ),
 }
 
 const ICON_VIEW_BOXES = {
