@@ -86,6 +86,16 @@ describe('VIDEO_INSTRUCTIONS', () => {
     }
   })
 
+  it('asks for batched reads and a plan written to data.js before the rest of the project', () => {
+    expect(VIDEO_INSTRUCTIONS).toContain('open all of them in the same turn')
+    expect(VIDEO_INSTRUCTIONS).toContain('Plan in files, not in your head')
+    expect(VIDEO_INSTRUCTIONS).toContain('write `data.js` as soon as you know the screens')
+    expect(VIDEO_INSTRUCTIONS.indexOf('write `data.js`')).toBeLessThan(
+      VIDEO_INSTRUCTIONS.indexOf('write `project.json`')
+    )
+    expect(VIDEO_INSTRUCTIONS).not.toContain('`project.json` first')
+  })
+
   it('holds the quality bars of the reference videos', () => {
     for (const bar of [
       'Recreate the actual UI',
