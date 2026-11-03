@@ -647,6 +647,43 @@ describe('exportSpans trace input, output and grouping', () => {
   })
 })
 
+describe('exportSpans model parameters', () => {
+  const META = { sessionId: 'conv-1', effort: 'medium' }
+  const GENERATION = { type: 'generation', model: 'anthropic.messages:claude-opus-5-5', input: [], output: [] }
+
+  it.each([
+    { kind: 'an ai-sdk generation', data: GENERATION },
+    {
+      kind: 'an OpenAI response',
+      data: { type: 'response', _input: 'q', _response: { model: 'gpt-5.5', output: [] } },
+    },
+  ])('records the reasoning effort of the run as the model parameters of $kind', async ({ data }) => {
+    await exportSpans([buildSpan(data, { traceMetadata: META })])
+
+    expect(attributesOf(sentSpans()[0])['langfuse.observation.model.parameters']).toBe('{"effort":"medium"}')
+  })
+
+  it('keeps the effort in metadata-only mode, where the ids are dropped', async () => {
+    storeConfig({ [LANGFUSE_METADATA_ONLY_KEY]: true })
+
+    await exportSpans([buildSpan(GENERATION, { traceMetadata: META })])
+
+    const attributes = attributesOf(sentSpans()[0])
+    expect(attributes['langfuse.observation.model.parameters']).toBe('{"effort":"medium"}')
+    expect(attributes).not.toHaveProperty('session.id')
+  })
+
+  it.each([
+    { kind: 'the agent span of a run with an effort', data: { type: 'agent', name: 'Video composer' }, meta: META },
+    { kind: 'a tool span of a run with an effort', data: { type: 'function', name: 'read_file' }, meta: META },
+    { kind: 'a generation of a run without one', data: GENERATION, meta: { sessionId: 'conv-1' } },
+  ])('sends no model parameters on $kind', async ({ data, meta }) => {
+    await exportSpans([buildSpan(data, { traceMetadata: meta })])
+
+    expect(attributesOf(sentSpans()[0])).not.toHaveProperty('langfuse.observation.model.parameters')
+  })
+})
+
 describe('exportSpans delivery', () => {
   it.each([
     { kind: 'no public key', overrides: { [LANGFUSE_PUBLIC_KEY_KEY]: null } },
