@@ -191,6 +191,13 @@ function usageAttributes(usage) {
   return [...totals, ...usageDetailAttributes(usage)]
 }
 
+function modelParameterAttributes(fields, span) {
+  const effort = span.traceMetadata?.effort
+  if (fields.type !== 'generation' || !effort) return []
+
+  return [stringAttribute('langfuse.observation.model.parameters', JSON.stringify({ effort }))]
+}
+
 function errorMessage(error, metadataOnly) {
   if (!error) return null
   if (metadataOnly) return GENERIC_SPAN_ERROR
@@ -276,6 +283,7 @@ function toOtlpSpan(span, metadataOnly) {
   const attributes = [
     stringAttribute('langfuse.observation.type', fields.type),
     ...(fields.model ? [stringAttribute('langfuse.observation.model.name', fields.model)] : []),
+    ...modelParameterAttributes(fields, span),
     ...usageAttributes(fields.usage),
     ...contentAttributes(fields, metadataOnly),
     ...rootContentAttributes(span, metadataOnly),

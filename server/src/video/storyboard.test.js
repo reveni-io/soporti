@@ -30,7 +30,7 @@ const { Agent } = await import('@openai/agents')
 const { runStreamed } = await import('../agent/run-streamed.js')
 const { resolveModelForAgent } = await import('../llm/model.js')
 const { buildRepoTools } = await import('../agent/tools.js')
-const { trackAgentRun } = await import('../agent/run-tracking.js')
+const { trackAgentRun, traceAgentRun } = await import('../agent/run-tracking.js')
 const { getAttachmentImages } = await import('../db/attachment-images.js')
 const { getVideo, saveStoryboard, failStoryboard, failInterruptedStoryboards } = await import('../db/videos.js')
 const { getVideoModelSelection, isVideoConfigured } = await import('./settings.js')
@@ -119,6 +119,13 @@ describe('startStoryboardDraft', () => {
       modelSettings: MODEL_SETTINGS,
     })
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'video_storyboard', subject: VIDEO_ID, userId: 7 })
+    expect(traceAgentRun).toHaveBeenCalledTimes(1)
+    expect(traceAgentRun.mock.calls[0][0]).toEqual({
+      sessionId: VIDEO_ID,
+      userId: 7,
+      question: 'Refunds in one click',
+      effort: 'max',
+    })
     expect(runStreamed).toHaveBeenCalledTimes(1)
     expect(runStreamed.mock.calls[0][1]).toContain('Draft the storyboard for this brief.')
     expect(runStreamed.mock.calls[0][2]).toMatchObject({ maxTurns: 80 })

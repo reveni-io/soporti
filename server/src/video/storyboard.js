@@ -75,7 +75,8 @@ function normalizeStoryboard(storyboard, durationSeconds) {
 }
 
 async function buildStoryboardAgent(brief) {
-  const { model, modelSettings, finalAnswerModelSettings } = await resolveModelForAgent(await getVideoModelSelection())
+  const selection = await getVideoModelSelection()
+  const { model, modelSettings, finalAnswerModelSettings } = await resolveModelForAgent(selection)
   const agent = new Agent({
     name: AGENT_NAME,
     model,
@@ -85,13 +86,13 @@ async function buildStoryboardAgent(brief) {
     modelSettings,
   })
 
-  return { agent, finalAnswerModelSettings }
+  return { agent, finalAnswerModelSettings, effort: selection.effort }
 }
 
 async function runStoryboardAgent(video, { userId, signal }) {
   if (!(await isVideoConfigured())) throw new StoryboardError(NOT_CONFIGURED_ERROR)
 
-  const { agent, finalAnswerModelSettings } = await buildStoryboardAgent(video.brief)
+  const { agent, finalAnswerModelSettings, effort } = await buildStoryboardAgent(video.brief)
   const images = await loadBriefImages(video.brief, userId)
   const prompt = buildStoryboardPrompt(video, new Set(images.map(image => image.id)))
   const input = buildAgentInput(
@@ -122,7 +123,7 @@ async function runStoryboardAgent(video, { userId, signal }) {
       failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR),
     },
     () => {
-      return traceAgentRun({ sessionId: video.id, userId, question: video.brief.idea }, () => {
+      return traceAgentRun({ sessionId: video.id, userId, question: video.brief.idea, effort }, () => {
         return runStreamed(agent, input, {
           maxTurns: STORYBOARD_MAX_TURNS,
           signal,

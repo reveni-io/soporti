@@ -152,7 +152,13 @@ describe('composeVideo', () => {
     expect(input[0].content[1]).toEqual({ type: 'input_image', image: 'data:image/png;base64,AAAA' })
     expect(options).toMatchObject({ maxTurns: 300, signal, toolNotFoundBehavior: 'return_error_to_model' })
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'video', subject: VIDEO_ID, userId: 7 })
-    expect(traceAgentRun.mock.calls[0][0]).toEqual({ sessionId: VIDEO_ID, userId: 7, question: 'Refunds in one click' })
+    expect(traceAgentRun).toHaveBeenCalledTimes(1)
+    expect(traceAgentRun.mock.calls[0][0]).toEqual({
+      sessionId: VIDEO_ID,
+      userId: 7,
+      question: 'Refunds in one click',
+      effort: 'max',
+    })
   })
 
   it('shows every tool call as the step of the version', async () => {

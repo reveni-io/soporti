@@ -57,7 +57,8 @@ async function buildInput(job) {
 }
 
 async function buildComposer(ctx) {
-  const { model, modelSettings, finalAnswerModelSettings } = await resolveModelForAgent(await getVideoModelSelection())
+  const selection = await getVideoModelSelection()
+  const { model, modelSettings, finalAnswerModelSettings } = await resolveModelForAgent(selection)
   const agent = new Agent({
     name: AGENT_NAME,
     model,
@@ -69,7 +70,7 @@ async function buildComposer(ctx) {
     ctx.reporter.step(describeToolStep(tool.name, toolCall?.arguments))
   })
 
-  return { agent, finalAnswerModelSettings }
+  return { agent, finalAnswerModelSettings, effort: selection.effort }
 }
 
 function wrapUpHandler({ agent, finalAnswerModelSettings, ctx }) {
@@ -89,7 +90,7 @@ function wrapUpHandler({ agent, finalAnswerModelSettings, ctx }) {
   }
 }
 
-function runComposer({ agent, finalAnswerModelSettings, input, ctx }) {
+function runComposer({ agent, finalAnswerModelSettings, effort, input, ctx }) {
   const { job, signal } = ctx
   const { userId, brief } = job.video
 
@@ -101,7 +102,7 @@ function runComposer({ agent, finalAnswerModelSettings, input, ctx }) {
       failureReason: () => describeCheckFailure(ctx.state.lastCheck),
     },
     async () => {
-      const result = await traceAgentRun({ sessionId: job.videoId, userId, question: brief.idea }, () => {
+      const result = await traceAgentRun({ sessionId: job.videoId, userId, question: brief.idea, effort }, () => {
         return runStreamed(agent, input, {
           maxTurns: config.video.maxTurns,
           signal,
@@ -128,11 +129,11 @@ export async function composeVideo(job, { signal, reporter }) {
   if (!(await isVideoConfigured())) throw new VideoProjectError(NOT_CONFIGURED_ERROR)
 
   const ctx = { job, reporter, signal, state: { lastCheck: null, revision: 0 } }
-  const { agent, finalAnswerModelSettings } = await buildComposer(ctx)
+  const { agent, finalAnswerModelSettings, effort } = await buildComposer(ctx)
   const input = await buildInput(job)
 
   try {
-    const { result } = await runComposer({ agent, finalAnswerModelSettings, input, ctx })
+    const { result } = await runComposer({ agent, finalAnswerModelSettings, effort, input, ctx })
     const summary = typeof result.finalOutput === 'string' ? result.finalOutput.trim() : ''
 
     return { summary: summary || DEFAULT_SUMMARY }
