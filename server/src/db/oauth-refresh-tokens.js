@@ -33,9 +33,11 @@ export async function replaceRefreshToken(id, successor) {
       .set({ revokedAt: new Date() })
       .where(and(eq(oauthRefreshTokens.id, id), isNull(oauthRefreshTokens.revokedAt)))
       .returning({ id: oauthRefreshTokens.id })
+
     if (!revoked) return false
 
     await tx.insert(oauthRefreshTokens).values({ ...successor, rotatedFromId: id })
+
     return true
   })
 }

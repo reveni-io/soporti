@@ -73,6 +73,7 @@ router.post('/refresh', async (req, res) => {
 
   try {
     const user = await findUserById(req.user.id)
+
     if (!user) return res.status(401).json({ error: 'The account behind this session no longer exists.' })
 
     res.json({ token: createSession(user), user: publicUser(user) })

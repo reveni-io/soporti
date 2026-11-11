@@ -15,6 +15,7 @@ function readClaims(token) {
 
 function isPastHalfLife(token) {
   const claims = readClaims(token)
+
   if (!Number.isFinite(claims?.iat) || !Number.isFinite(claims?.exp)) return false
 
   const halfLifeSeconds = (claims.iat + claims.exp) / 2
