@@ -26,12 +26,28 @@ export async function findRefreshTokenByHash(tokenHash) {
   return row ?? null
 }
 
-export async function revokeRefreshToken(id) {
+export async function replaceRefreshToken(id, successor) {
+  return getDb().transaction(async tx => {
+    const [revoked] = await tx
+      .update(oauthRefreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(oauthRefreshTokens.id, id), isNull(oauthRefreshTokens.revokedAt)))
+      .returning({ id: oauthRefreshTokens.id })
+
+    if (!revoked) return false
+
+    await tx.insert(oauthRefreshTokens).values({ ...successor, rotatedFromId: id })
+
+    return true
+  })
+}
+
+export async function hasActiveSuccessor(id) {
   const [row] = await getDb()
-    .update(oauthRefreshTokens)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(oauthRefreshTokens.id, id), isNull(oauthRefreshTokens.revokedAt)))
-    .returning({ id: oauthRefreshTokens.id })
+    .select({ id: oauthRefreshTokens.id })
+    .from(oauthRefreshTokens)
+    .where(and(eq(oauthRefreshTokens.rotatedFromId, id), isNull(oauthRefreshTokens.revokedAt)))
+    .limit(1)
   return Boolean(row)
 }
 

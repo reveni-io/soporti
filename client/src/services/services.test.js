@@ -37,6 +37,7 @@ import {
   isUnauthorized,
   listVideos,
   redraftStoryboard,
+  refreshSession,
   renderMermaid,
   renderVideoVersion,
   retryVideoVersion,
@@ -238,6 +239,15 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/auth/login')
     expect(JSON.parse(options.body)).toEqual({ email: 'sam@example.com', password: 'secret123' })
+  })
+
+  it('trades the current session token for a fresh one', async () => {
+    await refreshSession('the-token')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/auth/refresh')
+    expect(options.method).toBe('POST')
+    expect(options.headers).toEqual({ Authorization: 'Bearer the-token' })
   })
 
   it('reads the admin status without a token', async () => {

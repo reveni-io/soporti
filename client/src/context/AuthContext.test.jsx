@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 
 const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>
+
+const DAY_SECONDS = 24 * 60 * 60
+
+function buildAgedToken() {
+  const now = Math.floor(Date.now() / 1000)
+  return `header.${btoa(JSON.stringify({ iat: now - 5 * DAY_SECONDS, exp: now + 2 * DAY_SECONDS }))}.signature`
+}
 
 beforeEach(() => {
   localStorage.clear()
@@ -224,5 +231,35 @@ describe('AuthContext', () => {
 
     expect(result.current.error).toBe('Network error')
     expect(result.current.isAuthenticated).toBe(false)
+  })
+
+  it('renews a stored session past its half-life and keeps the user signed in', async () => {
+    const agedToken = buildAgedToken()
+    localStorage.setItem('auth_token', agedToken)
+    localStorage.setItem('auth_user', JSON.stringify({ email: 'jane@example.com', name: 'Jane', role: 'user' }))
+    const user = { email: 'jane@example.com', name: 'Jane Doe', role: 'admin' }
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ token: 'renewed', user }) })
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    await waitFor(() => expect(result.current.token).toBe('renewed'))
+    expect(result.current.user).toEqual(user)
+    expect(result.current.isAuthenticated).toBe(true)
+    expect(localStorage.getItem('auth_token')).toBe('renewed')
+    expect(JSON.parse(localStorage.getItem('auth_user'))).toEqual(user)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${agedToken}`)
+  })
+
+  it('signs the user out when the stored session can no longer be renewed', async () => {
+    localStorage.setItem('auth_token', buildAgedToken())
+    localStorage.setItem('auth_user', JSON.stringify({ email: 'jane@example.com' }))
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'Expired.' }) })
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(false))
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem('auth_token')).toBeNull()
   })
 })

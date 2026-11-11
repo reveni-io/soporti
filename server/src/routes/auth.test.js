@@ -5,6 +5,7 @@ import request from 'supertest'
 const verifyGoogleCredential = vi.fn()
 const upsertGoogleUser = vi.fn()
 const findUserByEmail = vi.fn()
+const findUserById = vi.fn()
 const touchLastLogin = vi.fn()
 const createSession = vi.fn(() => 'session-token')
 const verifyPassword = vi.fn()
@@ -16,19 +17,27 @@ vi.mock('../auth/google.js', () => ({ verifyGoogleCredential }))
 vi.mock('../auth/password.js', () => ({ verifyPassword, DUMMY_HASH: 'dummy-hash' }))
 vi.mock('../auth/auth-methods.js', () => ({ getAuthMethods }))
 vi.mock('../auth/google-settings.js', () => ({ getGoogleClientId }))
-vi.mock('../db/users.js', () => ({ upsertGoogleUser, findUserByEmail, touchLastLogin }))
+vi.mock('../db/users.js', () => ({ upsertGoogleUser, findUserByEmail, findUserById, touchLastLogin }))
 vi.mock('../middleware/auth.js', () => ({ createSession }))
 
 const authRouter = (await import('./auth.js')).default
 
+let authenticated = {}
+
 const app = express()
 app.use(express.json())
+app.use((req, _res, next) => {
+  Object.assign(req, authenticated)
+  next()
+})
 app.use('/api/auth', authRouter)
 
 beforeEach(() => {
   verifyGoogleCredential.mockReset()
   upsertGoogleUser.mockReset()
   findUserByEmail.mockReset()
+  findUserById.mockReset()
+  authenticated = {}
   touchLastLogin.mockReset()
   verifyPassword.mockReset()
   createSession.mockClear()
@@ -198,6 +207,62 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.user.role).toBe('admin')
+  })
+})
+
+describe('POST /api/auth/refresh', () => {
+  it('issues a fresh session from the current account', async () => {
+    authenticated = { user: { id: 7, email: 'jane@example.com', name: 'Jane', role: 'user' } }
+    findUserById.mockResolvedValue({
+      id: 7,
+      email: 'jane@example.com',
+      name: 'Jane Doe',
+      picture: 'p.png',
+      role: 'admin',
+    })
+
+    const res = await request(app).post('/api/auth/refresh')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      token: 'session-token',
+      user: { email: 'jane@example.com', name: 'Jane Doe', picture: 'p.png', role: 'admin' },
+    })
+    expect(findUserById).toHaveBeenCalledTimes(1)
+    expect(findUserById).toHaveBeenCalledWith(7)
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(createSession).toHaveBeenCalledWith(expect.objectContaining({ id: 7, role: 'admin' }))
+  })
+
+  it('refuses to turn an API key into a session', async () => {
+    authenticated = { user: { id: 7 }, apiKey: { id: 1, sources: [] } }
+
+    const res = await request(app).post('/api/auth/refresh')
+
+    expect(res.status).toBe(403)
+    expect(findUserById).not.toHaveBeenCalled()
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 when the account no longer exists', async () => {
+    authenticated = { user: { id: 7 } }
+    findUserById.mockResolvedValue(null)
+
+    const res = await request(app).post('/api/auth/refresh')
+
+    expect(res.status).toBe(401)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  it('returns a generic 500 when the lookup fails', async () => {
+    authenticated = { user: { id: 7 } }
+    findUserById.mockRejectedValue(new Error('connection reset'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await request(app).post('/api/auth/refresh')
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to refresh the session.' })
   })
 })
 

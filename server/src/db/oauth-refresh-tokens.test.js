@@ -24,16 +24,22 @@ function makeChain(op) {
   return chain
 }
 
-vi.mock('./index.js', () => ({
-  getDb: () => ({
-    select: () => makeChain('select'),
-    insert: () => makeChain('insert'),
-    update: () => makeChain('update'),
-  }),
-}))
+const db = {
+  select: () => makeChain('select'),
+  insert: () => makeChain('insert'),
+  update: () => makeChain('update'),
+  transaction: callback => callback(db),
+}
 
-const { createRefreshToken, findRefreshTokenByHash, revokeRefreshToken, revokeRefreshTokensForGrant } =
-  await import('./oauth-refresh-tokens.js')
+vi.mock('./index.js', () => ({ getDb: () => db }))
+
+const {
+  createRefreshToken,
+  findRefreshTokenByHash,
+  hasActiveSuccessor,
+  replaceRefreshToken,
+  revokeRefreshTokensForGrant,
+} = await import('./oauth-refresh-tokens.js')
 
 const EXPIRES_AT = new Date('2026-01-01T00:00:00Z')
 
@@ -82,13 +88,36 @@ describe('findRefreshTokenByHash', () => {
   })
 })
 
-describe('revokeRefreshToken', () => {
-  it('reports whether an active token was revoked', async () => {
+describe('replaceRefreshToken', () => {
+  const SUCCESSOR = { tokenHash: 'next-hash', clientId: 'cid', userId: 7, scope: 'mcp', expiresAt: EXPIRES_AT }
+
+  it('revokes the active token and stores its successor', async () => {
     queue = [[{ id: 1 }], []]
 
-    expect(await revokeRefreshToken(1)).toBe(true)
-    expect(await revokeRefreshToken(1)).toBe(false)
+    expect(await replaceRefreshToken(1, SUCCESSOR)).toBe(true)
+    expect(calls).toHaveLength(2)
+    expect(calls[0].op).toBe('update')
     expect(calls[0].steps.set.revokedAt).toBeInstanceOf(Date)
+    expect(calls[1].op).toBe('insert')
+    expect(calls[1].steps.values).toEqual({ ...SUCCESSOR, rotatedFromId: 1 })
+  })
+
+  it('stores nothing when the token was already revoked', async () => {
+    queue = [[]]
+
+    expect(await replaceRefreshToken(1, SUCCESSOR)).toBe(false)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].op).toBe('update')
+  })
+})
+
+describe('hasActiveSuccessor', () => {
+  it('reports whether a token rotated from it is still active', async () => {
+    queue = [[{ id: 2 }], []]
+
+    expect(await hasActiveSuccessor(1)).toBe(true)
+    expect(await hasActiveSuccessor(1)).toBe(false)
+    expect(calls.map(call => call.op)).toEqual(['select', 'select'])
   })
 })
 

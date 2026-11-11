@@ -88,6 +88,10 @@ export function createFirstAdmin(email, password, name, setupCode) {
   })
 }
 
+export function refreshSession(token) {
+  return request('/api/auth/refresh', { method: 'POST', token, errorMessage: 'Failed to refresh the session' })
+}
+
 export function getAdminStatus() {
   return request('/api/admin/status', { errorMessage: 'Failed to check the admin status' })
 }
