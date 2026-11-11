@@ -4,13 +4,15 @@ import { OAUTH_ACCESS_TOKEN_TTL_SECONDS, OAUTH_REFRESH_TOKEN_TTL_MS } from '../c
 import {
   createRefreshToken,
   findRefreshTokenByHash,
-  revokeRefreshToken,
+  hasActiveSuccessor,
+  replaceRefreshToken,
   revokeRefreshTokensForGrant,
 } from '../db/oauth-refresh-tokens.js'
 import { mcpResourceUri } from './metadata.js'
 import { generateSecret, hashSecret } from './secrets.js'
 
 const REUSE_ERROR = 'The refresh token was already used.'
+const REUSE_GRACE_MS = 60_000
 
 export function issueAccessToken({ userId, clientId, scope }) {
   return jwt.sign({ scope, client_id: clientId }, config.jwt.secret, {
@@ -40,19 +42,52 @@ export function verifyAccessToken(token) {
   return { userId, clientId: payload.client_id, scope: payload.scope }
 }
 
-export async function issueRefreshToken({ clientId, userId, scope, rotatedFromId }) {
-  const token = generateSecret()
-
-  await createRefreshToken({
+function buildRefreshTokenRecord(token, { clientId, userId, scope }) {
+  return {
     tokenHash: hashSecret(token),
     clientId,
     userId,
     scope,
-    rotatedFromId,
     expiresAt: new Date(Date.now() + OAUTH_REFRESH_TOKEN_TTL_MS),
-  })
+  }
+}
+
+export async function issueRefreshToken({ clientId, userId, scope, rotatedFromId }) {
+  const token = generateSecret()
+
+  await createRefreshToken({ ...buildRefreshTokenRecord(token, { clientId, userId, scope }), rotatedFromId })
 
   return token
+}
+
+function isWithinReuseGrace(revokedAt) {
+  return Date.now() - revokedAt.getTime() <= REUSE_GRACE_MS
+}
+
+async function revokeGrant({ userId, clientId }) {
+  await revokeRefreshTokensForGrant(userId, clientId)
+  console.error(`Revoked the OAuth grant of user ${userId} for client ${clientId}: a refresh token was replayed.`)
+
+  return { error: REUSE_ERROR }
+}
+
+async function acceptConcurrentRefresh(stored) {
+  if (!(await hasActiveSuccessor(stored.id))) return revokeGrant(stored)
+
+  const refreshToken = await issueRefreshToken({
+    clientId: stored.clientId,
+    userId: stored.userId,
+    scope: stored.scope,
+    rotatedFromId: stored.id,
+  })
+
+  return { value: { userId: stored.userId, scope: stored.scope, refreshToken } }
+}
+
+function resolveReplay(stored) {
+  if (!isWithinReuseGrace(stored.revokedAt)) return revokeGrant(stored)
+
+  return acceptConcurrentRefresh(stored)
 }
 
 export async function rotateRefreshToken({ token, clientId }) {
@@ -60,24 +95,12 @@ export async function rotateRefreshToken({ token, clientId }) {
 
   const stored = await findRefreshTokenByHash(hashSecret(token))
   if (!stored || stored.clientId !== clientId) return { error: 'The refresh token is not valid.' }
-
-  if (stored.revokedAt) {
-    await revokeRefreshTokensForGrant(stored.userId, stored.clientId)
-    return { error: REUSE_ERROR }
-  }
+  if (stored.revokedAt) return resolveReplay(stored)
   if (stored.expiresAt.getTime() <= Date.now()) return { error: 'The refresh token has expired.' }
 
-  if (!(await revokeRefreshToken(stored.id))) {
-    await revokeRefreshTokensForGrant(stored.userId, stored.clientId)
-    return { error: REUSE_ERROR }
-  }
-
-  const refreshToken = await issueRefreshToken({
-    clientId,
-    userId: stored.userId,
-    scope: stored.scope,
-    rotatedFromId: stored.id,
-  })
+  const refreshToken = generateSecret()
+  const isReplaced = await replaceRefreshToken(stored.id, buildRefreshTokenRecord(refreshToken, stored))
+  if (!isReplaced) return acceptConcurrentRefresh(stored)
 
   return { value: { userId: stored.userId, scope: stored.scope, refreshToken } }
 }

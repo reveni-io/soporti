@@ -7,20 +7,29 @@ vi.mock('../config.js', () => ({
 vi.mock('../db/oauth-refresh-tokens.js', () => ({
   createRefreshToken: vi.fn(),
   findRefreshTokenByHash: vi.fn(),
-  revokeRefreshToken: vi.fn(),
+  hasActiveSuccessor: vi.fn(),
+  replaceRefreshToken: vi.fn(),
   revokeRefreshTokensForGrant: vi.fn(),
 }))
 
-const { createRefreshToken, findRefreshTokenByHash, revokeRefreshToken, revokeRefreshTokensForGrant } =
-  await import('../db/oauth-refresh-tokens.js')
+const {
+  createRefreshToken,
+  findRefreshTokenByHash,
+  hasActiveSuccessor,
+  replaceRefreshToken,
+  revokeRefreshTokensForGrant,
+} = await import('../db/oauth-refresh-tokens.js')
 const { issueAccessToken, issueRefreshToken, rotateRefreshToken, verifyAccessToken } = await import('./tokens.js')
 const { hashSecret } = await import('./secrets.js')
 
 const FUTURE = new Date(Date.now() + 60_000)
+const STORED = { id: 3, clientId: 'cid', userId: 7, scope: 'mcp', revokedAt: null, expiresAt: FUTURE }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  revokeRefreshToken.mockResolvedValue(true)
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  replaceRefreshToken.mockResolvedValue(true)
+  hasActiveSuccessor.mockResolvedValue(false)
 })
 
 describe('issueAccessToken', () => {
@@ -33,7 +42,7 @@ describe('issueAccessToken', () => {
     expect(payload.sub).toBe('7')
     expect(payload.client_id).toBe('cid')
     expect(payload.scope).toBe('mcp')
-    expect(payload.exp - payload.iat).toBe(900)
+    expect(payload.exp - payload.iat).toBe(3600)
   })
 })
 
@@ -112,23 +121,27 @@ describe('issueRefreshToken', () => {
 })
 
 describe('rotateRefreshToken', () => {
-  it('revokes the presented token and returns a fresh one', async () => {
-    findRefreshTokenByHash.mockResolvedValue({
-      id: 3,
-      clientId: 'cid',
-      userId: 7,
-      scope: 'mcp',
-      revokedAt: null,
-      expiresAt: FUTURE,
-    })
+  it('replaces the presented token with a fresh one in a single step', async () => {
+    findRefreshTokenByHash.mockResolvedValue(STORED)
 
     const result = await rotateRefreshToken({ token: 'the-token', clientId: 'cid' })
 
     expect(result.value.userId).toBe(7)
     expect(result.value.scope).toBe('mcp')
-    expect(revokeRefreshToken).toHaveBeenCalledWith(3)
-    expect(createRefreshToken.mock.calls[0][0].rotatedFromId).toBe(3)
     expect(result.value.refreshToken).not.toBe('the-token')
+    expect(findRefreshTokenByHash).toHaveBeenCalledWith(hashSecret('the-token'))
+    expect(replaceRefreshToken).toHaveBeenCalledTimes(1)
+    const [replacedId, successor] = replaceRefreshToken.mock.calls[0]
+    expect(replacedId).toBe(3)
+    expect(successor).toEqual({
+      tokenHash: hashSecret(result.value.refreshToken),
+      clientId: 'cid',
+      userId: 7,
+      scope: 'mcp',
+      expiresAt: expect.any(Date),
+    })
+    expect(successor.expiresAt.getTime()).toBeGreaterThan(Date.now())
+    expect(createRefreshToken).not.toHaveBeenCalled()
   })
 
   it('rejects a missing token without querying', async () => {
@@ -143,57 +156,74 @@ describe('rotateRefreshToken', () => {
   })
 
   it('rejects a token that belongs to another client', async () => {
-    findRefreshTokenByHash.mockResolvedValue({
-      id: 3,
-      clientId: 'other',
-      userId: 7,
-      revokedAt: null,
-      expiresAt: FUTURE,
-    })
+    findRefreshTokenByHash.mockResolvedValue({ ...STORED, clientId: 'other' })
 
     expect((await rotateRefreshToken({ token: 'x', clientId: 'cid' })).error).toMatch(/not valid/)
+    expect(replaceRefreshToken).not.toHaveBeenCalled()
   })
 
-  it('revokes the whole grant when an already rotated token is replayed', async () => {
-    findRefreshTokenByHash.mockResolvedValue({
-      id: 3,
+  it('revokes the whole grant when a token rotated over a minute ago is replayed', async () => {
+    findRefreshTokenByHash.mockResolvedValue({ ...STORED, revokedAt: new Date(Date.now() - 10 * 60_000) })
+    hasActiveSuccessor.mockResolvedValue(true)
+
+    expect((await rotateRefreshToken({ token: 'x', clientId: 'cid' })).error).toMatch(/already used/)
+    expect(revokeRefreshTokensForGrant).toHaveBeenCalledTimes(1)
+    expect(revokeRefreshTokensForGrant).toHaveBeenCalledWith(7, 'cid')
+    expect(createRefreshToken).not.toHaveBeenCalled()
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('user 7 for client cid'))
+  })
+
+  it('issues another token when a just rotated token is replayed and its successor is still active', async () => {
+    findRefreshTokenByHash.mockResolvedValue({ ...STORED, revokedAt: new Date(Date.now() - 5_000) })
+    hasActiveSuccessor.mockResolvedValue(true)
+
+    const result = await rotateRefreshToken({ token: 'x', clientId: 'cid' })
+
+    expect(result.value).toEqual({ userId: 7, scope: 'mcp', refreshToken: expect.any(String) })
+    expect(hasActiveSuccessor).toHaveBeenCalledWith(3)
+    expect(createRefreshToken).toHaveBeenCalledTimes(1)
+    expect(createRefreshToken.mock.calls[0][0]).toMatchObject({
+      tokenHash: hashSecret(result.value.refreshToken),
       clientId: 'cid',
       userId: 7,
-      scope: 'mcp',
-      revokedAt: new Date(),
-      expiresAt: FUTURE,
+      rotatedFromId: 3,
     })
+    expect(revokeRefreshTokensForGrant).not.toHaveBeenCalled()
+  })
+
+  it('revokes the whole grant when a just revoked token has no active successor', async () => {
+    findRefreshTokenByHash.mockResolvedValue({ ...STORED, revokedAt: new Date(Date.now() - 5_000) })
 
     expect((await rotateRefreshToken({ token: 'x', clientId: 'cid' })).error).toMatch(/already used/)
     expect(revokeRefreshTokensForGrant).toHaveBeenCalledWith(7, 'cid')
     expect(createRefreshToken).not.toHaveBeenCalled()
   })
 
-  it('revokes the whole grant when a concurrent request won the rotation', async () => {
-    findRefreshTokenByHash.mockResolvedValue({
-      id: 3,
-      clientId: 'cid',
-      userId: 7,
-      scope: 'mcp',
-      revokedAt: null,
-      expiresAt: FUTURE,
-    })
-    revokeRefreshToken.mockResolvedValue(false)
+  it('issues another token when a concurrent request won the rotation', async () => {
+    findRefreshTokenByHash.mockResolvedValue(STORED)
+    replaceRefreshToken.mockResolvedValue(false)
+    hasActiveSuccessor.mockResolvedValue(true)
+
+    const result = await rotateRefreshToken({ token: 'x', clientId: 'cid' })
+
+    expect(result.value.userId).toBe(7)
+    expect(createRefreshToken).toHaveBeenCalledTimes(1)
+    expect(createRefreshToken.mock.calls[0][0].rotatedFromId).toBe(3)
+    expect(revokeRefreshTokensForGrant).not.toHaveBeenCalled()
+  })
+
+  it('revokes the whole grant when the token was revoked concurrently without a successor', async () => {
+    findRefreshTokenByHash.mockResolvedValue(STORED)
+    replaceRefreshToken.mockResolvedValue(false)
 
     expect((await rotateRefreshToken({ token: 'x', clientId: 'cid' })).error).toMatch(/already used/)
     expect(revokeRefreshTokensForGrant).toHaveBeenCalledWith(7, 'cid')
   })
 
   it('rejects an expired token', async () => {
-    findRefreshTokenByHash.mockResolvedValue({
-      id: 3,
-      clientId: 'cid',
-      userId: 7,
-      scope: 'mcp',
-      revokedAt: null,
-      expiresAt: new Date(Date.now() - 1000),
-    })
+    findRefreshTokenByHash.mockResolvedValue({ ...STORED, expiresAt: new Date(Date.now() - 1000) })
 
     expect((await rotateRefreshToken({ token: 'x', clientId: 'cid' })).error).toMatch(/expired/)
+    expect(replaceRefreshToken).not.toHaveBeenCalled()
   })
 })

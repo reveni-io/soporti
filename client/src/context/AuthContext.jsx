@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback } from 'react'
+import { useSessionRefresh } from '../hooks/useSessionRefresh/useSessionRefresh.js'
 import { createFirstAdmin, signInWithGoogle, signInWithPassword } from '../services/services.js'
 
 const TOKEN_KEY = 'auth_token'
@@ -29,25 +30,30 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  const performLogin = useCallback(async signIn => {
-    setError(null)
-    setIsLoggingIn(true)
-
-    try {
-      const data = await signIn()
-
-      localStorage.setItem(TOKEN_KEY, data.token)
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user))
-      setToken(data.token)
-      setUser(data.user)
-      return true
-    } catch (err) {
-      setError(err.message)
-      return false
-    } finally {
-      setIsLoggingIn(false)
-    }
+  const storeSession = useCallback(session => {
+    localStorage.setItem(TOKEN_KEY, session.token)
+    localStorage.setItem(USER_KEY, JSON.stringify(session.user))
+    setToken(session.token)
+    setUser(session.user)
   }, [])
+
+  const performLogin = useCallback(
+    async signIn => {
+      setError(null)
+      setIsLoggingIn(true)
+
+      try {
+        storeSession(await signIn())
+        return true
+      } catch (err) {
+        setError(err.message)
+        return false
+      } finally {
+        setIsLoggingIn(false)
+      }
+    },
+    [storeSession]
+  )
 
   const loginWithGoogle = useCallback(
     async credential => {
@@ -76,6 +82,8 @@ export function AuthProvider({ children }) {
     setToken(null)
     setUser(null)
   }, [])
+
+  useSessionRefresh(token, { onRefresh: storeSession, onExpire: logout })
 
   const value = {
     token,

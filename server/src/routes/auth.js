@@ -3,7 +3,7 @@ import { verifyGoogleCredential } from '../auth/google.js'
 import { verifyPassword, DUMMY_HASH } from '../auth/password.js'
 import { getAuthMethods } from '../auth/auth-methods.js'
 import { getGoogleClientId } from '../auth/google-settings.js'
-import { upsertGoogleUser, findUserByEmail, touchLastLogin } from '../db/users.js'
+import { upsertGoogleUser, findUserByEmail, findUserById, touchLastLogin } from '../db/users.js'
 import { createSession } from '../middleware/auth.js'
 
 const router = Router()
@@ -65,6 +65,20 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Password login error:', err)
     res.status(500).json({ error: 'Failed to complete login.' })
+  }
+})
+
+router.post('/refresh', async (req, res) => {
+  if (req.apiKey) return res.status(403).json({ error: 'API keys cannot refresh a session.' })
+
+  try {
+    const user = await findUserById(req.user.id)
+    if (!user) return res.status(401).json({ error: 'The account behind this session no longer exists.' })
+
+    res.json({ token: createSession(user), user: publicUser(user) })
+  } catch (err) {
+    console.error('Failed to refresh the session:', err)
+    res.status(500).json({ error: 'Failed to refresh the session.' })
   }
 })
 

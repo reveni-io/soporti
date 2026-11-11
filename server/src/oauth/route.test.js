@@ -282,7 +282,7 @@ describe('POST /api/oauth/token', () => {
     expect(res.body).toEqual({
       access_token: 'the-access-token',
       token_type: 'Bearer',
-      expires_in: 900,
+      expires_in: 3600,
       refresh_token: 'the-refresh-token',
       scope: 'mcp',
     })

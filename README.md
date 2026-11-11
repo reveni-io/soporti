@@ -129,7 +129,7 @@ Edit `.env` and fill in the required values:
 | `DATABASE_URL` | Yes | PostgreSQL connection string for the app database (users, config) |
 | `JWT_SECRET` | Yes | Secret used to sign session JWTs (e.g. `openssl rand -hex 32`) |
 | `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth Client ID, baked into the client build — only if you enable Google sign-in |
-| `JWT_EXPIRES_IN` | No | Session lifetime (default: `24h`) |
+| `JWT_EXPIRES_IN` | No | Web session lifetime, renewed while the app is in use (default: `7d`) |
 | `CORS_ORIGIN` | No | Allowed browser origins (CSV) — set it when the client is served from a different domain than the API |
 
 Everything else — the LLM provider, its API key and model, the GitHub token and repository catalog, Slack, Notion, Google Drive, Helpjuice, Figma, the agent's read-only query database, Shopify, sign-in methods and allowed Google domains — is **not** an env var: it lives in the database and is managed from the admin panel (`/admin`) after the first-run setup.
