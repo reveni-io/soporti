@@ -5,10 +5,12 @@ const mockQuery = vi.fn()
 const mockEnd = vi.fn(async () => {})
 const mockClientQuery = vi.fn()
 const mockRelease = vi.fn()
+const mockDefaultTypeParser = vi.fn()
 let checkedOutClient = null
 
 vi.mock('pg', () => ({
   default: {
+    types: { getTypeParser: (...args) => mockDefaultTypeParser(...args) },
     Pool: class {
       constructor() {
         this.on = vi.fn()
@@ -32,7 +34,8 @@ const isPostgresConfigured = vi.fn(async () => true)
 const getPostgresMaxRows = vi.fn(async () => 100)
 vi.mock('./settings.js', () => ({ getPostgresConnection, isPostgresConfigured, getPostgresMaxRows }))
 
-const { isConfigured, listSchemas, listTables, describeTable, runQuery, shutdown } = await import('./client.js')
+const { isConfigured, listSchemas, listTables, describeTable, runQuery, runTypedQuery, ReadOnlyQueryError, shutdown } =
+  await import('./client.js')
 
 function stubReadOnlyQuery(outcome) {
   mockClientQuery.mockImplementation(async query => {
@@ -162,6 +165,15 @@ describe('runQuery', () => {
     await runQuery('SELECT 1;')
 
     expect(dataQueries()[0].text).toBe('SELECT * FROM (SELECT 1) AS _q LIMIT 100')
+  })
+
+  it('leaves every value to the default type parsers of the driver', async () => {
+    stubReadOnlyQuery({ rows: [], fields: [] })
+
+    await runQuery('SELECT created_at FROM orders')
+
+    expect(Object.keys(dataQueries()[0])).toEqual(['text', 'queryMode'])
+    expect(dataQueries()[0]).not.toHaveProperty('types')
   })
 
   it('applies the configured row cap to the LIMIT and truncation flag', async () => {
@@ -552,5 +564,160 @@ describe('runQuery cancelled by the database', () => {
     stubReadOnlyQuery(cancelled)
 
     await expect(runQuery('SELECT 1')).rejects.toBe(cancelled)
+  })
+})
+
+describe('runTypedQuery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockQuery.mockReset()
+    mockClientQuery.mockReset()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('returns the rows with the name and type OID of every result field', async () => {
+    stubReadOnlyQuery({
+      rows: [{ week: '2026-08-03', returns: '42' }],
+      fields: [
+        { name: 'week', dataTypeID: 1082, tableID: 0, format: 'text' },
+        { name: 'returns', dataTypeID: 20, tableID: 0, format: 'text' },
+      ],
+    })
+
+    const result = await runTypedQuery('SELECT week, returns FROM weekly', { maxRows: 2000, timeoutMs: 30_000 })
+
+    expect(result).toEqual({
+      fields: [
+        { name: 'week', dataTypeID: 1082 },
+        { name: 'returns', dataTypeID: 20 },
+      ],
+      rows: [{ week: '2026-08-03', returns: '42' }],
+      truncated: false,
+    })
+  })
+
+  it('applies the caller row cap and sets the statement timeout inside the read-only transaction', async () => {
+    stubReadOnlyQuery({ rows: [], fields: [] })
+
+    await runTypedQuery('SELECT * FROM t;', { maxRows: 2000, timeoutMs: 30_000 })
+
+    expect(mockClientQuery.mock.calls.map(([query]) => query)).toEqual([
+      'BEGIN READ ONLY',
+      'SET LOCAL statement_timeout = 30000',
+      { text: 'SELECT * FROM (SELECT * FROM t) AS _q LIMIT 2001', queryMode: 'extended', types: expect.any(Object) },
+      'ROLLBACK',
+    ])
+    expect(getPostgresMaxRows).not.toHaveBeenCalled()
+    expect(mockRelease).toHaveBeenCalledTimes(1)
+    expect(mockRelease).toHaveBeenCalledWith(undefined)
+  })
+
+  it.each([
+    { type: 'date', oid: 1082, raw: '2026-03-03' },
+    { type: 'timestamp', oid: 1114, raw: '2026-03-03 14:05:09.123456' },
+    { type: 'timestamptz', oid: 1184, raw: '2026-03-02 00:00:00+01' },
+  ])('asks the driver for the raw text of a $type value', async ({ oid, raw }) => {
+    stubReadOnlyQuery({ rows: [], fields: [] })
+
+    await runTypedQuery('SELECT * FROM t', { maxRows: 10, timeoutMs: 1000 })
+    const parse = dataQueries()[0].types.getTypeParser(oid, 'text')
+
+    expect(parse(raw)).toBe(raw)
+    expect(mockDefaultTypeParser).not.toHaveBeenCalled()
+  })
+
+  it('keeps the default parser of the driver for every other type', async () => {
+    const parseInteger = value => Number.parseInt(value, 10)
+    mockDefaultTypeParser.mockReturnValue(parseInteger)
+    stubReadOnlyQuery({ rows: [], fields: [] })
+
+    await runTypedQuery('SELECT * FROM t', { maxRows: 10, timeoutMs: 1000 })
+    const parse = dataQueries()[0].types.getTypeParser(23, 'text')
+
+    expect(parse).toBe(parseInteger)
+    expect(mockDefaultTypeParser).toHaveBeenCalledTimes(1)
+    expect(mockDefaultTypeParser).toHaveBeenCalledWith(23, 'text')
+  })
+
+  it('marks the result as truncated and keeps the row cap when the query returns more rows', async () => {
+    stubReadOnlyQuery({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }], fields: [{ name: 'id', dataTypeID: 23 }] })
+
+    const result = await runTypedQuery('SELECT id FROM t', { maxRows: 2, timeoutMs: 1000 })
+
+    expect(result.truncated).toBe(true)
+    expect(result.rows).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('does not mark a result as truncated when it holds exactly the row cap', async () => {
+    stubReadOnlyQuery({ rows: [{ id: 1 }, { id: 2 }], fields: [{ name: 'id', dataTypeID: 23 }] })
+
+    const result = await runTypedQuery('SELECT id FROM t', { maxRows: 2, timeoutMs: 1000 })
+
+    expect(dataQueries()[0].text).toBe('SELECT * FROM (SELECT id FROM t) AS _q LIMIT 3')
+    expect(result.truncated).toBe(false)
+    expect(result.rows).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('rejects anything that is not a SELECT or a WITH before opening a connection', async () => {
+    const failure = await runTypedQuery('UPDATE t SET a = 1', { maxRows: 10, timeoutMs: 1000 }).catch(err => err)
+
+    expect(failure).toBeInstanceOf(ReadOnlyQueryError)
+    expect(failure.message).toBe('Only SELECT and WITH (CTE) queries are allowed.')
+    expect(mockClientQuery).not.toHaveBeenCalled()
+  })
+
+  it('rolls back and explains a query the statement timeout cancelled', async () => {
+    const timeout = Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
+    stubReadOnlyQuery(timeout)
+
+    const failure = await runTypedQuery('SELECT * FROM events', { maxRows: 10, timeoutMs: 1000 }).catch(err => err)
+
+    expect(failure.message).toMatch(/^canceling statement due to statement timeout The query ran longer/)
+    expect(failure.code).toBe('57014')
+    expect(mockClientQuery).toHaveBeenLastCalledWith('ROLLBACK')
+    expect(mockRelease).toHaveBeenCalledTimes(1)
+  })
+
+  it('explains an unknown column with the columns of the tables in the query', async () => {
+    stubReadOnlyQuery(Object.assign(new Error('column "kind" does not exist'), { code: '42703' }))
+    mockQuery.mockResolvedValueOnce({ rows: [{ table_schema: 'public', table_name: 'orders', column_name: 'id' }] })
+
+    const failure = await runTypedQuery('SELECT kind FROM orders', { maxRows: 10, timeoutMs: 1000 }).catch(err => err)
+
+    expect(failure.message).toBe('column "kind" does not exist Columns of the tables in this query: public.orders: id.')
+    expect(mockQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    {
+      kind: 'says that no table has a similar name without naming a tool of the agent',
+      lookup: { rows: [] },
+      message: 'relation "returnz" does not exist No table name contains "returnz".',
+    },
+    {
+      kind: 'lists the tables with a similar name',
+      lookup: { rows: [{ table_schema: 'public', table_name: 'orders_returnz' }] },
+      message: 'relation "returnz" does not exist Tables whose name contains "returnz": public.orders_returnz.',
+    },
+  ])('$kind when a table is missing', async ({ lookup, message }) => {
+    const original = Object.assign(new Error('relation "returnz" does not exist'), { code: '42P01' })
+    stubReadOnlyQuery(original)
+    mockQuery.mockResolvedValueOnce(lookup)
+
+    const failure = await runTypedQuery('SELECT * FROM returnz', { maxRows: 10, timeoutMs: 1000 }).catch(err => err)
+
+    expect(failure.message).toBe(message)
+    expect(failure.message).not.toContain('list_database_tables')
+    expect(failure.code).toBe('42P01')
+    expect(failure.cause).toBe(original)
+  })
+
+  it('keeps the hint free of tool names when the table lookup itself fails', async () => {
+    stubReadOnlyQuery(Object.assign(new Error('relation "returnz" does not exist'), { code: '42P01' }))
+    mockQuery.mockRejectedValueOnce(new Error('permission denied'))
+
+    const failure = await runTypedQuery('SELECT * FROM returnz', { maxRows: 10, timeoutMs: 1000 }).catch(err => err)
+
+    expect(failure.message).toBe('relation "returnz" does not exist No table name contains "returnz".')
   })
 })

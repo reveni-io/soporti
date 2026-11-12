@@ -5,6 +5,8 @@ import config from '../config.js'
 import { OAUTH_REGISTER_PATH } from '../constants.js'
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+const ANALYTICS_PATH = '/api/analytics'
+const ANALYTICS_REQUESTS_PER_MINUTE = 300
 
 function parseTrustProxy(value) {
   if (value === 'false') return false
@@ -20,6 +22,10 @@ function isAllowedOrigin(origin, allowedOrigins) {
   } catch {
     return false
   }
+}
+
+function isAnalyticsRequest(req) {
+  return req.originalUrl.startsWith(`${ANALYTICS_PATH}/`)
 }
 
 export function mcpOriginGuard(req, res, next) {
@@ -66,6 +72,7 @@ export function setupSecurity(app) {
     limit: 60,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: isAnalyticsRequest,
     message: { error: 'Too many requests. Please wait a moment.' },
   })
 
@@ -85,11 +92,20 @@ export function setupSecurity(app) {
     message: { error: 'Too many requests. Please wait a moment.' },
   })
 
+  const analyticsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: ANALYTICS_REQUESTS_PER_MINUTE,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please wait a moment.' },
+  })
+
   app.use('/api/chat', chatLimiter)
   app.use('/api/auth/login', authLimiter)
   app.use('/api/admin/bootstrap', authLimiter)
   app.use(OAUTH_REGISTER_PATH, authLimiter)
   app.use('/api/mcp', mcpOriginGuard, mcpLimiter)
+  app.use(ANALYTICS_PATH, analyticsLimiter)
   app.use('/api/', generalLimiter)
 
   app.disable('x-powered-by')

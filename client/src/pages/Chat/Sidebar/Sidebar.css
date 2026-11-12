@@ -414,6 +414,7 @@
 
 .sidebar__schedules,
 .sidebar__artifacts,
+.sidebar__analytics,
 .sidebar__videos,
 .sidebar__settings,
 .sidebar__logout {
@@ -432,6 +433,7 @@
 
 .sidebar__schedules:hover,
 .sidebar__artifacts:hover,
+.sidebar__analytics:hover,
 .sidebar__videos:hover,
 .sidebar__settings:hover,
 .sidebar__logout:hover {
@@ -439,6 +441,7 @@
   color: var(--sidebar-text);
 }
 
+.sidebar__analytics,
 .sidebar__videos {
   display: flex;
   align-items: center;

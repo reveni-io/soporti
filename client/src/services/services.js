@@ -980,3 +980,103 @@ export function createVideoVariant(token, id, change) {
     errorMessage: 'Failed to create the variant',
   })
 }
+
+export function listAnalyticsDashboards(token) {
+  return request('/api/analytics/dashboards', { token, errorMessage: 'Failed to load your dashboards' })
+}
+
+export function createAnalyticsDashboard(token, name) {
+  return request('/api/analytics/dashboards', {
+    method: 'POST',
+    token,
+    body: { name },
+    errorMessage: 'Failed to create the dashboard',
+  })
+}
+
+export function updateAnalyticsDashboard(token, id, changes) {
+  return request(`/api/analytics/dashboards/${id}`, {
+    method: 'PUT',
+    token,
+    body: changes,
+    errorMessage: 'Failed to save the dashboard',
+  })
+}
+
+export function deleteAnalyticsDashboard(token, id) {
+  return request(`/api/analytics/dashboards/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the dashboard',
+  })
+}
+
+export function listAnalyticsCards(token, dashboardId) {
+  return request(`/api/analytics/dashboards/${dashboardId}/cards`, {
+    token,
+    errorMessage: 'Failed to load the dashboard',
+  })
+}
+
+export function createAnalyticsCard(token, dashboardId, prompt) {
+  return request(`/api/analytics/dashboards/${dashboardId}/cards`, {
+    method: 'POST',
+    token,
+    body: { prompt },
+    errorMessage: 'Failed to create the chart',
+  })
+}
+
+export function reviseAnalyticsCard(token, id, prompt) {
+  return request(`/api/analytics/cards/${id}/revise`, {
+    method: 'POST',
+    token,
+    body: { prompt },
+    errorMessage: 'Failed to change the chart',
+  })
+}
+
+export function retryAnalyticsCard(token, id) {
+  return request(`/api/analytics/cards/${id}/retry`, {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to retry the chart',
+  })
+}
+
+export function updateAnalyticsCard(token, id, changes) {
+  return request(`/api/analytics/cards/${id}`, {
+    method: 'PUT',
+    token,
+    body: changes,
+    errorMessage: 'Failed to save the chart',
+  })
+}
+
+export function deleteAnalyticsCard(token, id) {
+  return request(`/api/analytics/cards/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete the chart' })
+}
+
+export function getAnalyticsCardData(token, id, { fresh = false } = {}) {
+  const query = fresh ? '?fresh=true' : ''
+
+  return request(`/api/analytics/cards/${id}/data${query}`, { token, errorMessage: 'Failed to load the chart data' })
+}
+
+export function runAnalyticsQuery(token, { sql, chart }) {
+  return request('/api/analytics/query', {
+    method: 'POST',
+    token,
+    body: { sql, chart },
+    errorMessage: 'Failed to run the query',
+  })
+}
+
+export function saveAnalyticsLayout(token, dashboardId, items) {
+  return request(`/api/analytics/dashboards/${dashboardId}/layout`, {
+    method: 'PUT',
+    token,
+    body: { items },
+    errorMessage: 'Failed to save the layout',
+  })
+}

@@ -1,0 +1,132 @@
+.dashboard-grid {
+  position: relative;
+  width: 100%;
+  transition: height 0.18s ease;
+}
+
+.dashboard-grid--busy {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dashboard-grid--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+}
+
+.dashboard-grid__item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--radius-lg);
+  transition:
+    transform 0.18s ease,
+    width 0.18s ease,
+    height 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease,
+    z-index 0.18s step-end;
+}
+
+.dashboard-grid__item--stacked {
+  position: relative;
+}
+
+.dashboard-grid__item--dragging {
+  z-index: 3;
+  opacity: 0.96;
+  box-shadow: var(--shadow-drag);
+  transition-property: box-shadow, opacity;
+  will-change: transform;
+}
+
+.dashboard-grid__item--resizing {
+  z-index: 2;
+  box-shadow: var(--shadow-card-hover);
+  transition-property: box-shadow;
+}
+
+.dashboard-grid__placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 1px dashed var(--green-chart);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--green-bright-rgb), 0.18);
+  transition:
+    transform 0.15s ease,
+    width 0.15s ease,
+    height 0.15s ease;
+}
+
+.dashboard-grid [data-grid-handle] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dashboard-grid [data-grid-handle]:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.dashboard-grid__item--dragging [data-grid-handle] {
+  cursor: grabbing;
+}
+
+.dashboard-grid__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: var(--sp6);
+  height: var(--sp6);
+  padding: var(--sp1);
+  border: 0;
+  border-bottom-right-radius: var(--radius-lg);
+  background: none;
+  color: var(--border-strong);
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.dashboard-grid__item:hover .dashboard-grid__resize,
+.dashboard-grid__item:focus-within .dashboard-grid__resize,
+.dashboard-grid__item--resizing .dashboard-grid__resize {
+  opacity: 1;
+}
+
+.dashboard-grid__resize:hover,
+.dashboard-grid__resize:focus-visible,
+.dashboard-grid__item--resizing .dashboard-grid__resize {
+  color: var(--green-chart);
+}
+
+.dashboard-grid__resize:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+@media (hover: none) {
+  .dashboard-grid__resize {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-grid,
+  .dashboard-grid__item,
+  .dashboard-grid__placeholder,
+  .dashboard-grid__resize {
+    transition: none;
+  }
+}

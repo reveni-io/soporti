@@ -1,5 +1,6 @@
 import { readStoredToken } from '../../context/AuthContext.jsx'
 import { ROUTES } from '../../router/constants.js'
+import AnalyticsSection from './AnalyticsSection/AnalyticsSection.jsx'
 import AskSection from './AskSection/AskSection.jsx'
 import ArtifactsSection from './ArtifactsSection/ArtifactsSection.jsx'
 import AttachmentsSection from './AttachmentsSection/AttachmentsSection.jsx'
@@ -45,6 +46,7 @@ export default function Landing({ hideCta = false }) {
       <RendersSection />
       <ArtifactsSection />
       <VideosSection />
+      <AnalyticsSection />
       <IntegrationsSection />
       <SendcloudSection />
       <HubspotSection />

@@ -1,0 +1,35 @@
+.sql-editor {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp2);
+  min-width: 0;
+  min-height: 14rem;
+}
+
+.sql-editor__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+}
+
+.sql-editor__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.sql-editor__input {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.sql-editor__error {
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}

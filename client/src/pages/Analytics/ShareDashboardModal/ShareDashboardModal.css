@@ -1,0 +1,108 @@
+.modal.share-dashboard-modal {
+  gap: var(--sp4);
+  max-width: 32rem;
+}
+
+.share-dashboard-modal__switch-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp4);
+  cursor: pointer;
+}
+
+.share-dashboard-modal__switch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.share-dashboard-modal__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.share-dashboard-modal__description,
+.share-dashboard-modal__text {
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  text-wrap: pretty;
+}
+
+.share-dashboard-modal__switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 1.25rem;
+  margin: 0;
+  appearance: none;
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.share-dashboard-modal__switch::before {
+  position: absolute;
+  top: calc(var(--sp1) / 2);
+  left: calc(var(--sp1) / 2);
+  width: var(--sp4);
+  height: var(--sp4);
+  content: '';
+  background: var(--white);
+  border-radius: var(--radius-pill);
+  transition: transform 0.15s ease;
+}
+
+.share-dashboard-modal__switch:checked {
+  background: var(--green-chart);
+}
+
+.share-dashboard-modal__switch:checked::before {
+  transform: translateX(var(--sp4));
+}
+
+.share-dashboard-modal__switch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.share-dashboard-modal__switch:disabled {
+  cursor: progress;
+}
+
+.share-dashboard-modal__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.share-dashboard-modal__link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.input.share-dashboard-modal__url {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.share-dashboard-modal__note {
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-dashboard-modal__switch,
+  .share-dashboard-modal__switch::before {
+    transition: none;
+  }
+}

@@ -50,6 +50,13 @@ vi.mock('./video/storyboard.js', () => {
 vi.mock('./video/runner.js', () => {
   return { startVideoRunner: vi.fn().mockResolvedValue(undefined), stopVideoRunner: vi.fn() }
 })
+vi.mock('./analytics/generator.js', () => {
+  return {
+    recoverInterruptedGenerations: vi.fn().mockResolvedValue(0),
+    startGeneration: vi.fn(),
+    cancelGeneration: vi.fn(),
+  }
+})
 
 vi.mock('./github/settings.js', () => ({
   getGithubToken: vi.fn().mockResolvedValue('test-token'),
@@ -192,6 +199,13 @@ describe('index.js app setup', () => {
       const { startVideoRunner } = await import('./video/runner.js')
 
       await vi.waitFor(() => expect(startVideoRunner).toHaveBeenCalledTimes(1))
+    })
+
+    it('fails the chart generations a restart interrupted', async () => {
+      const { recoverInterruptedGenerations } = await import('./analytics/generator.js')
+
+      await vi.waitFor(() => expect(recoverInterruptedGenerations).toHaveBeenCalledTimes(1))
+      expect(recoverInterruptedGenerations).toHaveBeenCalledWith()
     })
   })
 

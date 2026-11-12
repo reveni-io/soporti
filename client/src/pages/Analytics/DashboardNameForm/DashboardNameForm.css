@@ -1,0 +1,18 @@
+.dashboard-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+}
+
+.dashboard-name-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.dashboard-name-form__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}

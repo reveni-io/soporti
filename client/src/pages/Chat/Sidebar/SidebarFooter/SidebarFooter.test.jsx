@@ -81,6 +81,21 @@ describe('SidebarFooter', () => {
     expect(onLogout).toHaveBeenCalledTimes(1)
   })
 
+  it('links to the analytics dashboard', () => {
+    render(
+      <SidebarFooter
+        isVideoGenerating={false}
+        onOpenSchedules={vi.fn()}
+        onOpenArtifacts={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onLogout={vi.fn()}
+      />,
+      { wrapper: MemoryRouter }
+    )
+
+    expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/analytics')
+  })
+
   it('links to the videos without a mark when nothing is being generated', () => {
     render(
       <SidebarFooter

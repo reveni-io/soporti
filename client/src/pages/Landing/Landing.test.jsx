@@ -74,6 +74,14 @@ describe('Landing', () => {
     expect(container.querySelector('#artifacts').nextElementSibling).toBe(videos)
   })
 
+  it('presents analytics in its own section, right after the product videos', () => {
+    const { container } = render(<Landing />)
+    const analytics = container.querySelector('#analytics')
+
+    expect(analytics).toHaveTextContent('Ask for a chart. Get a live dashboard you arrange by hand.')
+    expect(container.querySelector('#videos').nextElementSibling).toBe(analytics)
+  })
+
   it('lists the supported LLM providers', () => {
     const { container } = render(<Landing />)
     const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)

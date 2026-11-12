@@ -36,6 +36,9 @@ vi.mock('../pages/Videos/Videos.jsx', () => ({
 vi.mock('../pages/VideoStudio/VideoStudio.jsx', () => ({
   default: ({ id }) => <div data-testid="video-studio">{id}</div>,
 }))
+vi.mock('../pages/Analytics/Analytics.jsx', () => ({
+  default: ({ dashboardId }) => <div data-testid="analytics-page">{dashboardId}</div>,
+}))
 vi.mock('../common/AuthGate/AuthGate.jsx', () => ({
   default: ({ children }) => <div data-testid="auth-gate">{children}</div>,
 }))
@@ -138,6 +141,24 @@ describe('Router', () => {
     renderAt('/videos/42')
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
     expect(screen.queryByTestId('video-studio')).toBeNull()
+  })
+
+  it('renders the analytics page behind the sign-in gate at /analytics, with no dashboard picked', () => {
+    renderAt('/analytics')
+    expect(screen.getByTestId('auth-gate')).toContainElement(screen.getByTestId('analytics-page'))
+    expect(screen.getByTestId('analytics-page')).toBeEmptyDOMElement()
+  })
+
+  it('renders the dashboard of the link behind the sign-in gate for a uuid', () => {
+    renderAt('/analytics/5b0c9d1e-2f3a-4b4c-8d5e-6f7a8b9c0d1e')
+    expect(screen.getByTestId('auth-gate')).toContainElement(screen.getByTestId('analytics-page'))
+    expect(screen.getByTestId('analytics-page')).toHaveTextContent('5b0c9d1e-2f3a-4b4c-8d5e-6f7a8b9c0d1e')
+  })
+
+  it('treats a dashboard id that is not a uuid like the analytics page with no dashboard picked', () => {
+    renderAt('/analytics/42')
+    expect(screen.getByTestId('auth-gate')).toContainElement(screen.getByTestId('analytics-page'))
+    expect(screen.getByTestId('analytics-page')).toBeEmptyDOMElement()
   })
 
   it('renders the landing page at the root', () => {

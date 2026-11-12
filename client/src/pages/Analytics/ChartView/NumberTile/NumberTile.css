@@ -1,0 +1,34 @@
+.number-tile {
+  --number-tile-max: calc(var(--fs-4xl) * 4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp1);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: var(--sp2);
+  overflow: hidden;
+  text-align: center;
+}
+
+.number-tile__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.number-tile__value {
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: clamp(var(--fs-2xl), min(36cqh, calc(150cqw / var(--number-tile-length))), var(--number-tile-max));
+  font-weight: 600;
+  font-variant-numeric: proportional-nums;
+  line-height: 1.1;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}

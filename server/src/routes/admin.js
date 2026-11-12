@@ -117,6 +117,7 @@ import { isDriveConfigured } from '../google-drive/settings.js'
 import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
+import { clearQueryCache } from '../analytics/query-cache.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { isZendeskConfigured } from '../zendesk/settings.js'
@@ -1388,6 +1389,7 @@ router.put('/config/postgres/connection', async (req, res) => {
 
   try {
     await setPostgresConnection(trimmed)
+    clearQueryCache()
     res.json({ connectionConfigured: trimmed.length > 0 })
   } catch (err) {
     console.error('Admin set postgres connection error:', err)

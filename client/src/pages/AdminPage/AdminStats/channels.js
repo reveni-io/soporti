@@ -9,6 +9,7 @@ const CHANNEL_LABELS = {
   mcp: 'MCP',
   video_storyboard: 'Video storyboards',
   video: 'Video generation',
+  analytics: 'Analytics charts',
 }
 
 const SOURCE_LABELS = {

@@ -99,3 +99,9 @@ export const VIDEO_STAGES = { DRAFTING: 'drafting', STORYBOARD: 'storyboard', PR
 export const ACTIVE_VIDEO_STATUSES = ['drafting', 'queued', 'running']
 export const GENERATING_VIDEO_STATUSES = ['queued', 'running']
 export const VIDEO_MAX_ATTACHMENTS = 5
+
+export const ANALYTICS_STATUS = { GENERATING: 'generating', READY: 'ready', FAILED: 'failed' }
+export const ANALYTICS_PROMPT_MAX_LENGTH = 2000
+export const ANALYTICS_TITLE_MAX_LENGTH = 120
+export const ANALYTICS_SQL_MAX_LENGTH = 20_000
+export const ANALYTICS_DASHBOARD_NAME_MAX_LENGTH = 80

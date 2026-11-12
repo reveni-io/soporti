@@ -1,0 +1,18 @@
+.delete-confirm {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.delete-confirm__question {
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+@container (max-width: 24rem) {
+  .delete-confirm__question {
+    display: none;
+  }
+}

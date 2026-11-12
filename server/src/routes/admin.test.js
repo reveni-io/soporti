@@ -97,6 +97,7 @@ const setHelpjuiceAccount = vi.fn()
 
 const getPostgresConnection = vi.fn()
 const setPostgresConnection = vi.fn()
+const clearQueryCache = vi.fn()
 const getPostgresMaxRows = vi.fn()
 const setPostgresMaxRows = vi.fn()
 
@@ -209,6 +210,7 @@ vi.mock('../postgres/settings.js', () => ({
   setPostgresMaxRows,
   isPostgresConfigured,
 }))
+vi.mock('../analytics/query-cache.js', () => ({ clearQueryCache }))
 vi.mock('../shopify/settings.js', () => ({
   getShopifyTokenUrl,
   setShopifyTokenUrl,
@@ -392,6 +394,7 @@ beforeEach(() => {
   setHelpjuiceAccount.mockReset()
   getPostgresConnection.mockReset()
   setPostgresConnection.mockReset()
+  clearQueryCache.mockReset()
   getPostgresMaxRows.mockReset()
   getPostgresMaxRows.mockResolvedValue(100)
   setPostgresMaxRows.mockReset()
@@ -1553,6 +1556,14 @@ describe('PUT /api/admin/config/postgres/connection', () => {
     expect(setPostgresConnection).toHaveBeenCalledWith('postgresql://user:pass@host/db')
   })
 
+  it('drops the cached analytics results, which came from the previous database', async () => {
+    await request(app)
+      .put('/api/admin/config/postgres/connection')
+      .send({ connection: 'postgresql://user:pass@host/db' })
+
+    expect(clearQueryCache).toHaveBeenCalledTimes(1)
+  })
+
   it('accepts libpq key-value strings with spaces', async () => {
     const res = await request(app)
       .put('/api/admin/config/postgres/connection')
@@ -1585,6 +1596,7 @@ describe('PUT /api/admin/config/postgres/connection', () => {
       ).status
     ).toBe(400)
     expect(setPostgresConnection).not.toHaveBeenCalled()
+    expect(clearQueryCache).not.toHaveBeenCalled()
   })
 })
 
