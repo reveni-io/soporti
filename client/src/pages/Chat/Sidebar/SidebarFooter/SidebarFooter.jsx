@@ -16,6 +16,9 @@ export default function SidebarFooter({
       <button className="sidebar__artifacts" onClick={onOpenArtifacts}>
         Artifacts
       </button>
+      <Link className="sidebar__analytics" to={ROUTES.ANALYTICS}>
+        Analytics
+      </Link>
       <Link className="sidebar__videos" to={ROUTES.VIDEOS}>
         Videos
         {isVideoGenerating && (

@@ -10,6 +10,7 @@ import ArtifactView from '../pages/ArtifactView/ArtifactView.jsx'
 import SharedArtifact from '../pages/SharedArtifact/SharedArtifact.jsx'
 import Videos from '../pages/Videos/Videos.jsx'
 import VideoStudio from '../pages/VideoStudio/VideoStudio.jsx'
+import Analytics from '../pages/Analytics/Analytics.jsx'
 import AuthGate from '../common/AuthGate/AuthGate.jsx'
 import { QUESTION_PARAM, SHARE_ID_RE, UUID_RE } from '../constants.js'
 import { ROUTES } from './constants.js'
@@ -56,6 +57,16 @@ function VideoRoute() {
   )
 }
 
+function AnalyticsRoute() {
+  const { dashboardId } = useParams()
+
+  return (
+    <AuthGate>
+      <Analytics dashboardId={UUID_RE.test(dashboardId) ? dashboardId : null} />
+    </AuthGate>
+  )
+}
+
 export default function Router() {
   return (
     <Routes>
@@ -76,6 +87,8 @@ export default function Router() {
         }
       />
       <Route path={ROUTES.VIDEO} element={<VideoRoute />} />
+      <Route path={ROUTES.ANALYTICS} element={<AnalyticsRoute />} />
+      <Route path={ROUTES.ANALYTICS_DASHBOARD} element={<AnalyticsRoute />} />
       <Route path="*" element={<Landing />} />
     </Routes>
   )

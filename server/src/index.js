@@ -23,6 +23,7 @@ import skillsRouter from './routes/skills.js'
 import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
 import videosRouter from './routes/videos.js'
+import analyticsRouter from './routes/analytics.js'
 import mcpRoute from './mcp/route.js'
 import oauthRouter from './oauth/route.js'
 import { buildAuthorizationServerMetadata, buildProtectedResourceMetadata } from './oauth/metadata.js'
@@ -41,6 +42,7 @@ import { describeProvider } from './llm/model.js'
 import { registerLangfuseTracing } from './langfuse/tracing.js'
 import { recoverInterruptedDrafts } from './video/storyboard.js'
 import { startVideoRunner, stopVideoRunner } from './video/runner.js'
+import { recoverInterruptedGenerations } from './analytics/generator.js'
 
 registerLangfuseTracing()
 
@@ -81,6 +83,7 @@ app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
 app.use('/api/videos', videosRouter)
+app.use('/api/analytics', analyticsRouter)
 app.use(OAUTH_BASE_PATH, oauthRouter)
 app.use('/api/mcp', mcpRoute(conversationStore))
 
@@ -117,6 +120,12 @@ app.listen(config.port, async () => {
     await startVideoRunner()
   } catch (err) {
     console.error('Failed to start the video runner:', err.message)
+  }
+
+  try {
+    await recoverInterruptedGenerations()
+  } catch (err) {
+    console.error('Failed to recover interrupted chart generations:', err.message)
   }
 
   try {

@@ -1,0 +1,50 @@
+.card-notice {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: var(--sp2);
+  min-height: 0;
+  padding: var(--sp2) 0;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.card-notice__icon {
+  flex-shrink: 0;
+  color: var(--orange-700);
+}
+
+.card-notice__heading {
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.card-notice__message {
+  max-width: 32rem;
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+
+.card-notice__message--code {
+  max-width: 100%;
+  padding: var(--sp2) var(--sp3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-align: left;
+  white-space: pre-wrap;
+  background: var(--bg-cool);
+  border-radius: var(--radius-md);
+  user-select: text;
+}
+
+.card-notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp2);
+  margin-top: var(--sp1);
+}

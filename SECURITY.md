@@ -26,6 +26,8 @@ Soporti is an LLM agent wired to real systems: your source code, a production da
 
 The chat agent — and the automated PR reviewer — carry a `query_database` tool that executes read-only SELECTs against the database configured in `/admin` → Database. The PR reviewer's input is author-controlled (title, body, diff — including vendored or generated code), and its output is published on GitHub, so a prompt-injected PR could in principle steer the agent into reading data and echoing it into a review comment. A deterministic output guard redacts credential-shaped strings from everything posted, but **data that does not look like a credential (e.g. business rows) can still leak**.
 
+The **Analytics** dashboard (`/analytics`) uses the same connection. Its agent writes and runs queries the same way, and the SQL of every card is editable: **any signed-in user can run their own read-only `SELECT` against that database, with no model in between**. Treat everything the connected database user can read as readable by every user of the app.
+
 Deploy accordingly:
 
 - Connect a **read-only database user**, scoped to the schemas the agent genuinely needs. Never reuse an admin or read-write connection string.
@@ -61,7 +63,7 @@ Deploy accordingly:
 ### Built-in guardrails (they reduce the risks above — they do not eliminate them)
 
 - Everything published to GitHub or Slack passes through a deterministic output guard that redacts credential-shaped strings — API tokens, JWTs, private keys, connection-string passwords (`server/src/review/output-guard.js`).
-- The database tool is SELECT-only with a configurable row cap; Google Drive uses the read-only `drive.readonly` scope; Shopify token lookups never enter the drafting agent's context.
+- The database tool is SELECT-only with a configurable row cap; Analytics queries are SELECT-only too, run in a read-only transaction, and are capped at 2,000 rows with a 30-second statement timeout; Google Drive uses the read-only `drive.readonly` scope; Shopify token lookups never enter the drafting agent's context.
 - System prompts declare all external content (PR text, tickets, documents, tool output) to be data, never instructions; autonomous runs ignore user-saved custom instructions.
 
 ## Hardening Checklist

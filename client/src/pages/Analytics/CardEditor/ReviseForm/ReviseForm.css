@@ -1,0 +1,27 @@
+.revise-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-width: 0;
+}
+
+.revise-form__label {
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.revise-form__row {
+  display: flex;
+  gap: var(--sp2);
+}
+
+.revise-form__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.revise-form__hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}

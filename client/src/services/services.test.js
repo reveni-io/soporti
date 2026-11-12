@@ -58,6 +58,19 @@ import {
   updateSchedule,
   updateSkill,
   updateSubagent,
+  listAnalyticsDashboards,
+  createAnalyticsDashboard,
+  updateAnalyticsDashboard,
+  deleteAnalyticsDashboard,
+  listAnalyticsCards,
+  createAnalyticsCard,
+  reviseAnalyticsCard,
+  retryAnalyticsCard,
+  updateAnalyticsCard,
+  deleteAnalyticsCard,
+  getAnalyticsCardData,
+  runAnalyticsQuery,
+  saveAnalyticsLayout,
 } from './services.js'
 
 const ORIGINAL_BASE = import.meta.env.VITE_API_URL
@@ -658,5 +671,146 @@ describe('videos', () => {
     expect(url).toBe(`/api/videos/${VIDEO_ID}/variants`)
     expect(options.method).toBe('POST')
     expect(JSON.parse(options.body)).toEqual({ request: 'Brand it for Acme' })
+  })
+})
+
+describe('analytics', () => {
+  const CARD_ID = '8c1d2e3f-4a5b-4c6d-9e7f-a0b1c2d3e4f5'
+  const DASHBOARD_ID = '5b0c9d1e-2f3a-4b4c-8d5e-6f7a8b9c0d1e'
+
+  it('lists the dashboards the user can open', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ configured: true, dashboards: [] }))
+
+    await expect(listAnalyticsDashboards('tok')).resolves.toEqual({ configured: true, dashboards: [] })
+    expect(lastCall()[0]).toBe('/api/analytics/dashboards')
+  })
+
+  it('creates a dashboard with its name', async () => {
+    await createAnalyticsDashboard('tok', 'Returns overview')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/analytics/dashboards')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ name: 'Returns overview' })
+  })
+
+  it('renames or shares a dashboard', async () => {
+    await updateAnalyticsDashboard('tok', DASHBOARD_ID, { shared: true })
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}`)
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ shared: true })
+  })
+
+  it('deletes a dashboard', async () => {
+    await deleteAnalyticsDashboard('tok', DASHBOARD_ID)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}`)
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('lists the charts of a dashboard', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ dashboard: { id: DASHBOARD_ID }, cards: [] }))
+
+    await expect(listAnalyticsCards('tok', DASHBOARD_ID)).resolves.toEqual({
+      dashboard: { id: DASHBOARD_ID },
+      cards: [],
+    })
+    expect(lastCall()[0]).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}/cards`)
+  })
+
+  it('creates a chart on a dashboard from a prompt', async () => {
+    await createAnalyticsCard('tok', DASHBOARD_ID, 'Returns per week')
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}/cards`)
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ prompt: 'Returns per week' })
+  })
+
+  it('asks for a change to a chart', async () => {
+    await reviseAnalyticsCard('tok', CARD_ID, 'Group it by month')
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/cards/${CARD_ID}/revise`)
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ prompt: 'Group it by month' })
+  })
+
+  it('retries a chart that failed', async () => {
+    await retryAnalyticsCard('tok', CARD_ID)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/cards/${CARD_ID}/retry`)
+    expect(options.method).toBe('POST')
+  })
+
+  it('saves the edited fields of a chart', async () => {
+    await updateAnalyticsCard('tok', CARD_ID, { title: 'Weekly returns', sql: 'SELECT 1' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/cards/${CARD_ID}`)
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ title: 'Weekly returns', sql: 'SELECT 1' })
+  })
+
+  it('deletes a chart', async () => {
+    await deleteAnalyticsCard('tok', CARD_ID)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/cards/${CARD_ID}`)
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('loads the rows a chart plots', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ columns: [], rows: [], truncated: false }))
+
+    await expect(getAnalyticsCardData('tok', CARD_ID)).resolves.toEqual({ columns: [], rows: [], truncated: false })
+    expect(lastCall()[0]).toBe(`/api/analytics/cards/${CARD_ID}/data`)
+  })
+
+  it('asks for a fresh run of the query when the data is refreshed', async () => {
+    await getAnalyticsCardData('tok', CARD_ID, { fresh: true })
+
+    expect(lastCall()[0]).toBe(`/api/analytics/cards/${CARD_ID}/data?fresh=true`)
+  })
+
+  it('surfaces the reason a query was rejected', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(422, { error: 'column "foo" does not exist' }))
+
+    await expect(runAnalyticsQuery('tok', { sql: 'SELECT foo', chart: null })).rejects.toMatchObject({
+      message: 'column "foo" does not exist',
+      status: 422,
+    })
+  })
+
+  it('runs a query with the chart it should be reconciled with', async () => {
+    const chart = {
+      type: 'bar',
+      xKey: 'week',
+      groupKey: null,
+      series: [{ key: 'returns', label: 'Returns' }],
+      stacked: false,
+    }
+
+    await runAnalyticsQuery('tok', { sql: 'SELECT 1', chart })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/analytics/query')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ sql: 'SELECT 1', chart })
+  })
+
+  it('saves where every chart sits on the grid', async () => {
+    const items = [{ id: CARD_ID, x: 0, y: 0, w: 6, h: 4 }]
+
+    await saveAnalyticsLayout('tok', DASHBOARD_ID, items)
+
+    const [url, options] = lastCall()
+    expect(url).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}/layout`)
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ items })
   })
 })

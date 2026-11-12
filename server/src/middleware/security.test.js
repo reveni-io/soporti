@@ -127,6 +127,27 @@ describe('setupSecurity', () => {
     expect(mcpCall.message).toEqual({ error: 'Too many requests. Please wait a moment.' })
   })
 
+  it('gives the analytics dashboard its own rate limiter with 300 req/min', () => {
+    setupSecurity(app)
+    const analyticsCall = mockRateLimit.mock.calls[4][0]
+    expect(analyticsCall.windowMs).toBe(60_000)
+    expect(analyticsCall.limit).toBe(300)
+    expect(analyticsCall.standardHeaders).toBe(true)
+    expect(analyticsCall.legacyHeaders).toBe(false)
+    expect(analyticsCall.message).toEqual({ error: 'Too many requests. Please wait a moment.' })
+    expect(app.use).toHaveBeenCalledWith('/api/analytics', 'rate-limiter')
+  })
+
+  it('keeps analytics requests out of the general rate limiter', () => {
+    setupSecurity(app)
+    const { skip } = mockRateLimit.mock.calls[1][0]
+
+    expect(skip({ originalUrl: '/api/analytics/cards' })).toBe(true)
+    expect(skip({ originalUrl: '/api/analytics/cards/8c1d2e3f-4a5b-4c6d-9e7f-a0b1c2d3e4f5/data' })).toBe(true)
+    expect(skip({ originalUrl: '/api/videos' })).toBe(false)
+    expect(skip({ originalUrl: '/api/analyticsx' })).toBe(false)
+  })
+
   it('guards /api/mcp with the origin check ahead of its rate limiter', () => {
     setupSecurity(app)
     expect(app.use).toHaveBeenCalledWith('/api/mcp', mcpOriginGuard, 'rate-limiter')
@@ -139,7 +160,7 @@ describe('setupSecurity', () => {
 
   it('calls app.use the expected number of times', () => {
     setupSecurity(app)
-    expect(app.use).toHaveBeenCalledTimes(8)
+    expect(app.use).toHaveBeenCalledTimes(9)
   })
 })
 

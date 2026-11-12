@@ -1,0 +1,35 @@
+.pie-view {
+  --chart-legend-cap: 40cqh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.pie-view__plot {
+  flex: 1 1 0;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pie-view__legend {
+  flex: none;
+  min-width: 0;
+}
+
+@container (min-width: 24rem) and (min-aspect-ratio: 4/3) {
+  .pie-view {
+    --chart-legend-cap: 100cqh;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp5);
+  }
+
+  .pie-view__legend {
+    flex: 0 1 45%;
+    max-width: 18rem;
+  }
+}

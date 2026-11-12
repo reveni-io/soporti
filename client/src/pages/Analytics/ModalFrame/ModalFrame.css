@@ -1,0 +1,26 @@
+.modal-frame__header {
+  flex-shrink: 0;
+  gap: var(--sp3);
+}
+
+.modal-frame__close {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-md);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.modal-frame__close:hover {
+  background: var(--bg-cool);
+}
+
+.modal-frame__close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

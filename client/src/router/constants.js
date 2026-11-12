@@ -10,4 +10,6 @@ export const ROUTES = {
   ARTIFACT_SHARE: '/a/:shareId',
   VIDEOS: '/videos',
   VIDEO: '/videos/:id',
+  ANALYTICS: '/analytics',
+  ANALYTICS_DASHBOARD: '/analytics/:dashboardId',
 }

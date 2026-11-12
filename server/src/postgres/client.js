@@ -1,5 +1,6 @@
 import pg from 'pg'
 import { getPostgresConnection, isPostgresConfigured, getPostgresMaxRows } from './settings.js'
+import { POSTGRES_OID_DATE, POSTGRES_OID_TIMESTAMP, POSTGRES_OID_TIMESTAMPTZ } from '../constants.js'
 
 const { Pool } = pg
 
@@ -19,6 +20,9 @@ const IDENTIFIER_RE = /[a-z_][a-z0-9_$]*/g
 const BEGIN_READ_ONLY = 'BEGIN READ ONLY'
 const ROLLBACK = 'ROLLBACK'
 const EXTENDED_QUERY_MODE = 'extended'
+const LIST_TABLES_TOOL_HINT = ': list them with list_database_tables'
+const RAW_TEXT_OIDS = new Set([POSTGRES_OID_DATE, POSTGRES_OID_TIMESTAMP, POSTGRES_OID_TIMESTAMPTZ])
+const RAW_DATE_TYPES = { getTypeParser: resolveTypeParser }
 let pool = null
 let poolConnString = null
 
@@ -231,7 +235,7 @@ function withHint(err, hint) {
   return Object.assign(new Error(message, { cause: err }), { code: err.code })
 }
 
-async function undefinedColumnError(err, sql) {
+async function undefinedColumnError(err, { sql }) {
   const tables = await describeTablesInQuery(sql)
 
   return withHint(err, describeColumns(tables))
@@ -256,13 +260,16 @@ async function findTablesNamedLike(name) {
   }
 }
 
-async function undefinedTableError(err) {
+function noSimilarTableHint(name, toolHints) {
+  return `No table name contains "${name}"${toolHints ? LIST_TABLES_TOOL_HINT : ''}.`
+}
+
+async function undefinedTableError(err, { toolHints }) {
   const missing = err.message.match(MISSING_RELATION_RE)?.[1]?.split('.').at(-1)?.replace(TRAILING_PLURAL_S_RE, '')
   if (!missing) return err
 
   const tables = await findTablesNamedLike(missing)
-  if (tables.length === 0)
-    return withHint(err, `No table name contains "${missing}": list them with list_database_tables.`)
+  if (tables.length === 0) return withHint(err, noSimilarTableHint(missing, toolHints))
 
   return withHint(err, `Tables whose name contains "${missing}": ${tables.join(', ')}.`)
 }
@@ -279,18 +286,29 @@ const QUERY_ERROR_EXPLAINERS = {
   [QUERY_CANCELED_CODE]: canceledQueryError,
 }
 
+export class ReadOnlyQueryError extends Error {}
+
+function keepRawText(value) {
+  return value
+}
+
+function resolveTypeParser(oid, format) {
+  return RAW_TEXT_OIDS.has(oid) ? keepRawText : pg.types.getTypeParser(oid, format)
+}
+
 function logConnectionError(err) {
   console.error(`${LOG_PREFIX} Connection error during a query:`, err.message)
 }
 
-async function queryReadOnly(text) {
+async function queryReadOnly(query, timeoutMs) {
   const db = await getPool()
   const client = await db.connect()
   client.on('error', logConnectionError)
 
   try {
     await client.query(BEGIN_READ_ONLY)
-    return await client.query({ text, queryMode: EXTENDED_QUERY_MODE })
+    if (timeoutMs) await client.query(`SET LOCAL statement_timeout = ${Number(timeoutMs)}`)
+    return await client.query(query)
   } finally {
     const rollbackError = await client.query(ROLLBACK).then(
       () => undefined,
@@ -301,34 +319,47 @@ async function queryReadOnly(text) {
   }
 }
 
-export async function runQuery(sql) {
+async function runGuardedQuery(sql, { maxRows = null, timeoutMs = null, types = null, toolHints = true } = {}) {
   console.log(`${LOG_PREFIX} runQuery: ${sql.slice(0, 200)}${sql.length > 200 ? '...' : ''}`)
   const trimmed = sql.trim()
   const upper = trimmed.toUpperCase()
   if (!upper.startsWith('SELECT') && !upper.startsWith('WITH')) {
     console.error(`${LOG_PREFIX} runQuery rejected: not a SELECT/WITH query`)
-    throw new Error('Only SELECT and WITH (CTE) queries are allowed.')
+    throw new ReadOnlyQueryError('Only SELECT and WITH (CTE) queries are allowed.')
   }
 
   try {
-    const maxRows = await getPostgresMaxRows()
+    const rowCap = Number(maxRows ?? (await getPostgresMaxRows()))
     const limited = trimmed.replace(/;+\s*$/, '')
-    const query = `SELECT * FROM (${limited}) AS _q LIMIT ${maxRows}`
+    const query = { text: `SELECT * FROM (${limited}) AS _q LIMIT ${rowCap}`, queryMode: EXTENDED_QUERY_MODE }
+    if (types) query.types = types
 
-    const { rows, fields } = await queryReadOnly(query)
+    const { rows, fields } = await queryReadOnly(query, timeoutMs)
     console.log(`${LOG_PREFIX} runQuery → ${rows.length} rows, ${fields.length} columns`)
-    return {
-      columns: fields.map(f => f.name),
-      rows,
-      rowCount: rows.length,
-      truncated: rows.length === maxRows,
-    }
+    return { rows, fields, truncated: rows.length === rowCap }
   } catch (err) {
     console.error(`${LOG_PREFIX} runQuery error:`, err.message)
     const explain = QUERY_ERROR_EXPLAINERS[err.code]
-    if (explain) throw await explain(err, trimmed)
+    if (explain) throw await explain(err, { sql: trimmed, toolHints })
     throw err
   }
+}
+
+export async function runQuery(sql) {
+  const { rows, fields, truncated } = await runGuardedQuery(sql)
+
+  return { columns: fields.map(f => f.name), rows, rowCount: rows.length, truncated }
+}
+
+export async function runTypedQuery(sql, { maxRows, timeoutMs }) {
+  const { rows, fields, truncated } = await runGuardedQuery(sql, {
+    maxRows,
+    timeoutMs,
+    types: RAW_DATE_TYPES,
+    toolHints: false,
+  })
+
+  return { fields: fields.map(({ name, dataTypeID }) => ({ name, dataTypeID })), rows, truncated }
 }
 
 export async function shutdown() {

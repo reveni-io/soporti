@@ -1,0 +1,22 @@
+.modal.dashboard-settings-modal {
+  gap: var(--sp4);
+  max-width: 30rem;
+}
+
+.dashboard-settings-modal__danger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp3);
+  padding-top: var(--sp4);
+  border-top: 1px solid var(--border-default);
+}
+
+.dashboard-settings-modal__warning {
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+}
+
+.dashboard-settings-modal__danger .alert {
+  align-self: stretch;
+}

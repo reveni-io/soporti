@@ -26,6 +26,18 @@
   --orange-700: #c05e10;
   --orange-900: #a34c08;
 
+  --chart-1: var(--green-chart);
+  --chart-2: #3f7fbf;
+  --chart-3: #e07020;
+  --chart-4: #1a9a9a;
+  --chart-5: #d0453f;
+  --chart-6: #6f4fc0;
+  --chart-7: #ad8b2a;
+  --chart-8: #c85a94;
+  --chart-other: var(--green-low);
+  --chart-grid: var(--border-low);
+  --chart-axis: var(--border-high);
+
   --overlay-primary: rgba(var(--green-deep-rgb), 0.45);
 
   --link-color: #c05e10;
@@ -68,6 +80,8 @@
   --shadow-modal: 0 12px 40px rgba(var(--green-deep-rgb), 0.15);
   --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.35);
   --shadow-drawer: 4px 0 24px rgba(var(--green-deep-rgb), 0.3);
+  --shadow-card: 0 1px 2px rgba(var(--green-deep-rgb), 0.04);
+  --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
 
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;

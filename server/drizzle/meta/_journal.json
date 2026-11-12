@@ -162,6 +162,13 @@
       "when": 1793626342959,
       "tag": "0022_chubby_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794500886324,
+      "tag": "0023_great_siren",
+      "breakpoints": true
     }
   ]
 }

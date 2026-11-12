@@ -110,6 +110,21 @@ export const VIDEO_RESULT_IDLE = 'idle'
 export const VIDEO_RESULT_CANCELLED = 'cancelled'
 export const VIDEO_RESULT_CANCELLING = 'cancelling'
 
+export const ANALYTICS_STATUS_GENERATING = 'generating'
+export const ANALYTICS_STATUS_READY = 'ready'
+export const ANALYTICS_STATUS_FAILED = 'failed'
+export const MAX_ANALYTICS_DASHBOARDS_PER_USER = 20
+export const MAX_ANALYTICS_DASHBOARD_NAME_LENGTH = 80
+export const MAX_ANALYTICS_CARDS_PER_DASHBOARD = 40
+export const MAX_ANALYTICS_GENERATIONS_PER_DASHBOARD = 3
+export const MAX_ANALYTICS_TITLE_LENGTH = 120
+export const ANALYTICS_MAX_ROWS = 2000
+export const ANALYTICS_KIND_NUMBER = 'number'
+
+export const POSTGRES_OID_DATE = 1082
+export const POSTGRES_OID_TIMESTAMP = 1114
+export const POSTGRES_OID_TIMESTAMPTZ = 1184
+
 export const TOOL_NOT_FOUND_BEHAVIOR = 'return_error_to_model'
 
 export const AGENT_CHANNEL_WEB = 'web'
@@ -122,6 +137,7 @@ export const AGENT_CHANNEL_AUTO_DIAGNOSE = 'auto_diagnose'
 export const AGENT_CHANNEL_MCP = 'mcp'
 export const AGENT_CHANNEL_VIDEO_STORYBOARD = 'video_storyboard'
 export const AGENT_CHANNEL_VIDEO = 'video'
+export const AGENT_CHANNEL_ANALYTICS = 'analytics'
 export const RUN_STATUS_OK = 'ok'
 export const RUN_STATUS_ERROR = 'error'
 export const EMPTY_ANSWER_ERROR = 'The assistant returned an empty answer.'

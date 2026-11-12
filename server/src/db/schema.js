@@ -478,3 +478,49 @@ export const videoShares = pgTable(
   },
   table => [uniqueIndex('video_shares_video_version_idx').on(table.videoId, table.version)]
 )
+
+export const analyticsDashboards = pgTable(
+  'analytics_dashboards',
+  {
+    id: uuid('id').primaryKey(),
+    name: text('name').notNull(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    shared: boolean('shared').notNull().default(false),
+  },
+  table => {
+    return [
+      index('analytics_dashboards_user_created_idx').on(table.userId, table.createdAt),
+      index('analytics_dashboards_shared_idx').on(table.shared),
+    ]
+  }
+)
+
+export const analyticsCards = pgTable(
+  'analytics_cards',
+  {
+    id: uuid('id').primaryKey(),
+    dashboardId: uuid('dashboard_id')
+      .notNull()
+      .references(() => analyticsDashboards.id, { onDelete: 'cascade' }),
+    prompt: text('prompt').notNull(),
+    title: text('title').notNull(),
+    sql: text('sql'),
+    chart: jsonb('chart'),
+    layout: jsonb('layout').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    status: text('status').notNull(),
+    step: text('step'),
+    error: text('error'),
+  },
+  table => {
+    return [
+      index('analytics_cards_dashboard_created_idx').on(table.dashboardId, table.createdAt),
+      index('analytics_cards_status_idx').on(table.status),
+    ]
+  }
+)

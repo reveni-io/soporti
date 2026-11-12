@@ -1,0 +1,109 @@
+.card-skeleton {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-height: 0;
+}
+
+.card-skeleton__bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp3);
+  min-height: var(--sp8);
+  margin-bottom: var(--sp2);
+  padding: var(--sp2) var(--sp4) 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.card-skeleton__bar {
+  flex: 1;
+  max-width: 3.5rem;
+  background: var(--bg-cool);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  animation: card-skeleton-wave 1.8s ease-in-out infinite;
+}
+
+.card-skeleton__bar--first {
+  height: 42%;
+}
+
+.card-skeleton__bar--second {
+  height: 68%;
+  animation-delay: 0.15s;
+}
+
+.card-skeleton__bar--third {
+  height: 54%;
+  animation-delay: 0.3s;
+}
+
+.card-skeleton__bar--fourth {
+  height: 92%;
+  animation-delay: 0.45s;
+}
+
+.card-skeleton__bar--fifth {
+  height: 74%;
+  animation-delay: 0.6s;
+}
+
+.card-skeleton__step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  color: var(--text-secondary);
+  font-size: var(--fs-md);
+}
+
+.card-skeleton__dot {
+  flex-shrink: 0;
+  width: var(--sp2);
+  height: var(--sp2);
+  background: var(--green-bright);
+  border-radius: var(--radius-pill);
+  animation: card-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+.card-skeleton__prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1rem;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@keyframes card-skeleton-wave {
+  0%,
+  100% {
+    background: var(--bg-cool);
+  }
+
+  50% {
+    background: var(--border-default);
+  }
+}
+
+@keyframes card-skeleton-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--green-bright-rgb), 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 0 var(--sp1) rgba(var(--green-bright-rgb), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-skeleton__bar,
+  .card-skeleton__dot {
+    animation: none;
+  }
+}
