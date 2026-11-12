@@ -1,36 +1,50 @@
-import { Link } from 'react-router-dom'
-import { ROUTES } from '../../../../router/constants.js'
+import Icon from '../../../../common/Icon/Icon.jsx'
+import './SidebarFooter.css'
 
-export default function SidebarFooter({
-  isVideoGenerating,
-  onOpenSchedules,
-  onOpenArtifacts,
-  onOpenSettings,
-  onLogout,
-}) {
+const FOOTER_ICON_SIZE = 16
+const SETTINGS_LABEL = 'Settings'
+const LOGOUT_LABEL = 'Log out'
+
+export default function SidebarFooter({ user, onOpenSettings, onLogout }) {
   return (
-    <div className="sidebar__footer">
-      <button className="sidebar__schedules" onClick={onOpenSchedules}>
-        Scheduled queries
+    <div className="sidebar-footer">
+      <Account user={user} />
+      <button
+        type="button"
+        className="icon-btn icon-btn--inverse sidebar-footer__settings"
+        onClick={onOpenSettings}
+        aria-label={SETTINGS_LABEL}
+        title={SETTINGS_LABEL}
+      >
+        <Icon name="settings" size={FOOTER_ICON_SIZE} className="sidebar-footer__icon" />
       </button>
-      <button className="sidebar__artifacts" onClick={onOpenArtifacts}>
-        Artifacts
+      <button
+        type="button"
+        className="icon-btn icon-btn--inverse sidebar-footer__logout"
+        onClick={onLogout}
+        aria-label={LOGOUT_LABEL}
+        title={LOGOUT_LABEL}
+      >
+        <Icon name="log-out" size={FOOTER_ICON_SIZE} className="sidebar-footer__icon" />
       </button>
-      <Link className="sidebar__analytics" to={ROUTES.ANALYTICS}>
-        Analytics
-      </Link>
-      <Link className="sidebar__videos" to={ROUTES.VIDEOS}>
-        Videos
-        {isVideoGenerating && (
-          <span className="sidebar__videos-dot" role="img" aria-label="A video is being generated" />
-        )}
-      </Link>
-      <button className="sidebar__settings" onClick={onOpenSettings}>
-        Settings
-      </button>
-      <button className="sidebar__logout" onClick={onLogout}>
-        Log out
-      </button>
+    </div>
+  )
+}
+
+function Account({ user }) {
+  const displayName = user?.name || user?.email
+
+  if (!displayName) return null
+
+  return (
+    <div className="sidebar-footer__account">
+      <span className="sidebar-footer__avatar" aria-hidden="true">
+        {displayName.charAt(0).toUpperCase()}
+      </span>
+      <span className="sidebar-footer__identity">
+        <span className="sidebar-footer__name">{displayName}</span>
+        {user.name && user.email && <span className="sidebar-footer__email">{user.email}</span>}
+      </span>
     </div>
   )
 }

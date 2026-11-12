@@ -1,5 +1,7 @@
 import Icon from '../../../../common/Icon/Icon.jsx'
+import SidebarSearch from '../SidebarSearch/SidebarSearch.jsx'
 import { splitOnMatch } from './highlight-match.js'
+import './ConversationList.css'
 
 const UNTITLED_LABEL = 'Untitled conversation'
 const SCHEDULED_LABEL = 'Scheduled run'
@@ -7,6 +9,8 @@ const STREAMING_LABEL = 'Answering'
 const SEARCH_LABEL = 'Search conversations'
 const SEARCH_PLACEHOLDER = 'Search conversations...'
 const SEARCH_MAX_LENGTH = 200
+const BADGE_ICON_SIZE = 12
+const DELETE_ICON_SIZE = 13
 
 export default function ConversationList({
   conversations,
@@ -19,30 +23,25 @@ export default function ConversationList({
 }) {
   if (conversations.length === 0 && !query && !searchedQuery) return null
 
-  function handleQueryKeyDown(event) {
-    if (event.key === 'Escape') onQueryChange('')
-  }
-
   return (
-    <div className="sidebar__section sidebar__section--conversations">
+    <div className="sidebar__section conversation-list">
       <h2 className="sidebar__section-title">Conversations</h2>
-      <input
-        type="text"
-        className="sidebar__search"
-        placeholder={SEARCH_PLACEHOLDER}
-        aria-label={SEARCH_LABEL}
-        maxLength={SEARCH_MAX_LENGTH}
+      <SidebarSearch
         value={query}
-        onChange={event => onQueryChange(event.target.value)}
-        onKeyDown={handleQueryKeyDown}
+        label={SEARCH_LABEL}
+        placeholder={SEARCH_PLACEHOLDER}
+        maxLength={SEARCH_MAX_LENGTH}
+        onChange={onQueryChange}
       />
-      <ConversationItems
-        conversations={conversations}
-        searchedQuery={searchedQuery}
-        selectedId={selectedId}
-        onSelect={onSelect}
-        onDelete={onDelete}
-      />
+      <div className="sidebar__scroll">
+        <ConversationItems
+          conversations={conversations}
+          searchedQuery={searchedQuery}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onDelete={onDelete}
+        />
+      </div>
     </div>
   )
 }
@@ -51,11 +50,12 @@ function ConversationItems({ conversations, searchedQuery, selectedId, onSelect,
   if (conversations.length === 0) return <p className="sidebar__info">No conversations match "{searchedQuery}"</p>
 
   return (
-    <ul className="sidebar__conversation-list">
-      {conversations.map(conversation => (
+    <ul className="conversation-list__items">
+      {conversations.map((conversation, index) => (
         <ConversationItem
           key={conversation.id}
           conversation={conversation}
+          index={index}
           searchedQuery={searchedQuery}
           isSelected={conversation.id === selectedId}
           onSelect={onSelect}
@@ -66,40 +66,47 @@ function ConversationItems({ conversations, searchedQuery, selectedId, onSelect,
   )
 }
 
-function ConversationItem({ conversation, searchedQuery, isSelected, onSelect, onDelete }) {
+function ConversationItem({ conversation, index, searchedQuery, isSelected, onSelect, onDelete }) {
   const className = [
-    'sidebar__conversation',
-    isSelected && 'sidebar__conversation--selected',
-    conversation.isStreaming && 'sidebar__conversation--streaming',
+    'conversation-list__item',
+    isSelected && 'conversation-list__item--selected',
+    conversation.isStreaming && 'conversation-list__item--streaming',
   ]
     .filter(Boolean)
     .join(' ')
 
-  function handleDelete(event) {
-    event.stopPropagation()
-    onDelete(conversation.id)
-  }
-
   return (
-    <li className={className} aria-current={isSelected} onClick={() => onSelect?.(conversation.id)}>
-      {conversation.scheduleId && (
-        <span className="sidebar__conversation-badge" role="img" aria-label={SCHEDULED_LABEL} title={SCHEDULED_LABEL}>
-          <Icon name="clock" size={12} />
+    <li className={className} style={{ '--conversation-index': index }}>
+      <button
+        type="button"
+        className="conversation-list__open"
+        aria-current={isSelected}
+        onClick={() => onSelect?.(conversation.id)}
+      >
+        {conversation.scheduleId && (
+          <span className="conversation-list__badge" role="img" aria-label={SCHEDULED_LABEL} title={SCHEDULED_LABEL}>
+            <Icon name="clock" size={BADGE_ICON_SIZE} />
+          </span>
+        )}
+        <span className="conversation-list__text">
+          <span className="conversation-list__title">{conversation.title || UNTITLED_LABEL}</span>
+          {conversation.snippet && <Snippet text={conversation.snippet} query={searchedQuery} />}
         </span>
-      )}
-      <span className="sidebar__conversation-text">
-        <span className="sidebar__conversation-title">{conversation.title || UNTITLED_LABEL}</span>
-        {conversation.snippet && <Snippet text={conversation.snippet} query={searchedQuery} />}
-      </span>
+      </button>
       {conversation.isStreaming ? (
-        <span className="sidebar__conversation-typing" role="img" aria-label={STREAMING_LABEL} title={STREAMING_LABEL}>
+        <span className="conversation-list__typing" role="img" aria-label={STREAMING_LABEL} title={STREAMING_LABEL}>
           <span />
           <span />
           <span />
         </span>
       ) : (
-        <button className="sidebar__conversation-delete" onClick={handleDelete} aria-label="Delete conversation">
-          &times;
+        <button
+          type="button"
+          className="conversation-list__delete"
+          onClick={() => onDelete(conversation.id)}
+          aria-label="Delete conversation"
+        >
+          <Icon name="trash" size={DELETE_ICON_SIZE} />
         </button>
       )}
     </li>
@@ -108,10 +115,10 @@ function ConversationItem({ conversation, searchedQuery, isSelected, onSelect, o
 
 function Snippet({ text, query }) {
   return (
-    <span className="sidebar__conversation-snippet">
+    <span className="conversation-list__snippet">
       {splitOnMatch(text, query).map((segment, index) =>
         segment.isMatch ? (
-          <mark key={index} className="sidebar__conversation-match">
+          <mark key={index} className="conversation-list__match">
             {segment.text}
           </mark>
         ) : (

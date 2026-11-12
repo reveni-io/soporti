@@ -18,16 +18,22 @@ import { YOLO_SOURCE } from '../../constants.js'
 import { absoluteAppUrl, createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed'
+
 export default function Chat({ initialQuestion = '' }) {
   const [selectedSources, setSelectedSources] = useState([YOLO_SOURCE])
   const [selectedProfile, setSelectedProfile] = useState(() => localStorage.getItem('selectedProfile') || 'support')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
+  )
   const [conversationShareUrl, setConversationShareUrl] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [schedulesOpen, setSchedulesOpen] = useState(false)
   const [artifactsOpen, setArtifactsOpen] = useState(false)
   const {
     token,
+    user,
     isAuthenticated,
     loginWithGoogle,
     loginWithPassword,
@@ -85,6 +91,11 @@ export default function Chat({ initialQuestion = '' }) {
     localStorage.setItem('selectedProfile', profile)
   }
 
+  function handleSidebarCollapsed(collapsed) {
+    setIsSidebarCollapsed(collapsed)
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed))
+  }
+
   function handleSend(text, skills = [], attachments = []) {
     sendMessage(text, { selectedSources, profile: selectedProfile, skills, attachments })
   }
@@ -110,7 +121,11 @@ export default function Chat({ initialQuestion = '' }) {
 
   return (
     <div className="chat-page">
-      {sidebarOpen && <div className="chat-page__overlay" onClick={() => setSidebarOpen(false)} />}
+      <div
+        className={`chat-page__overlay ${sidebarOpen ? 'chat-page__overlay--visible' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
       <Sidebar
         selectedSources={selectedSources}
         onToggleSource={toggleSource}
@@ -127,8 +142,11 @@ export default function Chat({ initialQuestion = '' }) {
         selectedConversationId={sessionId}
         integrations={integrations}
         token={token}
+        user={user}
         isOpen={sidebarOpen}
+        isCollapsed={isSidebarCollapsed}
         onClose={() => setSidebarOpen(false)}
+        onCollapse={() => handleSidebarCollapsed(true)}
       />
       <ChatPanel
         messages={messages}
@@ -138,6 +156,8 @@ export default function Chat({ initialQuestion = '' }) {
         onStop={stopGeneration}
         hasSourcesSelected={selectedSources.length > 0}
         onOpenSidebar={() => setSidebarOpen(true)}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onExpandSidebar={() => handleSidebarCollapsed(false)}
         onShare={handleShare}
         onLogout={logout}
         integrations={integrations}

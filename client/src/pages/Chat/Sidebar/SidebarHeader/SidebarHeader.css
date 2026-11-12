@@ -1,0 +1,108 @@
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp4) var(--sp3) var(--sp3) var(--sp4);
+}
+
+.sidebar-header__brand {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--sp3);
+  min-width: 0;
+}
+
+.sidebar-header__logo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp8);
+  height: var(--sp8);
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, var(--sidebar-surface-strong), var(--sidebar-surface));
+  box-shadow:
+    inset 0 0 0 1px var(--sidebar-border),
+    0 0 var(--sp6) var(--sidebar-glow);
+  animation: sidebar-header-logo-in var(--motion-slow) var(--ease-spring) both;
+}
+
+.sidebar-header__mark {
+  width: var(--sp5);
+  height: var(--sp5);
+  background: linear-gradient(145deg, var(--green-bright), var(--green-chart));
+  mask: url('/favicon-512.png') center / contain no-repeat;
+  transition: transform var(--motion-slow) var(--ease-spring);
+}
+
+.sidebar-header__brand:hover .sidebar-header__mark {
+  transform: rotate(-14deg) scale(1.1);
+}
+
+.sidebar-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar-header__title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: var(--fs-xl);
+  line-height: 1.25rem;
+  color: var(--sidebar-text);
+}
+
+.sidebar-header__tagline {
+  text-wrap: balance;
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  line-height: 0.875rem;
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-header .sidebar-header__close {
+  display: none;
+}
+
+.sidebar-header__close-icon {
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+
+.sidebar-header__close:hover .sidebar-header__close-icon {
+  transform: rotate(90deg);
+}
+
+@keyframes sidebar-header-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-header .sidebar-header__collapse {
+    display: none;
+  }
+
+  .sidebar-header .sidebar-header__close {
+    display: inline-flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-header__logo {
+    animation: none;
+  }
+
+  .sidebar-header__mark,
+  .sidebar-header__close-icon {
+    transition: none;
+  }
+}

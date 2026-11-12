@@ -31,12 +31,16 @@ vi.mock('./Sidebar/Sidebar.jsx', () => ({
     onSelectProfile,
     onOpenSchedules,
     isOpen,
+    isCollapsed,
     onClose,
+    onCollapse,
+    user,
     activeConversations,
     conversationsReloadKey,
     selectedConversationId,
   }) => (
-    <div data-testid="sidebar" data-open={isOpen}>
+    <div data-testid="sidebar" data-open={isOpen} data-collapsed={isCollapsed}>
+      <span data-testid="sidebar-user">{user?.email}</span>
       <span data-testid="active-conversations">{JSON.stringify(activeConversations)}</span>
       <span data-testid="conversations-reload-key">{conversationsReloadKey}</span>
       <span data-testid="selected-conversation">{selectedConversationId}</span>
@@ -46,6 +50,7 @@ vi.mock('./Sidebar/Sidebar.jsx', () => ({
       <button onClick={() => onSelectProfile('tech')}>Set Tech</button>
       <button onClick={onOpenSchedules}>Open Schedules</button>
       <button onClick={onClose}>Close Sidebar</button>
+      <button onClick={onCollapse}>Collapse Sidebar</button>
     </div>
   ),
 }))
@@ -61,13 +66,14 @@ vi.mock('./SchedulesModal/SchedulesModal.jsx', () => ({
 }))
 
 vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
-  default: ({ messages, onSend, onShare, onOpenSidebar, initialQuestion }) => (
-    <div data-testid="chat">
+  default: ({ messages, onSend, onShare, onOpenSidebar, isSidebarCollapsed, onExpandSidebar, initialQuestion }) => (
+    <div data-testid="chat" data-sidebar-collapsed={isSidebarCollapsed}>
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="initial-question">{initialQuestion}</span>
       <button onClick={() => onSend('hello')}>Send</button>
       <button onClick={onShare}>Share</button>
       <button onClick={onOpenSidebar}>Open Sidebar</button>
+      <button onClick={onExpandSidebar}>Expand Sidebar</button>
     </div>
   ),
 }))
@@ -483,9 +489,11 @@ describe('Chat', () => {
 
     const user = userEvent.setup()
     const { container } = render(<Chat />)
+    expect(container.querySelector('.chat-page__overlay--visible')).toBeNull()
+
     await user.click(screen.getByText('Open Sidebar'))
 
-    expect(container.querySelector('.chat-page__overlay')).toBeTruthy()
+    expect(container.querySelector('.chat-page__overlay--visible')).toBeTruthy()
     expect(screen.getByTestId('sidebar').dataset.open).toBe('true')
   })
 
@@ -510,10 +518,10 @@ describe('Chat', () => {
     const { container } = render(<Chat />)
 
     await user.click(screen.getByText('Open Sidebar'))
-    expect(container.querySelector('.chat-page__overlay')).toBeTruthy()
+    expect(container.querySelector('.chat-page__overlay--visible')).toBeTruthy()
 
     await user.click(screen.getByText('Close Sidebar'))
-    expect(container.querySelector('.chat-page__overlay')).toBeNull()
+    expect(container.querySelector('.chat-page__overlay--visible')).toBeNull()
     expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
   })
 
@@ -538,13 +546,95 @@ describe('Chat', () => {
     const { container } = render(<Chat />)
 
     await user.click(screen.getByText('Open Sidebar'))
-    const overlay = container.querySelector('.chat-page__overlay')
+    const overlay = container.querySelector('.chat-page__overlay--visible')
     expect(overlay).toBeTruthy()
 
     await user.click(overlay)
-    expect(container.querySelector('.chat-page__overlay')).toBeNull()
+    expect(container.querySelector('.chat-page__overlay--visible')).toBeNull()
     expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
   })
+  it('collapses the sidebar and remembers it', async () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat: vi.fn(),
+    })
+
+    const user = userEvent.setup()
+    render(<Chat />)
+
+    expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('false')
+
+    await user.click(screen.getByText('Collapse Sidebar'))
+
+    expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('true')
+    expect(screen.getByTestId('chat').dataset.sidebarCollapsed).toBe('true')
+    expect(localStorage.getItem('sidebarCollapsed')).toBe('true')
+  })
+
+  it('expands the collapsed sidebar from the chat panel', async () => {
+    localStorage.setItem('sidebarCollapsed', 'true')
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat: vi.fn(),
+    })
+
+    const user = userEvent.setup()
+    render(<Chat />)
+
+    expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('true')
+
+    await user.click(screen.getByText('Expand Sidebar'))
+
+    expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('false')
+    expect(screen.getByTestId('chat').dataset.sidebarCollapsed).toBe('false')
+    expect(localStorage.getItem('sidebarCollapsed')).toBe('false')
+  })
+
+  it('tells the sidebar who is signed in', () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      user: { name: 'Ada Lovelace', email: 'ada@example.com' },
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat: vi.fn(),
+    })
+
+    render(<Chat />)
+
+    expect(screen.getByTestId('sidebar-user').textContent).toBe('ada@example.com')
+  })
+
   it('feeds the sidebar every in-flight conversation', () => {
     useAuth.mockReturnValue({
       token: 'tok',

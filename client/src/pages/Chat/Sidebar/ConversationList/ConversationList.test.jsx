@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ConversationList from './ConversationList.jsx'
 
@@ -106,6 +106,18 @@ describe('ConversationList', () => {
 
     expect(onDelete).toHaveBeenCalledWith('c1')
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('opens a conversation from the keyboard', async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(<ConversationList conversations={[{ id: 'c1', title: 'Auth' }]} onSelect={onSelect} onDelete={vi.fn()} />)
+
+    screen.getByRole('button', { name: 'Auth' }).focus()
+    await user.keyboard('{Enter}')
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith('c1')
   })
 
   it('survives a missing select handler', async () => {
@@ -216,7 +228,7 @@ describe('ConversationList', () => {
   })
 
   it('shows why a conversation matched with the query highlighted in the snippet', () => {
-    const { container } = render(
+    render(
       <ConversationList
         conversations={[
           { id: 'c1', title: 'Vague title', snippet: '…we checked the Refund window…' },
@@ -230,10 +242,9 @@ describe('ConversationList', () => {
       />
     )
 
-    const snippets = container.querySelectorAll('.sidebar__conversation-snippet')
-    expect(snippets).toHaveLength(1)
-    expect(snippets[0]).toHaveTextContent('…we checked the Refund window…')
-    expect(snippets[0].querySelector('mark')).toHaveTextContent('Refund')
+    const snippet = screen.getByText(/we checked the/)
+    expect(snippet).toHaveTextContent('…we checked the Refund window…')
+    expect(within(snippet).getByText('Refund').tagName).toBe('MARK')
     expect(screen.getByText('Refund report')).toBeInTheDocument()
   })
 })

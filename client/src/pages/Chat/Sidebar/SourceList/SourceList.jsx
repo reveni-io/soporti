@@ -1,8 +1,13 @@
 import { YOLO_SOURCE } from '../../../../constants.js'
+import Icon from '../../../../common/Icon/Icon.jsx'
+import IntegrationIcon from '../../../../common/IntegrationIcon/IntegrationIcon.jsx'
 import SourceItem from './SourceItem/SourceItem.jsx'
+import './SourceList.css'
 
 const YOLO_NAME = 'YOLO (auto)'
 const YOLO_DESCRIPTION = 'Let the agent decide which sources to use based on your question'
+const REPO_ICON_ID = 'github'
+const SOURCE_ICON_SIZE = 13
 
 export default function SourceList({
   repos,
@@ -14,12 +19,13 @@ export default function SourceList({
   reposError,
 }) {
   return (
-    <ul className="sidebar__source-list">
+    <ul className="source-list">
       {yoloMatches && (
         <SourceItem
           name={YOLO_NAME}
           description={YOLO_DESCRIPTION}
-          modifier="sidebar__source--yolo"
+          icon={<Icon name="zap" size={SOURCE_ICON_SIZE} />}
+          modifier="source-item--yolo"
           selected={selectedSources.includes(YOLO_SOURCE)}
           onToggle={() => onToggleSource(YOLO_SOURCE)}
         />
@@ -32,6 +38,7 @@ export default function SourceList({
             key={key}
             name={integration.name}
             description={integration.description}
+            icon={<IntegrationIcon id={integration.id} size={SOURCE_ICON_SIZE} />}
             selected={selectedSources.includes(key)}
             onToggle={() => onToggleSource(key)}
           />
@@ -47,6 +54,7 @@ export default function SourceList({
           name={repo.fullName}
           description={repo.description}
           language={repo.language}
+          icon={<IntegrationIcon id={REPO_ICON_ID} size={SOURCE_ICON_SIZE} />}
           selected={selectedSources.includes(repo.fullName)}
           onToggle={() => onToggleSource(repo.fullName)}
         />

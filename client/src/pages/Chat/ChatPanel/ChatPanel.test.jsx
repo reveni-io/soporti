@@ -73,8 +73,28 @@ describe('ChatPanel', () => {
 
   it('renders empty state when no messages', () => {
     render(<ChatPanel {...defaultProps} />)
-    expect(screen.getByText('Soporti')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New chat' })).toBeInTheDocument()
     expect(screen.getByText('Ask Soporti anything')).toBeInTheDocument()
+  })
+
+  it('titles the topbar with the first question of the conversation', () => {
+    const messages = [
+      { role: 'user', content: 'Why did the payout fail?' },
+      { role: 'assistant', content: 'The IBAN was rejected.' },
+    ]
+    render(<ChatPanel {...defaultProps} messages={messages} />)
+
+    expect(screen.getByRole('heading', { name: 'Why did the payout fail?' })).toBeInTheDocument()
+  })
+
+  it('expands the collapsed sidebar from the topbar', async () => {
+    const onExpandSidebar = vi.fn()
+    const user = userEvent.setup()
+    render(<ChatPanel {...defaultProps} isSidebarCollapsed onExpandSidebar={onExpandSidebar} />)
+
+    await user.click(screen.getByRole('button', { name: 'Expand sidebar' }))
+
+    expect(onExpandSidebar).toHaveBeenCalledTimes(1)
   })
 
   it('shows configured integrations in the empty state', async () => {

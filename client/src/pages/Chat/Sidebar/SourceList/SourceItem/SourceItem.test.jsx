@@ -12,31 +12,34 @@ describe('SourceItem', () => {
     expect(screen.getByText('JavaScript')).toBeInTheDocument()
   })
 
-  it('omits the language and description when they are missing', () => {
-    const { container } = render(<SourceItem name="org/bare" selected={false} />)
+  it('renders only the name when the language and description are missing', () => {
+    render(<SourceItem name="org/bare" selected={false} />)
 
-    expect(container.querySelector('.sidebar__source-lang')).toBeNull()
-    expect(container.querySelector('.sidebar__source-desc')).toBeNull()
+    expect(screen.getByRole('button')).toHaveTextContent(/^org\/bare$/)
   })
 
-  it('shows a checkmark and the selected modifier when selected', () => {
-    const { container } = render(<SourceItem name="org/app" selected />)
+  it('renders the icon it is given', () => {
+    render(<SourceItem name="Notion" icon={<svg data-testid="notion-icon" />} selected={false} />)
 
-    expect(container.querySelector('.sidebar__source-check').textContent).toBe('✓')
-    expect(container.querySelector('li')).toHaveClass('sidebar__source--selected')
+    expect(screen.getByTestId('notion-icon')).toBeInTheDocument()
   })
 
-  it('leaves the checkmark empty when not selected', () => {
-    const { container } = render(<SourceItem name="org/app" selected={false} />)
+  it('is pressed when selected', () => {
+    render(<SourceItem name="org/app" selected />)
 
-    expect(container.querySelector('.sidebar__source-check').textContent).toBe('')
-    expect(container.querySelector('li')).not.toHaveClass('sidebar__source--selected')
+    expect(screen.getByRole('button', { name: 'org/app' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('is not pressed when not selected', () => {
+    render(<SourceItem name="org/app" selected={false} />)
+
+    expect(screen.getByRole('button', { name: 'org/app' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('applies the modifier it is given without leaving empty class slots', () => {
-    const { container } = render(<SourceItem name="YOLO (auto)" selected={false} modifier="sidebar__source--yolo" />)
+    render(<SourceItem name="YOLO (auto)" selected={false} modifier="source-item--yolo" />)
 
-    expect(container.querySelector('li').className).toBe('sidebar__source sidebar__source--yolo')
+    expect(screen.getByRole('button').className).toBe('source-item source-item--yolo')
   })
 
   it('reports a click', async () => {
@@ -45,6 +48,17 @@ describe('SourceItem', () => {
     render(<SourceItem name="org/app" selected={false} onToggle={onToggle} />)
 
     await user.click(screen.getByText('org/app'))
+
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggles from the keyboard', async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    render(<SourceItem name="org/app" selected={false} onToggle={onToggle} />)
+
+    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onToggle).toHaveBeenCalledTimes(1)
   })

@@ -64,6 +64,9 @@
   --sidebar-hover: rgba(var(--green-inverse-rgb), 0.07);
   --sidebar-selected: rgba(var(--green-bright-rgb), 0.14);
   --sidebar-selected-border: rgba(var(--green-bright-rgb), 0.35);
+  --sidebar-surface: rgba(var(--green-inverse-rgb), 0.05);
+  --sidebar-surface-strong: rgba(var(--green-inverse-rgb), 0.09);
+  --sidebar-glow: rgba(var(--green-bright-rgb), 0.1);
 
   --btn-primary-bg: var(--green-bright);
   --btn-primary-bg-hover: var(--green-bright-hover);
@@ -82,6 +85,18 @@
   --shadow-drawer: 4px 0 24px rgba(var(--green-deep-rgb), 0.3);
   --shadow-card: 0 1px 2px rgba(var(--green-deep-rgb), 0.04);
   --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
+  --shadow-glow: 0 8px 24px rgba(var(--green-bright-rgb), 0.3);
+  --shadow-topbar: 0 10px 30px rgba(var(--green-deep-rgb), 0.06);
+
+  --blur-overlay: 6px;
+  --blur-enter: 3px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-fast: 0.16s;
+  --motion-base: 0.24s;
+  --motion-slow: 0.42s;
+  --motion-stagger: 30ms;
 
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
@@ -100,6 +115,9 @@
   --sp16: 4rem;
 
   --artifact-panel-width: 30rem;
+  --sidebar-width: 17.5rem;
+  --sidebar-drawer-width: min(20rem, 86vw);
+  --topbar-height: 3.5rem;
 
   --font-heading: 'Shippori Mincho', Georgia, serif;
   --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;

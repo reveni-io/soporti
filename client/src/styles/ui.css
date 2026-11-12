@@ -73,6 +73,54 @@
   width: 100%;
 }
 
+.icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp8);
+  height: var(--sp8);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.icon-btn:hover {
+  background-color: var(--bg-cool);
+  color: var(--text-primary);
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
+}
+
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.icon-btn--inverse {
+  color: var(--sidebar-text-muted);
+}
+
+.icon-btn--inverse:hover {
+  background-color: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn {
+    transition: none;
+  }
+}
+
 .input,
 .textarea {
   padding: var(--sp2) var(--sp3);

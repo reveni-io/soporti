@@ -1,0 +1,104 @@
+.sidebar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--sp2);
+}
+
+.sidebar-search__icon {
+  position: absolute;
+  left: var(--sp3);
+  color: var(--sidebar-text-muted);
+  pointer-events: none;
+  transition:
+    color var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.sidebar-search:focus-within .sidebar-search__icon {
+  color: var(--green-bright);
+  transform: scale(1.12);
+}
+
+.sidebar-search__input {
+  width: 100%;
+  height: var(--sp8);
+  padding: 0 var(--sp8);
+  background-color: var(--sidebar-surface);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+  color: var(--sidebar-text);
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  outline: none;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-base) var(--ease-out-expo);
+}
+
+.sidebar-search__input::placeholder {
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-search__input:hover {
+  background-color: var(--sidebar-surface-strong);
+}
+
+.sidebar-search__input:focus {
+  background-color: var(--sidebar-glow);
+  border-color: var(--sidebar-selected-border);
+  box-shadow: var(--focus-ring);
+}
+
+.sidebar-search__clear {
+  position: absolute;
+  right: var(--sp1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp6);
+  height: var(--sp6);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  animation: sidebar-search-clear-in var(--motion-base) var(--ease-spring) both;
+  transition:
+    color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+
+.sidebar-search__clear:hover {
+  background-color: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+.sidebar-search__clear:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@keyframes sidebar-search-clear-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-search__icon,
+  .sidebar-search__input,
+  .sidebar-search__clear {
+    transition: none;
+  }
+
+  .sidebar-search__clear {
+    animation: none;
+  }
+}

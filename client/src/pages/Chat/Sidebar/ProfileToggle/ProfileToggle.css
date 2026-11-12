@@ -1,0 +1,112 @@
+.profile-toggle {
+  flex: none;
+}
+
+.profile-toggle__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp3);
+}
+
+.profile-toggle__title {
+  margin-bottom: 0;
+}
+
+.profile-toggle__track {
+  position: relative;
+  display: grid;
+  flex: 1;
+  max-width: 10.5rem;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: var(--sp1);
+  background-color: var(--sidebar-surface);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius-md);
+}
+
+.profile-toggle__thumb {
+  position: absolute;
+  top: var(--sp1);
+  bottom: var(--sp1);
+  left: var(--sp1);
+  width: calc((100% - var(--sp2)) / var(--profile-count));
+  border-radius: var(--radius-sm);
+  background-color: var(--sidebar-selected);
+  box-shadow:
+    inset 0 0 0 1px var(--sidebar-selected-border),
+    0 var(--sp1) var(--sp3) var(--sidebar-glow);
+  transform: translateX(calc(var(--profile-index) * 100%));
+  transition: transform var(--motion-slow) var(--ease-spring);
+}
+
+.profile-toggle__btn {
+  position: relative;
+  padding: var(--sp1) var(--sp2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text-muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  line-height: 1.25rem;
+  cursor: pointer;
+  transition:
+    color var(--motion-base) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.profile-toggle__btn:hover {
+  color: var(--sidebar-text);
+}
+
+.profile-toggle__btn:active {
+  transform: scale(0.96);
+}
+
+.profile-toggle__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.profile-toggle__btn--active,
+.profile-toggle__btn--active:hover {
+  color: var(--green-bright);
+}
+
+.profile-toggle__hint {
+  margin-top: var(--sp2);
+  padding: 0 var(--sp1);
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: var(--fs-2xs);
+  line-height: 0.875rem;
+  color: var(--sidebar-text-muted);
+  animation: profile-toggle-hint-in var(--motion-slow) var(--ease-out-expo) both;
+}
+
+@keyframes profile-toggle-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--sp1) * -1));
+    filter: blur(var(--blur-enter));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-toggle__thumb,
+  .profile-toggle__btn {
+    transition: none;
+  }
+
+  .profile-toggle__hint {
+    animation: none;
+  }
+}

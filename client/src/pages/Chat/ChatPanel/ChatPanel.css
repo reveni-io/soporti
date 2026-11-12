@@ -5,70 +5,7 @@
   height: 100%;
   overflow: hidden;
   background-color: var(--bg-app);
-}
-
-.chat__topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp2);
-  padding: var(--sp2) var(--sp6);
-  border-bottom: 1px solid var(--border-default);
-  background-color: var(--bg-surface);
-}
-
-.chat__topbar-title {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text-primary);
-}
-
-.chat__menu-btn {
-  display: none;
-}
-
-.chat__tour-btn {
-  margin-left: auto;
-  padding: var(--sp1) var(--sp3);
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: var(--fs-sm);
-  line-height: 1rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-
-.chat__tour-btn:hover {
-  border-color: var(--green-bright);
-  background-color: var(--green-inverse);
-  color: var(--text-primary);
-}
-
-.chat__share-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: var(--sp1);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s, background 0.15s;
-}
-
-.chat__share-btn:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-cool);
-}
-
-.chat__share-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  timeline-scope: --chat-scroll;
 }
 
 .chat__body {
@@ -84,6 +21,7 @@
   overflow-y: auto;
   overflow-anchor: none;
   padding: var(--sp6) var(--sp6) var(--sp2);
+  scroll-timeline: --chat-scroll block;
 }
 
 .chat__messages-list {
@@ -280,21 +218,6 @@
 }
 
 @media (max-width: 768px) {
-  .chat__topbar {
-    padding: var(--sp2) var(--sp4);
-  }
-
-  .chat__menu-btn {
-    display: block;
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    font-size: var(--fs-2xl);
-    cursor: pointer;
-    padding: var(--sp1);
-    line-height: 1;
-  }
-
   .chat__messages {
     padding: var(--sp4) var(--sp3) var(--sp2);
   }

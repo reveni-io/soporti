@@ -11,6 +11,7 @@ import { useMessageRail } from '../hooks/useMessageRail/useMessageRail.js'
 import ChatComposer from './ChatComposer/ChatComposer.jsx'
 import ChatEmptyState from './ChatEmptyState/ChatEmptyState.jsx'
 import ChatTopbar from './ChatTopbar/ChatTopbar.jsx'
+import { conversationTitle } from './ChatTopbar/conversation-title.js'
 import MessageRail from './MessageRail/MessageRail.jsx'
 import './ChatPanel.css'
 
@@ -24,6 +25,8 @@ export default function ChatPanel({
   onStop,
   hasSourcesSelected,
   onOpenSidebar,
+  isSidebarCollapsed = false,
+  onExpandSidebar,
   onShare,
   onLogout,
   integrations = [],
@@ -74,9 +77,12 @@ export default function ChatPanel({
   return (
     <div className="chat">
       <ChatTopbar
+        title={conversationTitle(messages)}
         canShare={messages.length > 0 && Boolean(onShare)}
         isLoading={isLoading}
+        isSidebarCollapsed={isSidebarCollapsed}
         onOpenSidebar={onOpenSidebar}
+        onExpandSidebar={onExpandSidebar}
         onOpenTour={() => setTourOpen(true)}
         onShare={onShare}
       />

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { YOLO_SOURCE } from '../../../constants.js'
 import Sidebar from './Sidebar.jsx'
 
 const defaultProps = {
@@ -114,7 +115,7 @@ describe('Sidebar', () => {
     const user = userEvent.setup()
     render(<Sidebar {...defaultProps} onLogout={onLogout} />, { wrapper: MemoryRouter })
 
-    await user.click(screen.getByText(/log out/i))
+    await user.click(screen.getByRole('button', { name: /log out/i }))
     expect(onLogout).toHaveBeenCalled()
   })
 
@@ -235,13 +236,28 @@ describe('Sidebar', () => {
     expect(onToggleSource).toHaveBeenCalledWith('integration:notion')
   })
 
-  it('shows selected checkmark for selected sources', async () => {
+  it('marks the selected sources as pressed', async () => {
     render(<Sidebar {...defaultProps} selectedSources={['org/app']} />, { wrapper: MemoryRouter })
     await waitFor(() => {
       expect(screen.getByText('org/app')).toBeInTheDocument()
     })
-    const repoItem = screen.getByText('org/app').closest('.sidebar__source')
-    expect(repoItem.querySelector('.sidebar__source-check').textContent).toBe('✓')
+
+    expect(screen.getByRole('button', { name: /org\/app/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /org\/lib/ })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('counts the specific sources that are selected', async () => {
+    render(<Sidebar {...defaultProps} selectedSources={['org/app', 'integration:notion']} />, {
+      wrapper: MemoryRouter,
+    })
+
+    expect(screen.getByRole('heading', { name: 'Sources 2' })).toBeInTheDocument()
+  })
+
+  it('shows no count while only yolo is selected', () => {
+    render(<Sidebar {...defaultProps} selectedSources={[YOLO_SOURCE]} />, { wrapper: MemoryRouter })
+
+    expect(screen.getByRole('heading', { name: 'Sources' })).toBeInTheDocument()
   })
 
   it('applies open class when isOpen is true', () => {
@@ -296,12 +312,42 @@ describe('Sidebar', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows active class on selected profile button', () => {
+  it('presses the selected profile button', () => {
     render(<Sidebar {...defaultProps} selectedProfile="tech" />, { wrapper: MemoryRouter })
-    const techBtn = screen.getByRole('button', { name: /^tech$/i })
-    expect(techBtn.className).toContain('sidebar__profile-btn--active')
-    const supportBtn = screen.getByRole('button', { name: /^support$/i })
-    expect(supportBtn.className).not.toContain('sidebar__profile-btn--active')
+
+    expect(screen.getByRole('button', { name: /^tech$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^support$/i })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('collapses from its header', async () => {
+    const onCollapse = vi.fn()
+    const user = userEvent.setup()
+    render(<Sidebar {...defaultProps} onCollapse={onCollapse} />, { wrapper: MemoryRouter })
+
+    await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+
+    expect(onCollapse).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies the collapsed class when it is collapsed', () => {
+    const { container } = render(<Sidebar {...defaultProps} isCollapsed />, { wrapper: MemoryRouter })
+
+    expect(container.querySelector('.sidebar--collapsed')).toBeTruthy()
+  })
+
+  it('does not apply the collapsed class while expanded', () => {
+    const { container } = render(<Sidebar {...defaultProps} isCollapsed={false} />, { wrapper: MemoryRouter })
+
+    expect(container.querySelector('.sidebar--collapsed')).toBeNull()
+  })
+
+  it('shows who is signed in', () => {
+    render(<Sidebar {...defaultProps} user={{ name: 'Ada Lovelace', email: 'ada@example.com' }} />, {
+      wrapper: MemoryRouter,
+    })
+
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument()
   })
 
   describe('conversations history', () => {

@@ -1,129 +1,54 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
 import SidebarFooter from './SidebarFooter.jsx'
 
+const USER = { name: 'Ada Lovelace', email: 'ada@example.com' }
+
 describe('SidebarFooter', () => {
-  it('opens the scheduled queries', async () => {
-    const onOpenSchedules = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={onOpenSchedules}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
+  it('shows who is signed in with their initial', () => {
+    render(<SidebarFooter user={USER} onOpenSettings={vi.fn()} onLogout={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /scheduled queries/i }))
-
-    expect(onOpenSchedules).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument()
+    expect(screen.getByText('A')).toBeInTheDocument()
   })
 
-  it('opens the artifacts', async () => {
-    const onOpenArtifacts = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={onOpenArtifacts}
-        onOpenSettings={vi.fn()}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
+  it('falls back to the email when the user has no name', () => {
+    render(<SidebarFooter user={{ email: 'grace@example.com' }} onOpenSettings={vi.fn()} onLogout={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: /^artifacts$/i }))
+    expect(screen.getByText('grace@example.com')).toBeInTheDocument()
+    expect(screen.getByText('G')).toBeInTheDocument()
+  })
 
-    expect(onOpenArtifacts).toHaveBeenCalledTimes(1)
+  it('keeps the actions when nobody is known to be signed in', () => {
+    render(<SidebarFooter user={null} onOpenSettings={vi.fn()} onLogout={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 
   it('opens the settings', async () => {
     const onOpenSettings = vi.fn()
+    const onLogout = vi.fn()
     const user = userEvent.setup()
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={onOpenSettings}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
+    render(<SidebarFooter user={USER} onOpenSettings={onOpenSettings} onLogout={onLogout} />)
 
-    await user.click(screen.getByRole('button', { name: /settings/i }))
+    await user.click(screen.getByRole('button', { name: 'Settings' }))
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
+    expect(onLogout).not.toHaveBeenCalled()
   })
 
   it('logs out', async () => {
+    const onOpenSettings = vi.fn()
     const onLogout = vi.fn()
     const user = userEvent.setup()
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onLogout={onLogout}
-      />,
-      { wrapper: MemoryRouter }
-    )
+    render(<SidebarFooter user={USER} onOpenSettings={onOpenSettings} onLogout={onLogout} />)
 
-    await user.click(screen.getByRole('button', { name: /log out/i }))
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
 
     expect(onLogout).toHaveBeenCalledTimes(1)
-  })
-
-  it('links to the analytics dashboard', () => {
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
-
-    expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/analytics')
-  })
-
-  it('links to the videos without a mark when nothing is being generated', () => {
-    render(
-      <SidebarFooter
-        isVideoGenerating={false}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
-
-    expect(screen.getByRole('link', { name: 'Videos' })).toHaveAttribute('href', '/videos')
-    expect(screen.queryByRole('img', { name: 'A video is being generated' })).toBeNull()
-  })
-
-  it('marks the videos link while a video is being generated', () => {
-    render(
-      <SidebarFooter
-        isVideoGenerating={true}
-        onOpenSchedules={vi.fn()}
-        onOpenArtifacts={vi.fn()}
-        onOpenSettings={vi.fn()}
-        onLogout={vi.fn()}
-      />,
-      { wrapper: MemoryRouter }
-    )
-
-    expect(screen.getByRole('img', { name: 'A video is being generated' })).toBeInTheDocument()
+    expect(onOpenSettings).not.toHaveBeenCalled()
   })
 })

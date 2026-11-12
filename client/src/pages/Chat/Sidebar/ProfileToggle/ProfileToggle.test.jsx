@@ -7,8 +7,8 @@ describe('ProfileToggle', () => {
   it('marks the selected profile and shows its hint', () => {
     render(<ProfileToggle selectedProfile="tech" onSelectProfile={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: /^tech$/i }).className).toContain('sidebar__profile-btn--active')
-    expect(screen.getByRole('button', { name: /^support$/i }).className).not.toContain('sidebar__profile-btn--active')
+    expect(screen.getByRole('button', { name: /^tech$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^support$/i })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('Detailed code, architecture, and file paths')).toBeInTheDocument()
   })
 
@@ -25,6 +25,7 @@ describe('ProfileToggle', () => {
 
     await user.click(screen.getByRole('button', { name: /^tech$/i }))
 
+    expect(onSelectProfile).toHaveBeenCalledTimes(1)
     expect(onSelectProfile).toHaveBeenCalledWith('tech')
   })
 
@@ -32,6 +33,6 @@ describe('ProfileToggle', () => {
     render(<ProfileToggle selectedProfile="nonsense" onSelectProfile={vi.fn()} />)
 
     expect(screen.getByText('Simplified explanations focused on behavior')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^support$/i }).className).toContain('sidebar__profile-btn--active')
+    expect(screen.getByRole('button', { name: /^support$/i })).toHaveAttribute('aria-pressed', 'true')
   })
 })

@@ -1,0 +1,106 @@
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp1) var(--sp3) var(--sp2);
+}
+
+.sidebar-nav__item {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  width: 100%;
+  height: var(--sp8);
+  padding: 0 var(--sp2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--sidebar-text-soft);
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.sidebar-nav__item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--sidebar-hover);
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-out-expo);
+}
+
+.sidebar-nav__item:hover {
+  color: var(--sidebar-text);
+}
+
+.sidebar-nav__item:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sidebar-nav__item:active {
+  transform: scale(0.98);
+}
+
+.sidebar-nav__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sidebar-nav__icon {
+  flex-shrink: 0;
+  color: var(--sidebar-text-muted);
+  transition:
+    color var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.sidebar-nav__item:hover .sidebar-nav__icon {
+  color: var(--green-bright);
+  transform: translateX(1px) scale(1.12);
+}
+
+.sidebar-nav__live {
+  margin-left: auto;
+  width: var(--sp2);
+  height: var(--sp2);
+  border-radius: var(--radius-pill);
+  background-color: var(--green-bright);
+  animation: sidebar-nav-live 1.8s ease-out infinite;
+}
+
+@keyframes sidebar-nav-live {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--green-bright-rgb), 0.55);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 var(--sp2) rgba(var(--green-bright-rgb), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav__item,
+  .sidebar-nav__item::before,
+  .sidebar-nav__icon {
+    transition: none;
+  }
+
+  .sidebar-nav__live {
+    animation: none;
+  }
+}

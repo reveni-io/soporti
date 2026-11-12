@@ -14,7 +14,28 @@
     display: block;
     position: fixed;
     inset: 0;
-    background: var(--overlay-primary);
     z-index: 90;
+    background: var(--overlay-primary);
+    backdrop-filter: blur(var(--blur-overlay));
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--motion-slow) var(--ease-out-expo),
+      visibility 0s linear var(--motion-slow);
+  }
+
+  .chat-page__overlay--visible {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity var(--motion-slow) var(--ease-out-expo),
+      visibility 0s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-page__overlay,
+  .chat-page__overlay--visible {
+    transition: none;
   }
 }

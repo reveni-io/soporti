@@ -16,10 +16,22 @@ const BASE_PROPS = {
 
 describe('SourceList', () => {
   it('lists yolo, then the integrations, then the repos', () => {
-    const { container } = render(<SourceList {...BASE_PROPS} onToggleSource={vi.fn()} />)
+    render(<SourceList {...BASE_PROPS} onToggleSource={vi.fn()} />)
 
-    const names = [...container.querySelectorAll('.sidebar__source-name')].map(node => node.textContent)
-    expect(names).toEqual(['YOLO (auto)', 'Notion', 'org/app'])
+    const sources = screen.getAllByRole('button')
+    expect(sources).toHaveLength(3)
+    expect(sources[0]).toHaveTextContent(/^YOLO \(auto\)/)
+    expect(sources[1]).toHaveTextContent(/^Notion/)
+    expect(sources[2]).toHaveTextContent(/^org\/app/)
+  })
+
+  it('shows the logo of each integration and the github mark on repos', () => {
+    render(<SourceList {...BASE_PROPS} onToggleSource={vi.fn()} />)
+
+    const [yolo, notion, repo] = screen.getAllByRole('button')
+    expect(yolo.querySelector('[data-icon="zap"]')).toBeInTheDocument()
+    expect(notion.querySelector('[data-icon="notion"]')).toBeInTheDocument()
+    expect(repo.querySelector('[data-icon="github"]')).toBeInTheDocument()
   })
 
   it('hides the yolo entry when the search filtered it out', () => {
@@ -59,11 +71,11 @@ describe('SourceList', () => {
   })
 
   it('marks the selected sources', () => {
-    const { container } = render(
-      <SourceList {...BASE_PROPS} selectedSources={['org/app', 'integration:notion']} onToggleSource={vi.fn()} />
-    )
+    render(<SourceList {...BASE_PROPS} selectedSources={['org/app', 'integration:notion']} onToggleSource={vi.fn()} />)
 
-    expect(container.querySelectorAll('.sidebar__source--selected')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /org\/app/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /notion/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /yolo/i })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('shows the repo loading row while repos are pending', () => {
