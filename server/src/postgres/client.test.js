@@ -604,7 +604,7 @@ describe('runTypedQuery', () => {
     expect(mockClientQuery.mock.calls.map(([query]) => query)).toEqual([
       'BEGIN READ ONLY',
       'SET LOCAL statement_timeout = 30000',
-      { text: 'SELECT * FROM (SELECT * FROM t) AS _q LIMIT 2000', queryMode: 'extended', types: expect.any(Object) },
+      { text: 'SELECT * FROM (SELECT * FROM t) AS _q LIMIT 2001', queryMode: 'extended', types: expect.any(Object) },
       'ROLLBACK',
     ])
     expect(getPostgresMaxRows).not.toHaveBeenCalled()
@@ -639,12 +639,23 @@ describe('runTypedQuery', () => {
     expect(mockDefaultTypeParser).toHaveBeenCalledWith(23, 'text')
   })
 
-  it('marks the result as truncated when the caller row cap is reached', async () => {
-    stubReadOnlyQuery({ rows: [{ id: 1 }, { id: 2 }], fields: [{ name: 'id', dataTypeID: 23 }] })
+  it('marks the result as truncated and keeps the row cap when the query returns more rows', async () => {
+    stubReadOnlyQuery({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }], fields: [{ name: 'id', dataTypeID: 23 }] })
 
     const result = await runTypedQuery('SELECT id FROM t', { maxRows: 2, timeoutMs: 1000 })
 
     expect(result.truncated).toBe(true)
+    expect(result.rows).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('does not mark a result as truncated when it holds exactly the row cap', async () => {
+    stubReadOnlyQuery({ rows: [{ id: 1 }, { id: 2 }], fields: [{ name: 'id', dataTypeID: 23 }] })
+
+    const result = await runTypedQuery('SELECT id FROM t', { maxRows: 2, timeoutMs: 1000 })
+
+    expect(dataQueries()[0].text).toBe('SELECT * FROM (SELECT id FROM t) AS _q LIMIT 3')
+    expect(result.truncated).toBe(false)
+    expect(result.rows).toEqual([{ id: 1 }, { id: 2 }])
   })
 
   it('rejects anything that is not a SELECT or a WITH before opening a connection', async () => {

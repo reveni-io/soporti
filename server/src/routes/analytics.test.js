@@ -29,7 +29,11 @@ vi.mock('../db/analytics-dashboards.js', () => {
     updateDashboard: vi.fn(),
   }
 })
-vi.mock('../analytics/generator.js', () => ({ startGeneration: vi.fn(), cancelGeneration: vi.fn() }))
+vi.mock('../analytics/generator.js', () => ({
+  startGeneration: vi.fn(),
+  cancelGeneration: vi.fn(),
+  countActiveGenerations: vi.fn(() => 0),
+}))
 vi.mock('../analytics/query.js', () => {
   return { runChartQuery: vi.fn(), readChartQuery: vi.fn(), QueryError: FakeQueryError }
 })

@@ -41,6 +41,14 @@ async function recordOutcome(cardId, { chart, error }) {
   return failCard(cardId, describeFailure(cardId, error))
 }
 
+async function releaseCard(cardId) {
+  try {
+    await failCard(cardId, GENERIC_ERROR)
+  } catch (err) {
+    console.error(`${LOG_PREFIX} Failed to release a chart whose outcome could not be saved:`, cardId, err)
+  }
+}
+
 async function generateInBackground(card, userId, controller) {
   const outcome = await attemptGeneration(card, userId, controller.signal)
   if (controller.signal.aborted) return
@@ -49,6 +57,7 @@ async function generateInBackground(card, userId, controller) {
     await recordOutcome(card.id, outcome)
   } catch (err) {
     console.error(`${LOG_PREFIX} Failed to save the outcome of a chart:`, card.id, err)
+    await releaseCard(card.id)
   }
 }
 
@@ -56,12 +65,16 @@ export function startGeneration(card, userId) {
   if (activeGenerations.has(card.id)) return
 
   const controller = new AbortController()
-  activeGenerations.set(card.id, controller)
+  activeGenerations.set(card.id, { controller, userId })
   generateInBackground(card, userId, controller)
 }
 
 export function cancelGeneration(cardId) {
-  activeGenerations.get(cardId)?.abort()
+  activeGenerations.get(cardId)?.controller.abort()
+}
+
+export function countActiveGenerations(userId) {
+  return [...activeGenerations.values()].filter(generation => generation.userId === userId).length
 }
 
 export async function recoverInterruptedGenerations() {

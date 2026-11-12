@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../db/analytics-cards.js', () => ({ countCards: vi.fn() }))
 vi.mock('../llm/model.js', () => ({ isConfigured: vi.fn() }))
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn() }))
+vi.mock('./generator.js', () => ({ countActiveGenerations: vi.fn() }))
 
 const { countCards } = await import('../db/analytics-cards.js')
 const { isConfigured: isLlmConfigured } = await import('../llm/model.js')
 const { isPostgresConfigured } = await import('../postgres/settings.js')
+const { countActiveGenerations } = await import('./generator.js')
 const { findGenerationRefusal } = await import('./generation-guard.js')
 
 const DASHBOARD_ID = '5b0c9d1e-2f3a-4b4c-8d5e-6f7a8b9c0d1e'
@@ -16,6 +18,7 @@ beforeEach(() => {
   isPostgresConfigured.mockResolvedValue(true)
   isLlmConfigured.mockResolvedValue(true)
   countCards.mockResolvedValue({ total: 0, generating: 0 })
+  countActiveGenerations.mockReturnValue(0)
 })
 
 describe('findGenerationRefusal', () => {
@@ -56,6 +59,16 @@ describe('findGenerationRefusal', () => {
     countCards.mockResolvedValue({ total: 40, generating: 0 })
 
     expect(await findGenerationRefusal(DASHBOARD_ID, 7)).toBeNull()
+  })
+
+  it('refuses a fourth generation at the same time by the same user, across dashboards', async () => {
+    countActiveGenerations.mockReturnValue(3)
+
+    expect(await findGenerationRefusal(DASHBOARD_ID, 7, { creating: true })).toBe(
+      'You can only generate 3 charts at a time. Wait for one to finish.'
+    )
+    expect(countActiveGenerations).toHaveBeenCalledWith(7)
+    expect(countCards).not.toHaveBeenCalled()
   })
 
   it.each([{ creating: true }, { creating: false }])(

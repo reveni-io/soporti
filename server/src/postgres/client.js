@@ -319,7 +319,20 @@ async function queryReadOnly(query, timeoutMs) {
   }
 }
 
-async function runGuardedQuery(sql, { maxRows = null, timeoutMs = null, types = null, toolHints = true } = {}) {
+function fetchLimit(rowCap, exactTruncation) {
+  return exactTruncation ? rowCap + 1 : rowCap
+}
+
+function capRows(rows, rowCap, exactTruncation) {
+  if (!exactTruncation) return { rows, truncated: rows.length === rowCap }
+
+  return { rows: rows.slice(0, rowCap), truncated: rows.length > rowCap }
+}
+
+async function runGuardedQuery(
+  sql,
+  { maxRows = null, timeoutMs = null, types = null, toolHints = true, exactTruncation = false } = {}
+) {
   console.log(`${LOG_PREFIX} runQuery: ${sql.slice(0, 200)}${sql.length > 200 ? '...' : ''}`)
   const trimmed = sql.trim()
   const upper = trimmed.toUpperCase()
@@ -331,12 +344,15 @@ async function runGuardedQuery(sql, { maxRows = null, timeoutMs = null, types = 
   try {
     const rowCap = Number(maxRows ?? (await getPostgresMaxRows()))
     const limited = trimmed.replace(/;+\s*$/, '')
-    const query = { text: `SELECT * FROM (${limited}) AS _q LIMIT ${rowCap}`, queryMode: EXTENDED_QUERY_MODE }
+    const query = {
+      text: `SELECT * FROM (${limited}) AS _q LIMIT ${fetchLimit(rowCap, exactTruncation)}`,
+      queryMode: EXTENDED_QUERY_MODE,
+    }
     if (types) query.types = types
 
     const { rows, fields } = await queryReadOnly(query, timeoutMs)
     console.log(`${LOG_PREFIX} runQuery → ${rows.length} rows, ${fields.length} columns`)
-    return { rows, fields, truncated: rows.length === rowCap }
+    return { ...capRows(rows, rowCap, exactTruncation), fields }
   } catch (err) {
     console.error(`${LOG_PREFIX} runQuery error:`, err.message)
     const explain = QUERY_ERROR_EXPLAINERS[err.code]
@@ -357,6 +373,7 @@ export async function runTypedQuery(sql, { maxRows, timeoutMs }) {
     timeoutMs,
     types: RAW_DATE_TYPES,
     toolHints: false,
+    exactTruncation: true,
   })
 
   return { fields: fields.map(({ name, dataTypeID }) => ({ name, dataTypeID })), rows, truncated }

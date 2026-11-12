@@ -9,7 +9,8 @@ vi.mock('../db/analytics-cards.js', () => {
 
 const { generateChart } = await import('./agent.js')
 const { saveGeneratedChart, failCard, setCardStep, failInterruptedCards } = await import('../db/analytics-cards.js')
-const { startGeneration, cancelGeneration, recoverInterruptedGenerations } = await import('./generator.js')
+const { startGeneration, cancelGeneration, countActiveGenerations, recoverInterruptedGenerations } =
+  await import('./generator.js')
 
 const CARD_ID = '8c1d2e3f-4a5b-4c6d-9e7f-a0b1c2d3e4f5'
 const CARD = { id: CARD_ID, title: 'Returns per week', prompt: 'Returns per week', sql: null, chart: null }
@@ -158,15 +159,37 @@ describe('startGeneration', () => {
     expect(generateChart).toHaveBeenCalledTimes(2)
   })
 
-  it('logs when the outcome cannot be saved', async () => {
+  it('fails the card when the chart cannot be saved, so it does not stay generating', async () => {
     const failure = new Error('db down')
     generateChart.mockResolvedValue(SUBMISSION)
     saveGeneratedChart.mockRejectedValue(failure)
 
     startGeneration(CARD, 7)
-    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(failCard).toHaveBeenCalledTimes(1))
 
+    expect(failCard).toHaveBeenCalledWith(
+      CARD_ID,
+      'The chart could not be generated. Try again or rephrase the question.'
+    )
+    expect(consoleError).toHaveBeenCalledTimes(1)
     expect(consoleError).toHaveBeenCalledWith('[analytics] Failed to save the outcome of a chart:', CARD_ID, failure)
+  })
+
+  it('logs both failures when the card cannot be released either', async () => {
+    const failure = new Error('db down')
+    generateChart.mockResolvedValue(SUBMISSION)
+    saveGeneratedChart.mockRejectedValue(failure)
+    failCard.mockRejectedValue(failure)
+
+    startGeneration(CARD, 7)
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledTimes(2))
+
+    expect(failCard).toHaveBeenCalledTimes(1)
+    expect(consoleError).toHaveBeenLastCalledWith(
+      '[analytics] Failed to release a chart whose outcome could not be saved:',
+      CARD_ID,
+      failure
+    )
   })
 })
 
@@ -203,6 +226,27 @@ describe('cancelGeneration', () => {
 
   it('ignores a card without a running generation', () => {
     expect(() => cancelGeneration(CARD_ID)).not.toThrow()
+  })
+})
+
+describe('countActiveGenerations', () => {
+  it('counts the generations a user has running until they finish', async () => {
+    const finishes = []
+    generateChart.mockImplementation(() => new Promise(resolve => finishes.push(resolve)))
+
+    startGeneration(CARD, 7)
+    startGeneration({ ...CARD, id: '9d2e3f4a-5b6c-4d7e-8f9a-b0c1d2e3f4a5' }, 7)
+    startGeneration({ ...CARD, id: 'ae3f4a5b-6c7d-4e8f-9a0b-c1d2e3f4a5b6' }, 8)
+
+    expect(countActiveGenerations(7)).toBe(2)
+    expect(countActiveGenerations(8)).toBe(1)
+    expect(countActiveGenerations(9)).toBe(0)
+
+    finishes.forEach(finish => finish(SUBMISSION))
+    await vi.waitFor(() => expect(saveGeneratedChart).toHaveBeenCalledTimes(3))
+
+    expect(countActiveGenerations(7)).toBe(0)
+    expect(countActiveGenerations(8)).toBe(0)
   })
 })
 
