@@ -350,6 +350,7 @@ describe('buildDataTools', () => {
       'search_shortcut_stories',
       'get_sentry_issue',
       'search_sentry_issues',
+      'list_databases',
       'list_database_schemas',
       'list_database_tables',
       'describe_database_table',

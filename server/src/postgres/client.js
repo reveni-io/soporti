@@ -1,5 +1,5 @@
 import pg from 'pg'
-import { getPostgresConnection, isPostgresConfigured, getPostgresMaxRows } from './settings.js'
+import { getPostgresConnections, isPostgresConfigured, getPostgresMaxRows } from './settings.js'
 import { POSTGRES_OID_DATE, POSTGRES_OID_TIMESTAMP, POSTGRES_OID_TIMESTAMPTZ } from '../constants.js'
 
 const { Pool } = pg
@@ -23,8 +23,11 @@ const EXTENDED_QUERY_MODE = 'extended'
 const LIST_TABLES_TOOL_HINT = ': list them with list_database_tables'
 const RAW_TEXT_OIDS = new Set([POSTGRES_OID_DATE, POSTGRES_OID_TIMESTAMP, POSTGRES_OID_TIMESTAMPTZ])
 const RAW_DATE_TYPES = { getTypeParser: resolveTypeParser }
-let pool = null
-let poolConnString = null
+const NOT_CONFIGURED_MESSAGE = 'PostgreSQL is not configured. Add a connection in the admin panel (Database section).'
+const REMOVED_DATABASE_MESSAGE = 'That database is no longer connected.'
+const pools = new Map()
+
+export class UnknownDatabaseError extends Error {}
 
 function buildConnectionString(raw) {
   try {
@@ -36,28 +39,13 @@ function buildConnectionString(raw) {
   }
 }
 
-async function getPool() {
-  const raw = await getPostgresConnection()
-  if (!raw) {
-    throw new Error('PostgreSQL is not configured. Set the connection string in the admin panel (Database section).')
-  }
-  const connString = buildConnectionString(raw)
-
-  if (pool && poolConnString === connString) return pool
-  if (pool) {
-    const stale = pool
-    pool = null
-    poolConnString = null
-    stale.end().catch(err => console.error(`${LOG_PREFIX} Error closing stale pool:`, err.message))
-  }
-
-  console.log(`${LOG_PREFIX} Creating connection pool (max=3)`)
-  pool = new Pool({
+function createPool(connection, connString) {
+  console.log(`${LOG_PREFIX} Creating connection pool for "${connection.name}" (max=3)`)
+  const pool = new Pool({
     connectionString: connString,
     max: 3,
     ssl: { rejectUnauthorized: false },
   })
-  poolConnString = connString
 
   pool.on('error', err => {
     console.error(`${LOG_PREFIX} Pool error:`, err.message)
@@ -70,14 +58,105 @@ async function getPool() {
   return pool
 }
 
+function endPool(pool) {
+  return pool.end().catch(err => console.error(`${LOG_PREFIX} Error closing pool:`, err.message))
+}
+
+function getPool(connection) {
+  const connString = buildConnectionString(connection.connectionString)
+  const entry = pools.get(connection.id)
+
+  if (entry && entry.connString === connString) return entry.pool
+  if (entry) endPool(entry.pool)
+
+  const pool = createPool(connection, connString)
+  pools.set(connection.id, { connString, pool })
+
+  return pool
+}
+
+function closeRemovedPools(connections) {
+  const listed = new Set(connections.map(connection => connection.id))
+
+  for (const [id, entry] of pools) {
+    if (listed.has(id)) continue
+    pools.delete(id)
+    endPool(entry.pool)
+  }
+}
+
+async function loadConnections() {
+  const connections = await getPostgresConnections()
+  closeRemovedPools(connections)
+
+  return connections
+}
+
+function databaseNames(connections) {
+  return connections.map(connection => `"${connection.name}"`).join(', ')
+}
+
+function pickConnection(connections, name) {
+  const wanted = String(name ?? '').trim()
+
+  if (!wanted && connections.length === 1) return connections[0]
+  if (!wanted) {
+    throw new UnknownDatabaseError(
+      `Several databases are connected (${databaseNames(connections)}): pass the one to query as \`database\`.`
+    )
+  }
+
+  const match = connections.find(connection => connection.name.toLowerCase() === wanted.toLowerCase())
+  if (!match) {
+    throw new UnknownDatabaseError(`There is no database named "${wanted}". Connected: ${databaseNames(connections)}.`)
+  }
+
+  return match
+}
+
+async function connectionNamed(name) {
+  const connections = await loadConnections()
+  if (connections.length === 0) throw new UnknownDatabaseError(NOT_CONFIGURED_MESSAGE)
+
+  return pickConnection(connections, name)
+}
+
+async function connectionWithId(id) {
+  const connections = await loadConnections()
+  const match = connections.find(connection => connection.id === id)
+  if (!match) throw new UnknownDatabaseError(REMOVED_DATABASE_MESSAGE)
+
+  return match
+}
+
+async function poolNamed(name) {
+  return getPool(await connectionNamed(name))
+}
+
+async function poolWithId(id) {
+  return getPool(await connectionWithId(id))
+}
+
+function describeDatabase({ id, name }) {
+  return { id, name }
+}
+
 export async function isConfigured() {
   return isPostgresConfigured()
 }
 
-export async function listSchemas() {
+export async function listDatabases() {
+  return (await loadConnections()).map(describeDatabase)
+}
+
+export async function resolveDatabase(name) {
+  return describeDatabase(await connectionNamed(name))
+}
+
+export async function listSchemas(database) {
   console.log(`${LOG_PREFIX} listSchemas()`)
   try {
-    const db = await getPool()
+    const db = await poolNamed(database)
     const { rows } = await db.query(
       `SELECT schema_name
        FROM information_schema.schemata
@@ -92,10 +171,10 @@ export async function listSchemas() {
   }
 }
 
-export async function listTables(schema = 'public') {
+export async function listTables(database, schema = 'public') {
   console.log(`${LOG_PREFIX} listTables(${schema})`)
   try {
-    const db = await getPool()
+    const db = await poolNamed(database)
     const { rows } = await db.query(
       `SELECT t.table_name, t.table_type,
               pg_stat_user_tables.n_live_tup AS approx_row_count
@@ -119,10 +198,10 @@ export async function listTables(schema = 'public') {
   }
 }
 
-export async function describeTable(schema, table) {
+export async function describeTable(database, schema, table) {
   console.log(`${LOG_PREFIX} describeTable(${schema}, ${table})`)
   try {
-    const db = await getPool()
+    const db = await poolNamed(database)
     const columnsQuery = db.query(
       `SELECT column_name, data_type, is_nullable, column_default, ordinal_position
      FROM information_schema.columns
@@ -203,10 +282,9 @@ function groupColumnsByTable(rows) {
   return [...tables].slice(0, MAX_SUGGESTED_TABLES).map(([table, columns]) => ({ table, columns }))
 }
 
-async function describeTablesInQuery(sql) {
+async function describeTablesInQuery(pool, sql) {
   try {
-    const db = await getPool()
-    const { rows } = await db.query(
+    const { rows } = await pool.query(
       `SELECT table_schema, table_name, column_name
      FROM information_schema.columns
      WHERE lower(table_name) = ANY($1::text[]) AND table_schema <> ALL($2::text[])
@@ -235,16 +313,15 @@ function withHint(err, hint) {
   return Object.assign(new Error(message, { cause: err }), { code: err.code })
 }
 
-async function undefinedColumnError(err, { sql }) {
-  const tables = await describeTablesInQuery(sql)
+async function undefinedColumnError(err, { pool, sql }) {
+  const tables = await describeTablesInQuery(pool, sql)
 
   return withHint(err, describeColumns(tables))
 }
 
-async function findTablesNamedLike(name) {
+async function findTablesNamedLike(pool, name) {
   try {
-    const db = await getPool()
-    const { rows } = await db.query(
+    const { rows } = await pool.query(
       `SELECT table_schema, table_name
      FROM information_schema.tables
      WHERE position(lower($1) in lower(table_name)) > 0 AND table_schema <> ALL($2::text[])
@@ -264,11 +341,11 @@ function noSimilarTableHint(name, toolHints) {
   return `No table name contains "${name}"${toolHints ? LIST_TABLES_TOOL_HINT : ''}.`
 }
 
-async function undefinedTableError(err, { toolHints }) {
+async function undefinedTableError(err, { pool, toolHints }) {
   const missing = err.message.match(MISSING_RELATION_RE)?.[1]?.split('.').at(-1)?.replace(TRAILING_PLURAL_S_RE, '')
   if (!missing) return err
 
-  const tables = await findTablesNamedLike(missing)
+  const tables = await findTablesNamedLike(pool, missing)
   if (tables.length === 0) return withHint(err, noSimilarTableHint(missing, toolHints))
 
   return withHint(err, `Tables whose name contains "${missing}": ${tables.join(', ')}.`)
@@ -300,9 +377,8 @@ function logConnectionError(err) {
   console.error(`${LOG_PREFIX} Connection error during a query:`, err.message)
 }
 
-async function queryReadOnly(query, timeoutMs) {
-  const db = await getPool()
-  const client = await db.connect()
+async function queryReadOnly(pool, query, timeoutMs) {
+  const client = await pool.connect()
   client.on('error', logConnectionError)
 
   try {
@@ -331,7 +407,7 @@ function capRows(rows, rowCap, exactTruncation) {
 
 async function runGuardedQuery(
   sql,
-  { maxRows = null, timeoutMs = null, types = null, toolHints = true, exactTruncation = false } = {}
+  { connect, maxRows = null, timeoutMs = null, types = null, toolHints = true, exactTruncation = false }
 ) {
   console.log(`${LOG_PREFIX} runQuery: ${sql.slice(0, 200)}${sql.length > 200 ? '...' : ''}`)
   const trimmed = sql.trim()
@@ -340,6 +416,8 @@ async function runGuardedQuery(
     console.error(`${LOG_PREFIX} runQuery rejected: not a SELECT/WITH query`)
     throw new ReadOnlyQueryError('Only SELECT and WITH (CTE) queries are allowed.')
   }
+
+  const pool = await connect()
 
   try {
     const rowCap = Number(maxRows ?? (await getPostgresMaxRows()))
@@ -350,25 +428,26 @@ async function runGuardedQuery(
     }
     if (types) query.types = types
 
-    const { rows, fields } = await queryReadOnly(query, timeoutMs)
+    const { rows, fields } = await queryReadOnly(pool, query, timeoutMs)
     console.log(`${LOG_PREFIX} runQuery → ${rows.length} rows, ${fields.length} columns`)
     return { ...capRows(rows, rowCap, exactTruncation), fields }
   } catch (err) {
     console.error(`${LOG_PREFIX} runQuery error:`, err.message)
     const explain = QUERY_ERROR_EXPLAINERS[err.code]
-    if (explain) throw await explain(err, { sql: trimmed, toolHints })
+    if (explain) throw await explain(err, { pool, sql: trimmed, toolHints })
     throw err
   }
 }
 
-export async function runQuery(sql) {
-  const { rows, fields, truncated } = await runGuardedQuery(sql)
+export async function runQuery(database, sql) {
+  const { rows, fields, truncated } = await runGuardedQuery(sql, { connect: () => poolNamed(database) })
 
   return { columns: fields.map(f => f.name), rows, rowCount: rows.length, truncated }
 }
 
-export async function runTypedQuery(sql, { maxRows, timeoutMs }) {
+export async function runTypedQuery(connectionId, sql, { maxRows, timeoutMs }) {
   const { rows, fields, truncated } = await runGuardedQuery(sql, {
+    connect: () => poolWithId(connectionId),
     maxRows,
     timeoutMs,
     types: RAW_DATE_TYPES,
@@ -380,11 +459,10 @@ export async function runTypedQuery(sql, { maxRows, timeoutMs }) {
 }
 
 export async function shutdown() {
-  if (pool) {
-    console.log(`${LOG_PREFIX} Shutting down connection pool`)
-    const p = pool
-    pool = null
-    poolConnString = null
-    await p.end()
-  }
+  if (pools.size === 0) return
+
+  console.log(`${LOG_PREFIX} Shutting down connection pools`)
+  const entries = [...pools.values()]
+  pools.clear()
+  await Promise.all(entries.map(entry => entry.pool.end()))
 }

@@ -509,13 +509,32 @@ export const listDriveFilesTool = tool({
   },
 })
 
+const DATABASE_PARAM = z
+  .string()
+  .nullable()
+  .default(null)
+  .describe(
+    'Name of the database to use, exactly as list_databases lists it. Null when only one database is connected.'
+  )
+
+export const listDatabasesTool = tool({
+  name: 'list_databases',
+  description:
+    'List the names of the PostgreSQL databases connected to Soporti. Every other database tool takes one of these names as `database`; call this first whenever more than one database may be connected, and when the user does not say which one holds the data, explore each in turn.',
+  parameters: z.object({}),
+  execute: async () => {
+    const databases = await postgres.listDatabases()
+    return JSON.stringify({ databases: databases.map(database => database.name) })
+  },
+})
+
 export const listDatabaseSchemasTool = tool({
   name: 'list_database_schemas',
   description:
-    'List all non-system schemas in the PostgreSQL database. Use this as a starting point to explore the database structure.',
-  parameters: z.object({}),
-  execute: async () => {
-    const schemas = await postgres.listSchemas()
+    'List all non-system schemas in a connected PostgreSQL database. Use this as a starting point to explore the database structure.',
+  parameters: z.object({ database: DATABASE_PARAM }),
+  execute: async input => {
+    const schemas = await postgres.listSchemas(input.database)
     return JSON.stringify(schemas)
   },
 })
@@ -524,10 +543,11 @@ export const listDatabaseTablesTool = tool({
   name: 'list_database_tables',
   description: 'List all tables and views in a given database schema, with approximate row counts.',
   parameters: z.object({
+    database: DATABASE_PARAM,
     schema: z.string().optional().default('public').describe('Schema name (defaults to "public").'),
   }),
   execute: async input => {
-    const tables = await postgres.listTables(input.schema)
+    const tables = await postgres.listTables(input.database, input.schema)
     return JSON.stringify(tables)
   },
 })
@@ -536,11 +556,12 @@ export const describeDatabaseTableTool = tool({
   name: 'describe_database_table',
   description: 'Describe the columns, types, primary keys, and foreign keys of a specific database table.',
   parameters: z.object({
+    database: DATABASE_PARAM,
     schema: z.string().optional().default('public').describe('Schema name (defaults to "public").'),
     table: z.string().describe('Table name to describe.'),
   }),
   execute: async input => {
-    const info = await postgres.describeTable(input.schema, input.table)
+    const info = await postgres.describeTable(input.database, input.schema, input.table)
     return JSON.stringify(info)
   },
 })
@@ -548,12 +569,13 @@ export const describeDatabaseTableTool = tool({
 export const queryDatabaseTool = tool({
   name: 'query_database',
   description:
-    'Execute a read-only SQL SELECT query against the PostgreSQL database. Only SELECT and WITH (CTE) queries are allowed. Results are capped at a configured row limit (100 by default). Always use LIMIT in your queries for efficiency. Describe each table with describe_database_table before querying it.',
+    'Execute a read-only SQL SELECT query against a connected PostgreSQL database. Only SELECT and WITH (CTE) queries are allowed. Results are capped at a configured row limit (100 by default). Always use LIMIT in your queries for efficiency. Describe each table with describe_database_table before querying it.',
   parameters: z.object({
+    database: DATABASE_PARAM,
     sql: z.string().describe('SQL SELECT query to execute.'),
   }),
   execute: async input => {
-    const result = await postgres.runQuery(input.sql)
+    const result = await postgres.runQuery(input.database, input.sql)
     return JSON.stringify(result)
   },
 })
@@ -1255,7 +1277,13 @@ const NOTION_TOOLS = [searchNotionPagesTool, getNotionPageTool]
 const FIGMA_TOOLS = [getFigmaFileTool, getFigmaNodeTool, getFigmaScreenshotTool, listFigmaCommentsTool]
 const FIGMA_WRITE_TOOLS = [postFigmaCommentTool]
 const HELPJUICE_TOOLS = [searchHelpjuiceArticlesTool, getHelpjuiceArticleTool]
-const POSTGRES_TOOLS = [listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool, queryDatabaseTool]
+export const POSTGRES_TOOLS = [
+  listDatabasesTool,
+  listDatabaseSchemasTool,
+  listDatabaseTablesTool,
+  describeDatabaseTableTool,
+  queryDatabaseTool,
+]
 const SHOPIFY_TOOLS = [
   getShopifyOrderTool,
   searchShopifyOrdersTool,

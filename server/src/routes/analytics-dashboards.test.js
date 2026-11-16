@@ -29,12 +29,19 @@ vi.mock('../analytics/generator.js', () => ({
 }))
 vi.mock('../llm/model.js', () => ({ isConfigured: vi.fn() }))
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn() }))
+vi.mock('../postgres/client.js', () => ({ listDatabases: vi.fn() }))
 
 const cards = await import('../db/analytics-cards.js')
 const dashboards = await import('../db/analytics-dashboards.js')
 const { startGeneration, cancelGeneration } = await import('../analytics/generator.js')
 const { isConfigured: isLlmConfigured } = await import('../llm/model.js')
 const { isPostgresConfigured } = await import('../postgres/settings.js')
+const { listDatabases } = await import('../postgres/client.js')
+
+const DATABASES = [
+  { id: 1, name: 'production' },
+  { id: 2, name: 'billing' },
+]
 const { default: dashboardsRouter } = await import('./analytics-dashboards.js')
 
 const DASHBOARD_ID = '5b0c9d1e-2f3a-4b4c-8d5e-6f7a8b9c0d1e'
@@ -88,6 +95,7 @@ describe('analytics dashboards routes', () => {
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     userId = 7
     isPostgresConfigured.mockResolvedValue(true)
+    listDatabases.mockResolvedValue(DATABASES)
     isLlmConfigured.mockResolvedValue(true)
     dashboards.getDashboard.mockResolvedValue(dashboard())
     cards.countCards.mockResolvedValue({ total: 0, generating: 0 })
@@ -109,7 +117,7 @@ describe('analytics dashboards routes', () => {
       const res = await request(app).get('/')
 
       expect(res.status).toBe(200)
-      expect(res.body).toEqual({ configured: true, dashboards: listed })
+      expect(res.body).toEqual({ configured: true, databases: DATABASES, dashboards: listed })
       expect(dashboards.listDashboards).toHaveBeenCalledTimes(1)
       expect(dashboards.listDashboards).toHaveBeenCalledWith(7)
       expect(dashboards.ensureDashboard).not.toHaveBeenCalled()
@@ -130,12 +138,12 @@ describe('analytics dashboards routes', () => {
     })
 
     it('reports a database that is not connected', async () => {
-      isPostgresConfigured.mockResolvedValue(false)
+      listDatabases.mockResolvedValue([])
       dashboards.listDashboards.mockResolvedValue([dashboard()])
 
       const res = await request(app).get('/')
 
-      expect(res.body).toEqual({ configured: false, dashboards: [dashboard()] })
+      expect(res.body).toEqual({ configured: false, databases: [], dashboards: [dashboard()] })
     })
 
     it('returns 500 when the dashboards cannot be loaded', async () => {

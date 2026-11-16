@@ -23,16 +23,23 @@ function card(overrides = {}) {
 describe('ANALYTICS_INSTRUCTIONS', () => {
   it('names the tools of the agent and the order to use them in', () => {
     const tools = [
+      'list_databases',
       'list_database_schemas',
       'list_database_tables',
       'describe_database_table',
       'query_database',
-      'submit_chart',
     ]
     const positions = tools.map(name => ANALYTICS_INSTRUCTIONS.indexOf(name))
 
     expect(positions.every(position => position >= 0)).toBe(true)
     expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    expect(ANALYTICS_INSTRUCTIONS).toContain('Call submit_chart with the final query')
+  })
+
+  it('asks the model to pick the database first and to pass its name', () => {
+    expect(ANALYTICS_INSTRUCTIONS).toContain('1. Pick the database. Call list_databases first.')
+    expect(ANALYTICS_INSTRUCTIONS).toContain('as `database`')
+    expect(ANALYTICS_INSTRUCTIONS).toContain('A card reads from one database only.')
   })
 
   it('states the row cap of the dashboard', () => {
@@ -48,7 +55,8 @@ describe('ANALYTICS_INSTRUCTIONS', () => {
   it('covers revisions and what to do when the database cannot answer', () => {
     expect(ANALYTICS_INSTRUCTIONS).toContain('## Revising a card')
     expect(ANALYTICS_INSTRUCTIONS).toContain('change only what was asked')
-    expect(ANALYTICS_INSTRUCTIONS).toContain('## When the database cannot answer')
+    expect(ANALYTICS_INSTRUCTIONS).toContain('the same database, the same tables and filters')
+    expect(ANALYTICS_INSTRUCTIONS).toContain('## When no database can answer')
     expect(ANALYTICS_INSTRUCTIONS).toContain('shown on the card as its error')
   })
 })
@@ -62,13 +70,22 @@ describe('buildChartPrompt', () => {
 
   it('asks for a revision with the current title, query and chart and the requested change', () => {
     const sql = "SELECT date_trunc('week', created_at) AS week, count(*) AS returns FROM returns GROUP BY 1 ORDER BY 1"
-    const prompt = buildChartPrompt(card({ title: 'Returns per week', prompt: 'Make it monthly', sql, chart: CHART }))
+    const prompt = buildChartPrompt(card({ title: 'Returns per week', prompt: 'Make it monthly', sql, chart: CHART }), {
+      database: 'billing',
+    })
 
     expect(prompt).toMatch(/^Revise this dashboard card\./)
+    expect(prompt).toContain('Database: billing')
     expect(prompt).toContain('Title: Returns per week')
     expect(prompt).toContain(`\`\`\`sql\n${sql}\n\`\`\``)
     expect(prompt).toContain(`\`\`\`json\n${JSON.stringify(CHART, null, 2)}\n\`\`\``)
     expect(prompt).toMatch(/## Requested change\n\nMake it monthly$/)
     expect(prompt).not.toContain('Build a dashboard card')
+  })
+
+  it('says the database was removed when the card has none left', () => {
+    const prompt = buildChartPrompt(card({ sql: 'SELECT 1', chart: CHART }), { database: null })
+
+    expect(prompt).toContain('Database: none. The database this card read from was removed: pick the one that holds')
   })
 })

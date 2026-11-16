@@ -248,6 +248,18 @@ export const sendcloudAccounts = pgTable(
   table => [uniqueIndex('sendcloud_accounts_name_lower_idx').on(sql`lower(${table.name})`)]
 )
 
+export const postgresConnections = pgTable(
+  'postgres_connections',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    connectionString: text('connection_string').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('postgres_connections_name_lower_idx').on(sql`lower(${table.name})`)]
+)
+
 export const attachmentImages = pgTable(
   'attachment_images',
   {
@@ -510,6 +522,7 @@ export const analyticsCards = pgTable(
     title: text('title').notNull(),
     sql: text('sql'),
     chart: jsonb('chart'),
+    connectionId: integer('connection_id').references(() => postgresConnections.id, { onDelete: 'set null' }),
     layout: jsonb('layout').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -34,7 +34,7 @@ const CATALOG = [
     isConfigured: async () => true,
   },
   catalogEntry('notion', 'Search and read Notion pages', notion.isConfigured),
-  catalogEntry('postgres', 'Query and explore the PostgreSQL database', postgres.isConfigured),
+  catalogEntry('postgres', 'Query and explore the connected PostgreSQL databases', postgres.isConfigured),
   catalogEntry('helpjuice', 'Search and read help center articles', helpjuice.isConfigured),
   catalogEntry('shopify', 'Query Shopify orders, products, and webhooks (read-only)', shopify.isConfigured),
   catalogEntry('google-drive', 'Search, browse and read Google Drive documents', googleDrive.isConfigured),

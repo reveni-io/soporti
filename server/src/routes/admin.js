@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { createSession, requireAdmin } from '../middleware/auth.js'
 import adminStatsRouter from './admin-stats.js'
 import adminSendcloudRouter from './admin-sendcloud.js'
+import adminPostgresRouter from './admin-postgres.js'
 import adminHubspotRouter from './admin-hubspot.js'
 import adminVideoRouter from './admin-video.js'
 import { hashPassword, validatePassword } from '../auth/password.js'
@@ -49,12 +50,6 @@ import {
   getHelpjuiceAccount,
   setHelpjuiceAccount,
 } from '../helpjuice/settings.js'
-import {
-  getPostgresConnection,
-  setPostgresConnection,
-  getPostgresMaxRows,
-  setPostgresMaxRows,
-} from '../postgres/settings.js'
 import {
   getShopifyTokenAuthorization,
   getShopifyTokenUrl,
@@ -117,7 +112,6 @@ import { isDriveConfigured } from '../google-drive/settings.js'
 import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
-import { clearQueryCache } from '../analytics/query-cache.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { isZendeskConfigured } from '../zendesk/settings.js'
@@ -323,6 +317,7 @@ router.use(requireAdmin)
 
 router.use('/stats', adminStatsRouter)
 router.use('/config/sendcloud', adminSendcloudRouter)
+router.use('/config/postgres', adminPostgresRouter)
 router.use('/config/hubspot', adminHubspotRouter)
 router.use('/config/video', adminVideoRouter)
 
@@ -1363,64 +1358,6 @@ router.put('/config/langfuse/metadata-only', async (req, res) => {
   } catch (err) {
     console.error('Admin set langfuse metadata-only error:', err)
     res.status(500).json({ error: 'Failed to save the Langfuse content setting.' })
-  }
-})
-
-router.get('/config/postgres', async (_req, res) => {
-  try {
-    const [connection, maxRows] = await Promise.all([getPostgresConnection(), getPostgresMaxRows()])
-    res.json({ connectionConfigured: Boolean(connection), maxRows })
-  } catch (err) {
-    console.error('Admin get postgres config error:', err)
-    res.status(500).json({ error: 'Failed to read the database settings.' })
-  }
-})
-
-router.put('/config/postgres/connection', async (req, res) => {
-  const { connection } = req.body ?? {}
-
-  if (typeof connection !== 'string') {
-    return res.status(400).json({ error: '"connection" must be a string (empty to clear it).' })
-  }
-  const trimmed = connection.trim()
-  if (trimmed.length > 0 && (trimmed.length > 2000 || /[\r\n]/.test(trimmed))) {
-    return res.status(400).json({ error: 'That does not look like a valid PostgreSQL connection string.' })
-  }
-
-  try {
-    await setPostgresConnection(trimmed)
-    clearQueryCache()
-    res.json({ connectionConfigured: trimmed.length > 0 })
-  } catch (err) {
-    console.error('Admin set postgres connection error:', err)
-    res.status(500).json({ error: 'Failed to save the database connection string.' })
-  }
-})
-
-router.put('/config/postgres/max-rows', async (req, res) => {
-  const { maxRows } = req.body ?? {}
-
-  if (maxRows === '' || maxRows === null || maxRows === undefined) {
-    try {
-      await setPostgresMaxRows(null)
-      return res.json({ maxRows: await getPostgresMaxRows() })
-    } catch (err) {
-      console.error('Admin clear postgres max-rows error:', err)
-      return res.status(500).json({ error: 'Failed to save the row limit.' })
-    }
-  }
-
-  const n = Number(maxRows)
-  if (!Number.isInteger(n) || n < 1) {
-    return res.status(400).json({ error: '"maxRows" must be an integer greater than or equal to 1.' })
-  }
-
-  try {
-    await setPostgresMaxRows(n)
-    res.json({ maxRows: await getPostgresMaxRows() })
-  } catch (err) {
-    console.error('Admin set postgres max-rows error:', err)
-    res.status(500).json({ error: 'Failed to save the row limit.' })
   }
 })
 

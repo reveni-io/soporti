@@ -1,11 +1,7 @@
 import { Agent, MaxTurnsExceededError } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
-import {
-  describeDatabaseTableTool,
-  listDatabaseSchemasTool,
-  listDatabaseTablesTool,
-  queryDatabaseTool,
-} from '../agent/tools.js'
+import { POSTGRES_TOOLS } from '../agent/tools.js'
+import { listDatabases } from '../postgres/client.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { runStreamed } from '../agent/run-streamed.js'
 import { ANALYTICS_INSTRUCTIONS, buildChartPrompt } from './prompt.js'
@@ -37,13 +33,7 @@ async function buildChartAgent(ctx) {
     name: AGENT_NAME,
     model,
     instructions: ANALYTICS_INSTRUCTIONS,
-    tools: [
-      listDatabaseSchemasTool,
-      listDatabaseTablesTool,
-      describeDatabaseTableTool,
-      queryDatabaseTool,
-      buildSubmitChartTool(ctx),
-    ],
+    tools: [...POSTGRES_TOOLS, buildSubmitChartTool(ctx)],
     modelSettings,
     toolUseBehavior: stopOnceSettled(ctx),
   })
@@ -54,7 +44,7 @@ async function buildChartAgent(ctx) {
   return agent
 }
 
-function runChartAgent(agent, ctx) {
+function runChartAgent(agent, ctx, database) {
   const { card, userId, signal } = ctx
 
   return trackAgentRun(
@@ -66,7 +56,7 @@ function runChartAgent(agent, ctx) {
     },
     async () => {
       const result = await traceAgentRun({ sessionId: card.id, userId, question: card.prompt }, () => {
-        return runStreamed(agent, buildChartPrompt(card), {
+        return runStreamed(agent, buildChartPrompt(card, { database }), {
           maxTurns: MAX_TURNS,
           signal,
           toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
@@ -87,12 +77,21 @@ function toGenerationError(error, ctx) {
   return error
 }
 
+async function findCardDatabase(card) {
+  if (!card.sql) return null
+
+  const databases = await listDatabases()
+
+  return databases.find(database => database.id === card.connectionId)?.name ?? null
+}
+
 export async function generateChart(card, { userId, signal, onStep }) {
   const ctx = { card, userId, signal, onStep, state: { submission: null, settled: false, reply: '' } }
   const agent = await buildChartAgent(ctx)
+  const database = await findCardDatabase(card)
 
   try {
-    await runChartAgent(agent, ctx)
+    await runChartAgent(agent, ctx, database)
   } catch (error) {
     if (signal.aborted || !ctx.state.submission) throw toGenerationError(error, ctx)
 

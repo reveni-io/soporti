@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 class FakeReadOnlyQueryError extends Error {}
 
-vi.mock('../postgres/client.js', () => ({ runTypedQuery: vi.fn(), ReadOnlyQueryError: FakeReadOnlyQueryError }))
+class FakeUnknownDatabaseError extends Error {}
+
+vi.mock('../postgres/client.js', () => ({
+  runTypedQuery: vi.fn(),
+  ReadOnlyQueryError: FakeReadOnlyQueryError,
+  UnknownDatabaseError: FakeUnknownDatabaseError,
+}))
 
 const { runTypedQuery } = await import('../postgres/client.js')
 const { clearQueryCache } = await import('./query-cache.js')
@@ -30,10 +36,10 @@ describe('runChartQuery', () => {
   it('runs the query with the dashboard row cap and a 30 second statement timeout', async () => {
     runTypedQuery.mockResolvedValue({ fields: [], rows: [], truncated: false })
 
-    await runChartQuery('SELECT 1')
+    await runChartQuery({ connectionId: 1, sql: 'SELECT 1' })
 
     expect(runTypedQuery).toHaveBeenCalledTimes(1)
-    expect(runTypedQuery).toHaveBeenCalledWith('SELECT 1', { maxRows: 2000, timeoutMs: 30_000 })
+    expect(runTypedQuery).toHaveBeenCalledWith(1, 'SELECT 1', { maxRows: 2000, timeoutMs: 30_000 })
   })
 
   it('maps the type of every column to a kind', async () => {
@@ -56,7 +62,7 @@ describe('runChartQuery', () => {
       truncated: false,
     })
 
-    const { columns } = await runChartQuery('SELECT * FROM everything')
+    const { columns } = await runChartQuery({ connectionId: 1, sql: 'SELECT * FROM everything' })
 
     expect(columns).toEqual([
       { name: 'small', kind: 'number' },
@@ -84,7 +90,7 @@ describe('runChartQuery', () => {
       truncated: true,
     })
 
-    const result = await runChartQuery('SELECT * FROM weekly')
+    const result = await runChartQuery({ connectionId: 1, sql: 'SELECT * FROM weekly' })
 
     expect(result.rows).toEqual([
       { returns: 42, rate: 12.5, units: 3, code: '007' },
@@ -127,7 +133,7 @@ describe('runChartQuery', () => {
   ])('returns $kind as the wall-clock time the database shows, written as UTC', async ({ oid, raw, value }) => {
     runTypedQuery.mockResolvedValue({ fields: [field('moment', oid)], rows: [{ moment: raw }], truncated: false })
 
-    const result = await runChartQuery('SELECT moment FROM events')
+    const result = await runChartQuery({ connectionId: 1, sql: 'SELECT moment FROM events' })
 
     expect(result.columns).toEqual([{ name: 'moment', kind: 'date' }])
     expect(result.rows).toEqual([{ moment: value }])
@@ -145,7 +151,7 @@ describe('runChartQuery', () => {
   ])('passes $kind through untouched', async ({ oid, raw }) => {
     runTypedQuery.mockResolvedValue({ fields: [field('moment', oid)], rows: [{ moment: raw }], truncated: false })
 
-    const result = await runChartQuery('SELECT moment FROM events')
+    const result = await runChartQuery({ connectionId: 1, sql: 'SELECT moment FROM events' })
 
     expect(result.columns).toEqual([{ name: 'moment', kind: 'date' }])
     expect(result.rows).toEqual([{ moment: raw }])
@@ -155,7 +161,7 @@ describe('runChartQuery', () => {
     const rows = [{ name: 'Acme', units: 3 }]
     runTypedQuery.mockResolvedValue({ fields: [field('name', 25), field('units', 23)], rows, truncated: false })
 
-    const result = await runChartQuery('SELECT name, units FROM stores')
+    const result = await runChartQuery({ connectionId: 1, sql: 'SELECT name, units FROM stores' })
 
     expect(result.rows).toBe(rows)
     expect(result.truncated).toBe(false)
@@ -168,7 +174,10 @@ describe('runChartQuery', () => {
       truncated: false,
     })
 
-    const result = await runChartQuery('SELECT o.id, s.name, s.id FROM orders o JOIN stores s ON s.id = o.store_id')
+    const result = await runChartQuery({
+      connectionId: 1,
+      sql: 'SELECT o.id, s.name, s.id FROM orders o JOIN stores s ON s.id = o.store_id',
+    })
 
     expect(result.columns).toEqual([
       { name: 'id', kind: 'text' },
@@ -180,7 +189,7 @@ describe('runChartQuery', () => {
   it('reports a statement that is not a SELECT or a WITH with the message of the database client', async () => {
     runTypedQuery.mockRejectedValue(new FakeReadOnlyQueryError('Only SELECT and WITH (CTE) queries are allowed.'))
 
-    const failure = await runChartQuery('DELETE FROM orders').catch(err => err)
+    const failure = await runChartQuery({ connectionId: 1, sql: 'DELETE FROM orders' }).catch(err => err)
 
     expect(failure).toBeInstanceOf(QueryError)
     expect(failure.message).toBe('Only SELECT and WITH (CTE) queries are allowed.')
@@ -197,7 +206,7 @@ describe('runChartQuery', () => {
     const original = databaseError(message, code)
     runTypedQuery.mockRejectedValue(original)
 
-    const failure = await runChartQuery('SELECT 1').catch(err => err)
+    const failure = await runChartQuery({ connectionId: 1, sql: 'SELECT 1' }).catch(err => err)
 
     expect(failure).toBeInstanceOf(QueryError)
     expect(failure.message).toBe(message)
@@ -217,7 +226,7 @@ describe('runChartQuery', () => {
   ])('hides the details of $kind behind a fixed sentence and logs them', async ({ error }) => {
     runTypedQuery.mockRejectedValue(error)
 
-    const failure = await runChartQuery('SELECT 1').catch(err => err)
+    const failure = await runChartQuery({ connectionId: 1, sql: 'SELECT 1' }).catch(err => err)
 
     expect(failure).toBeInstanceOf(QueryError)
     expect(failure.message).toBe(UNREACHABLE)
@@ -250,7 +259,7 @@ describe('the cache of chart query results', () => {
   it('stamps a result with the moment it was read from the database', async () => {
     runTypedQuery.mockResolvedValue(weekly(42))
 
-    const result = await runChartQuery(SQL)
+    const result = await runChartQuery({ connectionId: 1, sql: SQL })
 
     expect(result).toEqual({
       columns: [{ name: 'returns', kind: 'number' }],
@@ -262,10 +271,10 @@ describe('the cache of chart query results', () => {
 
   it('serves a result that was just fetched without querying the database again', async () => {
     runTypedQuery.mockResolvedValue(weekly(42))
-    const fetched = await runChartQuery(SQL)
+    const fetched = await runChartQuery({ connectionId: 1, sql: SQL })
     vi.advanceTimersByTime(4 * MINUTE_MS)
 
-    const cached = await readChartQuery(SQL)
+    const cached = await readChartQuery({ connectionId: 1, sql: SQL })
 
     expect(cached).toBe(fetched)
     expect(cached.fetchedAt).toBe(OPENED_AT)
@@ -275,21 +284,21 @@ describe('the cache of chart query results', () => {
   it('queries the database on a cache-first read that misses, then serves the next reads from the cache', async () => {
     runTypedQuery.mockResolvedValue(weekly(42))
 
-    const first = await readChartQuery(SQL)
-    const second = await readChartQuery(SQL)
+    const first = await readChartQuery({ connectionId: 1, sql: SQL })
+    const second = await readChartQuery({ connectionId: 1, sql: SQL })
 
     expect(first.rows).toEqual([{ returns: 42 }])
     expect(second).toBe(first)
     expect(runTypedQuery).toHaveBeenCalledTimes(1)
-    expect(runTypedQuery).toHaveBeenCalledWith(SQL, { maxRows: 2000, timeoutMs: 30_000 })
+    expect(runTypedQuery).toHaveBeenCalledWith(1, SQL, { maxRows: 2000, timeoutMs: 30_000 })
   })
 
   it('queries the database again once the cached result is five minutes old', async () => {
     runTypedQuery.mockResolvedValueOnce(weekly(42)).mockResolvedValueOnce(weekly(43))
-    await readChartQuery(SQL)
+    await readChartQuery({ connectionId: 1, sql: SQL })
     vi.advanceTimersByTime(5 * MINUTE_MS)
 
-    const result = await readChartQuery(SQL)
+    const result = await readChartQuery({ connectionId: 1, sql: SQL })
 
     expect(result.rows).toEqual([{ returns: 43 }])
     expect(result.fetchedAt).toBe('2026-11-12T10:05:00.000Z')
@@ -298,11 +307,11 @@ describe('the cache of chart query results', () => {
 
   it('always queries the database on a plain run and replaces what was cached', async () => {
     runTypedQuery.mockResolvedValueOnce(weekly(42)).mockResolvedValueOnce(weekly(43))
-    await runChartQuery(SQL)
+    await runChartQuery({ connectionId: 1, sql: SQL })
     vi.advanceTimersByTime(MINUTE_MS)
 
-    const fresh = await runChartQuery(SQL)
-    const cached = await readChartQuery(SQL)
+    const fresh = await runChartQuery({ connectionId: 1, sql: SQL })
+    const cached = await readChartQuery({ connectionId: 1, sql: SQL })
 
     expect(fresh.rows).toEqual([{ returns: 43 }])
     expect(fresh.fetchedAt).toBe('2026-11-12T10:01:00.000Z')
@@ -314,7 +323,11 @@ describe('the cache of chart query results', () => {
     let finish
     runTypedQuery.mockImplementation(() => new Promise(resolve => (finish = resolve)))
 
-    const callers = [readChartQuery(SQL), runChartQuery(SQL), readChartQuery(SQL)]
+    const callers = [
+      readChartQuery({ connectionId: 1, sql: SQL }),
+      runChartQuery({ connectionId: 1, sql: SQL }),
+      readChartQuery({ connectionId: 1, sql: SQL }),
+    ]
     await vi.waitFor(() => expect(runTypedQuery).toHaveBeenCalledTimes(1))
     finish(weekly(42))
     const [first, second, third] = await Promise.all(callers)
@@ -327,8 +340,8 @@ describe('the cache of chart query results', () => {
   it('keeps the results of different queries apart', async () => {
     runTypedQuery.mockResolvedValueOnce(weekly(42)).mockResolvedValueOnce(weekly(7))
 
-    const weeklyReturns = await readChartQuery(SQL)
-    const dailyReturns = await readChartQuery('SELECT day, returns FROM daily_returns')
+    const weeklyReturns = await readChartQuery({ connectionId: 1, sql: SQL })
+    const dailyReturns = await readChartQuery({ connectionId: 1, sql: 'SELECT day, returns FROM daily_returns' })
 
     expect(weeklyReturns.rows).toEqual([{ returns: 42 }])
     expect(dailyReturns.rows).toEqual([{ returns: 7 }])
@@ -340,8 +353,8 @@ describe('the cache of chart query results', () => {
       .mockRejectedValueOnce(databaseError('relation "weekly_returns" does not exist', '42P01'))
       .mockResolvedValueOnce(weekly(42))
 
-    const failure = await readChartQuery(SQL).catch(err => err)
-    const result = await readChartQuery(SQL)
+    const failure = await readChartQuery({ connectionId: 1, sql: SQL }).catch(err => err)
+    const result = await readChartQuery({ connectionId: 1, sql: SQL })
 
     expect(failure).toBeInstanceOf(QueryError)
     expect(failure.message).toBe('relation "weekly_returns" does not exist')
@@ -353,11 +366,63 @@ describe('the cache of chart query results', () => {
     runTypedQuery
       .mockResolvedValueOnce(weekly(42))
       .mockRejectedValueOnce(databaseError('canceling statement due to statement timeout', '57014'))
-    const fetched = await runChartQuery(SQL)
+    const fetched = await runChartQuery({ connectionId: 1, sql: SQL })
 
-    await expect(runChartQuery(SQL)).rejects.toBeInstanceOf(QueryError)
+    await expect(runChartQuery({ connectionId: 1, sql: SQL })).rejects.toBeInstanceOf(QueryError)
 
-    expect(await readChartQuery(SQL)).toBe(fetched)
+    expect(await readChartQuery({ connectionId: 1, sql: SQL })).toBe(fetched)
     expect(runTypedQuery).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('chart queries on several databases', () => {
+  const SQL = 'SELECT week, returns FROM weekly_returns'
+
+  function weekly(returns) {
+    return {
+      fields: [field('week', 1082), field('returns', 23)],
+      rows: [{ week: '2026-08-03', returns }],
+      truncated: false,
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    clearQueryCache()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  it('runs the same query twice when it is asked on two connections', async () => {
+    runTypedQuery.mockResolvedValueOnce(weekly(1)).mockResolvedValueOnce(weekly(2))
+
+    const first = await runChartQuery({ connectionId: 1, sql: SQL })
+    const second = await runChartQuery({ connectionId: 2, sql: SQL })
+
+    expect(runTypedQuery).toHaveBeenCalledTimes(2)
+    expect(runTypedQuery).toHaveBeenNthCalledWith(1, 1, SQL, { maxRows: 2000, timeoutMs: 30_000 })
+    expect(runTypedQuery).toHaveBeenNthCalledWith(2, 2, SQL, { maxRows: 2000, timeoutMs: 30_000 })
+    expect(first.rows).not.toEqual(second.rows)
+  })
+
+  it('shares and caches the result of the same query on the same connection', async () => {
+    runTypedQuery.mockResolvedValue(weekly(1))
+
+    await runChartQuery({ connectionId: 2, sql: SQL })
+    await readChartQuery({ connectionId: 2, sql: SQL })
+    await readChartQuery({ connectionId: 1, sql: SQL })
+
+    expect(runTypedQuery).toHaveBeenCalledTimes(2)
+  })
+
+  it('turns a removed database into a query error without logging it', async () => {
+    runTypedQuery.mockRejectedValue(new FakeUnknownDatabaseError('That database is no longer connected.'))
+
+    const failure = await runChartQuery({ connectionId: null, sql: SQL }).catch(err => err)
+
+    expect(failure).toBeInstanceOf(QueryError)
+    expect(failure.message).toBe(
+      'The database this chart read from was removed in /admin (Database section). Ask for a change to build it on another one.'
+    )
+    expect(console.error).not.toHaveBeenCalled()
   })
 })

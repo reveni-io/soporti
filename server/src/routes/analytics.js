@@ -19,6 +19,7 @@ const FRESH_FLAG = 'true'
 const REVISABLE_STATUSES = [ANALYTICS_STATUS_READY, ANALYTICS_STATUS_FAILED]
 const RETRYABLE_STATUSES = [ANALYTICS_STATUS_FAILED]
 
+const INVALID_DATABASE_ERROR = 'Invalid database ID.'
 const EDIT_PARSERS = { title: parseTitle, sql: parseSql, chart: parseChart }
 
 const NOT_FOUND_ERROR = 'Chart not found.'
@@ -31,6 +32,13 @@ const router = Router()
 
 function parseSql(value) {
   return parseText(value, { noun: 'query', maxLength: MAX_SQL_LENGTH })
+}
+
+function parseConnectionId(value) {
+  if (value === null) return { value }
+  if (!Number.isInteger(value) || value < 1) return { error: INVALID_DATABASE_ERROR }
+
+  return { value }
 }
 
 function parseTitle(value) {
@@ -83,7 +91,7 @@ async function buildChanges(card, { title, sql, chart }) {
   if (chart) changes.chart = chart
   if (!sql || sql === card.sql) return changes
 
-  const { columns } = await runChartQuery(sql)
+  const { columns } = await runChartQuery({ connectionId: card.connectionId, sql })
 
   return { ...changes, sql, chart: reconcileChart(chart ?? card.chart, columns) }
 }
@@ -170,7 +178,7 @@ router.get('/cards/:id/data', async (req, res) => {
     if (!card.sql) return res.status(409).json({ error: NO_QUERY_ERROR })
 
     const load = req.query.fresh === FRESH_FLAG ? runChartQuery : readChartQuery
-    res.json(await load(card.sql))
+    res.json(await load({ connectionId: card.connectionId, sql: card.sql }))
   } catch (err) {
     sendQueryFailure(res, err, {
       log: 'Failed to load the data of an analytics card:',
@@ -183,11 +191,14 @@ router.post('/query', async (req, res) => {
   const sql = parseSql(req.body?.sql)
   if (sql.error) return res.status(400).json({ error: sql.error })
 
+  const connectionId = parseConnectionId(req.body?.connectionId)
+  if (connectionId.error) return res.status(400).json({ error: connectionId.error })
+
   const chart = parseChart(req.body?.chart)
   if (chart.error) return res.status(400).json({ error: chart.error })
 
   try {
-    const result = await runChartQuery(sql.value)
+    const result = await runChartQuery({ connectionId: connectionId.value, sql: sql.value })
     res.json({ ...result, chart: reconcileChart(chart.value, result.columns) })
   } catch (err) {
     sendQueryFailure(res, err, { log: 'Failed to run an analytics query:', message: 'Failed to run the query.' })

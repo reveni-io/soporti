@@ -437,6 +437,9 @@ describe('buildBasePrompt', () => {
     const prompt = buildBasePrompt(buildSourcePolicy(['integration:postgres']), { configured: ALL_CONFIGURED })
 
     expect(prompt).toContain('## PostgreSQL integration')
+    expect(prompt).toContain('### Which database')
+    expect(prompt).toContain('`list_databases`')
+    expect(prompt).toContain('takes that name as `database`')
     expect(prompt).not.toContain('## Better Stack integration')
     expect(prompt).not.toContain('## Notion integration')
     expect(prompt).not.toContain('## Shopify integration')
@@ -668,7 +671,9 @@ describe('buildSourceInstructions', () => {
   it('adds Postgres integration instructions', () => {
     const result = buildSourceInstructions(['integration:postgres'], { postgresConfigured: true })
     expect(result).toContain('Database')
+    expect(result).toContain('list_databases')
     expect(result).toContain('list_database_schemas')
+    expect(result).toContain('passing the database name when several are connected')
   })
 
   it('tells the agent the Granola notes belong to the user it is talking to', () => {

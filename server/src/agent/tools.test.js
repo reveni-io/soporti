@@ -48,6 +48,7 @@ vi.mock('../notion/client.js', () => ({
 }))
 
 vi.mock('../postgres/client.js', () => ({
+  listDatabases: vi.fn(),
   listSchemas: vi.fn(),
   listTables: vi.fn(),
   describeTable: vi.fn(),
@@ -170,6 +171,7 @@ const {
   listShortcutMembersTool,
   searchNotionPagesTool,
   getNotionPageTool,
+  listDatabasesTool,
   listDatabaseSchemasTool,
   listDatabaseTablesTool,
   describeDatabaseTableTool,
@@ -242,6 +244,7 @@ describe('tool definitions', () => {
   })
 
   it('exports postgres tools', () => {
+    expect(listDatabasesTool).toBeDefined()
     expect(listDatabaseSchemasTool).toBeDefined()
     expect(listDatabaseTablesTool).toBeDefined()
     expect(describeDatabaseTableTool).toBeDefined()
@@ -595,6 +598,20 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools(yolo, { helpjuiceConfigured: true }))).toContain('search_helpjuice_articles')
   })
 
+  it('registers the five database tools when Postgres is configured', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['postgres'] }
+
+    expect(names(buildAgentTools(selection, { postgresConfigured: true }))).toEqual(
+      expect.arrayContaining([
+        'list_databases',
+        'list_database_schemas',
+        'list_database_tables',
+        'describe_database_table',
+        'query_database',
+      ])
+    )
+  })
+
   it('gates the Postgres tools on postgresConfigured', () => {
     const selection = { unrestricted: false, repos: [], integrations: ['postgres'] }
     expect(names(buildAgentTools(selection, { postgresConfigured: false }))).not.toContain('query_database')
@@ -921,20 +938,32 @@ describe('tool execute functions', () => {
     expect(notion.getPage).toHaveBeenCalledWith('page-1')
   })
 
-  it('listDatabaseSchemasTool.execute calls listSchemas and returns JSON', async () => {
+  it('listDatabasesTool.execute returns only the names of the connected databases', async () => {
     const postgres = await import('../postgres/client.js')
+    postgres.listDatabases.mockResolvedValue([
+      { id: 1, name: 'production' },
+      { id: 2, name: 'billing' },
+    ])
+    const result = await listDatabasesTool.execute({})
+    expect(JSON.parse(result)).toEqual({ databases: ['production', 'billing'] })
+  })
+
+  it('listDatabaseSchemasTool.execute calls listSchemas with the database and returns JSON', async () => {
+    const postgres = await import('../postgres/client.js')
+    postgres.listSchemas.mockClear()
     postgres.listSchemas.mockResolvedValue([{ name: 'public' }])
-    const result = await listDatabaseSchemasTool.execute({})
+    const result = await listDatabaseSchemasTool.execute({ database: 'billing' })
     expect(JSON.parse(result)).toEqual([{ name: 'public' }])
-    expect(postgres.listSchemas).toHaveBeenCalled()
+    expect(postgres.listSchemas).toHaveBeenCalledTimes(1)
+    expect(postgres.listSchemas).toHaveBeenCalledWith('billing')
   })
 
   it('listDatabaseTablesTool.execute calls listTables and returns JSON', async () => {
     const postgres = await import('../postgres/client.js')
     postgres.listTables.mockResolvedValue([{ name: 'users', rows: 100 }])
-    const result = await listDatabaseTablesTool.execute({ schema: 'public' })
+    const result = await listDatabaseTablesTool.execute({ database: null, schema: 'public' })
     expect(JSON.parse(result)).toEqual([{ name: 'users', rows: 100 }])
-    expect(postgres.listTables).toHaveBeenCalledWith('public')
+    expect(postgres.listTables).toHaveBeenCalledWith(null, 'public')
   })
 
   it('describeDatabaseTableTool.execute calls describeTable and returns JSON', async () => {
@@ -943,23 +972,25 @@ describe('tool execute functions', () => {
       columns: [{ name: 'id', type: 'integer' }],
     })
     const result = await describeDatabaseTableTool.execute({
+      database: 'billing',
       schema: 'public',
       table: 'users',
     })
     expect(JSON.parse(result)).toEqual({
       columns: [{ name: 'id', type: 'integer' }],
     })
-    expect(postgres.describeTable).toHaveBeenCalledWith('public', 'users')
+    expect(postgres.describeTable).toHaveBeenCalledWith('billing', 'public', 'users')
   })
 
   it('queryDatabaseTool.execute calls runQuery and returns JSON', async () => {
     const postgres = await import('../postgres/client.js')
     postgres.runQuery.mockResolvedValue({ rows: [{ id: 1, name: 'Alice' }] })
     const result = await queryDatabaseTool.execute({
+      database: 'billing',
       sql: 'SELECT * FROM users',
     })
     expect(JSON.parse(result)).toEqual({ rows: [{ id: 1, name: 'Alice' }] })
-    expect(postgres.runQuery).toHaveBeenCalledWith('SELECT * FROM users')
+    expect(postgres.runQuery).toHaveBeenCalledWith('billing', 'SELECT * FROM users')
   })
 
   it('getSentryIssueTool.execute calls getIssue and returns JSON', async () => {

@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 class FakeQueryError extends Error {}
+class FakeUnknownDatabaseError extends Error {}
 
 vi.mock('./query.js', () => ({ runChartQuery: vi.fn(), QueryError: FakeQueryError }))
+vi.mock('../postgres/client.js', () => ({
+  resolveDatabase: vi.fn(),
+  UnknownDatabaseError: FakeUnknownDatabaseError,
+}))
 
 const { runChartQuery } = await import('./query.js')
+const { resolveDatabase } = await import('../postgres/client.js')
 const { buildSubmitChartTool, describeToolStep } = await import('./tools.js')
 
 const SQL = "SELECT date_trunc('week', created_at) AS week, count(*) AS returns FROM returns GROUP BY 1 ORDER BY 1"
@@ -24,6 +30,7 @@ let ctx
 
 function submission(overrides = {}) {
   return {
+    database: 'billing',
     title: 'Returns per week',
     sql: SQL,
     type: 'bar',
@@ -45,6 +52,7 @@ async function submit(input) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resolveDatabase.mockResolvedValue({ id: 7, name: 'billing' })
   ctx = {
     card: { id: '8c1d2e3f-4a5b-4c6d-9e7f-a0b1c2d3e4f5', title: 'Returns per week over the last 3 months' },
     state: { submission: null, settled: false, reply: '' },
@@ -57,6 +65,7 @@ describe('submit_chart', () => {
 
     expect(submitChartTool.name).toBe('submit_chart')
     expect(submitChartTool.parameters.required).toEqual([
+      'database',
       'title',
       'sql',
       'type',
@@ -74,9 +83,17 @@ describe('submit_chart', () => {
     const result = await submit(submission({ title: '  Returns per week  ', sql: `  ${SQL}  ` }))
 
     expect(runChartQuery).toHaveBeenCalledTimes(1)
-    expect(runChartQuery).toHaveBeenCalledWith(SQL)
-    expect(result).toEqual({ ok: true, rowCount: 1, truncated: false, columns: COLUMNS, chart: CHART })
-    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART })
+    expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 7, sql: SQL })
+    expect(resolveDatabase).toHaveBeenCalledWith('billing')
+    expect(result).toEqual({
+      ok: true,
+      database: 'billing',
+      rowCount: 1,
+      truncated: false,
+      columns: COLUMNS,
+      chart: CHART,
+    })
+    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART, connectionId: 7 })
     expect(ctx.state.settled).toBe(true)
   })
 
@@ -101,7 +118,7 @@ describe('submit_chart', () => {
     const result = await submit(submission())
 
     expect(result).toMatchObject({ ok: true, rowCount, truncated: overrides.truncated ?? false })
-    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART })
+    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART, connectionId: 7 })
     expect(ctx.state.settled).toBe(false)
   })
 
@@ -124,8 +141,21 @@ describe('submit_chart', () => {
     const result = await submit(submission({ sql: 'SELECT kind FROM returns' }))
 
     expect(result).toEqual({ error: 'column "kind" does not exist' })
-    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART })
+    expect(ctx.state.submission).toEqual({ title: 'Returns per week', sql: SQL, chart: CHART, connectionId: 7 })
     expect(ctx.state.settled).toBe(false)
+  })
+
+  it.each([
+    { kind: 'an unknown database', message: 'There is no database named "sales". Connected: "billing".' },
+    { kind: 'a missing name', message: 'Several databases are connected ("billing", "ops"): pass the one.' },
+  ])('hands $kind back to the model and leaves the submission untouched', async ({ message }) => {
+    resolveDatabase.mockRejectedValue(new FakeUnknownDatabaseError(message))
+
+    const result = await submit(submission({ database: 'sales' }))
+
+    expect(result).toEqual({ error: message })
+    expect(runChartQuery).not.toHaveBeenCalled()
+    expect(ctx.state.submission).toBeNull()
   })
 
   it('lets the last successful submission win', async () => {
@@ -139,6 +169,7 @@ describe('submit_chart', () => {
       title: 'Weekly returns',
       sql: 'SELECT week, returns FROM weekly_returns',
       chart: CHART,
+      connectionId: 7,
     })
     expect(ctx.state.settled).toBe(true)
   })
@@ -157,6 +188,7 @@ describe('submit_chart', () => {
 
 describe('describeToolStep', () => {
   it.each([
+    { name: 'list_databases', args: '{}', step: 'Looking at the databases' },
     { name: 'list_database_schemas', args: '{}', step: 'Looking at the schemas' },
     { name: 'list_database_tables', args: '{"schema":"public"}', step: 'Listing the tables' },
     {

@@ -25,10 +25,7 @@ import {
   searchShortcutStoriesTool,
   getSentryIssueTool,
   searchSentryIssuesTool,
-  listDatabaseSchemasTool,
-  listDatabaseTablesTool,
-  describeDatabaseTableTool,
-  queryDatabaseTool,
+  POSTGRES_TOOLS,
   BETTERSTACK_TOOLS,
 } from '../agent/tools.js'
 import { resolveModelForAgent } from '../llm/model.js'
@@ -272,9 +269,7 @@ export async function buildDataTools() {
   return [
     ...(shortcutConfigured ? [getShortcutStoryTool, searchShortcutStoriesTool] : []),
     ...(sentryConfigured ? [getSentryIssueTool, searchSentryIssuesTool] : []),
-    ...(postgresConfigured
-      ? [listDatabaseSchemasTool, listDatabaseTablesTool, describeDatabaseTableTool, queryDatabaseTool]
-      : []),
+    ...(postgresConfigured ? POSTGRES_TOOLS : []),
     ...(betterstackConfigured ? BETTERSTACK_TOOLS : []),
   ]
 }

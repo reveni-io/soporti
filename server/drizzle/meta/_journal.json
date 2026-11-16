@@ -169,6 +169,13 @@
       "when": 1794500886324,
       "tag": "0023_great_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794851349795,
+      "tag": "0024_bizarre_gorilla_man",
+      "breakpoints": true
     }
   ]
 }
