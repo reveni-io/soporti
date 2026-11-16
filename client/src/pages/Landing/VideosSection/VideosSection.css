@@ -38,7 +38,8 @@
   padding: var(--sp6);
   border-radius: var(--radius-md);
   background:
-    radial-gradient(circle at 30% 30%, rgba(var(--green-bright-rgb), 0.35), transparent 55%), var(--green-deep);
+    radial-gradient(circle at 30% 30%, rgba(var(--green-bright-rgb), 0.35), transparent 55%),
+    var(--green-deep);
 }
 
 .lp-videos__caption {
