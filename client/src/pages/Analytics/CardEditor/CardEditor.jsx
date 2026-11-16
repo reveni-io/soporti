@@ -1,6 +1,6 @@
 import { ANALYTICS_TITLE_MAX_LENGTH } from '../../../constants.js'
 import ModalFrame from '../ModalFrame/ModalFrame.jsx'
-import DeleteControl from '../DeleteControl/DeleteControl.jsx'
+import DeleteControl from '../../../common/DeleteControl/DeleteControl.jsx'
 import { useCardEditor } from './hooks/useCardEditor/useCardEditor.js'
 import ReviseForm from './ReviseForm/ReviseForm.jsx'
 import SqlEditor from './SqlEditor/SqlEditor.jsx'
@@ -10,8 +10,8 @@ import './CardEditor.css'
 
 const NO_COLUMNS = []
 
-export default function CardEditor({ card, token, onLogout, onClose, onSave, onRevise, onDelete }) {
-  const editor = useCardEditor({ card, token, onLogout, onClose, onSave, onRevise, onDelete })
+export default function CardEditor({ card, databases, token, onLogout, onClose, onSave, onRevise, onDelete }) {
+  const editor = useCardEditor({ card, databases, token, onLogout, onClose, onSave, onRevise, onDelete })
 
   return (
     <ModalFrame title="Edit chart" className="card-editor" onClose={onClose}>
@@ -28,6 +28,7 @@ export default function CardEditor({ card, token, onLogout, onClose, onSave, onR
           </label>
 
           <ReviseForm isSending={editor.isRevising} error={editor.reviseError} onAsk={editor.askForChange} />
+          <CardDatabase card={card} databases={databases} />
           <SqlEditor
             value={editor.sql}
             isRunning={editor.isRunning}
@@ -73,5 +74,24 @@ export default function CardEditor({ card, token, onLogout, onClose, onSave, onR
         </div>
       </div>
     </ModalFrame>
+  )
+}
+
+function CardDatabase({ card, databases }) {
+  if (!card.sql) return null
+
+  const database = databases.find(candidate => candidate.id === card.connectionId)
+  if (!database) {
+    return (
+      <p className="alert alert--warning">
+        The database this chart read from was removed in /admin. Ask for a change to build it on another one.
+      </p>
+    )
+  }
+
+  return (
+    <p className="card-editor__database">
+      Reads from <strong>{database.name}</strong>
+    </p>
   )
 }

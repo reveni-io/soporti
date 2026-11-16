@@ -52,9 +52,9 @@ export default function AnalyticsSection() {
           <span className="lp-eyebrow">Analytics</span>
           <h2 className="lp-h2">Ask for a chart. Get a live dashboard you arrange by hand.</h2>
           <p className="lp-lead">
-            Soporti can already query the PostgreSQL database you connect in <strong>/admin</strong>, read-only, so it
-            can chart it too. Analytics is a section of its own, apart from the chat: describe the chart you want and it
-            lands as a card on a dashboard you can keep to yourself or share, drawn from a query you can always read.
+            Soporti can already query the PostgreSQL databases you connect in <strong>/admin</strong>, read-only, so it
+            can chart them too. Analytics is a section of its own, apart from the chat: describe the chart you want and
+            it lands as a card on a dashboard you can keep to yourself or share, drawn from a query you can always read.
           </p>
           <PointList points={POINTS} />
         </div>

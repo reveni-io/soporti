@@ -3,6 +3,7 @@ import express from 'express'
 import request from 'supertest'
 
 class FakeQueryError extends Error {}
+class FakeUnknownDatabaseError extends Error {}
 
 vi.mock('../db/analytics-cards.js', () => {
   return {
@@ -37,6 +38,10 @@ vi.mock('../analytics/generator.js', () => ({
 vi.mock('../analytics/query.js', () => {
   return { runChartQuery: vi.fn(), readChartQuery: vi.fn(), QueryError: FakeQueryError }
 })
+vi.mock('../postgres/client.js', () => ({
+  resolveDatabase: vi.fn(),
+  UnknownDatabaseError: FakeUnknownDatabaseError,
+}))
 vi.mock('../llm/model.js', () => ({ isConfigured: vi.fn() }))
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn() }))
 
@@ -44,6 +49,7 @@ const cards = await import('../db/analytics-cards.js')
 const dashboards = await import('../db/analytics-dashboards.js')
 const { startGeneration, cancelGeneration } = await import('../analytics/generator.js')
 const { runChartQuery, readChartQuery } = await import('../analytics/query.js')
+const { resolveDatabase } = await import('../postgres/client.js')
 const { isConfigured: isLlmConfigured } = await import('../llm/model.js')
 const { isPostgresConfigured } = await import('../postgres/settings.js')
 const { default: analyticsRouter } = await import('./analytics.js')
@@ -80,6 +86,7 @@ function card(overrides = {}) {
     prompt: 'Returns per week over the last 3 months',
     sql: QUERY,
     chart: CHART,
+    connectionId: 3,
     layout: { x: 0, y: 0, w: 6, h: 4 },
     status: 'ready',
     step: null,
@@ -417,8 +424,35 @@ describe('analytics routes', () => {
 
       expect(res.status).toBe(200)
       expect(runChartQuery).toHaveBeenCalledTimes(1)
-      expect(runChartQuery).toHaveBeenCalledWith(sql)
-      expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, { sql, chart: reconciled })
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 3, sql })
+      expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, { sql, connectionId: 3, chart: reconciled })
+    })
+
+    it('binds a card that never had a query to the only connected database when it saves its first query', async () => {
+      const sql = 'SELECT week, returns FROM weekly_returns'
+      cards.getCard.mockResolvedValue(card({ sql: null, chart: null, connectionId: null, status: 'failed' }))
+      cards.updateCard.mockResolvedValue(card({ sql, connectionId: 9 }))
+      resolveDatabase.mockResolvedValue({ id: 9, name: 'billing' })
+      runChartQuery.mockResolvedValue({ columns: COLUMNS, rows: ROWS, truncated: false })
+
+      const res = await request(app).put(`/cards/${CARD_ID}`).send({ sql })
+
+      expect(res.status).toBe(200)
+      expect(resolveDatabase).toHaveBeenCalledWith(null)
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 9, sql })
+      expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, expect.objectContaining({ sql, connectionId: 9 }))
+    })
+
+    it('answers 422 for a card without a query when several databases are connected', async () => {
+      cards.getCard.mockResolvedValue(card({ sql: null, chart: null, connectionId: null, status: 'failed' }))
+      resolveDatabase.mockRejectedValue(new FakeUnknownDatabaseError('Several databases are connected ("a", "b").'))
+
+      const res = await request(app).put(`/cards/${CARD_ID}`).send({ sql: 'SELECT 1' })
+
+      expect(res.status).toBe(422)
+      expect(res.body.error).toMatch(/^Several databases are connected, and this chart has none yet\./)
+      expect(runChartQuery).not.toHaveBeenCalled()
+      expect(cards.updateCard).not.toHaveBeenCalled()
     })
 
     it('reconciles the chart of the request when it comes with a new query', async () => {
@@ -434,6 +468,7 @@ describe('analytics routes', () => {
       expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, {
         title: 'Weekly returns',
         sql,
+        connectionId: 3,
         chart: { ...CHART, type: 'line' },
       })
     })
@@ -441,12 +476,13 @@ describe('analytics routes', () => {
     it('gives a card without a chart a table when its first query is written by hand', async () => {
       cards.getCard.mockResolvedValue(card({ status: 'failed', sql: null, chart: null, error: 'Try again.' }))
       cards.updateCard.mockResolvedValue(card())
+      resolveDatabase.mockResolvedValue({ id: 9, name: 'billing' })
       runChartQuery.mockResolvedValue({ columns: COLUMNS, rows: ROWS, truncated: false })
 
       const res = await request(app).put(`/cards/${CARD_ID}`).send({ sql: QUERY })
 
       expect(res.status).toBe(200)
-      expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, { sql: QUERY, chart: TABLE })
+      expect(cards.updateCard).toHaveBeenCalledWith(CARD_ID, 7, { sql: QUERY, connectionId: 9, chart: TABLE })
     })
 
     it('stores a chart as it was sent when the query does not change', async () => {
@@ -623,7 +659,7 @@ describe('analytics routes', () => {
       expect(res.body).toEqual({ columns: COLUMNS, rows: ROWS, truncated: false, fetchedAt: FETCHED_AT })
       expect(cards.getCard).toHaveBeenCalledWith(CARD_ID, 7)
       expect(readChartQuery).toHaveBeenCalledTimes(1)
-      expect(readChartQuery).toHaveBeenCalledWith(QUERY)
+      expect(readChartQuery).toHaveBeenCalledWith({ connectionId: 3, sql: QUERY })
       expect(runChartQuery).not.toHaveBeenCalled()
     })
 
@@ -637,7 +673,7 @@ describe('analytics routes', () => {
       expect(res.status).toBe(200)
       expect(res.body).toEqual(refreshed)
       expect(runChartQuery).toHaveBeenCalledTimes(1)
-      expect(runChartQuery).toHaveBeenCalledWith(QUERY)
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 3, sql: QUERY })
       expect(readChartQuery).not.toHaveBeenCalled()
     })
 
@@ -706,7 +742,11 @@ describe('analytics routes', () => {
 
       const res = await request(app)
         .post('/query')
-        .send({ sql: ` ${QUERY} `, chart: { type: 'line', xKey: 'day', series: [{ key: 'missing' }], stacked: true } })
+        .send({
+          sql: ` ${QUERY} `,
+          connectionId: 3,
+          chart: { type: 'line', xKey: 'day', series: [{ key: 'missing' }], stacked: true },
+        })
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({
@@ -717,13 +757,13 @@ describe('analytics routes', () => {
         chart: { ...CHART, type: 'line' },
       })
       expect(runChartQuery).toHaveBeenCalledTimes(1)
-      expect(runChartQuery).toHaveBeenCalledWith(QUERY)
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 3, sql: QUERY })
       expect(readChartQuery).not.toHaveBeenCalled()
     })
 
     it.each([
-      { kind: 'a null chart', body: { sql: QUERY, chart: null } },
-      { kind: 'no chart', body: { sql: QUERY } },
+      { kind: 'a null chart', body: { sql: QUERY, connectionId: 3, chart: null } },
+      { kind: 'no chart', body: { sql: QUERY, connectionId: 3 } },
     ])('answers $kind with a table', async ({ body }) => {
       runChartQuery.mockResolvedValue({ columns: COLUMNS, rows: ROWS, truncated: false })
 
@@ -737,10 +777,14 @@ describe('analytics routes', () => {
       { kind: 'a missing query', body: { chart: CHART }, error: 'Write a query.' },
       {
         kind: 'a long query',
-        body: { sql: 's'.repeat(20_001) },
+        body: { sql: 's'.repeat(20_001), connectionId: 3 },
         error: 'The query is too long (max 20000 characters).',
       },
-      { kind: 'a malformed chart', body: { sql: QUERY, chart: [CHART] }, error: 'The chart must be an object.' },
+      {
+        kind: 'a malformed chart',
+        body: { sql: QUERY, connectionId: 3, chart: [CHART] },
+        error: 'The chart must be an object.',
+      },
     ])('rejects $kind', async ({ body, error }) => {
       const res = await request(app).post('/query').send(body)
 
@@ -749,10 +793,43 @@ describe('analytics routes', () => {
       expect(runChartQuery).not.toHaveBeenCalled()
     })
 
+    it('runs the query on the connection of the request', async () => {
+      runChartQuery.mockResolvedValue(DATA)
+
+      await request(app).post('/query').send({ sql: QUERY, connectionId: 9 })
+
+      expect(runChartQuery).toHaveBeenCalledTimes(1)
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: 9, sql: QUERY })
+    })
+
+    it.each([
+      { kind: 'a string', connectionId: '1' },
+      { kind: 'zero', connectionId: 0 },
+      { kind: 'a negative number', connectionId: -1 },
+      { kind: 'a fraction', connectionId: 1.5 },
+      { kind: 'a missing value', connectionId: undefined },
+    ])('rejects $kind as the database', async ({ connectionId }) => {
+      const res = await request(app).post('/query').send({ sql: QUERY, connectionId })
+
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: 'Invalid database ID.' })
+      expect(runChartQuery).not.toHaveBeenCalled()
+    })
+
+    it('answers 422 for a card whose database was removed', async () => {
+      runChartQuery.mockRejectedValue(new FakeQueryError('The database this chart read from was removed in /admin.'))
+
+      const res = await request(app).post('/query').send({ sql: QUERY, connectionId: null })
+
+      expect(res.status).toBe(422)
+      expect(res.body).toEqual({ error: 'The database this chart read from was removed in /admin.' })
+      expect(runChartQuery).toHaveBeenCalledWith({ connectionId: null, sql: QUERY })
+    })
+
     it('returns 422 with the message of the query error', async () => {
       runChartQuery.mockRejectedValue(new FakeQueryError('Only SELECT and WITH (CTE) queries are allowed.'))
 
-      const res = await request(app).post('/query').send({ sql: 'DROP TABLE orders', chart: null })
+      const res = await request(app).post('/query').send({ sql: 'DROP TABLE orders', connectionId: 3, chart: null })
 
       expect(res.status).toBe(422)
       expect(res.body).toEqual({ error: 'Only SELECT and WITH (CTE) queries are allowed.' })
@@ -762,7 +839,7 @@ describe('analytics routes', () => {
     it('returns 500 with a generic message on an unexpected failure', async () => {
       runChartQuery.mockRejectedValue(new TypeError('boom'))
 
-      const res = await request(app).post('/query').send({ sql: QUERY })
+      const res = await request(app).post('/query').send({ sql: QUERY, connectionId: 3 })
 
       expect(res.status).toBe(500)
       expect(res.body).toEqual({ error: 'Failed to run the query.' })

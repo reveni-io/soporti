@@ -3,6 +3,7 @@ import {
   ApiError,
   absoluteApiUrl,
   absoluteAppUrl,
+  addDatabaseConnection,
   createAdminUser,
   createSchedule,
   createShare,
@@ -38,6 +39,7 @@ import {
   listVideos,
   redraftStoryboard,
   refreshSession,
+  removeDatabaseConnection,
   renderMermaid,
   renderVideoVersion,
   retryVideoVersion,
@@ -55,6 +57,7 @@ import {
   signInWithPassword,
   streamChat,
   testHubspotConnection,
+  updateDatabaseConnection,
   updateSchedule,
   updateSkill,
   updateSubagent,
@@ -443,6 +446,41 @@ describe('endpoints', () => {
     await expect(testHubspotConnection('tok')).rejects.toThrow('Failed to test the HubSpot connection')
   })
 
+  it('adds a database connection', async () => {
+    await addDatabaseConnection('tok', { name: 'billing', connectionString: 'postgresql://host/billing' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/postgres/connections')
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ name: 'billing', connectionString: 'postgresql://host/billing' })
+  })
+
+  it('updates a database connection', async () => {
+    await updateDatabaseConnection('tok', 4, { name: 'invoices' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/postgres/connections/4')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ name: 'invoices' })
+  })
+
+  it('removes a database connection', async () => {
+    await removeDatabaseConnection('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/postgres/connections/4')
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('falls back to a generic message when a database connection cannot be added', async () => {
+    global.fetch.mockResolvedValueOnce(fail(500))
+
+    await expect(addDatabaseConnection('tok', { name: 'a', connectionString: 'b' })).rejects.toThrow(
+      'Failed to add the database connection'
+    )
+  })
+
   it('saves the query row limit', async () => {
     await saveDatabaseMaxRows('tok', 250)
 
@@ -795,12 +833,12 @@ describe('analytics', () => {
       stacked: false,
     }
 
-    await runAnalyticsQuery('tok', { sql: 'SELECT 1', chart })
+    await runAnalyticsQuery('tok', { sql: 'SELECT 1', chart, connectionId: 3 })
 
     const [url, options] = lastCall()
     expect(url).toBe('/api/analytics/query')
     expect(options.method).toBe('POST')
-    expect(JSON.parse(options.body)).toEqual({ sql: 'SELECT 1', chart })
+    expect(JSON.parse(options.body)).toEqual({ sql: 'SELECT 1', chart, connectionId: 3 })
   })
 
   it('saves where every chart sits on the grid', async () => {

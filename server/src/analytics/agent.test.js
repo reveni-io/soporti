@@ -18,12 +18,16 @@ vi.mock('../agent/run-streamed.js', () => ({ runStreamed: vi.fn() }))
 vi.mock('../llm/model.js', () => ({ resolveModelForAgent: vi.fn() }))
 vi.mock('../agent/tools.js', () => {
   return {
-    listDatabaseSchemasTool: { name: 'list_database_schemas' },
-    listDatabaseTablesTool: { name: 'list_database_tables' },
-    describeDatabaseTableTool: { name: 'describe_database_table' },
-    queryDatabaseTool: { name: 'query_database' },
+    POSTGRES_TOOLS: [
+      { name: 'list_databases' },
+      { name: 'list_database_schemas' },
+      { name: 'list_database_tables' },
+      { name: 'describe_database_table' },
+      { name: 'query_database' },
+    ],
   }
 })
+vi.mock('../postgres/client.js', () => ({ listDatabases: vi.fn() }))
 vi.mock('../agent/run-tracking.js', () => {
   return {
     trackAgentRun: vi.fn(async (options, runAgent) => {
@@ -47,6 +51,7 @@ const { runStreamed } = await import('../agent/run-streamed.js')
 const { resolveModelForAgent } = await import('../llm/model.js')
 const { trackAgentRun, traceAgentRun } = await import('../agent/run-tracking.js')
 const { buildSubmitChartTool } = await import('./tools.js')
+const { listDatabases } = await import('../postgres/client.js')
 const { ANALYTICS_INSTRUCTIONS } = await import('./prompt.js')
 const { ChartGenerationError, generateChart } = await import('./agent.js')
 
@@ -100,6 +105,10 @@ function finishRun({ submission = null, settled = false, finalOutput = '', error
 
 beforeEach(() => {
   vi.clearAllMocks()
+  listDatabases.mockResolvedValue([
+    { id: 1, name: 'production' },
+    { id: 2, name: 'billing' },
+  ])
   onStep = vi.fn()
   signal = new AbortController().signal
   resolveModelForAgent.mockResolvedValue({
@@ -126,6 +135,7 @@ describe('generateChart', () => {
       modelSettings: MODEL_SETTINGS,
     })
     expect(agentConfig().tools.map(item => item.name)).toEqual([
+      'list_databases',
       'list_database_schemas',
       'list_database_tables',
       'describe_database_table',
@@ -175,13 +185,32 @@ describe('generateChart', () => {
   it('sends the current card and the requested change when the card already has a query', async () => {
     finishRun({ submission: SUBMISSION, settled: true })
 
-    await generate(card({ title: 'Returns per week', prompt: 'Make it monthly', sql: SUBMISSION.sql, chart: CHART }))
+    await generate(
+      card({ title: 'Returns per week', prompt: 'Make it monthly', sql: SUBMISSION.sql, chart: CHART, connectionId: 2 })
+    )
 
     const input = runStreamed.mock.calls[0][1]
     expect(input).toMatch(/^Revise this dashboard card\./)
+    expect(input).toContain('Database: billing')
     expect(input).toContain(SUBMISSION.sql)
     expect(input).toMatch(/## Requested change\n\nMake it monthly$/)
     expect(traceAgentRun.mock.calls[0][0].question).toBe('Make it monthly')
+  })
+
+  it('tells the model the database of a revised card was removed', async () => {
+    finishRun({ submission: SUBMISSION, settled: true })
+
+    await generate(card({ sql: SUBMISSION.sql, chart: CHART, connectionId: null }))
+
+    expect(runStreamed.mock.calls[0][1]).toContain('Database: none. The database this card read from was removed')
+  })
+
+  it('does not look up the databases for a new card', async () => {
+    finishRun({ submission: SUBMISSION, settled: true })
+
+    await generate()
+
+    expect(listDatabases).not.toHaveBeenCalled()
   })
 
   it('ends the run as soon as a submission is settled, and lets the model go on until then', async () => {

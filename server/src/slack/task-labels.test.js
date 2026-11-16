@@ -66,6 +66,11 @@ describe('describeToolCall', () => {
       title: 'Searching Notion',
       details: 'refund policy',
     })
+    expect(describeToolCall('list_databases', '{}')).toEqual({ title: 'Listing databases' })
+    expect(describeToolCall('query_database', JSON.stringify({ database: 'billing', sql: 'SELECT 1' }))).toEqual({
+      title: 'Querying the database',
+      details: 'billing',
+    })
     expect(describeToolCall('describe_database_table', JSON.stringify({ schema: 'public', table: 'orders' }))).toEqual({
       title: 'Describing table',
       details: 'orders',
@@ -88,6 +93,9 @@ describe('describeToolCall', () => {
 
   it('omits details for tools whose arguments should not be shown', () => {
     expect(describeToolCall('query_database', JSON.stringify({ sql: 'SELECT secret FROM users' }))).toEqual({
+      title: 'Querying the database',
+    })
+    expect(describeToolCall('query_database', JSON.stringify({ database: null, sql: 'SELECT 1' }))).toEqual({
       title: 'Querying the database',
     })
     expect(describeToolCall('shopify_graphql_query', JSON.stringify({ query: '{ orders { id } }' }))).toEqual({

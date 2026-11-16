@@ -5,37 +5,37 @@ const results = new Map()
 const executions = new Map()
 let generation = 0
 
-export function readCachedResult(sql) {
-  const entry = results.get(sql)
+export function readCachedResult(key) {
+  const entry = results.get(key)
   if (!entry) return null
   if (entry.expiresAt > Date.now()) return entry.result
 
-  results.delete(sql)
+  results.delete(key)
 
   return null
 }
 
-function storeResult(sql, result) {
-  results.delete(sql)
+function storeResult(key, result) {
+  results.delete(key)
   if (results.size >= MAX_CACHED_RESULTS) results.delete(results.keys().next().value)
 
-  results.set(sql, { result, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS })
+  results.set(key, { result, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS })
 
   return result
 }
 
-export function executeShared(sql, execute) {
-  const running = executions.get(sql)
+export function executeShared(key, execute) {
+  const running = executions.get(key)
   if (running) return running
 
   const startedIn = generation
   const execution = Promise.resolve()
     .then(execute)
-    .then(result => (startedIn === generation ? storeResult(sql, result) : result))
+    .then(result => (startedIn === generation ? storeResult(key, result) : result))
     .finally(() => {
-      if (executions.get(sql) === execution) executions.delete(sql)
+      if (executions.get(key) === execution) executions.delete(key)
     })
-  executions.set(sql, execution)
+  executions.set(key, execution)
 
   return execution
 }

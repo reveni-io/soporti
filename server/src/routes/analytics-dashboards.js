@@ -14,7 +14,7 @@ import { cancelGeneration, startGeneration } from '../analytics/generator.js'
 import { parsePrompt, parseText } from '../analytics/input.js'
 import { findFreeSlot, parseLayoutItems } from '../analytics/layout.js'
 import { shortenText } from '../analytics/text.js'
-import { isPostgresConfigured } from '../postgres/settings.js'
+import { listDatabases } from '../postgres/client.js'
 import {
   MAX_ANALYTICS_DASHBOARDS_PER_USER,
   MAX_ANALYTICS_DASHBOARD_NAME_LENGTH,
@@ -95,8 +95,8 @@ router.param('id', (req, res, next, id) => {
 
 router.get('/', async (req, res) => {
   try {
-    const [configured, dashboards] = await Promise.all([isPostgresConfigured(), listWithFirstDashboard(req.user.id)])
-    res.json({ configured, dashboards })
+    const [databases, dashboards] = await Promise.all([listDatabases(), listWithFirstDashboard(req.user.id)])
+    res.json({ configured: databases.length > 0, databases, dashboards })
   } catch (err) {
     console.error('Failed to list analytics dashboards:', err)
     res.status(500).json({ error: 'Failed to load your dashboards.' })

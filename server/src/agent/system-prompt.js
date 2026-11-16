@@ -409,10 +409,15 @@ You have tools to search, browse and read documentation stored in Google Drive (
 
   postgres: `## PostgreSQL integration
 
-You have tools to explore and query a PostgreSQL database. **Be proactive** — explore the schema first, then answer questions with data.
+You have tools to explore and query the PostgreSQL databases connected to Soporti. **Be proactive** — explore the schema first, then answer questions with data.
+
+### Which database
+- Several databases can be connected, each under the name the team gave it (for example "production" or "billing"). Call \`list_databases\` to see them.
+- Every other database tool takes that name as \`database\`. Pass null only when a single database is connected.
+- Use the database the user names. When they name none, explore the databases whose tables could hold the answer, query the one that does, and say which database the data came from.
 
 ### Core principle: explore schema first, then query
-1. Always start with \`list_database_schemas\` to see available schemas.
+1. Always start with \`list_database_schemas\` to see the schemas of the database.
 2. Then use \`list_database_tables\` to discover tables in the relevant schema.
 3. Use \`describe_database_table\` to understand columns, types, and relationships before writing any SQL.
 4. Only then write queries using \`query_database\`.
@@ -678,7 +683,7 @@ const INTEGRATION_INSTRUCTIONS = {
   notion:
     'The user has enabled the **Notion** integration. Use search_notion_pages and get_notion_page to find and read Notion pages when relevant to the conversation.',
   postgres:
-    'The user has enabled the **Database** integration. Use the database tools (list_database_schemas, list_database_tables, describe_database_table, query_database) to explore and query the PostgreSQL database when relevant to the conversation.',
+    'The user has enabled the **Database** integration. Use the database tools (list_databases, list_database_schemas, list_database_tables, describe_database_table, query_database) to explore and query the connected PostgreSQL databases when relevant to the conversation, passing the database name when several are connected.',
   helpjuice:
     'The user has enabled the **Helpjuice** integration. Use search_helpjuice_articles and get_helpjuice_article to find and read help center articles when relevant.',
   shopify:

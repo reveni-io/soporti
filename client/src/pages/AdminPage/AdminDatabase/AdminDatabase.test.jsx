@@ -7,91 +7,63 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet({ connectionConfigured = false, maxRows = 100 } = {}) {
-  return { ok: true, status: 200, json: async () => ({ connectionConfigured, maxRows }) }
+const PRODUCTION = { id: 1, name: 'production', createdAt: '2026-10-01T10:00:00.000Z' }
+const BILLING = { id: 2, name: 'billing', createdAt: '2026-10-02T10:00:00.000Z' }
+
+function mockGet({ connections = [], maxRows = 100 } = {}) {
+  return { ok: true, status: 200, json: async () => ({ connections, maxRows }) }
 }
 
 describe('AdminDatabase', () => {
-  it('shows the connection status as configured', async () => {
-    global.fetch = vi.fn().mockResolvedValue(mockGet({ connectionConfigured: true }))
+  it('lists every connection by name and shows the status as configured', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGet({ connections: [BILLING, PRODUCTION] }))
 
     render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /remove/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'billing' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'production' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
   })
 
-  it('shows not configured when there is no connection', async () => {
+  it('shows the empty state and not configured when there is no connection', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet())
 
     render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByText('not configured')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
+    expect(screen.getByText('No database is connected yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   })
 
-  it('saves a new connection string and clears the input (write-only)', async () => {
+  it('adds a connection, loads the list again and shows the new name', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(mockGet())
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ connectionConfigured: true }) })
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ connection: PRODUCTION }) })
+      .mockResolvedValueOnce(mockGet({ connections: [PRODUCTION] }))
     const user = userEvent.setup()
 
     render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
     await screen.findByText('not configured')
 
-    const input = screen.getByPlaceholderText('postgresql://...')
-    await user.type(input, 'postgresql://user:pass@host/db')
-    await user.click(screen.getByRole('button', { name: /save connection/i }))
+    await user.type(screen.getByLabelText('Connection name'), 'production')
+    await user.type(screen.getByLabelText('Connection string'), 'postgresql://user:pass@host/db')
+    await user.click(screen.getByRole('button', { name: /add connection/i }))
 
-    expect(await screen.findByText('configured')).toBeInTheDocument()
-    expect(input).toHaveValue('')
+    expect(await screen.findByRole('heading', { name: 'production' })).toBeInTheDocument()
+    expect(screen.getByText('configured')).toBeInTheDocument()
     const [url, options] = global.fetch.mock.calls[1]
-    expect(url).toContain('/api/admin/config/postgres/connection')
-    expect(options.method).toBe('PUT')
-    expect(JSON.parse(options.body)).toEqual({ connection: 'postgresql://user:pass@host/db' })
-  })
-
-  it('removes the connection', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(mockGet({ connectionConfigured: true }))
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ connectionConfigured: false }) })
-    const user = userEvent.setup()
-
-    render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
-    await screen.findByText('configured')
-
-    await user.click(screen.getByRole('button', { name: /remove/i }))
-
-    expect(await screen.findByText('not configured')).toBeInTheDocument()
-    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ connection: '' })
-  })
-
-  it('surfaces a validation error from the server', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(mockGet())
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({ error: 'That does not look like a valid PostgreSQL connection string.' }),
-      })
-    const user = userEvent.setup()
-
-    render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
-    await screen.findByText('not configured')
-
-    await user.type(screen.getByPlaceholderText('postgresql://...'), 'bad')
-    await user.click(screen.getByRole('button', { name: /save connection/i }))
-
-    expect(await screen.findByText('That does not look like a valid PostgreSQL connection string.')).toBeInTheDocument()
+    expect(url).toContain('/api/admin/config/postgres/connections')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ name: 'production', connectionString: 'postgresql://user:pass@host/db' })
+    expect(global.fetch).toHaveBeenCalledTimes(3)
   })
 
   it('shows the current row limit and saves a new one', async () => {
     global.fetch = vi
       .fn()
-      .mockResolvedValueOnce(mockGet({ connectionConfigured: true, maxRows: 100 }))
+      .mockResolvedValueOnce(mockGet({ connections: [PRODUCTION], maxRows: 100 }))
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ maxRows: 250 }) })
     const user = userEvent.setup()
 
@@ -112,26 +84,16 @@ describe('AdminDatabase', () => {
     expect(JSON.parse(options.body)).toEqual({ maxRows: 250 })
   })
 
-  it('surfaces a row-limit error from the server', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(mockGet({ connectionConfigured: true, maxRows: 100 }))
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: 'Failed to save the row limit.' }),
-      })
-    const user = userEvent.setup()
+  it('shows the error when the settings cannot be loaded', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Failed to read the database settings.' }),
+    })
 
     render(<AdminDatabase token="tok" onLogout={vi.fn()} />)
-    await screen.findByText('configured')
 
-    const input = screen.getByRole('spinbutton')
-    await user.clear(input)
-    await user.type(input, '500')
-    await user.click(screen.getByRole('button', { name: /save limit/i }))
-
-    expect(await screen.findByText('Failed to save the row limit.')).toBeInTheDocument()
+    expect(await screen.findByText('Failed to read the database settings.')).toBeInTheDocument()
   })
 
   it('logs out on a 401', async () => {
@@ -141,7 +103,7 @@ describe('AdminDatabase', () => {
     render(<AdminDatabase token="expired" onLogout={onLogout} />)
 
     await waitFor(() => {
-      expect(onLogout).toHaveBeenCalled()
+      expect(onLogout).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -1,4 +1,4 @@
-import { ReadOnlyQueryError, runTypedQuery } from '../postgres/client.js'
+import { ReadOnlyQueryError, UnknownDatabaseError, runTypedQuery } from '../postgres/client.js'
 import { executeShared, readCachedResult } from './query-cache.js'
 import {
   ANALYTICS_KIND_NUMBER,
@@ -11,6 +11,8 @@ import {
 const STATEMENT_TIMEOUT_MS = 30_000
 const SQLSTATE_RE = /^(?!E)[0-9A-Z]{5}$/
 const CONNECTION_SQLSTATE_RE = /^(08|28|3D|53|57P)/
+const REMOVED_DATABASE_ERROR =
+  'The database this chart read from was removed in /admin (Database section). Ask for a change to build it on another one.'
 const UNREACHABLE_ERROR = 'The database could not be reached. Check the connection in /admin (Database section).'
 const WALL_CLOCK_RE = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(?:[+-]\d{2}(?::\d{2}){0,2})?)?$/
 const MIDNIGHT = '00:00:00'
@@ -56,6 +58,7 @@ function isQueryMistake(err) {
 }
 
 function toQueryError(err) {
+  if (err instanceof UnknownDatabaseError) return new QueryError(REMOVED_DATABASE_ERROR, { cause: err })
   if (isQueryMistake(err)) return new QueryError(err.message, { cause: err })
 
   console.error('[analytics] Failed to run a chart query:', err)
@@ -103,16 +106,16 @@ function convertRows(rows, fields) {
   return rows.map(row => convertRow(row, conversions))
 }
 
-async function runGuarded(sql) {
+async function runGuarded(connectionId, sql) {
   try {
-    return await runTypedQuery(sql, { maxRows: ANALYTICS_MAX_ROWS, timeoutMs: STATEMENT_TIMEOUT_MS })
+    return await runTypedQuery(connectionId, sql, { maxRows: ANALYTICS_MAX_ROWS, timeoutMs: STATEMENT_TIMEOUT_MS })
   } catch (err) {
     throw toQueryError(err)
   }
 }
 
-async function executeChartQuery(sql) {
-  const { fields, rows, truncated } = await runGuarded(sql)
+async function executeChartQuery(connectionId, sql) {
+  const { fields, rows, truncated } = await runGuarded(connectionId, sql)
   const unique = uniqueFields(fields)
 
   return {
@@ -123,10 +126,14 @@ async function executeChartQuery(sql) {
   }
 }
 
-export function runChartQuery(sql) {
-  return executeShared(sql, () => executeChartQuery(sql))
+function cacheKey(connectionId, sql) {
+  return `${connectionId}:${sql}`
 }
 
-export async function readChartQuery(sql) {
-  return readCachedResult(sql) ?? runChartQuery(sql)
+export function runChartQuery({ connectionId, sql }) {
+  return executeShared(cacheKey(connectionId, sql), () => executeChartQuery(connectionId, sql))
+}
+
+export async function readChartQuery({ connectionId, sql }) {
+  return readCachedResult(cacheKey(connectionId, sql)) ?? runChartQuery({ connectionId, sql })
 }

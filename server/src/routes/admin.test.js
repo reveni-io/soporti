@@ -95,12 +95,6 @@ const setHelpjuiceApiKey = vi.fn()
 const getHelpjuiceAccount = vi.fn()
 const setHelpjuiceAccount = vi.fn()
 
-const getPostgresConnection = vi.fn()
-const setPostgresConnection = vi.fn()
-const clearQueryCache = vi.fn()
-const getPostgresMaxRows = vi.fn()
-const setPostgresMaxRows = vi.fn()
-
 const getShopifyTokenUrl = vi.fn()
 const setShopifyTokenUrl = vi.fn()
 const getShopifyTokenAuthorization = vi.fn()
@@ -203,14 +197,18 @@ vi.mock('../helpjuice/settings.js', () => ({
   setHelpjuiceAccount,
   isHelpjuiceConfigured,
 }))
-vi.mock('../postgres/settings.js', () => ({
-  getPostgresConnection,
-  setPostgresConnection,
-  getPostgresMaxRows,
-  setPostgresMaxRows,
-  isPostgresConfigured,
-}))
-vi.mock('../analytics/query-cache.js', () => ({ clearQueryCache }))
+vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured }))
+const postgresRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
+vi.mock('./admin-postgres.js', async () => {
+  const { Router } = await import('express')
+  const postgresRouter = Router()
+  postgresRouter.get('/', postgresRouteReached)
+  postgresRouter.post('/connections', postgresRouteReached)
+  postgresRouter.put('/connections/:id', postgresRouteReached)
+  postgresRouter.delete('/connections/:id', postgresRouteReached)
+  postgresRouter.put('/max-rows', postgresRouteReached)
+  return { default: postgresRouter }
+})
 vi.mock('../shopify/settings.js', () => ({
   getShopifyTokenUrl,
   setShopifyTokenUrl,
@@ -392,12 +390,7 @@ beforeEach(() => {
   setHelpjuiceApiKey.mockReset()
   getHelpjuiceAccount.mockReset()
   setHelpjuiceAccount.mockReset()
-  getPostgresConnection.mockReset()
-  setPostgresConnection.mockReset()
-  clearQueryCache.mockReset()
-  getPostgresMaxRows.mockReset()
-  getPostgresMaxRows.mockResolvedValue(100)
-  setPostgresMaxRows.mockReset()
+  postgresRouteReached.mockClear()
   getShopifyTokenUrl.mockReset()
   setShopifyTokenUrl.mockReset()
   getShopifyTokenAuthorization.mockReset()
@@ -576,6 +569,34 @@ describe('/api/admin/config/sendcloud', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reached: true })
     expect(sendcloudRouteReached).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('/api/admin/config/postgres', () => {
+  const POSTGRES_REQUESTS = [
+    ['get', '/api/admin/config/postgres'],
+    ['post', '/api/admin/config/postgres/connections'],
+    ['put', '/api/admin/config/postgres/connections/1'],
+    ['delete', '/api/admin/config/postgres/connections/1'],
+    ['put', '/api/admin/config/postgres/max-rows'],
+  ]
+
+  it.each(POSTGRES_REQUESTS)('rejects a non-admin %s %s with 403 before the database routes', async (method, path) => {
+    currentDbRole = 'user'
+
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Admin access required.' })
+    expect(postgresRouteReached).not.toHaveBeenCalled()
+  })
+
+  it.each(POSTGRES_REQUESTS)('lets an admin %s %s reach the database routes', async (method, path) => {
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reached: true })
+    expect(postgresRouteReached).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -1520,123 +1541,6 @@ describe('PUT /api/admin/config/betterstack/connection-password', () => {
   it('rejects non-strings', async () => {
     expect((await request(app).put('/api/admin/config/betterstack/connection-password').send({})).status).toBe(400)
     expect(setBetterstackPassword).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/admin/config/postgres', () => {
-  it('reports connection presence and the row cap without returning the connection string', async () => {
-    getPostgresConnection.mockResolvedValue('postgresql://user:secret@host/db')
-    getPostgresMaxRows.mockResolvedValue(250)
-
-    const res = await request(app).get('/api/admin/config/postgres')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ connectionConfigured: true, maxRows: 250 })
-    expect(JSON.stringify(res.body)).not.toContain('secret')
-  })
-
-  it('reports an unconfigured connection with the default row cap', async () => {
-    getPostgresConnection.mockResolvedValue(null)
-    getPostgresMaxRows.mockResolvedValue(100)
-
-    const res = await request(app).get('/api/admin/config/postgres')
-
-    expect(res.body).toEqual({ connectionConfigured: false, maxRows: 100 })
-  })
-})
-
-describe('PUT /api/admin/config/postgres/connection', () => {
-  it('saves a trimmed connection string', async () => {
-    const res = await request(app)
-      .put('/api/admin/config/postgres/connection')
-      .send({ connection: '  postgresql://user:pass@host/db  ' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ connectionConfigured: true })
-    expect(setPostgresConnection).toHaveBeenCalledWith('postgresql://user:pass@host/db')
-  })
-
-  it('drops the cached analytics results, which came from the previous database', async () => {
-    await request(app)
-      .put('/api/admin/config/postgres/connection')
-      .send({ connection: 'postgresql://user:pass@host/db' })
-
-    expect(clearQueryCache).toHaveBeenCalledTimes(1)
-  })
-
-  it('accepts libpq key-value strings with spaces', async () => {
-    const res = await request(app)
-      .put('/api/admin/config/postgres/connection')
-      .send({ connection: 'host=db.example.com dbname=app user=ro password=pw' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ connectionConfigured: true })
-    expect(setPostgresConnection).toHaveBeenCalledWith('host=db.example.com dbname=app user=ro password=pw')
-  })
-
-  it('clears the connection with an empty string', async () => {
-    const res = await request(app).put('/api/admin/config/postgres/connection').send({ connection: '' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ connectionConfigured: false })
-    expect(setPostgresConnection).toHaveBeenCalledWith('')
-  })
-
-  it('rejects non-strings, newlines, and absurdly long values', async () => {
-    expect((await request(app).put('/api/admin/config/postgres/connection').send({})).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/connection').send({ connection: 42 })).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/connection').send({ connection: 'a\nb' })).status).toBe(
-      400
-    )
-    expect(
-      (
-        await request(app)
-          .put('/api/admin/config/postgres/connection')
-          .send({ connection: 'x'.repeat(2001) })
-      ).status
-    ).toBe(400)
-    expect(setPostgresConnection).not.toHaveBeenCalled()
-    expect(clearQueryCache).not.toHaveBeenCalled()
-  })
-})
-
-describe('PUT /api/admin/config/postgres/max-rows', () => {
-  it('saves a valid integer and echoes the effective value', async () => {
-    getPostgresMaxRows.mockResolvedValue(500)
-
-    const res = await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 500 })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ maxRows: 500 })
-    expect(setPostgresMaxRows).toHaveBeenCalledWith(500)
-  })
-
-  it('clears (resets to default) with an empty value', async () => {
-    getPostgresMaxRows.mockResolvedValue(100)
-
-    const res = await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: '' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ maxRows: 100 })
-    expect(setPostgresMaxRows).toHaveBeenCalledWith(null)
-  })
-
-  it('accepts a large value (no upper bound)', async () => {
-    getPostgresMaxRows.mockResolvedValue(5000)
-
-    const res = await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 5000 })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ maxRows: 5000 })
-    expect(setPostgresMaxRows).toHaveBeenCalledWith(5000)
-  })
-
-  it('rejects non-integers and values below 1', async () => {
-    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 0 })).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: -5 })).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 2.5 })).status).toBe(400)
-    expect((await request(app).put('/api/admin/config/postgres/max-rows').send({ maxRows: 'abc' })).status).toBe(400)
-    expect(setPostgresMaxRows).not.toHaveBeenCalled()
   })
 })
 

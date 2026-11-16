@@ -7,7 +7,7 @@ export const INTEGRATIONS = [
   {
     id: 'postgres',
     name: 'PostgreSQL',
-    desc: 'Writes and runs read-only SQL against production data (capped and mutation-free), then turns the rows into tables and charts.',
+    desc: 'Writes and runs read-only SQL across every PostgreSQL database you connect, each under a name the team recognizes (capped and mutation-free), then turns the rows into tables and charts.',
   },
   {
     id: 'shopify',

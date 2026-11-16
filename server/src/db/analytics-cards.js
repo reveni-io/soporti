@@ -13,6 +13,7 @@ const cardColumns = {
   prompt: analyticsCards.prompt,
   sql: analyticsCards.sql,
   chart: analyticsCards.chart,
+  connectionId: analyticsCards.connectionId,
   layout: analyticsCards.layout,
   status: analyticsCards.status,
   step: analyticsCards.step,
@@ -114,11 +115,12 @@ export async function claimCard(id, userId, { from, prompt = null }) {
   return card ?? null
 }
 
-export async function saveGeneratedChart(id, { title, sql: query, chart }) {
+export async function saveGeneratedChart(id, { title, sql: query, chart, connectionId }) {
   return updateGeneratingCard(id, {
     title,
     sql: query,
     chart,
+    connectionId,
     status: ANALYTICS_STATUS_READY,
     step: null,
     error: null,

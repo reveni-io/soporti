@@ -32,6 +32,25 @@ beforeEach(() => {
 })
 
 describe('useAnalyticsDashboards', () => {
+  it('returns the connected databases, or an empty list when the response has none', async () => {
+    const databases = [{ id: 1, name: 'billing' }]
+    mockApi({ [LIST_ROUTE]: respond({ configured: true, databases, dashboards: [MINE] }) })
+
+    const { result } = renderHook(() => useAnalyticsDashboards('tok', vi.fn()))
+    expect(result.current.databases).toEqual([])
+
+    await waitFor(() => expect(result.current.databases).toEqual(databases))
+  })
+
+  it('keeps the list of databases empty when the response carries none', async () => {
+    mockApi({ [LIST_ROUTE]: respond({ configured: false, dashboards: [MINE] }) })
+
+    const { result } = renderHook(() => useAnalyticsDashboards('tok', vi.fn()))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.databases).toEqual([])
+  })
+
   it('loads the dashboards and tells whether a database is configured', async () => {
     mockApi({ [LIST_ROUTE]: respond({ configured: true, dashboards: [MINE, FINANCE] }) })
 

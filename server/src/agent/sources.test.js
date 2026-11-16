@@ -129,7 +129,7 @@ describe('collectConsultedSources', () => {
   it('maps integration tools to their integration name', () => {
     const calls = [
       { name: 'search_notion_pages', arguments: '{}' },
-      { name: 'query_database', arguments: '{}' },
+      { name: 'list_databases', arguments: '{}' },
       { name: 'get_shopify_order', arguments: '{}' },
       { name: 'search_helpjuice_articles', arguments: '{}' },
       { name: 'get_sentry_issue', arguments: '{}' },

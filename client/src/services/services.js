@@ -635,12 +635,29 @@ export function getDatabaseConfig(token) {
   return request('/api/admin/config/postgres', { token, errorMessage: 'Failed to load the database settings' })
 }
 
-export function saveDatabaseConnection(token, connection) {
-  return request('/api/admin/config/postgres/connection', {
+export function addDatabaseConnection(token, { name, connectionString }) {
+  return request('/api/admin/config/postgres/connections', {
+    method: 'POST',
+    token,
+    body: { name, connectionString },
+    errorMessage: 'Failed to add the database connection',
+  })
+}
+
+export function updateDatabaseConnection(token, id, changes) {
+  return request(`/api/admin/config/postgres/connections/${id}`, {
     method: 'PUT',
     token,
-    body: { connection },
-    errorMessage: 'Failed to save the connection string',
+    body: changes,
+    errorMessage: 'Failed to save the database connection',
+  })
+}
+
+export function removeDatabaseConnection(token, id) {
+  return request(`/api/admin/config/postgres/connections/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to remove the database connection',
   })
 }
 
@@ -1063,11 +1080,11 @@ export function getAnalyticsCardData(token, id, { fresh = false } = {}) {
   return request(`/api/analytics/cards/${id}/data${query}`, { token, errorMessage: 'Failed to load the chart data' })
 }
 
-export function runAnalyticsQuery(token, { sql, chart }) {
+export function runAnalyticsQuery(token, { sql, chart, connectionId }) {
   return request('/api/analytics/query', {
     method: 'POST',
     token,
-    body: { sql, chart },
+    body: { sql, chart, connectionId },
     errorMessage: 'Failed to run the query',
   })
 }

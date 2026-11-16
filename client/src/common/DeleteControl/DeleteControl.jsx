@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import Icon from '../../../common/Icon/Icon.jsx'
+import Icon from '../Icon/Icon.jsx'
 import DeleteConfirm from '../DeleteConfirm/DeleteConfirm.jsx'
 
 export default function DeleteControl({ label, question, busy, onDelete }) {

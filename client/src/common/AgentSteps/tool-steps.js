@@ -27,6 +27,7 @@ const TOOL_LABELS = {
   list_drive_files: 'Listing Drive files',
   search_granola_notes: 'Searching meeting notes',
   get_granola_note: 'Reading meeting note',
+  list_databases: 'Listing databases',
   list_database_schemas: 'Listing schemas',
   list_database_tables: 'Listing tables',
   describe_database_table: 'Describing table',
@@ -118,13 +119,13 @@ function humanizeToolName(tool) {
 function formatDetail(input) {
   if (!input) return ''
 
-  const { repo, path } = input
+  const { repo, path, database } = input
   const query = typeof input.query === 'string' ? input.query : ''
 
   if (query) return repo ? `"${query}" in ${repo}` : `"${query}"`
   if (repo) return path ? `${repo}/${path}` : `${repo}/`
 
-  return path || ''
+  return path || database || ''
 }
 
 function formatDuration(durationMs) {

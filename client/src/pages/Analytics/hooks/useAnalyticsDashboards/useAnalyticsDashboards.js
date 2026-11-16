@@ -8,6 +8,7 @@ import { usePolledResource } from '../../../../hooks/usePolledResource/usePolled
 import { sendGuarded } from '../guarded-request.js'
 
 const NO_DASHBOARDS = []
+const NO_DATABASES = []
 const NO_POLL_INTERVAL_MS = 0
 
 function neverPoll() {
@@ -67,5 +68,14 @@ export function useAnalyticsDashboards(token, onLogout) {
     if (reloaded) setData(reloaded)
   }
 
-  return { dashboards, configured: data?.configured ?? null, loading, error, create, update, remove }
+  return {
+    dashboards,
+    configured: data?.configured ?? null,
+    databases: data?.databases ?? NO_DATABASES,
+    loading,
+    error,
+    create,
+    update,
+    remove,
+  }
 }

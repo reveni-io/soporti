@@ -6,6 +6,7 @@ import { findGenerationRefusal } from '../analytics/generation-guard.js'
 import { cancelGeneration, startGeneration } from '../analytics/generator.js'
 import { parsePrompt, parseText } from '../analytics/input.js'
 import { QueryError, readChartQuery, runChartQuery } from '../analytics/query.js'
+import { UnknownDatabaseError, resolveDatabase } from '../postgres/client.js'
 import {
   ANALYTICS_STATUS_FAILED,
   ANALYTICS_STATUS_GENERATING,
@@ -19,6 +20,9 @@ const FRESH_FLAG = 'true'
 const REVISABLE_STATUSES = [ANALYTICS_STATUS_READY, ANALYTICS_STATUS_FAILED]
 const RETRYABLE_STATUSES = [ANALYTICS_STATUS_FAILED]
 
+const INVALID_DATABASE_ERROR = 'Invalid database ID.'
+const UNBOUND_CARD_ERROR =
+  'Several databases are connected, and this chart has none yet. Ask for a change so the assistant picks the one that holds the data.'
 const EDIT_PARSERS = { title: parseTitle, sql: parseSql, chart: parseChart }
 
 const NOT_FOUND_ERROR = 'Chart not found.'
@@ -31,6 +35,13 @@ const router = Router()
 
 function parseSql(value) {
   return parseText(value, { noun: 'query', maxLength: MAX_SQL_LENGTH })
+}
+
+function parseConnectionId(value) {
+  if (value === null) return { value }
+  if (!Number.isInteger(value) || value < 1) return { error: INVALID_DATABASE_ERROR }
+
+  return { value }
 }
 
 function parseTitle(value) {
@@ -77,15 +88,27 @@ async function regenerate(req, res, { from, conflict, prompt = null }) {
   res.status(202).json({ card })
 }
 
+async function resolveCardConnectionId(card) {
+  if (card.sql) return card.connectionId
+
+  try {
+    return (await resolveDatabase(null)).id
+  } catch (err) {
+    if (err instanceof UnknownDatabaseError) throw new QueryError(UNBOUND_CARD_ERROR, { cause: err })
+    throw err
+  }
+}
+
 async function buildChanges(card, { title, sql, chart }) {
   const changes = {}
   if (title) changes.title = title
   if (chart) changes.chart = chart
   if (!sql || sql === card.sql) return changes
 
-  const { columns } = await runChartQuery(sql)
+  const connectionId = await resolveCardConnectionId(card)
+  const { columns } = await runChartQuery({ connectionId, sql })
 
-  return { ...changes, sql, chart: reconcileChart(chart ?? card.chart, columns) }
+  return { ...changes, sql, connectionId, chart: reconcileChart(chart ?? card.chart, columns) }
 }
 
 async function editCard(req, res, edit) {
@@ -170,7 +193,7 @@ router.get('/cards/:id/data', async (req, res) => {
     if (!card.sql) return res.status(409).json({ error: NO_QUERY_ERROR })
 
     const load = req.query.fresh === FRESH_FLAG ? runChartQuery : readChartQuery
-    res.json(await load(card.sql))
+    res.json(await load({ connectionId: card.connectionId, sql: card.sql }))
   } catch (err) {
     sendQueryFailure(res, err, {
       log: 'Failed to load the data of an analytics card:',
@@ -183,11 +206,14 @@ router.post('/query', async (req, res) => {
   const sql = parseSql(req.body?.sql)
   if (sql.error) return res.status(400).json({ error: sql.error })
 
+  const connectionId = parseConnectionId(req.body?.connectionId)
+  if (connectionId.error) return res.status(400).json({ error: connectionId.error })
+
   const chart = parseChart(req.body?.chart)
   if (chart.error) return res.status(400).json({ error: chart.error })
 
   try {
-    const result = await runChartQuery(sql.value)
+    const result = await runChartQuery({ connectionId: connectionId.value, sql: sql.value })
     res.json({ ...result, chart: reconcileChart(chart.value, result.columns) })
   } catch (err) {
     sendQueryFailure(res, err, { log: 'Failed to run an analytics query:', message: 'Failed to run the query.' })

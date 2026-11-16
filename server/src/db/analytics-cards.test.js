@@ -83,6 +83,7 @@ const CARD_FIELDS = [
   'prompt',
   'sql',
   'chart',
+  'connectionId',
   'layout',
   'status',
   'step',
@@ -263,7 +264,12 @@ describe('the writes of a running generation', () => {
   it('stores the chart of a generating card and makes it ready, whoever can see its dashboard by then', async () => {
     queue = [[{ id: CARD_ID }]]
 
-    const saved = await saveGeneratedChart(CARD_ID, { title: 'Returns per week', sql: QUERY, chart: CHART })
+    const saved = await saveGeneratedChart(CARD_ID, {
+      title: 'Returns per week',
+      sql: QUERY,
+      chart: CHART,
+      connectionId: 3,
+    })
 
     expect(saved).toBe(true)
     expect(render(calls[0].steps.where)).toEqual({ sql: GENERATING, params: [CARD_ID, 'generating'] })
@@ -271,6 +277,7 @@ describe('the writes of a running generation', () => {
       title: 'Returns per week',
       sql: QUERY,
       chart: CHART,
+      connectionId: 3,
       status: 'ready',
       step: null,
       error: null,

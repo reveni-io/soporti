@@ -111,7 +111,7 @@ async function buildSourceSelectorBlocks(question, repos) {
   if (await postgres.isConfigured()) {
     sourceOptions.push({
       text: { type: 'plain_text', text: 'Database' },
-      description: { type: 'plain_text', text: 'Query and explore the PostgreSQL database' },
+      description: { type: 'plain_text', text: 'Query and explore the connected PostgreSQL databases' },
       value: 'integration:postgres',
     })
   }
