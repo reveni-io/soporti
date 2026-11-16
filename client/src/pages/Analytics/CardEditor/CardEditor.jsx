@@ -9,19 +9,9 @@ import QueryPreview from './QueryPreview/QueryPreview.jsx'
 import './CardEditor.css'
 
 const NO_COLUMNS = []
-const NO_DATABASES = []
 
-export default function CardEditor({
-  card,
-  databases = NO_DATABASES,
-  token,
-  onLogout,
-  onClose,
-  onSave,
-  onRevise,
-  onDelete,
-}) {
-  const editor = useCardEditor({ card, token, onLogout, onClose, onSave, onRevise, onDelete })
+export default function CardEditor({ card, databases, token, onLogout, onClose, onSave, onRevise, onDelete }) {
+  const editor = useCardEditor({ card, databases, token, onLogout, onClose, onSave, onRevise, onDelete })
 
   return (
     <ModalFrame title="Edit chart" className="card-editor" onClose={onClose}>

@@ -42,6 +42,7 @@ function queryBody(index) {
 function editorProps(overrides = {}) {
   return {
     card: CARD,
+    databases: [{ id: 3, name: 'billing' }],
     token: 'tok',
     onLogout: vi.fn(),
     onClose: vi.fn(),
@@ -58,6 +59,37 @@ beforeEach(() => {
 })
 
 describe('useCardEditor', () => {
+  it('runs the first query of a card without SQL on the only connected database', async () => {
+    const props = editorProps({ card: { ...CARD, sql: null, chart: null, connectionId: null } })
+    const { result } = renderHook(() => useCardEditor(props))
+
+    act(() => result.current.setSql('SELECT 1'))
+    act(() => result.current.run())
+
+    await waitFor(() => expect(result.current.preview).toEqual(RESULT))
+    expect(queryBody(0)).toEqual({ sql: 'SELECT 1', chart: null, connectionId: 3 })
+  })
+
+  it('explains that the database is unknown for a card without SQL when several are connected', async () => {
+    const props = editorProps({
+      card: { ...CARD, sql: null, chart: null, connectionId: null },
+      databases: [
+        { id: 3, name: 'billing' },
+        { id: 4, name: 'production' },
+      ],
+    })
+    const { result } = renderHook(() => useCardEditor(props))
+
+    act(() => result.current.setSql('SELECT 1'))
+    act(() => result.current.run())
+
+    expect(result.current.runError).toBe(
+      'Several databases are connected, and this chart has none yet. Ask for a change so the assistant picks the one that holds the data.'
+    )
+    expect(result.current.isRunning).toBe(false)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('starts from the card and runs its query once to load the preview', async () => {
     const { result } = renderHook(() => useCardEditor(editorProps()))
 

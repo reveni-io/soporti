@@ -6,6 +6,7 @@ import StatusRow from '../StatusRow/StatusRow.jsx'
 import ValueField from '../ValueField/ValueField.jsx'
 import DatabaseConnection from './DatabaseConnection/DatabaseConnection.jsx'
 import DatabaseConnectionForm from './DatabaseConnectionForm/DatabaseConnectionForm.jsx'
+import './AdminDatabase.css'
 
 export default function AdminDatabase({ token, onLogout }) {
   const { config, error, patchConfig, reload } = useAuthedConfig(getDatabaseConfig, token, onLogout)
@@ -86,7 +87,7 @@ function ConnectionList({ token, connections, onLogout, onChanged }) {
   if (connections.length === 0) return <p className="admin__muted">No database is connected yet.</p>
 
   return (
-    <ul className="database-connections">
+    <ul className="admin-database__connections">
       {connections.map(connection => (
         <DatabaseConnection
           key={connection.id}

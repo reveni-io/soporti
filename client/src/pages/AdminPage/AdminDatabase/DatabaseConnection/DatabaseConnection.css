@@ -1,9 +1,3 @@
-.database-connections {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .database-connection {
   display: flex;
   flex-direction: column;
@@ -18,9 +12,28 @@
 .database-connection__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--sp3);
+}
+
+.database-connection__title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp3);
+}
+
+.database-connection__remove {
+  margin-inline-start: auto;
+  min-width: 0;
+}
+
+.database-connection__remove .delete-confirm {
+  flex-wrap: wrap;
+}
+
+.database-connection__remove .delete-confirm__question {
+  white-space: normal;
 }
 
 .database-connection__name {

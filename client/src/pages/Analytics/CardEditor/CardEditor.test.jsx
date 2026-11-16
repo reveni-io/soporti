@@ -167,6 +167,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -199,6 +200,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={UNQUERIED_CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -227,6 +229,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -253,6 +256,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -277,6 +281,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={UNQUERIED_CARD}
+        databases={[DATABASES[0]]}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -290,7 +295,7 @@ describe('CardEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     expect(await screen.findByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
-    expect(queryBody(0)).toEqual({ sql: 'SELECT 1', chart: null, connectionId: null })
+    expect(queryBody(0)).toEqual({ sql: 'SELECT 1', chart: null, connectionId: 3 })
     expect(screen.getAllByRole('table')).toHaveLength(2)
   })
 
@@ -304,6 +309,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={onLogout}
         onClose={vi.fn()}
@@ -333,6 +339,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -357,6 +364,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={onLogout}
         onClose={vi.fn()}
@@ -375,6 +383,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -406,6 +415,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -436,6 +446,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -470,6 +481,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -495,6 +507,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -523,6 +536,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -543,6 +557,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -563,6 +578,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -588,6 +604,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -611,6 +628,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -641,6 +659,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -669,6 +688,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={vi.fn()}
@@ -696,6 +716,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -721,6 +742,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -745,6 +767,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -768,6 +791,7 @@ describe('CardEditor', () => {
     render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}
@@ -790,6 +814,7 @@ describe('CardEditor', () => {
     const { container } = render(
       <CardEditor
         card={CARD}
+        databases={DATABASES}
         token="tok"
         onLogout={vi.fn()}
         onClose={onClose}

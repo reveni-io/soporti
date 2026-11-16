@@ -61,6 +61,7 @@ const READY_CARD = {
   prompt: 'Returns per week over the last 3 months',
   sql: 'SELECT week, returns FROM weekly_returns',
   chart: BAR,
+  connectionId: 1,
   layout: { x: 0, y: 0, w: 6, h: 4 },
   status: 'ready',
   step: null,
@@ -101,6 +102,7 @@ function directory(overrides) {
   return {
     dashboards: [DASHBOARD],
     configured: true,
+    databases: [{ id: 1, name: 'billing' }],
     loading: false,
     error: null,
     create: vi.fn(),
@@ -441,6 +443,8 @@ describe('DashboardView', () => {
 
     const editor = screen.getByRole('dialog', { name: 'Edit chart' })
     expect(within(editor).getByRole('textbox', { name: 'Title' })).toHaveValue('Returns per week')
+    expect(within(editor).getByText('Reads from')).toHaveTextContent('Reads from billing')
+    expect(within(editor).queryByText(/was removed in \/admin/)).toBeNull()
     expect(await within(editor).findByRole('img', { name: /^Bar chart of Returns/ })).toBeInTheDocument()
 
     await user.click(within(editor).getByRole('button', { name: 'Cancel' }))

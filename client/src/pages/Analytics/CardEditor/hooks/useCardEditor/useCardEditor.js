@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { isUnauthorized, runAnalyticsQuery } from '../../../../../services/services.js'
 import { useSaveField } from '../../../../../hooks/useSaveField/useSaveField.js'
 
-export function useCardEditor({ card, token, onLogout, onClose, onSave, onRevise, onDelete }) {
+const UNBOUND_CARD_ERROR =
+  'Several databases are connected, and this chart has none yet. Ask for a change so the assistant picks the one that holds the data.'
+
+function resolveConnectionId(card, databases) {
+  if (card.sql) return card.connectionId
+
+  return databases.length === 1 ? databases[0].id : null
+}
+
+export function useCardEditor({ card, databases, token, onLogout, onClose, onSave, onRevise, onDelete }) {
   const [title, setTitle] = useState(card.title)
   const [sql, setSql] = useState(card.sql ?? '')
   const [chart, setChart] = useState(card.chart)
@@ -53,9 +62,15 @@ export function useCardEditor({ card, token, onLogout, onClose, onSave, onRevise
   function run() {
     if (isRunning || !sql.trim()) return
 
+    const connectionId = resolveConnectionId(card, databases)
+    if (connectionId === null && !card.sql) {
+      setRunError(UNBOUND_CARD_ERROR)
+      return
+    }
+
     setIsRunning(true)
     setRunError(null)
-    setQuery({ sql, chart, connectionId: card.connectionId })
+    setQuery({ sql, chart, connectionId })
   }
 
   async function save() {

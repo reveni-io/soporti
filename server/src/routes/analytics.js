@@ -6,6 +6,7 @@ import { findGenerationRefusal } from '../analytics/generation-guard.js'
 import { cancelGeneration, startGeneration } from '../analytics/generator.js'
 import { parsePrompt, parseText } from '../analytics/input.js'
 import { QueryError, readChartQuery, runChartQuery } from '../analytics/query.js'
+import { UnknownDatabaseError, resolveDatabase } from '../postgres/client.js'
 import {
   ANALYTICS_STATUS_FAILED,
   ANALYTICS_STATUS_GENERATING,
@@ -20,6 +21,8 @@ const REVISABLE_STATUSES = [ANALYTICS_STATUS_READY, ANALYTICS_STATUS_FAILED]
 const RETRYABLE_STATUSES = [ANALYTICS_STATUS_FAILED]
 
 const INVALID_DATABASE_ERROR = 'Invalid database ID.'
+const UNBOUND_CARD_ERROR =
+  'Several databases are connected, and this chart has none yet. Ask for a change so the assistant picks the one that holds the data.'
 const EDIT_PARSERS = { title: parseTitle, sql: parseSql, chart: parseChart }
 
 const NOT_FOUND_ERROR = 'Chart not found.'
@@ -85,15 +88,27 @@ async function regenerate(req, res, { from, conflict, prompt = null }) {
   res.status(202).json({ card })
 }
 
+async function resolveCardConnectionId(card) {
+  if (card.sql) return card.connectionId
+
+  try {
+    return (await resolveDatabase(null)).id
+  } catch (err) {
+    if (err instanceof UnknownDatabaseError) throw new QueryError(UNBOUND_CARD_ERROR, { cause: err })
+    throw err
+  }
+}
+
 async function buildChanges(card, { title, sql, chart }) {
   const changes = {}
   if (title) changes.title = title
   if (chart) changes.chart = chart
   if (!sql || sql === card.sql) return changes
 
-  const { columns } = await runChartQuery({ connectionId: card.connectionId, sql })
+  const connectionId = await resolveCardConnectionId(card)
+  const { columns } = await runChartQuery({ connectionId, sql })
 
-  return { ...changes, sql, chart: reconcileChart(chart ?? card.chart, columns) }
+  return { ...changes, sql, connectionId, chart: reconcileChart(chart ?? card.chart, columns) }
 }
 
 async function editCard(req, res, edit) {
