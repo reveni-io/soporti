@@ -28,40 +28,42 @@ export default function DatabaseConnection({ token, connection, onLogout, onChan
   }
 
   return (
-    <li className="database-connection" role="group" aria-labelledby={nameId}>
-      <div className="database-connection__header">
-        <div className="database-connection__title">
-          <h3 id={nameId} className="database-connection__name">
-            {connection.name}
-          </h3>
-          <span className="admin__muted">Added {formatDate(connection.createdAt)}</span>
+    <li className="database-connection">
+      <div className="database-connection__content" role="group" aria-labelledby={nameId}>
+        <div className="database-connection__header">
+          <div className="database-connection__title">
+            <h3 id={nameId} className="database-connection__name">
+              {connection.name}
+            </h3>
+            <span className="admin__muted">Added {formatDate(connection.createdAt)}</span>
+          </div>
+          <div className="database-connection__remove">
+            <DeleteControl
+              label="Remove"
+              question={`Remove ${connection.name}? Charts that read from it stop working.`}
+              busy={saving}
+              onDelete={handleRemove}
+            />
+          </div>
         </div>
-        <div className="database-connection__remove">
-          <DeleteControl
-            label="Remove"
-            question={`Remove ${connection.name}? Charts that read from it stop working.`}
-            busy={saving}
-            onDelete={handleRemove}
-          />
-        </div>
+
+        {error && <p className="alert alert--error">{error}</p>}
+
+        <ValueField
+          savedValue={connection.name}
+          onSave={rename}
+          onLogout={onLogout}
+          placeholder="Name"
+          saveLabel="Rename"
+        />
+        <SecretField
+          placeholder="Paste a new connection string to replace it"
+          configured={false}
+          onSave={replace}
+          onLogout={onLogout}
+          saveLabel="Replace"
+        />
       </div>
-
-      {error && <p className="alert alert--error">{error}</p>}
-
-      <ValueField
-        savedValue={connection.name}
-        onSave={rename}
-        onLogout={onLogout}
-        placeholder="Name"
-        saveLabel="Rename"
-      />
-      <SecretField
-        placeholder="Paste a new connection string to replace it"
-        configured={false}
-        onSave={replace}
-        onLogout={onLogout}
-        saveLabel="Replace"
-      />
     </li>
   )
 }

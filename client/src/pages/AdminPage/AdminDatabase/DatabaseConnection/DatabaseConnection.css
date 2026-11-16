@@ -1,8 +1,11 @@
 .database-connection {
+  padding-block: var(--sp4);
+}
+
+.database-connection__content {
   display: flex;
   flex-direction: column;
   gap: var(--sp3);
-  padding-block: var(--sp4);
 }
 
 .database-connection + .database-connection {
