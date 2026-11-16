@@ -22,11 +22,11 @@ Security fixes land on `main`. There are no long-term support branches; run the 
 
 Soporti is an LLM agent wired to real systems: your source code, a production database (read-only), Google Drive, Slack. Like any LLM agent, it is exposed to **prompt injection** — content the agent reads (PR diffs, support tickets, documents, query results) can attempt to steer its behavior. The project ships deterministic guardrails, but four design decisions deliberately trade isolation for capability. They are summarized here because **every adopter must evaluate them against their own threat model before connecting production systems.**
 
-### 1. The agent runs live queries against the database you connect
+### 1. The agent runs live queries against the databases you connect
 
-The chat agent — and the automated PR reviewer — carry a `query_database` tool that executes read-only SELECTs against the database configured in `/admin` → Database. The PR reviewer's input is author-controlled (title, body, diff — including vendored or generated code), and its output is published on GitHub, so a prompt-injected PR could in principle steer the agent into reading data and echoing it into a review comment. A deterministic output guard redacts credential-shaped strings from everything posted, but **data that does not look like a credential (e.g. business rows) can still leak**.
+The chat agent — and the automated PR reviewer — carry a `query_database` tool that executes read-only SELECTs against the databases connected in `/admin` → Database. The PR reviewer's input is author-controlled (title, body, diff — including vendored or generated code), and its output is published on GitHub, so a prompt-injected PR could in principle steer the agent into reading data and echoing it into a review comment. A deterministic output guard redacts credential-shaped strings from everything posted, but **data that does not look like a credential (e.g. business rows) can still leak**.
 
-The **Analytics** dashboard (`/analytics`) uses the same connection. Its agent writes and runs queries the same way, and the SQL of every card is editable: **any signed-in user can run their own read-only `SELECT` against that database, with no model in between**. Treat everything the connected database user can read as readable by every user of the app.
+The **Analytics** dashboard (`/analytics`) uses the same connections. Its agent writes and runs queries the same way, and the SQL of every card is editable: **any signed-in user can run their own read-only `SELECT` against any of those databases, with no model in between**. Treat everything the connected database users can read as readable by every user of the app.
 
 Deploy accordingly:
 

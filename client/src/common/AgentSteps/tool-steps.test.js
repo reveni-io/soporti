@@ -78,6 +78,17 @@ describe('describeToolCall', () => {
     expect(describeToolCall({ tool: 'search_logs', input: { query: 'timeout' } }).detail).toBe('"timeout"')
   })
 
+  it('labels the database tools and shows the database as the detail', () => {
+    expect(describeToolCall({ tool: 'list_databases', input: {} }).label).toBe('Listing databases')
+    expect(describeToolCall({ tool: 'query_database', input: { database: 'billing', sql: 'SELECT 1' } })).toMatchObject(
+      {
+        label: 'Querying database',
+        detail: 'billing',
+      }
+    )
+    expect(describeToolCall({ tool: 'query_database', input: { database: null, sql: 'SELECT 1' } }).detail).toBe('')
+  })
+
   it('formats a bare path', () => {
     expect(describeToolCall({ tool: 'get_drive_file', input: { path: 'Docs/spec' } }).detail).toBe('Docs/spec')
   })

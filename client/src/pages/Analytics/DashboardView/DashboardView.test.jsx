@@ -272,7 +272,7 @@ describe('DashboardView', () => {
 
     expect(await screen.findByRole('heading', { name: 'Connect a database first' })).toBeInTheDocument()
     expect(
-      screen.getByText(/PostgreSQL database configured in the admin panel \(Database section\)/)
+      screen.getByText(/PostgreSQL databases connected in the admin panel \(Database section\)/)
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open admin' })).toHaveAttribute('href', '/admin')
     expect(screen.getByRole('textbox', { name: 'Describe the chart you want' })).toBeDisabled()

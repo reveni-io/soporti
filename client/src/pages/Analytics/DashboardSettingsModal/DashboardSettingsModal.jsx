@@ -1,7 +1,7 @@
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import ModalFrame from '../ModalFrame/ModalFrame.jsx'
 import DashboardNameForm from '../DashboardNameForm/DashboardNameForm.jsx'
-import DeleteControl from '../DeleteControl/DeleteControl.jsx'
+import DeleteControl from '../../../common/DeleteControl/DeleteControl.jsx'
 import './DashboardSettingsModal.css'
 
 export default function DashboardSettingsModal({ dashboard, onRename, onDelete, onClose }) {

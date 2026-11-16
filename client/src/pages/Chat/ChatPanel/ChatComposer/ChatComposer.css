@@ -29,7 +29,9 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card-hover);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .composer__card:focus-within {
@@ -126,7 +128,10 @@
   border: none;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    opacity 0.15s;
 }
 
 .composer__btn--attach {

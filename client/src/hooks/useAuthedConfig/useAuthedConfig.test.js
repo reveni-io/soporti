@@ -77,4 +77,22 @@ describe('useAuthedConfig', () => {
     await waitFor(() => expect(result.current.config).toEqual({ org: 'second' }))
     expect(fetchConfig).toHaveBeenNthCalledWith(2, 'tok-2')
   })
+
+  it('fetches the config again on reload and replaces what it held', async () => {
+    const fetchConfig = vi
+      .fn()
+      .mockResolvedValueOnce({ connections: [] })
+      .mockResolvedValueOnce({ connections: [{ id: 1 }] })
+    const onLogout = vi.fn()
+
+    const { result } = renderHook(() => useAuthedConfig(fetchConfig, 'tok', onLogout))
+    await waitFor(() => expect(result.current.config).toEqual({ connections: [] }))
+
+    act(() => {
+      result.current.reload()
+    })
+
+    await waitFor(() => expect(result.current.config).toEqual({ connections: [{ id: 1 }] }))
+    expect(fetchConfig).toHaveBeenCalledTimes(2)
+  })
 })

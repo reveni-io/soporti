@@ -46,12 +46,24 @@ const CARD = {
   prompt: 'Returns per week over the last 3 months',
   sql: SQL,
   chart: BAR,
+  connectionId: 3,
   layout: { x: 0, y: 0, w: 6, h: 4 },
   status: 'ready',
   step: null,
   error: null,
 }
-const UNQUERIED_CARD = { ...CARD, sql: null, chart: null, status: 'failed', error: 'The chart could not be generated.' }
+const DATABASES = [
+  { id: 3, name: 'billing' },
+  { id: 4, name: 'production' },
+]
+const UNQUERIED_CARD = {
+  ...CARD,
+  sql: null,
+  chart: null,
+  connectionId: null,
+  status: 'failed',
+  error: 'The chart could not be generated.',
+}
 const RESULT = {
   columns: [
     { name: 'week', kind: 'date' },
@@ -91,6 +103,63 @@ beforeEach(() => {
 })
 
 describe('CardEditor', () => {
+  it('says which database the card reads from', async () => {
+    render(
+      <CardEditor
+        card={CARD}
+        databases={DATABASES}
+        token="tok"
+        onLogout={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRevise={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('Reads from')).toHaveTextContent('Reads from billing')
+    expect(screen.queryByText(/was removed in \/admin/)).toBeNull()
+  })
+
+  it('warns when the database of the card was removed', async () => {
+    render(
+      <CardEditor
+        card={{ ...CARD, connectionId: null }}
+        databases={DATABASES}
+        token="tok"
+        onLogout={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRevise={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(
+      await screen.findByText(/The database this chart read from was removed in \/admin\. Ask for a change/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Reads from/)).toBeNull()
+  })
+
+  it('shows no database line for a card without a query', async () => {
+    render(
+      <CardEditor
+        card={UNQUERIED_CARD}
+        databases={DATABASES}
+        token="tok"
+        onLogout={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onRevise={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('dialog', { name: 'Edit chart' })).toBeInTheDocument()
+    expect(screen.queryByText(/Reads from/)).toBeNull()
+    expect(screen.queryByText(/was removed in \/admin/)).toBeNull()
+  })
+
   it('runs the query of the card once on open to load the preview', async () => {
     const pending = deferred()
     global.fetch = vi.fn().mockReturnValue(pending.promise)
@@ -123,7 +192,7 @@ describe('CardEditor', () => {
     expect(global.fetch.mock.calls[0][0]).toBe(QUERY_URL)
     expect(global.fetch.mock.calls[0][1].method).toBe('POST')
     expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer tok')
-    expect(queryBody(0)).toEqual({ sql: SQL, chart: BAR })
+    expect(queryBody(0)).toEqual({ sql: SQL, chart: BAR, connectionId: 3 })
   })
 
   it('waits for a query when the card never got one', async () => {
@@ -176,7 +245,7 @@ describe('CardEditor', () => {
     expect(screen.getByRole('checkbox', { name: 'refunds' })).toBeChecked()
     expect(screen.getByText('Result').parentElement).toHaveTextContent('Result2 rows')
     expect(global.fetch).toHaveBeenCalledTimes(2)
-    expect(queryBody(1)).toEqual({ sql: `${SQL} LIMIT 2`, chart: BAR })
+    expect(queryBody(1)).toEqual({ sql: `${SQL} LIMIT 2`, chart: BAR, connectionId: 3 })
   })
 
   it('runs the query with Ctrl+Enter from the SQL field', async () => {
@@ -198,7 +267,7 @@ describe('CardEditor', () => {
     await user.keyboard('{Control>}{Enter}{/Control}')
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2))
-    expect(queryBody(1)).toEqual({ sql: SQL, chart: BAR })
+    expect(queryBody(1)).toEqual({ sql: SQL, chart: BAR, connectionId: 3 })
   })
 
   it('writes the first query of a card that never got one', async () => {
@@ -221,7 +290,7 @@ describe('CardEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     expect(await screen.findByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
-    expect(queryBody(0)).toEqual({ sql: 'SELECT 1', chart: null })
+    expect(queryBody(0)).toEqual({ sql: 'SELECT 1', chart: null, connectionId: null })
     expect(screen.getAllByRole('table')).toHaveLength(2)
   })
 

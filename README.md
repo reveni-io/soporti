@@ -21,7 +21,7 @@ Every integration is optional and configured from the `/admin` panel — the ass
 | Source | What the assistant can do |
 |---|---|
 | **GitHub** | Browse repositories and directories, read files, search code by content, find files by name, and trace a file's history with `git log` / `git blame` |
-| **Database** | Explore schemas and tables, then answer with real data through read-only, row-capped `SELECT`s |
+| **Database** | Connect one or more PostgreSQL databases, each under a name the team recognizes (production, billing, a replica); the assistant picks the one the question is about, explores its schemas and tables, then answers with real data through read-only, row-capped `SELECT`s |
 | **Shortcut** | Read a story by ID or search stories — what was specced versus what shipped — and, with write access enabled, file a bug, comment on a story or change its fields from the chat |
 | **Sentry** | Open an issue with its stacktrace, or find issues by error message |
 | **Better Stack** | Search the application logs by text and time range, or aggregate them with read-only ClickHouse SQL (counts per level, errors per endpoint) |
@@ -94,8 +94,8 @@ HubSpot has no single switch: `/admin` → HubSpot gives each area — Contacts,
 
 ### Build a live dashboard
 
-- **Analytics** — open **Analytics** from the chat sidebar (`/analytics`): dashboards of charts — a mini Metabase — built on the PostgreSQL database Soporti already queries read-only, and kept apart from the chat on purpose. It needs the Database integration configured in `/admin` → **Database**
-- **Ask for a chart** — describe it in plain language ("Returns per week over the last 3 months, by status") and an agent explores the schema, writes the SQL, runs it to check it and picks how to draw it: columns, horizontal bars, a line, an area, a pie, a single headline number or a table
+- **Analytics** — open **Analytics** from the chat sidebar (`/analytics`): dashboards of charts — a mini Metabase — built on the PostgreSQL databases Soporti already queries read-only, and kept apart from the chat on purpose. It needs the Database integration configured in `/admin` → **Database**
+- **Ask for a chart** — describe it in plain language ("Returns per week over the last 3 months, by status") and an agent explores the schema, writes the SQL, runs it to check it and picks how to draw it: columns, horizontal bars, a line, an area, a pie, a single headline number or a table. With several databases connected, name the one you mean, or the agent finds the one that holds the data; the card keeps reading from that database, and its editor shows which one
 - **Generation in the background** — the card appears on the dashboard immediately and fills in when the agent is done. While it works, the card says what the agent is doing (which table it is reading, when it is trying a query), and you can keep asking for more charts meanwhile. A chart that could not be generated says why and can be retried
 - **A grid you arrange by hand** — drag a card by its header and resize it from the corner, and the layout is saved
 - **Live data, light on the database** — a card draws what its query returns, never a stored copy. Results are kept in memory for 5 minutes, so opening the dashboard does not run every query again; each card says how old its data is, and refresh runs the query on the spot. Nothing is saved but the SQL
@@ -211,7 +211,7 @@ All integrations are conditionally loaded — tools are only registered with the
 
 - **GitHub** — token, repository catalog, and the PR-review webhook secret (`/admin` → GitHub). Powers repo browsing and automated PR reviews. A classic token needs the `repo` scope; a fine-grained one also needs **Checks: read** and **Commit statuses: read** for the reviewer to see CI results (without them it reviews without the CI section).
 - **Notion** — integration token (`/admin` → Notion). Create one at [notion.so/my-integrations](https://www.notion.so/my-integrations) and share the relevant pages with it.
-- **Database (agent query tool)** — a read-only PostgreSQL connection string plus a query row cap (`/admin` → Database). This is a **separate** database from the app's own `DATABASE_URL`: it's the customer database the agent explores with schema and SELECT-only tools. The same connection powers **Analytics** (`/analytics`): every chart on a user's dashboard is a read-only query against it, so Analytics needs it configured.
+- **Database (agent query tool)** — one or more read-only PostgreSQL connection strings, each under a name, plus a query row cap shared by all of them (`/admin` → Database). These are **separate** databases from the app's own `DATABASE_URL`: they are the customer databases the agent explores with schema and SELECT-only tools. The same connections power **Analytics** (`/analytics`): every chart on a user's dashboard is a read-only query against the database it was built on, so Analytics needs at least one configured. An install that had a single connection keeps it under the name `database`; rename it from the same page.
 - **Shopify** — asks your own token service for each store's Admin API token (`/admin` → Shopify: a URL with a `{{store}}` placeholder plus an optional `Authorization` header). The service answers `{ access_token, shop_domain, api_version?, expires_at? }`, stays the single place that renews expiring tokens, and Soporti fetches a fresh token and retries once when Shopify rejects one. The agent resolves store names to IDs with the query database.
 - **Google Drive** — a read-only service-account JSON key (`/admin` → Google Drive). Access is governed by Drive sharing: share each folder with the service-account email as Viewer.
 - **Helpjuice** — API key + account subdomain (`/admin` → Helpjuice).

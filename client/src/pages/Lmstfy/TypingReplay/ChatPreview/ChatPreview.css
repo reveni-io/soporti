@@ -74,7 +74,9 @@
   background-color: var(--bg-input);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .chat-preview__composer--active {
@@ -107,7 +109,9 @@
   color: var(--btn-primary-color);
   background-color: var(--btn-primary-bg);
   border-radius: var(--radius-md);
-  transition: transform 0.15s ease, background-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .chat-preview__send--pressed {

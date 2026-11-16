@@ -12,7 +12,7 @@ const BAR = {
   stacked: false,
 }
 const LINE = { ...BAR, type: 'line' }
-const CARD = { id: CARD_ID, title: 'Returns per week', sql: SQL, chart: BAR, status: 'ready' }
+const CARD = { id: CARD_ID, title: 'Returns per week', sql: SQL, chart: BAR, connectionId: 3, status: 'ready' }
 const RESULT = {
   columns: [
     { name: 'week', kind: 'date' },
@@ -73,7 +73,7 @@ describe('useCardEditor', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(global.fetch.mock.calls[0][0]).toBe('/api/analytics/query')
     expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer tok')
-    expect(queryBody(0)).toEqual({ sql: SQL, chart: BAR })
+    expect(queryBody(0)).toEqual({ sql: SQL, chart: BAR, connectionId: 3 })
   })
 
   it('does not run anything for a card that never got a query', async () => {
@@ -105,7 +105,7 @@ describe('useCardEditor', () => {
     await waitFor(() => expect(result.current.chart).toEqual(LINE))
     expect(result.current.preview).toEqual({ ...RESULT, rows: [] })
     expect(result.current.isRunning).toBe(false)
-    expect(queryBody(1)).toEqual({ sql: 'SELECT 1', chart: { ...BAR, stacked: true } })
+    expect(queryBody(1)).toEqual({ sql: 'SELECT 1', chart: { ...BAR, stacked: true }, connectionId: 3 })
   })
 
   it('does not start a second run while one is in flight, nor run a blank query', async () => {

@@ -6,7 +6,9 @@ export function useCardEditor({ card, token, onLogout, onClose, onSave, onRevise
   const [title, setTitle] = useState(card.title)
   const [sql, setSql] = useState(card.sql ?? '')
   const [chart, setChart] = useState(card.chart)
-  const [query, setQuery] = useState(card.sql ? { sql: card.sql, chart: card.chart } : null)
+  const [query, setQuery] = useState(
+    card.sql ? { sql: card.sql, chart: card.chart, connectionId: card.connectionId } : null
+  )
   const [preview, setPreview] = useState(null)
   const [isRunning, setIsRunning] = useState(Boolean(card.sql))
   const [runError, setRunError] = useState(null)
@@ -53,7 +55,7 @@ export function useCardEditor({ card, token, onLogout, onClose, onSave, onRevise
 
     setIsRunning(true)
     setRunError(null)
-    setQuery({ sql, chart })
+    setQuery({ sql, chart, connectionId: card.connectionId })
   }
 
   async function save() {

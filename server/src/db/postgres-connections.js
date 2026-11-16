@@ -19,10 +19,7 @@ export async function listPostgresConnections() {
 }
 
 export async function createPostgresConnection({ name, connectionString }) {
-  const [row] = await getDb()
-    .insert(postgresConnections)
-    .values({ name, connectionString })
-    .returning(SUMMARY_COLUMNS)
+  const [row] = await getDb().insert(postgresConnections).values({ name, connectionString }).returning(SUMMARY_COLUMNS)
   return row
 }
 

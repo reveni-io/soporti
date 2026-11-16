@@ -139,6 +139,7 @@ export default function DashboardView({ dashboardId, token, onLogout, directory 
       {editingCard && (
         <CardEditor
           card={editingCard}
+          databases={directory.databases}
           token={token}
           onLogout={onLogout}
           onClose={() => setEditingId(null)}
@@ -180,7 +181,7 @@ function DatabaseNotice() {
     <PageNotice
       icon="database"
       title="Connect a database first"
-      text="Analytics draws its charts from the PostgreSQL database configured in the admin panel (Database section)."
+      text="Analytics draws its charts from the PostgreSQL databases connected in the admin panel (Database section)."
       actionLabel="Open admin"
       actionTo={ROUTES.ADMIN}
     />
