@@ -1,6 +1,6 @@
 .modal.bot-form-modal {
   gap: var(--sp4);
-  max-width: 34rem;
+  max-width: 40rem;
   max-height: 90vh;
   overflow-y: auto;
 }
@@ -8,12 +8,6 @@
 .bot-form-modal__form {
   display: flex;
   flex-direction: column;
-  gap: var(--sp4);
-}
-
-.bot-form-modal__avatar {
-  display: flex;
-  align-items: center;
   gap: var(--sp4);
 }
 

@@ -65,7 +65,7 @@ function BotCard({ bot }) {
   return (
     <li className="bots-panel__item">
       <Link className="card bots-panel__card" to={generatePath(ROUTES.BOT, { botId: String(bot.id) })}>
-        <BotAvatar seed={bot.avatarSeed} size={CARD_AVATAR_SIZE} />
+        <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={CARD_AVATAR_SIZE} />
         <div className="bots-panel__card-body">
           <span className="bots-panel__name">{bot.name}</span>
           <p className="bots-panel__description">{bot.description}</p>

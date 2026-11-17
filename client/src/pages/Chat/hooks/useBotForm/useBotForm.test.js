@@ -2,7 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useBotForm } from './useBotForm.js'
 
-const TRIAGER = { id: 3, name: 'Ticket triager', description: 'Tickets', profile: 'tech', avatarSeed: 'seed-3' }
+const TRIAGER = {
+  id: 3,
+  name: 'Ticket triager',
+  description: 'Tickets',
+  profile: 'tech',
+  avatarSeed: 'seed-3',
+  avatarStyle: { shape: 'cloud', hue: 195, tone: 'deep', mood: 'smug' },
+}
+const SHAPE_IDS = ['round', 'organic', 'boxy', 'capsule', 'nub', 'cloud', 'droplet', 'hexagon', 'sun', 'triangle']
+const HUES = [25, 55, 90, 135, 160, 195, 235, 270, 305, 345]
+const SHUFFLE_TONE_IDS = ['pastel', 'mid', 'deep', 'bright']
 
 function respond(body, status = 200) {
   return { ok: status < 400, status, json: async () => body }
@@ -23,6 +33,22 @@ describe('useBotForm', () => {
     expect(result.current.canSave).toBe(false)
   })
 
+  it('starts a new bot with a random shape, color and colorful tone and a neutral mood', () => {
+    const { result } = renderHook(() => useBotForm({ bot: null, token: 'tok' }))
+
+    const { shape, hue, tone, mood } = result.current.avatarStyle
+    expect(SHAPE_IDS).toContain(shape)
+    expect(HUES).toContain(hue)
+    expect(SHUFFLE_TONE_IDS).toContain(tone)
+    expect(mood).toBe('neutral')
+  })
+
+  it('leaves every trait unpinned for a bot created before avatars could be styled', () => {
+    const { result } = renderHook(() => useBotForm({ bot: { ...TRIAGER, avatarStyle: null }, token: 'tok' }))
+
+    expect(result.current.avatarStyle).toEqual({})
+  })
+
   it('starts from the bot it edits', () => {
     const { result } = renderHook(() => useBotForm({ bot: TRIAGER, token: 'tok' }))
 
@@ -30,15 +56,38 @@ describe('useBotForm', () => {
     expect(result.current.name).toBe('Ticket triager')
     expect(result.current.profile).toBe('tech')
     expect(result.current.avatarSeed).toBe('seed-3')
+    expect(result.current.avatarStyle).toEqual(TRIAGER.avatarStyle)
     expect(result.current.canSave).toBe(true)
   })
 
-  it('picks a different avatar on shuffle', () => {
+  it('picks a different face on shuffle and keeps the mood', () => {
     const { result } = renderHook(() => useBotForm({ bot: TRIAGER, token: 'tok' }))
 
     act(() => result.current.shuffleAvatar())
 
     expect(result.current.avatarSeed).not.toBe('seed-3')
+    expect(SHAPE_IDS).toContain(result.current.avatarStyle.shape)
+    expect(HUES).toContain(result.current.avatarStyle.hue)
+    expect(SHUFFLE_TONE_IDS).toContain(result.current.avatarStyle.tone)
+    expect(result.current.avatarStyle.mood).toBe('smug')
+  })
+
+  it('gives a neutral mood to a shuffled bot that had none', () => {
+    const { result } = renderHook(() => useBotForm({ bot: { ...TRIAGER, avatarStyle: null }, token: 'tok' }))
+
+    act(() => result.current.shuffleAvatar())
+
+    expect(result.current.avatarStyle.mood).toBe('neutral')
+  })
+
+  it('pins one trait at a time and keeps the others', () => {
+    const { result } = renderHook(() => useBotForm({ bot: TRIAGER, token: 'tok' }))
+
+    act(() => result.current.pickAvatarTrait('shape', 'sun'))
+    act(() => result.current.pickAvatarTrait('hue', 345))
+
+    expect(result.current.avatarStyle).toEqual({ shape: 'sun', hue: 345, tone: 'deep', mood: 'smug' })
+    expect(result.current.avatarSeed).toBe('seed-3')
   })
 
   it('does not submit an incomplete bot', async () => {

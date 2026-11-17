@@ -71,6 +71,18 @@ describe('BotsPanel', () => {
     expect(screen.getByRole('link', { name: /release notes/i })).toHaveAttribute('href', '/bots/4')
   })
 
+  it('draws each bot with its own animated avatar style', () => {
+    const sunny = { ...TRIAGER, avatarStyle: { shape: 'sun', hue: 55, tone: 'bright' } }
+    render(<BotsPanel bots={[sunny, RELEASES]} loading={false} error={null} onCreate={vi.fn()} />, {
+      wrapper: MemoryRouter,
+    })
+
+    const avatar = screen.getByRole('link', { name: /ticket triager/i }).querySelector('svg.bot-avatar')
+    expect(avatar.querySelectorAll('circle').length).toBeGreaterThanOrEqual(6)
+    expect(avatar.querySelector('g')).toHaveClass('mo-always')
+    expect(screen.getByRole('link', { name: /release notes/i }).querySelector('svg.bot-avatar')).toBeInTheDocument()
+  })
+
   it('marks the bots with something new', () => {
     render(<BotsPanel bots={[TRIAGER, RELEASES]} loading={false} error={null} onCreate={vi.fn()} />, {
       wrapper: MemoryRouter,

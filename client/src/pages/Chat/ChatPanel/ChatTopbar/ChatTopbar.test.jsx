@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { palette } from 'blobatar'
 import ChatTopbar from './ChatTopbar.jsx'
 
 const BASE_PROPS = {
@@ -100,7 +101,19 @@ describe('ChatTopbar', () => {
       expect(screen.getByRole('heading', { name: 'Ticket triager' })).toBeInTheDocument()
       expect(screen.getByText('Reviews the new tickets.')).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Why did the payout fail?' })).not.toBeInTheDocument()
-      expect(container.querySelector('img.bot-avatar')).toBeInTheDocument()
+      expect(container.querySelector('svg.bot-avatar')).toBeInTheDocument()
+    })
+
+    it('wears the avatar style of the bot and a thinking face while it answers', () => {
+      const styled = { ...BOT, avatarStyle: { hue: 270, tone: 'deep', mood: 'neutral' } }
+      const { container: idle } = render(<ChatTopbar {...BASE_PROPS} bot={styled} />)
+      const { container: busy } = render(<ChatTopbar {...BASE_PROPS} bot={styled} isLoading />)
+
+      const avatar = idle.querySelector('svg.bot-avatar')
+      expect(avatar.style.getPropertyValue('--mo-head')).toBe(palette(270, true, 0.71).head)
+      expect(avatar.querySelector('g')).toHaveClass('mo-always')
+      expect(avatar.querySelector('g')).not.toHaveClass('mo-expr')
+      expect(busy.querySelector('svg.bot-avatar > g')).toHaveClass('mo-expr')
     })
 
     it('offers the routines and the bot settings instead of the tour and sharing', () => {

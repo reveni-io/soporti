@@ -1,14 +1,11 @@
 import { useId } from 'react'
-import BotAvatar from '../../../common/BotAvatar/BotAvatar.jsx'
 import DeleteControl from '../../../common/DeleteControl/DeleteControl.jsx'
-import Icon from '../../../common/Icon/Icon.jsx'
 import ModalFrame from '../../../common/ModalFrame/ModalFrame.jsx'
 import { BOT_DESCRIPTION_MAX_LENGTH, BOT_NAME_MAX_LENGTH, PROFILE_OPTIONS } from '../../../constants.js'
 import { useBotForm } from '../hooks/useBotForm/useBotForm.js'
+import AvatarStudio from './AvatarStudio/AvatarStudio.jsx'
 import './BotFormModal.css'
 
-const AVATAR_SIZE = 64
-const SHUFFLE_ICON_SIZE = 14
 const DESCRIPTION_ROWS = 5
 const NAME_PLACEHOLDER = 'Ticket triager'
 const DESCRIPTION_PLACEHOLDER =
@@ -34,13 +31,13 @@ export default function BotFormModal({ bot = null, token, onClose, onLogout, onC
   return (
     <ModalFrame title={form.isEditing ? 'Edit bot' : 'New bot'} className="bot-form-modal" onClose={onClose}>
       <form className="bot-form-modal__form" onSubmit={handleSubmit}>
-        <div className="bot-form-modal__avatar">
-          <BotAvatar seed={form.avatarSeed} size={AVATAR_SIZE} />
-          <button type="button" className="btn btn--secondary btn--sm" onClick={form.shuffleAvatar}>
-            <Icon name="refresh" size={SHUFFLE_ICON_SIZE} />
-            Shuffle avatar
-          </button>
-        </div>
+        <AvatarStudio
+          seed={form.avatarSeed}
+          avatarStyle={form.avatarStyle}
+          isThinking={form.isSaving}
+          onPick={form.pickAvatarTrait}
+          onShuffle={form.shuffleAvatar}
+        />
 
         <div className="bot-form-modal__field">
           <label className="bot-form-modal__label" htmlFor={nameId}>

@@ -128,14 +128,27 @@ describe('bots routes', () => {
     it('keeps the avatar the user picked and trims the texts', async () => {
       await request(app)
         .post('/')
-        .send({ name: '  Triager  ', description: '  Triage tickets.  ', profile: 'support', avatarSeed: 'Abc-123' })
+        .send({
+          name: '  Triager  ',
+          description: '  Triage tickets.  ',
+          profile: 'support',
+          avatarSeed: 'Abc-123',
+          avatarStyle: { shape: 'cloud', hue: 195, tone: 'deep', mood: 'happy' },
+        })
 
       expect(createBot.mock.calls[0][1]).toEqual({
         name: 'Triager',
         description: 'Triage tickets.',
         profile: 'support',
         avatarSeed: 'Abc-123',
+        avatarStyle: { shape: 'cloud', hue: 195, tone: 'deep', mood: 'happy' },
       })
+    })
+
+    it('creates the bot without a pinned avatar style when none is sent', async () => {
+      await request(app).post('/').send(BOT_BODY)
+
+      expect(createBot.mock.calls[0][1].avatarStyle).toBeNull()
     })
 
     it.each([
@@ -148,6 +161,8 @@ describe('bots routes', () => {
       [{ avatarSeed: 'not a seed!' }, 'The avatar seed must be 1 to 64 letters, digits or hyphens.'],
       [{ avatarSeed: 'x'.repeat(65) }, 'The avatar seed must be 1 to 64 letters, digits or hyphens.'],
       [{ avatarSeed: 42 }, 'The avatar seed must be 1 to 64 letters, digits or hyphens.'],
+      [{ avatarStyle: { shape: 'star' } }, expect.stringMatching(/^The avatar shape must be one of: round, /)],
+      [{ avatarStyle: { hue: 360 } }, 'The avatar hue must be a whole number from 0 to 359.'],
     ])('rejects %o', async (override, error) => {
       const res = await request(app)
         .post('/')
@@ -205,7 +220,21 @@ describe('bots routes', () => {
         description: 'Triage the new Zendesk tickets.',
         profile: 'tech',
         avatarSeed: null,
+        avatarStyle: null,
       })
+    })
+
+    it('updates the avatar style the user picked', async () => {
+      updateBot.mockResolvedValue({ ...BOT, avatarStyle: { shape: 'sun', mood: 'wink' } })
+
+      const res = await request(app)
+        .put('/4')
+        .send({ ...BOT_BODY, avatarStyle: { shape: 'sun', mood: 'wink' } })
+
+      expect(res.status).toBe(200)
+      expect(res.body.bot.avatarStyle).toEqual({ shape: 'sun', mood: 'wink' })
+      expect(updateBot).toHaveBeenCalledTimes(1)
+      expect(updateBot.mock.calls[0][2].avatarStyle).toEqual({ shape: 'sun', mood: 'wink' })
     })
 
     it('returns 404 when the bot is not the user own', async () => {

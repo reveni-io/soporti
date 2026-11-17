@@ -31,6 +31,10 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
 }
 
+if (typeof window.matchMedia !== 'function') {
+  window.matchMedia = query => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} })
+}
+
 if (!import.meta.env.VITE_API_URL) {
   import.meta.env.VITE_API_URL = ''
 }

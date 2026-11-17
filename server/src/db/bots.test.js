@@ -59,7 +59,13 @@ const OWNED_BOT = {
   ],
 }
 
-const BOT_INPUT = { name: 'Triager', description: 'Triage tickets.', profile: 'support', avatarSeed: 'seed-1' }
+const BOT_INPUT = {
+  name: 'Triager',
+  description: 'Triage tickets.',
+  profile: 'support',
+  avatarSeed: 'seed-1',
+  avatarStyle: { shape: 'cloud', hue: 195, tone: 'deep', mood: 'happy' },
+}
 
 beforeEach(() => {
   queue = []
@@ -122,9 +128,10 @@ describe('updateBot', () => {
   it('keeps the stored avatar when none is given', async () => {
     queue = [[{ id: 4 }]]
 
-    await updateBot(4, 7, { ...BOT_INPUT, avatarSeed: null })
+    await updateBot(4, 7, { ...BOT_INPUT, avatarSeed: null, avatarStyle: null })
 
     expect(calls[0].steps.set).not.toHaveProperty('avatarSeed')
+    expect(calls[0].steps.set).not.toHaveProperty('avatarStyle')
   })
 
   it('returns null when the bot is not owned', async () => {

@@ -88,6 +88,52 @@ export const PROFILE_OPTIONS = [
 export const BOT_NAME_MAX_LENGTH = 50
 export const BOT_DESCRIPTION_MAX_LENGTH = 1000
 
+export const BOT_AVATAR_SHAPES = [
+  { id: 'round', label: 'Round', position: 0.11 },
+  { id: 'organic', label: 'Pebble', position: 0.35 },
+  { id: 'boxy', label: 'Boxy', position: 0.54 },
+  { id: 'capsule', label: 'Capsule', position: 0.65 },
+  { id: 'nub', label: 'Bumpy', position: 0.745 },
+  { id: 'cloud', label: 'Cloud', position: 0.825 },
+  { id: 'droplet', label: 'Droplet', position: 0.8875 },
+  { id: 'hexagon', label: 'Hexagon', position: 0.9325 },
+  { id: 'sun', label: 'Sun', position: 0.965 },
+  { id: 'triangle', label: 'Triangle', position: 0.99 },
+]
+
+export const BOT_AVATAR_COLORS = [
+  { id: 'red', label: 'Red', hue: 25 },
+  { id: 'orange', label: 'Orange', hue: 55 },
+  { id: 'yellow', label: 'Yellow', hue: 90 },
+  { id: 'lime', label: 'Lime', hue: 135 },
+  { id: 'green', label: 'Green', hue: 160 },
+  { id: 'teal', label: 'Teal', hue: 195 },
+  { id: 'sky', label: 'Sky', hue: 235 },
+  { id: 'blue', label: 'Blue', hue: 270 },
+  { id: 'violet', label: 'Violet', hue: 305 },
+  { id: 'pink', label: 'Pink', hue: 345 },
+]
+
+export const BOT_AVATAR_TONES = [
+  { id: 'pastel', label: 'Pastel', position: 0.1 },
+  { id: 'pale', label: 'Pale', position: 0.28 },
+  { id: 'mid', label: 'Mid', position: 0.49 },
+  { id: 'deep', label: 'Deep', position: 0.71 },
+  { id: 'bright', label: 'Bright', position: 0.865 },
+  { id: 'ink', label: 'Ink', position: 0.965 },
+]
+
+export const BOT_AVATAR_MOODS = [
+  { id: 'neutral', label: 'Neutral' },
+  { id: 'happy', label: 'Happy' },
+  { id: 'wink', label: 'Wink' },
+  { id: 'smug', label: 'Smug' },
+  { id: 'sleepy', label: 'Sleepy' },
+  { id: 'surprised', label: 'Surprised' },
+]
+
+export const DEFAULT_BOT_AVATAR_MOOD = 'neutral'
+
 export const EMPTY_CELL = '—'
 
 export const STATS_RANGE_ALL = 'all'

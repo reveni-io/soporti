@@ -8,6 +8,7 @@ const botColumns = {
   description: bots.description,
   profile: bots.profile,
   avatarSeed: bots.avatarSeed,
+  avatarStyle: bots.avatarStyle,
   unreadCount: bots.unreadCount,
   createdAt: bots.createdAt,
 }
@@ -33,17 +34,18 @@ export async function getBot(id, userId) {
   return row ?? null
 }
 
-export async function createBot(userId, { name, description, profile, avatarSeed }) {
+export async function createBot(userId, { name, description, profile, avatarSeed, avatarStyle }) {
   const [row] = await getDb()
     .insert(bots)
-    .values({ userId, name, description, profile, avatarSeed })
+    .values({ userId, name, description, profile, avatarSeed, avatarStyle })
     .returning(botColumns)
   return row
 }
 
-export async function updateBot(id, userId, { name, description, profile, avatarSeed }) {
+export async function updateBot(id, userId, { name, description, profile, avatarSeed, avatarStyle }) {
   const changes = { name, description, profile, updatedAt: new Date() }
   if (avatarSeed) changes.avatarSeed = avatarSeed
+  if (avatarStyle) changes.avatarStyle = avatarStyle
 
   const [row] = await getDb().update(bots).set(changes).where(ownedBot(id, userId)).returning(botColumns)
   return row ?? null

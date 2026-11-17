@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import BotAvatar from '../../../common/BotAvatar/BotAvatar.jsx'
 import BotFormModal from './BotFormModal.jsx'
@@ -17,8 +17,12 @@ function respond(body, status = 200) {
   return { ok: status < 400, status, json: async () => body }
 }
 
-function avatarSource(container) {
-  return container.querySelector('img.bot-avatar').getAttribute('src')
+function stageFace(container) {
+  return container.querySelector('.avatar-studio__stage svg').innerHTML
+}
+
+function pickerOption(group, option) {
+  return within(screen.getByRole('group', { name: group })).getByRole('radio', { name: option })
 }
 
 beforeEach(() => {
@@ -51,9 +55,35 @@ describe('BotFormModal', () => {
       description: 'Reviews the new Zendesk tickets.',
       profile: 'tech',
       avatarSeed: expect.stringMatching(/^[0-9a-f]{32}$/),
+      avatarStyle: { shape: expect.any(String), hue: expect.any(Number), tone: expect.any(String), mood: 'neutral' },
     })
     expect(onCreated).toHaveBeenCalledTimes(1)
     expect(onCreated).toHaveBeenCalledWith({ ...TRIAGER, id: 8 })
+  })
+
+  it('styles the avatar with the shape, color, tone and mood picked and sends them', async () => {
+    global.fetch = vi.fn().mockResolvedValue(respond({ bot: TRIAGER }, 201))
+    const user = userEvent.setup()
+    const { container } = render(<BotFormModal token="tok" onClose={vi.fn()} onCreated={vi.fn()} />)
+
+    await user.click(pickerOption('Shape', 'Sun'))
+    await user.click(pickerOption('Color', 'Teal'))
+    await user.click(pickerOption('Tone', 'Deep'))
+    await user.click(pickerOption('Mood', 'Happy'))
+
+    expect(pickerOption('Shape', 'Sun')).toBeChecked()
+    expect(pickerOption('Color', 'Teal')).toBeChecked()
+    expect(pickerOption('Tone', 'Deep')).toBeChecked()
+    expect(pickerOption('Mood', 'Happy')).toBeChecked()
+
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Triager')
+    await user.type(screen.getByRole('textbox', { name: 'What is it for?' }), 'Tickets')
+    await user.click(screen.getByRole('button', { name: 'Create bot' }))
+
+    const { avatarSeed, avatarStyle } = JSON.parse(global.fetch.mock.calls[0][1].body)
+    expect(avatarStyle).toEqual({ shape: 'sun', hue: 195, tone: 'deep', mood: 'happy' })
+    const { container: sent } = render(<BotAvatar seed={avatarSeed} avatarStyle={avatarStyle} />)
+    expect(stageFace(container)).toBe(sent.querySelector('svg').innerHTML)
   })
 
   it('shows that the bot is writing its greeting while it is created', async () => {
@@ -67,6 +97,7 @@ describe('BotFormModal', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Triager is writing its greeting…')
     expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
+    expect(document.querySelector('.avatar-studio__stage svg > g')).toHaveClass('mo-expr')
   })
 
   it('cannot create a bot without a description', async () => {
@@ -83,18 +114,18 @@ describe('BotFormModal', () => {
     global.fetch = vi.fn().mockResolvedValue(respond({ bot: TRIAGER }, 201))
     const user = userEvent.setup()
     const { container } = render(<BotFormModal token="tok" onClose={vi.fn()} onCreated={vi.fn()} />)
-    const before = avatarSource(container)
+    const before = stageFace(container)
 
     await user.click(screen.getByRole('button', { name: 'Shuffle avatar' }))
-    const after = avatarSource(container)
+    const after = stageFace(container)
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Triager')
     await user.type(screen.getByRole('textbox', { name: 'What is it for?' }), 'Tickets')
     await user.click(screen.getByRole('button', { name: 'Create bot' }))
 
-    const { avatarSeed } = JSON.parse(global.fetch.mock.calls[0][1].body)
-    const { container: sent } = render(<BotAvatar seed={avatarSeed} size={64} />)
+    const { avatarSeed, avatarStyle } = JSON.parse(global.fetch.mock.calls[0][1].body)
+    const { container: sent } = render(<BotAvatar seed={avatarSeed} avatarStyle={avatarStyle} />)
     expect(after).not.toBe(before)
-    expect(avatarSource(sent)).toBe(after)
+    expect(sent.querySelector('svg').innerHTML).toBe(after)
   })
 
   it('shows why the bot could not be created and stays open', async () => {
@@ -147,9 +178,37 @@ describe('BotFormModal', () => {
       description: 'Reviews the new Zendesk tickets.',
       profile: 'tech',
       avatarSeed: 'seed-3',
+      avatarStyle: {},
     })
     expect(onUpdated).toHaveBeenCalledTimes(1)
     expect(onUpdated).toHaveBeenCalledWith({ ...TRIAGER, name: 'Queue triager' })
+  })
+
+  it('edits a styled bot starting from its avatar style', async () => {
+    global.fetch = vi.fn().mockResolvedValue(respond({ bot: TRIAGER }))
+    const avatarStyle = { shape: 'cloud', hue: 305, tone: 'pastel', mood: 'sleepy' }
+    const user = userEvent.setup()
+    render(<BotFormModal bot={{ ...TRIAGER, avatarStyle }} token="tok" onClose={vi.fn()} onUpdated={vi.fn()} />)
+
+    expect(pickerOption('Shape', 'Cloud')).toBeChecked()
+    expect(pickerOption('Color', 'Violet')).toBeChecked()
+    expect(pickerOption('Tone', 'Pastel')).toBeChecked()
+    expect(pickerOption('Mood', 'Sleepy')).toBeChecked()
+
+    await user.click(pickerOption('Shape', 'Hexagon'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).avatarStyle).toEqual({ ...avatarStyle, shape: 'hexagon' })
+  })
+
+  it('leaves the pickers empty for a bot whose avatar was never styled', () => {
+    render(<BotFormModal bot={TRIAGER} token="tok" onClose={vi.fn()} onUpdated={vi.fn()} />)
+
+    for (const group of ['Shape', 'Color', 'Tone', 'Mood']) {
+      const options = within(screen.getByRole('group', { name: group })).getAllByRole('radio')
+      expect(options.some(option => option.checked)).toBe(false)
+    }
   })
 
   it('offers no delete while creating a bot', () => {
