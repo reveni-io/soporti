@@ -9,7 +9,12 @@ import { hashPassword, validatePassword } from '../auth/password.js'
 import { verifySetupCode, announceSetupCode } from '../auth/setup-code.js'
 import { getAllowedDomains, setAllowedDomains } from '../auth/allowed-domains.js'
 import { getAuthMethods, setAuthMethods } from '../auth/auth-methods.js'
-import { getGoogleClientId, setGoogleClientId } from '../auth/google-settings.js'
+import {
+  getGoogleClientId,
+  getGoogleClientSecret,
+  setGoogleClientId,
+  setGoogleClientSecret,
+} from '../auth/google-settings.js'
 import { getDriveCredentials, setDriveCredentials } from '../google-drive/settings.js'
 import { getNotionToken, setNotionToken } from '../notion/settings.js'
 import {
@@ -114,6 +119,7 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
+import { isGmailConfigured, isGoogleCalendarConfigured } from '../google-workspace/settings.js'
 import { isZendeskConfigured } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { isHubspotConfigured } from '../hubspot/settings.js'
@@ -134,6 +140,7 @@ const DOMAIN_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/
 const HOST_REGEX = /^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/
 const ID_RE = /^\d{1,9}$/
 const API_KEY_MAX_LENGTH = 300
+const GOOGLE_CLIENT_SECRET_MAX_LENGTH = 200
 const MODEL_ID_MAX_LENGTH = 100
 const VECTOR_STORE_ID_MAX_LENGTH = 200
 const SHOPIFY_TOKEN_URL_MAX_LENGTH = 2000
@@ -155,6 +162,8 @@ const INTEGRATION_CHECKS = {
   helpjuice: isHelpjuiceConfigured,
   shopify: isShopifyConfigured,
   granola: isGranolaConfigured,
+  gmail: isGmailConfigured,
+  'google-calendar': isGoogleCalendarConfigured,
   figma: isFigmaConfigured,
   zendesk: isZendeskConfigured,
   sendcloud: isSendcloudConfigured,
@@ -366,16 +375,18 @@ router.post('/users', async (req, res) => {
 
 router.get('/config/auth', async (_req, res) => {
   try {
-    const [methods, domains, googleClientId] = await Promise.all([
+    const [methods, domains, googleClientId, googleClientSecret] = await Promise.all([
       getAuthMethods(),
       getAllowedDomains(),
       getGoogleClientId(),
+      getGoogleClientSecret(),
     ])
     res.json({
       googleEnabled: methods.google,
       passwordEnabled: methods.password,
       domains,
       googleClientId: googleClientId ?? '',
+      googleClientSecretConfigured: Boolean(googleClientSecret),
     })
   } catch (err) {
     console.error('Admin get auth config error:', err)
@@ -449,6 +460,23 @@ router.put('/config/auth/google-client-id', async (req, res) => {
   } catch (err) {
     console.error('Admin set google client id error:', err)
     res.status(500).json({ error: 'Failed to save the Google client id.' })
+  }
+})
+
+router.put('/config/auth/google-client-secret', async (req, res) => {
+  const { error, value } = parseSecret(req.body?.googleClientSecret, {
+    field: 'googleClientSecret',
+    maxLength: GOOGLE_CLIENT_SECRET_MAX_LENGTH,
+    message: 'That does not look like a valid Google client secret.',
+  })
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setGoogleClientSecret(value)
+    res.json({ googleClientSecretConfigured: value.length > 0 })
+  } catch (err) {
+    console.error('Admin set google client secret error:', err.name)
+    res.status(500).json({ error: 'Failed to save the Google client secret.' })
   }
 })
 

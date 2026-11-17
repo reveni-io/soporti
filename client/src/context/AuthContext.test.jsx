@@ -98,6 +98,61 @@ describe('AuthContext', () => {
     expect(result.current.error).toMatch(/Google sign-in failed/)
   })
 
+  it('loginWithGoogleCode posts the authorization code and stores the session', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: 'code-token', user: { email: 'jane@example.com', role: 'user' } }),
+    })
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    let ok
+    await act(async () => {
+      ok = await result.current.loginWithGoogleCode('the-code')
+    })
+
+    expect(ok).toBe(true)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toContain('/api/auth/google/code')
+    expect(JSON.parse(options.body)).toEqual({ code: 'the-code' })
+    expect(result.current.token).toBe('code-token')
+    expect(localStorage.getItem('auth_token')).toBe('code-token')
+  })
+
+  it('loginWithGoogleCode surfaces the server error and stays signed out', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Only @example.com accounts are allowed.' }),
+    })
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    let ok
+    await act(async () => {
+      ok = await result.current.loginWithGoogleCode('the-code')
+    })
+
+    expect(ok).toBe(false)
+    expect(result.current.isAuthenticated).toBe(false)
+    expect(result.current.error).toBe('Only @example.com accounts are allowed.')
+  })
+
+  it('loginWithGoogleCode sets an error without fetching when the code is missing', async () => {
+    global.fetch = vi.fn()
+
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    let ok
+    await act(async () => {
+      ok = await result.current.loginWithGoogleCode(null)
+    })
+
+    expect(ok).toBe(false)
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(result.current.error).toMatch(/Google sign-in failed/)
+  })
+
   it('loginWithPassword posts email and password and stores the session', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,

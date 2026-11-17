@@ -24,6 +24,7 @@ import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
+import { isGmailConfigured, isGoogleCalendarConfigured } from '../google-workspace/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
 import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
@@ -73,6 +74,8 @@ export async function createAgent(
     shopifyConfigured,
     betterstackConfigured,
     granolaConfigured,
+    gmailConfigured,
+    calendarConfigured,
     figmaConfigured,
     zendeskConnection,
     sendcloudConfigured,
@@ -93,6 +96,8 @@ export async function createAgent(
     shopify.isConfigured(),
     isBetterstackConfigured(),
     isGranolaConfigured(userId),
+    isGmailConfigured(userId),
+    isGoogleCalendarConfigured(userId),
     isFigmaConfigured(),
     getZendeskConnection(userId),
     isSendcloudConfigured(),
@@ -114,6 +119,8 @@ export async function createAgent(
     shopifyConfigured,
     betterstackConfigured,
     granolaConfigured,
+    gmailConfigured,
+    calendarConfigured,
     figmaConfigured,
     zendeskConfigured: Boolean(zendeskConnection),
     sendcloudConfigured,

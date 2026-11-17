@@ -47,6 +47,16 @@ export const INTEGRATIONS = [
     desc: 'Reads your own meeting notes so a decision made on a call is an answer, not something you retype. Each person connects their own account — nobody reads anyone else’s.',
   },
   {
+    id: 'gmail',
+    name: 'Gmail',
+    desc: 'Searches and reads your own inbox with the same search you use in Gmail, whole threads included, so the answer a customer got by email is one question away. Read-only: it never sends, drafts or deletes, and it treats what an email says as text to quote, never as instructions. Connected with your Google sign-in — nobody reads anyone else’s mail.',
+  },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    desc: 'Reads your own calendar — who is in a meeting, the agenda and the Meet link — and checks when your colleagues are free. Read-only: it never creates or moves an event. Connected with your Google sign-in.',
+  },
+  {
     id: 'zendesk',
     name: 'Zendesk',
     desc: 'Reads, searches and lists your tickets and views — the requester, the status and the whole thread, internal notes included — so a skill can gather the answer from the database or the docs and leave the draft on the ticket as an internal note. It never replies to the customer, never changes a status. Each person connects their own account.',

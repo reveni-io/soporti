@@ -99,6 +99,25 @@ vi.mock('../granola/client.js', () => ({
   DEFAULT_SEARCH_RESULTS: 10,
 }))
 
+vi.mock('../gmail/client.js', () => ({
+  searchMessages: vi.fn(),
+  getThread: vi.fn(),
+  DEFAULT_SEARCH_RESULTS: 10,
+  MAX_SEARCH_RESULTS: 25,
+  MAX_MESSAGE_CHARS: 5000,
+  MAX_THREAD_CHARS: 25000,
+}))
+
+vi.mock('../google-calendar/client.js', () => ({
+  listEvents: vi.fn(),
+  queryFreeBusy: vi.fn(),
+  PRIMARY_CALENDAR: 'primary',
+  DEFAULT_EVENT_RESULTS: 25,
+  MAX_EVENT_RESULTS: 100,
+  MAX_FREE_BUSY_CALENDARS: 10,
+  MAX_FREE_BUSY_DAYS: 62,
+}))
+
 vi.mock('../figma/client.js', () => ({
   getFile: vi.fn(),
   getNode: vi.fn(),
@@ -207,6 +226,8 @@ const {
   REPO_TOOL_NAMES,
   SELECTABLE_TOOL_NAMES,
   buildGranolaTools,
+  buildGmailTools,
+  buildGoogleCalendarTools,
   buildZendeskTools,
   buildShortcutWriteTools,
 } = await import('./tools.js')
@@ -1190,6 +1211,174 @@ describe('buildAgentTools with Granola', () => {
     await tools.find(t => t.name === 'search_granola_notes').execute({ query: '', limit: 5 })
 
     expect(granolaMod.searchNotes).toHaveBeenCalledWith(42, expect.objectContaining({ limit: 5 }))
+  })
+})
+
+describe('buildGmailTools', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('searches the mailbox of one user and shows dates in the conversation zone', async () => {
+    const gmailMod = await import('../gmail/client.js')
+    gmailMod.searchMessages.mockResolvedValue({ untrustedContent: 'untrusted', messages: [], hasMore: false })
+
+    const [search] = buildGmailTools(7, 'Europe/Madrid')
+    const result = await search.execute({ query: 'from:acme.com newer_than:7d', maxResults: 10 })
+
+    expect(JSON.parse(result)).toEqual({ untrustedContent: 'untrusted', messages: [], hasMore: false })
+    expect(gmailMod.searchMessages).toHaveBeenCalledTimes(1)
+    expect(gmailMod.searchMessages).toHaveBeenCalledWith(7, {
+      query: 'from:acme.com newer_than:7d',
+      maxResults: 10,
+      timeZone: 'Europe/Madrid',
+    })
+  })
+
+  it('reads a thread for that same user', async () => {
+    const gmailMod = await import('../gmail/client.js')
+    gmailMod.getThread.mockResolvedValue({ threadId: 't1', messages: [] })
+
+    const [, get] = buildGmailTools(7)
+    const result = await get.execute({ threadId: 't1' })
+
+    expect(JSON.parse(result)).toEqual({ threadId: 't1', messages: [] })
+    expect(gmailMod.getThread).toHaveBeenCalledTimes(1)
+    expect(gmailMod.getThread).toHaveBeenCalledWith(7, 't1', { timeZone: 'UTC' })
+  })
+
+  it('teaches the model the Gmail search syntax and the way to the thread', () => {
+    const [search] = buildGmailTools(7)
+
+    expect(search.description).toContain('from:acme.com newer_than:7d')
+    expect(search.description).toContain('get_gmail_thread')
+  })
+})
+
+describe('buildGoogleCalendarTools', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const DAY = { timeMin: '2026-11-18', timeMax: '2026-11-19', query: '', calendarId: 'primary', maxResults: 25 }
+
+  it('reads plain dates as midnight in the conversation zone', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    calendarMod.listEvents.mockResolvedValue({ events: [], hasMore: false })
+
+    const [list] = buildGoogleCalendarTools(7, 'Europe/Madrid')
+    const result = await list.execute(DAY)
+
+    expect(JSON.parse(result)).toEqual({ events: [], hasMore: false })
+    expect(calendarMod.listEvents).toHaveBeenCalledTimes(1)
+    expect(calendarMod.listEvents).toHaveBeenCalledWith(7, {
+      ...DAY,
+      timeMin: '2026-11-17T23:00:00.000Z',
+      timeMax: '2026-11-18T23:00:00.000Z',
+      timeZone: 'Europe/Madrid',
+    })
+  })
+
+  it('keeps an open window open and honors explicit offsets', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    calendarMod.listEvents.mockResolvedValue({ events: [] })
+
+    const [list] = buildGoogleCalendarTools(7, 'Europe/Madrid')
+    await list.execute({ ...DAY, timeMin: null, timeMax: '2026-11-18T09:00:00-05:00' })
+
+    expect(calendarMod.listEvents).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ timeMin: null, timeMax: '2026-11-18T14:00:00.000Z' })
+    )
+  })
+
+  it('rejects an unreadable time or an empty window without calling Google', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    const [list] = buildGoogleCalendarTools(7)
+
+    const unreadable = JSON.parse(await list.execute({ ...DAY, timeMin: 'tomorrow' }))
+    const backwards = JSON.parse(await list.execute({ ...DAY, timeMin: '2026-11-19', timeMax: '2026-11-18' }))
+
+    expect(unreadable.error).toContain('Unrecognized time "tomorrow"')
+    expect(backwards.error).toBe('timeMax must be later than timeMin.')
+    expect(calendarMod.listEvents).not.toHaveBeenCalled()
+  })
+
+  it('checks free/busy for the given people over the window', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    calendarMod.queryFreeBusy.mockResolvedValue({ calendars: [], freeForAll: [] })
+
+    const [, freeBusy] = buildGoogleCalendarTools(7, 'Europe/Madrid')
+    const result = await freeBusy.execute({
+      emails: ['primary', 'ana@acme.com'],
+      timeMin: '2026-11-18 09:00',
+      timeMax: '2026-11-18 18:00',
+    })
+
+    expect(JSON.parse(result)).toEqual({ calendars: [], freeForAll: [] })
+    expect(calendarMod.queryFreeBusy).toHaveBeenCalledTimes(1)
+    expect(calendarMod.queryFreeBusy).toHaveBeenCalledWith(7, {
+      emails: ['primary', 'ana@acme.com'],
+      timeMin: '2026-11-18T08:00:00.000Z',
+      timeMax: '2026-11-18T17:00:00.000Z',
+      timeZone: 'Europe/Madrid',
+    })
+  })
+
+  it('refuses too many calendars, a window over the limit or an unreadable bound', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    const [, freeBusy] = buildGoogleCalendarTools(7)
+    const emails = Array.from({ length: 11 }, (_, index) => `p${index}@acme.com`)
+
+    const tooMany = JSON.parse(await freeBusy.execute({ emails, timeMin: '2026-11-18', timeMax: '2026-11-19' }))
+    const tooLong = JSON.parse(await freeBusy.execute({ emails: [], timeMin: '2026-11-01', timeMax: '2027-01-15' }))
+    const unreadable = JSON.parse(await freeBusy.execute({ emails: [], timeMin: '2026-11-18', timeMax: 'soon' }))
+
+    expect(tooMany.error).toBe('Check at most 10 calendars at a time.')
+    expect(tooLong.error).toBe('The window is longer than 62 days. Split it into shorter ones.')
+    expect(unreadable.error).toContain('Unrecognized time "soon"')
+    expect(calendarMod.queryFreeBusy).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildAgentTools with Gmail and Google Calendar', () => {
+  const names = tools => tools.map(t => t.name)
+
+  it('registers each set only when its flag is on', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['gmail', 'google-calendar'] }
+
+    expect(names(buildAgentTools(selection, { gmailConfigured: true }, { userId: 7 }))).toEqual([
+      'search_gmail_messages',
+      'get_gmail_thread',
+      ...TIME_TOOL_NAMES,
+    ])
+    expect(names(buildAgentTools(selection, { calendarConfigured: true }, { userId: 7 }))).toEqual([
+      'list_calendar_events',
+      'query_calendar_free_busy',
+      ...TIME_TOOL_NAMES,
+    ])
+    expect(names(buildAgentTools(selection, {}, { userId: 7 }))).toEqual(TIME_TOOL_NAMES)
+  })
+
+  it('binds the tools to the user and the time zone of the context', async () => {
+    const calendarMod = await import('../google-calendar/client.js')
+    calendarMod.listEvents.mockResolvedValue({ events: [] })
+
+    const tools = buildAgentTools(
+      { unrestricted: true, repos: [], integrations: [] },
+      { calendarConfigured: true },
+      { userId: 42, timezone: 'America/New_York' }
+    )
+    await tools
+      .find(t => t.name === 'list_calendar_events')
+      .execute({
+        timeMin: '2026-11-18',
+        timeMax: '2026-11-19',
+        query: '',
+        calendarId: 'primary',
+        maxResults: 25,
+      })
+
+    expect(calendarMod.listEvents).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ timeMin: '2026-11-18T05:00:00.000Z', timeZone: 'America/New_York' })
+    )
   })
 })
 

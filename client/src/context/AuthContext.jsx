@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback } from 'react'
 import { useSessionRefresh } from '../hooks/useSessionRefresh/useSessionRefresh.js'
-import { createFirstAdmin, signInWithGoogle, signInWithPassword } from '../services/services.js'
+import { createFirstAdmin, signInWithGoogle, signInWithGoogleCode, signInWithPassword } from '../services/services.js'
 
 const TOKEN_KEY = 'auth_token'
 const USER_KEY = 'auth_user'
+const GOOGLE_SIGN_IN_FAILED = 'Google sign-in failed. Please try again.'
 
 const AuthContext = createContext(null)
 
@@ -55,16 +56,24 @@ export function AuthProvider({ children }) {
     [storeSession]
   )
 
-  const loginWithGoogle = useCallback(
-    async credential => {
-      if (!credential) {
-        setError('Google sign-in failed. Please try again.')
+  const performGoogleLogin = useCallback(
+    async (grant, signIn) => {
+      if (!grant) {
+        setError(GOOGLE_SIGN_IN_FAILED)
         return false
       }
-      return performLogin(() => signInWithGoogle(credential))
+
+      return performLogin(() => signIn(grant))
     },
     [performLogin]
   )
+
+  const loginWithGoogle = useCallback(
+    credential => performGoogleLogin(credential, signInWithGoogle),
+    [performGoogleLogin]
+  )
+
+  const loginWithGoogleCode = useCallback(code => performGoogleLogin(code, signInWithGoogleCode), [performGoogleLogin])
 
   const loginWithPassword = useCallback(
     (email, password) => performLogin(() => signInWithPassword(email, password)),
@@ -90,6 +99,7 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated: !!token,
     loginWithGoogle,
+    loginWithGoogleCode,
     loginWithPassword,
     bootstrapAdmin,
     logout,

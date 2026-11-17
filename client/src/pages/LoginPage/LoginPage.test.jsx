@@ -19,9 +19,12 @@ vi.mock('react-router-dom', async importOriginal => {
 })
 
 vi.mock('../../common/Login/Login.jsx', () => ({
-  default: ({ onLogin, onPasswordLogin, error, isLoading }) => (
+  default: ({ onLogin, onGoogleCode, googleScopes, onPasswordLogin, error, isLoading }) => (
     <div data-testid="login-comp">
       {onLogin && <button onClick={() => onLogin('cred')}>Login</button>}
+      {googleScopes && (
+        <button onClick={() => onGoogleCode('the-code')}>{`Code login ${googleScopes.join(' ')}`}</button>
+      )}
       {onPasswordLogin && (
         <button onClick={() => onPasswordLogin('sam@example.com', 'secret123')}>Password Login</button>
       )}
@@ -114,5 +117,41 @@ describe('LoginPage', () => {
     renderPage()
     expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /password login/i })).not.toBeInTheDocument()
+  })
+
+  it('wires the authorization-code sign-in when the server asks for workspace access', () => {
+    const loginWithGoogleCode = vi.fn()
+    useAuthMethods.mockReturnValue({ google: true, password: false, googleScopes: ['openid', 'email'] })
+    useAuth.mockReturnValue({
+      isAuthenticated: false,
+      loginWithGoogle: vi.fn(),
+      loginWithGoogleCode,
+      loginWithPassword: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+
+    renderPage()
+    screen.getByRole('button', { name: 'Code login openid email' }).click()
+
+    expect(loginWithGoogleCode).toHaveBeenCalledTimes(1)
+    expect(loginWithGoogleCode).toHaveBeenCalledWith('the-code')
+  })
+
+  it('does not offer the authorization-code sign-in without google scopes', () => {
+    useAuthMethods.mockReturnValue({ google: true, password: true, googleScopes: null })
+    useAuth.mockReturnValue({
+      isAuthenticated: false,
+      loginWithGoogle: vi.fn(),
+      loginWithGoogleCode: vi.fn(),
+      loginWithPassword: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+
+    renderPage()
+
+    expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /code login/i })).not.toBeInTheDocument()
   })
 })

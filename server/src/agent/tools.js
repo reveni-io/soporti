@@ -18,6 +18,8 @@ import * as helpjuice from '../helpjuice/client.js'
 import * as shopify from '../shopify/client.js'
 import * as googleDrive from '../google-drive/client.js'
 import * as granola from '../granola/client.js'
+import * as gmail from '../gmail/client.js'
+import * as googleCalendar from '../google-calendar/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
 import * as sendcloud from '../sendcloud/client.js'
@@ -26,6 +28,7 @@ import {
   DEFAULT_CONTEXT_LINES,
   DEFAULT_FILE_LINES,
   DEFAULT_FIND_RESULTS,
+  DEFAULT_TIMEZONE,
   MAX_FILE_LINES,
   MAX_FIND_RESULTS,
   MAX_SEARCH_RESULTS,
@@ -35,6 +38,7 @@ import { resolveAvailableIntegrations } from './integrations.js'
 import { INTEGRATION_TOOL_NAMES } from './sources.js'
 import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
+import { parseTimeInput } from './clock.js'
 import { buildHubspotTools } from './hubspot-tools.js'
 import { buildRoutineTools } from './routine-tools.js'
 
@@ -821,6 +825,158 @@ export function buildGranolaTools(userId) {
   ]
 }
 
+const DAY_MS = 86_400_000
+const TIME_INPUT_FORMAT =
+  'ISO 8601 with an offset ("2026-11-18T09:00:00+01:00"), or a date or date-time without one, read in the user\'s time zone ("2026-11-18" is midnight there, "2026-11-18 09:00")'
+
+export function buildGmailTools(userId, timezone = DEFAULT_TIMEZONE) {
+  return [
+    tool({
+      name: 'search_gmail_messages',
+      description: `Search the user's own Gmail mailbox (read-only) with the same syntax as the Gmail search box. Returns the matching messages newest first, each with from, to, subject, date (in the user's time zone), Gmail's snippet, labels (UNREAD, INBOX, SENT, IMPORTANT, CATEGORY_…), its threadId and a url to cite. A snippet is only the first line or two: whenever the answer depends on what an email says, read the conversation with get_gmail_thread, passing the hit's threadId — several hits often share one thread, so read each thread once.
+Operators: from:, to:, cc:, subject:, "exact phrase", OR, -word to exclude, has:attachment, filename:pdf, in:inbox, in:sent, in:anywhere (adds spam and trash), is:unread, is:starred, label:, category:primary, larger:5M, newer_than:7d / older_than:2m (d, m or y), after:2026/11/01 and before:2026/11/15 (dates are read as midnight Pacific time; for an exact boundary in the user's zone pass Unix seconds, e.g. after:1794956400, from convert_time's epochSeconds). A bare domain matches everyone there: from:acme.com.
+Examples: \`from:acme.com newer_than:7d\` · \`subject:(invoice OR factura) has:attachment after:2026/10/01\` · \`"order 1042"\` · \`in:sent to:ana@acme.com\` · \`is:unread in:inbox\`.
+Plain words match anywhere in the message, so start with the distinctive term (a company, a person, an order number) and narrow with operators. When nothing comes back, retry with synonyms, the other language the team writes in, or fewer operators before saying there is no such email. An empty query lists the latest messages of the whole mailbox; "my latest emails" is \`in:inbox\`. \`hasMore\` true means more messages matched than were returned.`,
+      parameters: z.object({
+        query: z
+          .string()
+          .describe('Gmail search query, e.g. "from:acme.com newer_than:7d". Empty lists the latest mail.'),
+        maxResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(gmail.MAX_SEARCH_RESULTS)
+          .default(gmail.DEFAULT_SEARCH_RESULTS)
+          .describe(
+            `Messages to return. Default ${gmail.DEFAULT_SEARCH_RESULTS}, maximum ${gmail.MAX_SEARCH_RESULTS}.`
+          ),
+      }),
+      execute: async input => {
+        const result = await gmail.searchMessages(userId, { ...input, timeZone: timezone })
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'get_gmail_thread',
+      description: `Read a whole Gmail conversation of the user by its threadId: the subject, a url to cite, and every message oldest first with from, to, cc, date (in the user's time zone), the plain-text body and the attachments' name, type and size — attachments themselves cannot be opened. After the first message, quoted lines (starting with ">") are removed because they repeat the messages above. Bodies are capped at ${gmail.MAX_MESSAGE_CHARS} characters per message and ${gmail.MAX_THREAD_CHARS} per thread, keeping the newest messages whole; a message with \`truncated: true\` was cut, so say so instead of presenting it as complete.`,
+      parameters: z.object({
+        threadId: z.string().describe('The threadId of a search_gmail_messages hit, e.g. "18c2f4a9b0e1d3c7".'),
+      }),
+      execute: async input => {
+        const thread = await gmail.getThread(userId, input.threadId, { timeZone: timezone })
+        return JSON.stringify(thread)
+      },
+    }),
+  ]
+}
+
+function parseInstant(value, timezone) {
+  if (value === null) return { value: null }
+
+  const instant = parseTimeInput(value, timezone)
+  if (!instant || Number.isNaN(instant.getTime())) {
+    return { error: `Unrecognized time "${value}". Use ${TIME_INPUT_FORMAT}.` }
+  }
+
+  return { value: instant }
+}
+
+function parseCalendarWindow({ timeMin, timeMax }, timezone) {
+  const start = parseInstant(timeMin, timezone)
+  if (start.error) return start
+
+  const end = parseInstant(timeMax, timezone)
+  if (end.error) return end
+  if (start.value && end.value && end.value <= start.value) return { error: 'timeMax must be later than timeMin.' }
+
+  return { value: { timeMin: start.value?.toISOString() ?? null, timeMax: end.value?.toISOString() ?? null } }
+}
+
+function parseFreeBusyRequest({ emails, timeMin, timeMax }, timezone) {
+  if (emails.length > googleCalendar.MAX_FREE_BUSY_CALENDARS) {
+    return { error: `Check at most ${googleCalendar.MAX_FREE_BUSY_CALENDARS} calendars at a time.` }
+  }
+
+  const window = parseCalendarWindow({ timeMin, timeMax }, timezone)
+  if (window.error) return window
+
+  const span = Date.parse(window.value.timeMax) - Date.parse(window.value.timeMin)
+  if (span > googleCalendar.MAX_FREE_BUSY_DAYS * DAY_MS) {
+    return { error: `The window is longer than ${googleCalendar.MAX_FREE_BUSY_DAYS} days. Split it into shorter ones.` }
+  }
+
+  return { value: { emails, ...window.value } }
+}
+
+export function buildGoogleCalendarTools(userId, timezone = DEFAULT_TIMEZONE) {
+  return [
+    tool({
+      name: 'list_calendar_events',
+      description: `List events of the user's own Google Calendar (read-only), recurring events expanded into single occurrences, ordered by start time. Each event has its summary, start and end in the user's time zone with the UTC offset (an all-day event has \`allDay: true\`, dates only, and its end is the day after its last day), location, Meet or video link, organizer, attendees with their responseStatus (accepted, declined, tentative, needsAction), \`myResponse\` for the user's own answer, a short description and the htmlLink to cite.
+For a day, pass that day as timeMin and the next day as timeMax: "what do I have tomorrow?" asked on 2026-11-17 is timeMin "2026-11-18" and timeMax "2026-11-19". Resolve "this week" or "next month" with get_current_time or resolve_time_range first. Leave timeMin null to start from now: "my next meeting" is timeMin null with a small maxResults.
+query matches titles, descriptions, locations and attendees' names and emails: "when is my next call with Acme?" is query "Acme". Declined events are still listed, so check myResponse before saying the user will attend. \`hasMore\` true means more events fall in the window than were returned — narrow it or raise maxResults.`,
+      parameters: z.object({
+        timeMin: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe(`Start of the window, inclusive: ${TIME_INPUT_FORMAT}. Null starts now.`),
+        timeMax: z
+          .string()
+          .nullable()
+          .default(null)
+          .describe('End of the window, exclusive, same format. Null leaves it open, limited by maxResults.'),
+        query: z.string().default('').describe('Free text to match in the events. Empty lists every event.'),
+        calendarId: z
+          .string()
+          .default(googleCalendar.PRIMARY_CALENDAR)
+          .describe(
+            '"primary" for the user\'s own calendar, or a colleague\'s email to read their events when their calendar is shared with the user. A not-found error means it is not shared: use query_calendar_free_busy for their availability.'
+          ),
+        maxResults: z
+          .number()
+          .int()
+          .min(1)
+          .max(googleCalendar.MAX_EVENT_RESULTS)
+          .default(googleCalendar.DEFAULT_EVENT_RESULTS)
+          .describe(
+            `Events to return. Default ${googleCalendar.DEFAULT_EVENT_RESULTS}, maximum ${googleCalendar.MAX_EVENT_RESULTS}.`
+          ),
+      }),
+      execute: async input => {
+        const window = parseCalendarWindow(input, timezone)
+        if (window.error) return JSON.stringify({ error: window.error })
+
+        const result = await googleCalendar.listEvents(userId, { ...input, ...window.value, timeZone: timezone })
+        return JSON.stringify(result)
+      },
+    }),
+    tool({
+      name: 'query_calendar_free_busy',
+      description: `Check when people are busy within a window, without seeing what their events are. Works for the user ("primary") and for colleagues in the same Google Workspace, whose free/busy is visible by default. Returns each calendar's busy blocks in the user's time zone and \`freeForAll\`: the gaps in the window when every calendar that answered is free.
+"When are Ana and I both free tomorrow?" is emails ["primary", "ana@acme.com"] with the working day as the window (timeMin "2026-11-18 09:00", timeMax "2026-11-18 18:00"); then offer the freeForAll gaps long enough for the meeting. It needs email addresses: when the user names a colleague, take the address from an event they attend (list_calendar_events with their name as query) or from an email, or ask.
+A calendar with an \`error\` (notFound: an unknown address, an account outside the Workspace or free/busy not shared) was not checked and is left out of freeForAll — say so instead of calling that person free. Events marked as free, like most all-day events, do not count as busy. At most ${googleCalendar.MAX_FREE_BUSY_CALENDARS} calendars and a ${googleCalendar.MAX_FREE_BUSY_DAYS}-day window. You cannot create, accept or move events.`,
+      parameters: z.object({
+        emails: z
+          .array(z.string())
+          .default([])
+          .describe(
+            `Calendars to check: "primary" for the user and colleagues' email addresses, at most ${googleCalendar.MAX_FREE_BUSY_CALENDARS}. Empty checks only the user.`
+          ),
+        timeMin: z.string().describe(`Start of the window, inclusive: ${TIME_INPUT_FORMAT}.`),
+        timeMax: z.string().describe('End of the window, exclusive, same format.'),
+      }),
+      execute: async input => {
+        const request = parseFreeBusyRequest(input, timezone)
+        if (request.error) return JSON.stringify({ error: request.error })
+
+        const result = await googleCalendar.queryFreeBusy(userId, { ...request.value, timeZone: timezone })
+        return JSON.stringify(result)
+      },
+    }),
+  ]
+}
+
 const ZENDESK_TICKET_PARAM = z
   .string()
   .describe('Zendesk ticket id ("123", "#123") or its url (https://acme.zendesk.com/agent/tickets/123).')
@@ -1316,6 +1472,8 @@ const INTEGRATION_TOOLS = {
   helpjuice: HELPJUICE_TOOLS,
   shopify: SHOPIFY_TOOLS,
   granola: ({ userId }) => buildGranolaTools(userId),
+  gmail: ({ userId, timezone }) => buildGmailTools(userId, timezone),
+  'google-calendar': ({ userId, timezone }) => buildGoogleCalendarTools(userId, timezone),
   figma: ({ figmaComments }) => (figmaComments ? [...FIGMA_TOOLS, ...FIGMA_WRITE_TOOLS] : FIGMA_TOOLS),
   zendesk: ({ userId, zendeskWrites }) => buildZendeskTools(userId, zendeskWrites),
   sendcloud: SENDCLOUD_TOOLS,

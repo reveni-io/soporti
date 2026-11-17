@@ -100,6 +100,7 @@ describe('createSession / getSessionUser', () => {
 describe('requireAuth', () => {
   it.each([
     ['POST', '/api/auth/google'],
+    ['POST', '/api/auth/google/code'],
     ['POST', '/api/auth/login'],
     ['GET', '/api/auth/methods'],
     ['GET', '/api/health'],

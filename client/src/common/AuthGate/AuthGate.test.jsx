@@ -9,11 +9,18 @@ vi.mock('../../hooks/useAuth/useAuth.js', () => ({
   useAuth: () => auth.current,
 }))
 
+vi.mock('@react-oauth/google', () => ({
+  GoogleLogin: () => <button>Google ID token</button>,
+  useGoogleOAuth: () => ({ scriptLoadedSuccessfully: true }),
+  useGoogleLogin: options => () => options.onSuccess({ code: 'the-code' }),
+}))
+
 beforeEach(() => {
   vi.restoreAllMocks()
   auth.current = {
     isAuthenticated: false,
     loginWithGoogle: vi.fn(),
+    loginWithGoogleCode: vi.fn(),
     loginWithPassword: vi.fn(),
     error: null,
     isLoggingIn: false,
@@ -62,5 +69,26 @@ describe('AuthGate', () => {
     )
 
     expect(await screen.findByText('Invalid credentials')).toBeInTheDocument()
+  })
+
+  it('signs in with an authorization code when the server asks for workspace access', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ google: true, password: false, googleScopes: ['openid', 'email', 'profile'] }),
+    })
+    const user = userEvent.setup()
+
+    render(
+      <AuthGate>
+        <p>Videos</p>
+      </AuthGate>
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Sign in with Google' }))
+
+    expect(screen.queryByRole('button', { name: 'Google ID token' })).toBeNull()
+    expect(auth.current.loginWithGoogleCode).toHaveBeenCalledTimes(1)
+    expect(auth.current.loginWithGoogleCode).toHaveBeenCalledWith('the-code')
   })
 })

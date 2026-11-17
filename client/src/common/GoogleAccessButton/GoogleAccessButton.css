@@ -1,0 +1,23 @@
+.btn.google-access-button {
+  min-height: var(--sp10);
+  padding: var(--sp2) var(--sp5);
+  gap: var(--sp3);
+  color: var(--text-primary);
+  background-color: var(--white);
+  border-radius: var(--radius-pill);
+}
+
+.btn.google-access-button:hover:not(:disabled) {
+  background-color: var(--bg-cool);
+}
+
+.btn.google-access-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.google-access-button__mark {
+  flex: none;
+  width: var(--sp5);
+  height: var(--sp5);
+}

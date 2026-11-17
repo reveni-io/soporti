@@ -1,0 +1,12 @@
+.google-connection__access {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.google-connection__services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+  list-style: none;
+}

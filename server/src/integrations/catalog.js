@@ -7,6 +7,8 @@ import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
 import * as granola from '../granola/client.js'
+import * as gmail from '../gmail/client.js'
+import * as googleCalendar from '../google-calendar/client.js'
 import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
 import * as sendcloud from '../sendcloud/client.js'
@@ -41,6 +43,12 @@ const CATALOG = [
   catalogEntry('shortcut', 'Look up stories, epics, and iterations', shortcut.isConfigured),
   catalogEntry('sentry', 'Inspect production errors and issues', sentry.isConfigured),
   catalogEntry('granola', 'Search and read your own meeting notes', granola.isConfigured),
+  catalogEntry('gmail', 'Search and read your own Gmail, read-only', gmail.isConfigured),
+  catalogEntry(
+    'google-calendar',
+    'Read your own calendar and check availability, read-only',
+    googleCalendar.isConfigured
+  ),
   catalogEntry('betterstack', 'Search and query application logs', betterstack.isConfigured),
   catalogEntry('figma', 'Look at Figma designs, render screenshots and read their comments', figma.isConfigured),
   catalogEntry(

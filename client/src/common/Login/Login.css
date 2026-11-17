@@ -41,10 +41,18 @@
 
 .login__google {
   display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
   justify-content: center;
   margin-top: var(--sp2);
-  min-height: 40px;
+  min-height: var(--sp10);
   align-items: center;
+}
+
+.login__note {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .login__divider {

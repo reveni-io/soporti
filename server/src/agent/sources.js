@@ -75,6 +75,8 @@ export const INTEGRATION_TOOL_NAMES = {
   betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
   helpjuice: ['search_helpjuice_articles', 'get_helpjuice_article'],
   granola: ['search_granola_notes', 'get_granola_note'],
+  gmail: ['search_gmail_messages', 'get_gmail_thread'],
+  'google-calendar': ['list_calendar_events', 'query_calendar_free_busy'],
   zendesk: [
     'zendesk_get_ticket',
     'zendesk_search_tickets',

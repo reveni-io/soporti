@@ -1,15 +1,62 @@
 import { Router } from 'express'
-import { verifyGoogleCredential } from '../auth/google.js'
+import { exchangeGoogleCode, GOOGLE_SIGN_IN_REJECTED, verifyGoogleCredential } from '../auth/google.js'
 import { verifyPassword, DUMMY_HASH } from '../auth/password.js'
 import { getAuthMethods } from '../auth/auth-methods.js'
-import { getGoogleClientId } from '../auth/google-settings.js'
+import { getGoogleClientId, getGoogleClientSecret } from '../auth/google-settings.js'
 import { upsertGoogleUser, findUserByEmail, findUserById, touchLastLogin } from '../db/users.js'
 import { createSession } from '../middleware/auth.js'
+import { grantsWorkspaceAccess, removeGoogleConnection, saveGoogleConnection } from '../google-workspace/settings.js'
+import { GOOGLE_WORKSPACE_SCOPES, MAX_GOOGLE_CODE_LENGTH } from '../constants.js'
 
 const router = Router()
 
 function publicUser(user) {
   return { email: user.email, name: user.name, picture: user.picture, role: user.role }
+}
+
+function parseGoogleCode(code) {
+  if (typeof code !== 'string' || !code || code.length > MAX_GOOGLE_CODE_LENGTH) {
+    return { error: 'A Google authorization "code" is required.' }
+  }
+
+  return { value: code }
+}
+
+function rejectGoogleSignIn(res, err, message) {
+  if (err.code === GOOGLE_SIGN_IN_REJECTED) return res.status(403).json({ error: err.message })
+
+  console.error('Google auth error:', err.message)
+  return res.status(401).json({ error: message })
+}
+
+async function syncGoogleConnection(userId, email, tokens) {
+  if (grantsWorkspaceAccess(tokens.scopes)) {
+    await saveGoogleConnection(userId, { email, ...tokens })
+    return
+  }
+
+  await removeGoogleConnection(userId)
+}
+
+async function storeGoogleConnection(userId, email, tokens) {
+  if (!tokens?.refreshToken) return
+
+  try {
+    await syncGoogleConnection(userId, email, tokens)
+  } catch (err) {
+    console.error('Failed to store the Google connection:', err.cause?.message ?? err.message)
+  }
+}
+
+async function respondWithGoogleSession(res, { profile, tokens }) {
+  try {
+    const user = await upsertGoogleUser(profile)
+    await storeGoogleConnection(user.id, profile.email, tokens)
+    res.json({ token: createSession(user), user: publicUser(user) })
+  } catch (err) {
+    console.error('Login persistence error:', err)
+    res.status(500).json({ error: 'Failed to complete login.' })
+  }
 }
 
 router.post('/google', async (req, res) => {
@@ -23,21 +70,24 @@ router.post('/google', async (req, res) => {
   try {
     profile = await verifyGoogleCredential(credential)
   } catch (err) {
-    if (err.code === 'DOMAIN_NOT_ALLOWED') {
-      return res.status(403).json({ error: err.message })
-    }
-    console.error('Google auth error:', err.message)
-    return res.status(401).json({ error: 'Invalid Google credential.' })
+    return rejectGoogleSignIn(res, err, 'Invalid Google credential.')
   }
 
+  await respondWithGoogleSession(res, { profile })
+})
+
+router.post('/google/code', async (req, res) => {
+  const { error, value: code } = parseGoogleCode(req.body?.code)
+  if (error) return res.status(400).json({ error })
+
+  let exchange
   try {
-    const user = await upsertGoogleUser(profile)
-    const token = createSession(user)
-    res.json({ token, user: publicUser(user) })
+    exchange = await exchangeGoogleCode(code)
   } catch (err) {
-    console.error('Login persistence error:', err)
-    res.status(500).json({ error: 'Failed to complete login.' })
+    return rejectGoogleSignIn(res, err, 'Invalid Google authorization code.')
   }
+
+  await respondWithGoogleSession(res, exchange)
 })
 
 router.post('/login', async (req, res) => {
@@ -85,8 +135,18 @@ router.post('/refresh', async (req, res) => {
 
 router.get('/methods', async (_req, res) => {
   try {
-    const [methods, googleClientId] = await Promise.all([getAuthMethods(), getGoogleClientId()])
-    res.json({ google: methods.google && Boolean(googleClientId), password: methods.password })
+    const [methods, googleClientId, googleClientSecret] = await Promise.all([
+      getAuthMethods(),
+      getGoogleClientId(),
+      getGoogleClientSecret(),
+    ])
+    const google = methods.google && Boolean(googleClientId)
+
+    res.json({
+      google,
+      password: methods.password,
+      googleScopes: google && googleClientSecret ? GOOGLE_WORKSPACE_SCOPES : null,
+    })
   } catch (err) {
     console.error('Auth methods error:', err)
     res.status(500).json({ error: 'Failed to read the sign-in methods.' })

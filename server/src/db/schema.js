@@ -248,6 +248,17 @@ export const granolaCredentials = pgTable('granola_credentials', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const googleConnections = pgTable('google_connections', {
+  userId: integer('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  scopes: text('scopes').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const zendeskConnections = pgTable('zendesk_connections', {
   userId: integer('user_id')
     .primaryKey()

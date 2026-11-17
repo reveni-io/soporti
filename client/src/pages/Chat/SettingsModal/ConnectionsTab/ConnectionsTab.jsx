@@ -1,3 +1,4 @@
+import GoogleConnection from './GoogleConnection/GoogleConnection.jsx'
 import GranolaConnection from './GranolaConnection/GranolaConnection.jsx'
 import ZendeskConnection from './ZendeskConnection/ZendeskConnection.jsx'
 import './ConnectionsTab.css'
@@ -10,6 +11,7 @@ export default function ConnectionsTab({ token, onLogout, onConnectionsChange })
         can see, and no one else in this workspace can use them.
       </p>
 
+      <GoogleConnection token={token} onLogout={onLogout} onConnectionsChange={onConnectionsChange} />
       <GranolaConnection token={token} onLogout={onLogout} onConnectionsChange={onConnectionsChange} />
       <ZendeskConnection token={token} onLogout={onLogout} onConnectionsChange={onConnectionsChange} />
     </div>

@@ -9,6 +9,8 @@ describe('IntegrationIcon', () => {
     'postgres',
     'shopify',
     'google-drive',
+    'gmail',
+    'google-calendar',
     'shortcut',
     'sentry',
     'betterstack',
