@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { getAuthMethods } from '../../services/services.js'
 
+const FALLBACK_METHODS = { google: true, password: true, googleScopes: null }
+
+function parseGoogleScopes(scopes) {
+  if (!Array.isArray(scopes) || scopes.length === 0) return null
+
+  return scopes
+}
+
 export function useAuthMethods() {
   const [methods, setMethods] = useState(null)
 
@@ -9,9 +17,14 @@ export function useAuthMethods() {
     async function load() {
       try {
         const data = await getAuthMethods()
-        if (active) setMethods({ google: Boolean(data.google), password: Boolean(data.password) })
+        if (!active) return
+        setMethods({
+          google: Boolean(data.google),
+          password: Boolean(data.password),
+          googleScopes: parseGoogleScopes(data.googleScopes),
+        })
       } catch {
-        if (active) setMethods({ google: true, password: true })
+        if (active) setMethods(FALLBACK_METHODS)
       }
     }
     load()

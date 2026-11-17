@@ -20,6 +20,19 @@ describe('describeToolCall', () => {
     )
   })
 
+  it('labels the Gmail and Calendar tools', () => {
+    expect(describeToolCall({ tool: 'search_gmail_messages', input: {} }).label).toBe('Searching email')
+    expect(describeToolCall({ tool: 'get_gmail_thread', input: {} }).label).toBe('Reading email thread')
+    expect(describeToolCall({ tool: 'list_calendar_events', input: {} }).label).toBe('Reading calendar')
+    expect(describeToolCall({ tool: 'query_calendar_free_busy', input: {} }).label).toBe('Checking availability')
+  })
+
+  it('shows the Gmail search query as the detail', () => {
+    const step = describeToolCall({ tool: 'search_gmail_messages', input: { query: 'from:acme.com newer_than:7d' } })
+
+    expect(step.detail).toBe('"from:acme.com newer_than:7d"')
+  })
+
   it('labels the Sendcloud tools', () => {
     expect(describeToolCall({ tool: 'sendcloud_get_tracking', input: {} }).label).toBe('Tracking Sendcloud parcel')
     expect(describeToolCall({ tool: 'sendcloud_list_returns', input: {} }).label).toBe('Listing Sendcloud returns')

@@ -8,6 +8,8 @@ export const INTEGRATIONS = {
   helpjuice: { label: 'Helpjuice', flag: 'helpjuiceConfigured' },
   shopify: { label: 'Shopify', flag: 'shopifyConfigured' },
   granola: { label: 'Granola', flag: 'granolaConfigured' },
+  gmail: { label: 'Gmail', flag: 'gmailConfigured' },
+  'google-calendar': { label: 'Google Calendar', flag: 'calendarConfigured' },
   figma: { label: 'Figma', flag: 'figmaConfigured' },
   zendesk: { label: 'Zendesk', flag: 'zendeskConfigured' },
   sendcloud: { label: 'Sendcloud', flag: 'sendcloudConfigured' },

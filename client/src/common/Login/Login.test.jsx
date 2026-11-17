@@ -1,7 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Login from './Login.jsx'
+
+const SCOPES = ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly']
+
+const google = vi.hoisted(() => ({ options: null, respond: null }))
 
 vi.mock('@react-oauth/google', () => ({
   GoogleLogin: ({ onSuccess, onError }) => (
@@ -10,7 +14,17 @@ vi.mock('@react-oauth/google', () => ({
       <button onClick={() => onError()}>Google Error</button>
     </div>
   ),
+  useGoogleOAuth: () => ({ scriptLoadedSuccessfully: true }),
+  useGoogleLogin: options => {
+    google.options = options
+    return () => google.respond(options)
+  },
 }))
+
+beforeEach(() => {
+  google.options = null
+  google.respond = options => options.onSuccess({ code: 'the-code' })
+})
 
 describe('Login', () => {
   it('renders title and subtitle', () => {
@@ -42,6 +56,55 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /google error/i }))
 
     expect(onLogin).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the ID-token button and no workspace note without google scopes', () => {
+    render(<Login onLogin={vi.fn()} onGoogleCode={vi.fn()} googleScopes={null} error={null} isLoading={false} />)
+
+    expect(screen.getByRole('button', { name: /google success/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/read your Gmail and Calendar/i)).not.toBeInTheDocument()
+  })
+
+  it('asks for workspace access with its own button when google scopes are set', () => {
+    render(<Login onLogin={vi.fn()} onGoogleCode={vi.fn()} googleScopes={SCOPES} error={null} isLoading={false} />)
+
+    expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /google success/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Soporti will ask to read your Gmail and Calendar.')).toBeInTheDocument()
+    expect(google.options).toMatchObject({ flow: 'auth-code', scope: SCOPES.join(' '), select_account: true })
+  })
+
+  it('signs in with the authorization code Google returns', async () => {
+    const onLogin = vi.fn()
+    const onGoogleCode = vi.fn()
+    const user = userEvent.setup()
+    render(<Login onLogin={onLogin} onGoogleCode={onGoogleCode} googleScopes={SCOPES} error={null} isLoading={false} />)
+
+    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+
+    expect(onGoogleCode).toHaveBeenCalledTimes(1)
+    expect(onGoogleCode).toHaveBeenCalledWith('the-code')
+    expect(onLogin).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused workspace sign-in with a missing code', async () => {
+    google.respond = options => options.onError({ error: 'access_denied' })
+    const onGoogleCode = vi.fn()
+    const user = userEvent.setup()
+    render(<Login onLogin={vi.fn()} onGoogleCode={onGoogleCode} googleScopes={SCOPES} error={null} isLoading={false} />)
+
+    await user.click(screen.getByRole('button', { name: 'Sign in with Google' }))
+
+    expect(onGoogleCode).toHaveBeenCalledTimes(1)
+    expect(onGoogleCode).toHaveBeenCalledWith(null)
+  })
+
+  it('replaces the workspace button with the loading state while signing in', () => {
+    render(<Login onLogin={vi.fn()} onGoogleCode={vi.fn()} googleScopes={SCOPES} error={null} isLoading={true} />)
+
+    expect(screen.getByText('Logging in...')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sign in with Google' })).not.toBeInTheDocument()
   })
 
   it('shows error message', () => {

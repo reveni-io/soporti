@@ -76,6 +76,10 @@ export function signInWithGoogle(credential) {
   return request('/api/auth/google', { method: 'POST', body: { credential }, errorMessage: 'Login failed' })
 }
 
+export function signInWithGoogleCode(code) {
+  return request('/api/auth/google/code', { method: 'POST', body: { code }, errorMessage: 'Login failed' })
+}
+
 export function signInWithPassword(email, password) {
   return request('/api/auth/login', { method: 'POST', body: { email, password }, errorMessage: 'Login failed' })
 }
@@ -247,6 +251,23 @@ export function saveGranolaApiKey(token, apiKey) {
     body: { apiKey },
     errorMessage: 'Failed to save the Granola API key',
   })
+}
+
+export function getGoogleConnection(token) {
+  return request('/api/user/google', { token, errorMessage: 'Failed to load the Google connection' })
+}
+
+export function connectGoogle(token, code) {
+  return request('/api/user/google', {
+    method: 'PUT',
+    token,
+    body: { code },
+    errorMessage: 'Failed to connect Google',
+  })
+}
+
+export function disconnectGoogle(token) {
+  return request('/api/user/google', { method: 'DELETE', token, errorMessage: 'Failed to disconnect Google' })
 }
 
 export function getZendeskConnection(token) {
@@ -431,6 +452,15 @@ export function saveGoogleClientId(token, googleClientId) {
     method: 'PUT',
     token,
     body: { googleClientId },
+    errorMessage: 'Failed to save',
+  })
+}
+
+export function saveGoogleClientSecret(token, googleClientSecret) {
+  return request('/api/admin/config/auth/google-client-secret', {
+    method: 'PUT',
+    token,
+    body: { googleClientSecret },
     errorMessage: 'Failed to save',
   })
 }

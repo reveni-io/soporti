@@ -73,6 +73,10 @@ vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async ()
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
+vi.mock('../google-workspace/settings.js', () => ({
+  isGmailConfigured: vi.fn(async () => false),
+  isGoogleCalendarConfigured: vi.fn(async () => false),
+}))
 vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () => null) }))
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured: vi.fn(async () => false) }))
 vi.mock('../hubspot/settings.js', () => ({ resolveHubspotAccess: vi.fn(async () => null) }))
@@ -94,6 +98,7 @@ const { isPostgresConfigured } = await import('../postgres/settings.js')
 const { isBetterstackConfigured } = await import('../betterstack/settings.js')
 const { isConfigured: isShopifyConfigured } = await import('../shopify/client.js')
 const { isGranolaConfigured } = await import('../granola/settings.js')
+const { isGmailConfigured, isGoogleCalendarConfigured } = await import('../google-workspace/settings.js')
 const { isFigmaConfigured, getFigmaCommentsEnabled } = await import('../figma/settings.js')
 const { getZendeskConnection } = await import('../zendesk/settings.js')
 const { isSendcloudConfigured } = await import('../sendcloud/settings.js')
@@ -113,6 +118,8 @@ const CONFIGURATION_CHECKS = [
   isBetterstackConfigured,
   isShopifyConfigured,
   isGranolaConfigured,
+  isGmailConfigured,
+  isGoogleCalendarConfigured,
   isFigmaConfigured,
   getFigmaCommentsEnabled,
   isSlackConfigured,
@@ -606,6 +613,34 @@ describe('createAgent', () => {
         botId: null,
         profile: 'support',
       }
+    )
+  })
+
+  it('resolves Gmail and Google Calendar for the requesting user', async () => {
+    isGmailConfigured.mockResolvedValue(true)
+    isGoogleCalendarConfigured.mockResolvedValue(false)
+
+    await createAgent(['integration:gmail', 'integration:google-calendar'], 'support', {
+      userId: 7,
+      timezone: 'Europe/Madrid',
+    })
+
+    expect(isGmailConfigured).toHaveBeenCalledWith(7)
+    expect(isGoogleCalendarConfigured).toHaveBeenCalledWith(7)
+    const [, configured, context] = buildAgentTools.mock.calls[0]
+    expect(configured).toEqual(expect.objectContaining({ gmailConfigured: true, calendarConfigured: false }))
+    expect(context).toEqual(expect.objectContaining({ userId: 7, timezone: 'Europe/Madrid' }))
+  })
+
+  it('leaves Gmail and Google Calendar unconfigured when there is no user', async () => {
+    await createAgent(['integration:gmail', 'integration:google-calendar'], 'support')
+
+    expect(isGmailConfigured).toHaveBeenCalledWith(null)
+    expect(isGoogleCalendarConfigured).toHaveBeenCalledWith(null)
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ gmailConfigured: false, calendarConfigured: false }),
+      expect.objectContaining({ userId: null })
     )
   })
 })

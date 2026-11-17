@@ -9,6 +9,8 @@ const shortcutIsConfigured = vi.fn()
 const sentryIsConfigured = vi.fn()
 const betterstackIsConfigured = vi.fn()
 const granolaIsConfigured = vi.fn()
+const gmailIsConfigured = vi.fn()
+const googleCalendarIsConfigured = vi.fn()
 const figmaIsConfigured = vi.fn()
 const zendeskIsConfigured = vi.fn()
 const sendcloudIsConfigured = vi.fn()
@@ -23,6 +25,8 @@ vi.mock('../shortcut/client.js', () => ({ isConfigured: (...args) => shortcutIsC
 vi.mock('../sentry/client.js', () => ({ isConfigured: (...args) => sentryIsConfigured(...args) }))
 vi.mock('../betterstack/client.js', () => ({ isConfigured: (...args) => betterstackIsConfigured(...args) }))
 vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsConfigured(...args) }))
+vi.mock('../gmail/client.js', () => ({ isConfigured: (...args) => gmailIsConfigured(...args) }))
+vi.mock('../google-calendar/client.js', () => ({ isConfigured: (...args) => googleCalendarIsConfigured(...args) }))
 vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigured(...args) }))
 vi.mock('../zendesk/client.js', () => ({ isConfigured: (...args) => zendeskIsConfigured(...args) }))
 vi.mock('../sendcloud/client.js', () => ({ isConfigured: (...args) => sendcloudIsConfigured(...args) }))
@@ -40,6 +44,8 @@ function configureAll(value) {
   sentryIsConfigured.mockResolvedValue(value)
   betterstackIsConfigured.mockResolvedValue(value)
   granolaIsConfigured.mockResolvedValue(value)
+  gmailIsConfigured.mockResolvedValue(value)
+  googleCalendarIsConfigured.mockResolvedValue(value)
   figmaIsConfigured.mockResolvedValue(value)
   zendeskIsConfigured.mockResolvedValue(value)
   sendcloudIsConfigured.mockResolvedValue(value)
@@ -64,6 +70,8 @@ describe('listConfiguredIntegrations', () => {
       'shortcut',
       'sentry',
       'granola',
+      'gmail',
+      'google-calendar',
       'betterstack',
       'figma',
       'zendesk',
@@ -95,6 +103,8 @@ describe('listConfiguredIntegrations', () => {
       shopify: true,
       'google-drive': true,
       granola: true,
+      gmail: true,
+      'google-calendar': true,
       betterstack: true,
       figma: true,
       zendesk: true,
@@ -130,6 +140,27 @@ describe('listConfiguredIntegrations', () => {
     expect(granolaIsConfigured).toHaveBeenCalledWith(7)
     expect(integrations.map(integration => integration.id)).toEqual(['github', 'granola'])
   })
+
+  it('checks Gmail and Google Calendar against the Google connection of the requesting user', async () => {
+    configureAll(false)
+    gmailIsConfigured.mockResolvedValue(true)
+    googleCalendarIsConfigured.mockResolvedValue(true)
+
+    const integrations = await listConfiguredIntegrations(7)
+
+    expect(gmailIsConfigured).toHaveBeenCalledWith(7)
+    expect(googleCalendarIsConfigured).toHaveBeenCalledWith(7)
+    expect(integrations.slice(1)).toEqual([
+      { id: 'gmail', name: 'Gmail', description: 'Search and read your own Gmail, read-only', selectable: true },
+      {
+        id: 'google-calendar',
+        name: 'Google Calendar',
+        description: 'Read your own calendar and check availability, read-only',
+        selectable: true,
+      },
+    ])
+  })
+
   it('checks Zendesk for the requesting user', async () => {
     configureAll(false)
     zendeskIsConfigured.mockResolvedValue(true)

@@ -5,9 +5,10 @@ up front: the only required secrets at boot time are `JWT_SECRET` and a PostgreS
 database for the app itself. Everything else — the LLM provider, its API key and
 model, the GitHub token, Slack, Notion, Google Drive, Helpjuice, the agent's
 read-only query database, sign-in methods — lives in that database and is
-configured from the `/admin` panel after the first boot. The one exception is
-Granola: its API key is personal, so each user connects their own from
-**Settings → Connections** in the web app instead of `/admin`.
+configured from the `/admin` panel after the first boot. The exceptions are the
+personal ones: each user connects their own Granola and Zendesk accounts from
+**Settings → Connections** in the web app instead of `/admin`, and grants Gmail and
+Google Calendar access by signing in with Google.
 
 There are two supported deployment shapes:
 
@@ -99,7 +100,7 @@ Postgres data persists in the `pgdata_prod` volume. The optional server tunables
 (`SLACK_AUTODIAGNOSE_*`, `REVIEW_*`, …) are also picked up
 from `.env` if present. Integration credentials (GitHub, the LLM provider, Sentry, Notion,
 Shortcut, Slack, …) are not env vars — configure them from `/admin` after boot, or from
-**Settings → Connections** for the per-user ones (Granola).
+**Settings → Connections** for the per-user ones (Granola, Zendesk, Google).
 
 To rebuild after pulling a new version: `npm run docker:prod` again (it
 rebuilds the images; migrations run on boot).
@@ -312,6 +313,18 @@ Google sign-in is **off by default** on fresh installs; password sign-in is on.
 3. Set the generated Client ID as `VITE_GOOGLE_CLIENT_ID` at client **build time** (it is baked into the bundle), save the same value in `/admin` → Authentication, and enable the Google method there. The two must match — the server verifies Google tokens against the value stored in `/admin`.
 
 The allowed Google domains are configured in `/admin` → Authentication (an empty list allows any verified Google account).
+
+### Gmail and Google Calendar
+
+With the OAuth client's **secret** saved as well, the same Google button also asks each user for read-only access to their Gmail and Google Calendar, so the assistant can search their inbox and read their events. Nothing else changes: without the secret, sign-in stays identity-only.
+
+1. **Make the app Internal.** In **Google Auth Platform → Audience** ([direct link](https://console.cloud.google.com/auth/audience)), the user type must be **Internal**. `gmail.readonly` is a *restricted* scope: an Internal app (only accounts of your Google Workspace) needs no Google review, while an External one shows an "unverified app" warning, is capped at 100 users and has to pass Google's verification and yearly security assessment. Internal also means only accounts of that Workspace can sign in with Google. The **Make internal** button only appears when the project belongs to your Workspace organization.
+2. **Enable the APIs.** In **APIs & Services → Library**, enable the **Gmail API** and the **Google Calendar API**.
+3. **Declare the scopes.** In **Google Auth Platform → Data access**, add `https://www.googleapis.com/auth/gmail.readonly` and `https://www.googleapis.com/auth/calendar.readonly`.
+4. **Paste the client secret** of the same OAuth client (**Credentials** → the client → **Client secrets**; Google only shows a secret when it is created, so add a new one if nobody kept it — the existing sign-in does not use it) into `/admin` → **Authentication** → **Client secret**. It is write-only and stored encrypted. No new redirect URI is needed: the code comes back through Google's popup, from the origins you already authorized.
+5. **Check the Workspace API controls.** In the Google Workspace Admin console, **Security → Access and data control → API controls**, keep **Trust internal, domain-owned apps** on. If your organization restricts access to Gmail and that option is off, Google blocks the Gmail scope even for an Internal app.
+
+Each user grants access the next time they sign in with Google; someone whose session is still open connects from **Settings → Connections** → Google instead. Google's authorization-code flow always asks for consent, so its permission screen shows on every Google sign-in, not just the first — sessions last a week and renew with use, so that is rare. The client secret and every refresh token are stored encrypted with a key derived from `JWT_SECRET`, so rotating `JWT_SECRET` means pasting the client secret again in `/admin` and disconnects everyone until they sign in again.
 
 ## Slack ticket auto-diagnose
 

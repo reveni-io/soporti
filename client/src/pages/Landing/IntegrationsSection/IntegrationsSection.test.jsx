@@ -24,4 +24,13 @@ describe('IntegrationsSection', () => {
     expect(screen.getByText('Help Center')).toBeInTheDocument()
     expect(container.querySelector('[data-icon="help-center"]')).toHaveAttribute('stroke', 'currentColor')
   })
+
+  it('lists Gmail and Google Calendar with their brand marks', () => {
+    const { container } = render(<IntegrationsSection />)
+
+    expect(screen.getByText('Gmail')).toBeInTheDocument()
+    expect(screen.getByText('Google Calendar')).toBeInTheDocument()
+    expect(container.querySelector('[data-icon="gmail"]')).toHaveAttribute('fill', 'currentColor')
+    expect(container.querySelector('[data-icon="google-calendar"]')).toHaveAttribute('fill', 'currentColor')
+  })
 })

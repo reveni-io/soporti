@@ -21,15 +21,19 @@ describe('ConnectionsTab', () => {
           writesEnabled: false,
         })
       }
+      if (url.includes('/api/user/google')) {
+        return jsonResponse({ available: false, connected: false, email: null, gmail: false, calendar: false })
+      }
       return jsonResponse({ connected: false })
     })
 
     render(<ConnectionsTab token="tok" onLogout={vi.fn()} />)
 
+    expect(await screen.findByText('Gmail & Google Calendar')).toBeInTheDocument()
     expect(await screen.findByText('Granola')).toBeInTheDocument()
     expect(await screen.findByText('Zendesk')).toBeInTheDocument()
-    expect(screen.getByText('Not connected')).toBeInTheDocument()
+    expect(screen.getAllByText('Not connected')).toHaveLength(2)
     expect(screen.getByText('Connected')).toBeInTheDocument()
-    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch).toHaveBeenCalledTimes(3)
   })
 })

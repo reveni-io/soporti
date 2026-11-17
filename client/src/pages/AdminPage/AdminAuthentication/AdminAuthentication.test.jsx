@@ -7,8 +7,18 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet({ googleEnabled = false, passwordEnabled = true, domains = [], googleClientId = '' } = {}) {
-  return { ok: true, status: 200, json: async () => ({ googleEnabled, passwordEnabled, domains, googleClientId }) }
+function mockGet({
+  googleEnabled = false,
+  passwordEnabled = true,
+  domains = [],
+  googleClientId = '',
+  googleClientSecretConfigured = false,
+} = {}) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ googleEnabled, passwordEnabled, domains, googleClientId, googleClientSecretConfigured }),
+  }
 }
 
 describe('AdminAuthentication', () => {
@@ -148,6 +158,47 @@ describe('AdminAuthentication', () => {
     const [url, options] = global.fetch.mock.calls[1]
     expect(url).toContain('/api/admin/config/auth/google-client-id')
     expect(JSON.parse(options.body)).toEqual({ googleClientId: 'new.apps.googleusercontent.com' })
+  })
+
+  it('saves the Google client secret write-only through its PUT endpoint', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ googleEnabled: true, googleClientSecretConfigured: false }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ googleClientSecretConfigured: true }) })
+    const user = userEvent.setup()
+
+    render(<AdminAuthentication token="tok" onLogout={vi.fn()} />)
+
+    const input = await screen.findByPlaceholderText('GOCSPX-...')
+    expect(input).toHaveAttribute('type', 'password')
+    expect(screen.getByText(/read-only access to each user's Gmail and Calendar/i)).toBeInTheDocument()
+
+    await user.type(input, 'GOCSPX-secret')
+    await user.click(screen.getByRole('button', { name: 'Save secret' }))
+
+    expect(await screen.findByPlaceholderText('Paste a new secret to replace it')).toHaveValue('')
+    expect(screen.getByText('configured')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/auth/google-client-secret')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ googleClientSecret: 'GOCSPX-secret' })
+  })
+
+  it('clears a stored Google client secret with an empty value', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ googleEnabled: true, googleClientSecretConfigured: true }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ googleClientSecretConfigured: false }) })
+    const user = userEvent.setup()
+
+    render(<AdminAuthentication token="tok" onLogout={vi.fn()} />)
+
+    const input = await screen.findByPlaceholderText('Paste a new secret to replace it')
+    await user.click(within(input.closest('form')).getByRole('button', { name: 'Remove' }))
+
+    expect(await screen.findByText('not configured')).toBeInTheDocument()
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ googleClientSecret: '' })
   })
 
   it('warns when Google is enabled but no client id is configured', async () => {

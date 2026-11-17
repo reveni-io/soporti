@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
 
 export default function AuthGate({ children }) {
-  const { isAuthenticated, loginWithGoogle, loginWithPassword, error, isLoggingIn } = useAuth()
+  const { isAuthenticated, loginWithGoogle, loginWithGoogleCode, loginWithPassword, error, isLoggingIn } = useAuth()
   const authMethods = useAuthMethods()
 
   if (isAuthenticated) return children
@@ -11,6 +11,8 @@ export default function AuthGate({ children }) {
   return (
     <Login
       onLogin={authMethods?.google ? loginWithGoogle : undefined}
+      onGoogleCode={loginWithGoogleCode}
+      googleScopes={authMethods?.googleScopes ?? null}
       onPasswordLogin={authMethods?.password ? loginWithPassword : undefined}
       error={error}
       isLoading={isLoggingIn || authMethods === null}

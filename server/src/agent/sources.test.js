@@ -148,6 +148,17 @@ describe('collectConsultedSources', () => {
     expect(collectConsultedSources(calls).integrations).toEqual(['Granola'])
   })
 
+  it('credits Gmail and Google Calendar for their own tools', () => {
+    const calls = [
+      { name: 'search_gmail_messages', arguments: '{"query":"from:acme.com"}' },
+      { name: 'get_gmail_thread', arguments: '{"threadId":"t1"}' },
+      { name: 'list_calendar_events', arguments: '{}' },
+      { name: 'query_calendar_free_busy', arguments: '{"emails":["primary"]}' },
+    ]
+
+    expect(collectConsultedSources(calls).integrations).toEqual(['Gmail', 'Google Calendar'])
+  })
+
   it('credits Better Stack once for any of the log tools', () => {
     const calls = [
       { name: 'list_log_sources', arguments: '{}' },

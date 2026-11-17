@@ -4,6 +4,7 @@ import {
   absoluteApiUrl,
   absoluteAppUrl,
   addDatabaseConnection,
+  connectGoogle,
   createAdminUser,
   createBot,
   createSchedule,
@@ -20,6 +21,7 @@ import {
   deleteSkill,
   deleteSubagent,
   deleteVideo,
+  disconnectGoogle,
   decideOAuthAuthorization,
   generateVideo,
   getAdminStatus,
@@ -29,6 +31,7 @@ import {
   getBotRoutines,
   getBots,
   getConversation,
+  getGoogleConnection,
   getHubspotConfig,
   getRepos,
   getSchedules,
@@ -52,6 +55,7 @@ import {
   retryVideoVersion,
   saveDatabaseMaxRows,
   saveGithubToken,
+  saveGoogleClientSecret,
   saveHubspotPermissions,
   saveHubspotToken,
   saveSlackCredential,
@@ -62,6 +66,7 @@ import {
   sendVideoMessage,
   shareVideoVersion,
   signInWithGoogle,
+  signInWithGoogleCode,
   signInWithPassword,
   streamChat,
   testHubspotConnection,
@@ -256,6 +261,51 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/auth/google')
     expect(JSON.parse(options.body)).toEqual({ credential: 'the-credential' })
+  })
+
+  it('signs in with a google authorization code', async () => {
+    await signInWithGoogleCode('the-code')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/auth/google/code')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ code: 'the-code' })
+  })
+
+  it('reads the google connection of the user', async () => {
+    await getGoogleConnection('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/user/google')
+    expect(options.method).toBe('GET')
+    expect(options.headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+
+  it('connects google with an authorization code', async () => {
+    await connectGoogle('tok', 'the-code')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/user/google')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ code: 'the-code' })
+  })
+
+  it('disconnects google', async () => {
+    await disconnectGoogle('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/user/google')
+    expect(options.method).toBe('DELETE')
+    expect(options.headers).toEqual({ Authorization: 'Bearer tok' })
+  })
+
+  it('saves the google client secret from the admin panel', async () => {
+    await saveGoogleClientSecret('tok', 'GOCSPX-secret')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/admin/config/auth/google-client-secret')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ googleClientSecret: 'GOCSPX-secret' })
   })
 
   it('signs in with an email and password', async () => {

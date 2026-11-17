@@ -26,6 +26,7 @@ export function getSessionUser(token) {
 
 const PUBLIC_ROUTES = [
   { method: 'POST', path: '/api/auth/google' },
+  { method: 'POST', path: '/api/auth/google/code' },
   { method: 'POST', path: '/api/auth/login' },
   { method: 'GET', path: '/api/auth/methods' },
   { method: 'GET', path: '/api/health' },

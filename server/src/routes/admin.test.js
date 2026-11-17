@@ -53,6 +53,8 @@ const getAuthMethods = vi.fn()
 const setAuthMethods = vi.fn()
 
 const getGoogleClientId = vi.fn()
+const getGoogleClientSecret = vi.fn()
+const setGoogleClientSecret = vi.fn()
 const setGoogleClientId = vi.fn()
 
 const getDriveCredentials = vi.fn()
@@ -122,6 +124,8 @@ const isHelpjuiceConfigured = vi.fn()
 const isPostgresConfigured = vi.fn()
 const isBetterstackConfigured = vi.fn()
 const isGranolaConfigured = vi.fn()
+const isGmailConfigured = vi.fn()
+const isGoogleCalendarConfigured = vi.fn()
 const isShopifyConfigured = vi.fn()
 const isFigmaConfigured = vi.fn()
 const isZendeskConfigured = vi.fn()
@@ -136,6 +140,8 @@ const INTEGRATION_CHECK_MOCKS = [
   isPostgresConfigured,
   isBetterstackConfigured,
   isGranolaConfigured,
+  isGmailConfigured,
+  isGoogleCalendarConfigured,
   isShopifyConfigured,
   isFigmaConfigured,
   isZendeskConfigured,
@@ -147,7 +153,12 @@ vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
 vi.mock('../auth/setup-code.js', () => ({ verifySetupCode, announceSetupCode }))
 vi.mock('../auth/allowed-domains.js', () => ({ getAllowedDomains, setAllowedDomains }))
 vi.mock('../auth/auth-methods.js', () => ({ getAuthMethods, setAuthMethods }))
-vi.mock('../auth/google-settings.js', () => ({ getGoogleClientId, setGoogleClientId }))
+vi.mock('../auth/google-settings.js', () => ({
+  getGoogleClientId,
+  setGoogleClientId,
+  getGoogleClientSecret,
+  setGoogleClientSecret,
+}))
 vi.mock('../google-drive/settings.js', () => ({ getDriveCredentials, setDriveCredentials, isDriveConfigured }))
 vi.mock('../notion/settings.js', () => ({ getNotionToken, setNotionToken, isNotionConfigured }))
 vi.mock('../figma/settings.js', () => ({
@@ -276,6 +287,7 @@ const getMainAgentTools = vi.fn(async () => null)
 const setMainAgentTools = vi.fn(async () => {})
 vi.mock('../agent/settings.js', () => ({ getMainAgentTools, setMainAgentTools }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
+vi.mock('../google-workspace/settings.js', () => ({ isGmailConfigured, isGoogleCalendarConfigured }))
 vi.mock('../zendesk/settings.js', () => ({ isZendeskConfigured }))
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured }))
 const sendcloudRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
@@ -355,6 +367,8 @@ beforeEach(() => {
   setAuthMethods.mockReset()
   getGoogleClientId.mockReset()
   setGoogleClientId.mockReset()
+  getGoogleClientSecret.mockReset()
+  setGoogleClientSecret.mockReset()
   getDriveCredentials.mockReset()
   setDriveCredentials.mockReset()
   getNotionToken.mockReset()
@@ -724,6 +738,7 @@ describe('GET /api/admin/config/auth', () => {
     getAuthMethods.mockResolvedValue({ google: true, password: false })
     getAllowedDomains.mockResolvedValue(['example.com'])
     getGoogleClientId.mockResolvedValue('abc.apps.googleusercontent.com')
+    getGoogleClientSecret.mockResolvedValue(null)
 
     const res = await request(app).get('/api/admin/config/auth')
 
@@ -733,7 +748,21 @@ describe('GET /api/admin/config/auth', () => {
       passwordEnabled: false,
       domains: ['example.com'],
       googleClientId: 'abc.apps.googleusercontent.com',
+      googleClientSecretConfigured: false,
     })
+  })
+
+  it('reports that a client secret is saved without ever returning it', async () => {
+    getAuthMethods.mockResolvedValue({ google: true, password: true })
+    getAllowedDomains.mockResolvedValue([])
+    getGoogleClientId.mockResolvedValue('abc.apps.googleusercontent.com')
+    getGoogleClientSecret.mockResolvedValue('GOCSPX-super-secret')
+
+    const res = await request(app).get('/api/admin/config/auth')
+
+    expect(res.status).toBe(200)
+    expect(res.body.googleClientSecretConfigured).toBe(true)
+    expect(JSON.stringify(res.body)).not.toContain('GOCSPX-super-secret')
   })
 
   it('returns an empty client id when none is configured', async () => {
@@ -781,6 +810,65 @@ describe('PUT /api/admin/config/auth/google-client-id', () => {
 
     expect(res.status).toBe(400)
     expect(setGoogleClientId).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/config/auth/google-client-secret', () => {
+  it('saves a trimmed client secret and only reports that it is configured', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/auth/google-client-secret')
+      .send({ googleClientSecret: '  GOCSPX-super-secret  ' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ googleClientSecretConfigured: true })
+    expect(setGoogleClientSecret).toHaveBeenCalledTimes(1)
+    expect(setGoogleClientSecret).toHaveBeenCalledWith('GOCSPX-super-secret')
+  })
+
+  it('clears the secret with an empty string', async () => {
+    const res = await request(app).put('/api/admin/config/auth/google-client-secret').send({ googleClientSecret: '' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ googleClientSecretConfigured: false })
+    expect(setGoogleClientSecret).toHaveBeenCalledWith('')
+  })
+
+  it('rejects a non-string secret', async () => {
+    const res = await request(app).put('/api/admin/config/auth/google-client-secret').send({ googleClientSecret: 42 })
+
+    expect(res.status).toBe(400)
+    expect(setGoogleClientSecret).not.toHaveBeenCalled()
+  })
+
+  it('rejects a secret with whitespace inside', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/auth/google-client-secret')
+      .send({ googleClientSecret: 'GOCSPX-has space' })
+
+    expect(res.status).toBe(400)
+    expect(setGoogleClientSecret).not.toHaveBeenCalled()
+  })
+
+  it('rejects a secret longer than 200 characters', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/auth/google-client-secret')
+      .send({ googleClientSecret: 'x'.repeat(201) })
+
+    expect(res.status).toBe(400)
+    expect(setGoogleClientSecret).not.toHaveBeenCalled()
+  })
+
+  it('answers 500 without echoing the secret when saving fails', async () => {
+    setGoogleClientSecret.mockRejectedValue(new Error('db down GOCSPX-super-secret'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await request(app)
+      .put('/api/admin/config/auth/google-client-secret')
+      .send({ googleClientSecret: 'GOCSPX-super-secret' })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the Google client secret.' })
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('GOCSPX-super-secret')
   })
 })
 
@@ -2377,6 +2465,18 @@ describe('GET /api/admin/subagents', () => {
     await request(app).get('/api/admin/subagents')
 
     expect(isGranolaConfigured).toHaveBeenCalledWith(7)
+  })
+
+  it('resolves the gmail and calendar checks against the requesting admin, whose Google account it is', async () => {
+    isGmailConfigured.mockResolvedValue(true)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    const byId = Object.fromEntries(res.body.tools.groups.map(group => [group.id, group]))
+    expect(isGmailConfigured).toHaveBeenCalledWith(7)
+    expect(isGoogleCalendarConfigured).toHaveBeenCalledWith(7)
+    expect(byId.gmail.configured).toBe(true)
+    expect(byId['google-calendar'].configured).toBe(false)
   })
 
   it('resolves the zendesk check against the requesting admin, whose connection it is', async () => {

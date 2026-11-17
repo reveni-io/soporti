@@ -6,7 +6,7 @@ import Login from '../../common/Login/Login.jsx'
 import { ROUTES } from '../../router/constants.js'
 
 export default function LoginPage() {
-  const { isAuthenticated, loginWithGoogle, loginWithPassword, error, isLoggingIn } = useAuth()
+  const { isAuthenticated, loginWithGoogle, loginWithGoogleCode, loginWithPassword, error, isLoggingIn } = useAuth()
   const methods = useAuthMethods()
   const navigate = useNavigate()
 
@@ -19,6 +19,8 @@ export default function LoginPage() {
   return (
     <Login
       onLogin={methods?.google ? loginWithGoogle : undefined}
+      onGoogleCode={loginWithGoogleCode}
+      googleScopes={methods?.googleScopes ?? null}
       onPasswordLogin={methods?.password ? loginWithPassword : undefined}
       error={error}
       isLoading={isLoggingIn || methods === null}

@@ -36,7 +36,34 @@ describe('useAuthMethods', () => {
     const { result } = renderHook(() => useAuthMethods())
 
     await waitFor(() => {
-      expect(result.current).toEqual({ google: true, password: false })
+      expect(result.current).toEqual({ google: true, password: false, googleScopes: null })
+    })
+  })
+
+  it('exposes the google scopes when the server asks for workspace access', async () => {
+    const scopes = ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly']
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ google: true, password: true, googleScopes: scopes }),
+    })
+
+    const { result } = renderHook(() => useAuthMethods())
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ google: true, password: true, googleScopes: scopes })
+    })
+  })
+
+  it('treats an empty or malformed scope list as no workspace access', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ google: true, password: true, googleScopes: 'openid' }),
+    })
+
+    const { result } = renderHook(() => useAuthMethods())
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ google: true, password: true, googleScopes: null })
     })
   })
 
@@ -49,7 +76,7 @@ describe('useAuthMethods', () => {
     const { result } = renderHook(() => useAuthMethods())
 
     await waitFor(() => {
-      expect(result.current).toEqual({ google: false, password: false })
+      expect(result.current).toEqual({ google: false, password: false, googleScopes: null })
     })
   })
 
@@ -59,7 +86,7 @@ describe('useAuthMethods', () => {
     const { result } = renderHook(() => useAuthMethods())
 
     await waitFor(() => {
-      expect(result.current).toEqual({ google: true, password: true })
+      expect(result.current).toEqual({ google: true, password: true, googleScopes: null })
     })
   })
 
@@ -69,7 +96,7 @@ describe('useAuthMethods', () => {
     const { result } = renderHook(() => useAuthMethods())
 
     await waitFor(() => {
-      expect(result.current).toEqual({ google: true, password: true })
+      expect(result.current).toEqual({ google: true, password: true, googleScopes: null })
     })
   })
 })

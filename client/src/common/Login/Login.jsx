@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { GoogleLogin } from '@react-oauth/google'
+import GoogleAccessButton from '../GoogleAccessButton/GoogleAccessButton.jsx'
 import GridPattern from '../GridPattern/GridPattern.jsx'
 import './Login.css'
 
-export default function Login({ onLogin, onPasswordLogin, error, isLoading }) {
+const GOOGLE_SIGN_IN_LABEL = 'Sign in with Google'
+
+export default function Login({ onLogin, onGoogleCode, googleScopes, onPasswordLogin, error, isLoading }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -28,17 +31,7 @@ export default function Login({ onLogin, onPasswordLogin, error, isLoading }) {
 
         {onLogin && (
           <div className="login__google">
-            {isLoading ? (
-              <p className="login__subtitle">Logging in...</p>
-            ) : (
-              <GoogleLogin
-                onSuccess={response => onLogin(response.credential)}
-                onError={() => onLogin(null)}
-                theme="filled_blue"
-                shape="pill"
-                text="signin_with"
-              />
-            )}
+            <GoogleSignIn scopes={googleScopes} isLoading={isLoading} onLogin={onLogin} onCode={onGoogleCode} />
           </div>
         )}
 
@@ -79,5 +72,34 @@ export default function Login({ onLogin, onPasswordLogin, error, isLoading }) {
         )}
       </div>
     </div>
+  )
+}
+
+function GoogleSignIn({ scopes, isLoading, onLogin, onCode }) {
+  if (isLoading) return <p className="login__subtitle">Logging in...</p>
+
+  if (!scopes) {
+    return (
+      <GoogleLogin
+        onSuccess={response => onLogin(response.credential)}
+        onError={() => onLogin(null)}
+        theme="filled_blue"
+        shape="pill"
+        text="signin_with"
+      />
+    )
+  }
+
+  return (
+    <>
+      <GoogleAccessButton
+        scopes={scopes}
+        label={GOOGLE_SIGN_IN_LABEL}
+        selectAccount
+        onCode={onCode}
+        onError={() => onCode(null)}
+      />
+      <p className="login__note">Soporti will ask to read your Gmail and Calendar.</p>
+    </>
   )
 }

@@ -187,3 +187,8 @@ export const HUBSPOT_MAX_FILTER_GROUPS = 5
 export const HUBSPOT_MAX_FILTERS_PER_GROUP = 6
 export const HUBSPOT_MAX_FILTERS = 18
 export const HUBSPOT_MAX_SEARCH_LIMIT = 200
+
+export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
+export const CALENDAR_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+export const GOOGLE_WORKSPACE_SCOPES = ['openid', 'email', 'profile', GMAIL_READONLY_SCOPE, CALENDAR_READONLY_SCOPE]
+export const MAX_GOOGLE_CODE_LENGTH = 2048
