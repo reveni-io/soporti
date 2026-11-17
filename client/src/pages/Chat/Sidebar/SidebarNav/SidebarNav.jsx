@@ -1,13 +1,28 @@
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import Icon from '../../../../common/Icon/Icon.jsx'
 import { ROUTES } from '../../../../router/constants.js'
 import './SidebarNav.css'
 
 const NAV_ICON_SIZE = 16
 
-export default function SidebarNav({ isVideoGenerating, onOpenArtifacts, onOpenSchedules }) {
+function navLinkClassName({ isActive }) {
+  return isActive ? 'sidebar-nav__item sidebar-nav__item--active' : 'sidebar-nav__item'
+}
+
+export default function SidebarNav({
+  isVideoGenerating,
+  hasUnreadBots = false,
+  onOpenArtifacts,
+  onOpenSchedules,
+  onNavigate,
+}) {
   return (
     <nav className="sidebar-nav" aria-label="Workspace">
+      <NavLink className={navLinkClassName} to={ROUTES.BOTS} onClick={onNavigate}>
+        <Icon name="bot" size={NAV_ICON_SIZE} className="sidebar-nav__icon" />
+        Bots
+        {hasUnreadBots && <span className="sidebar-nav__live" role="img" aria-label="A bot has something new" />}
+      </NavLink>
       <button type="button" className="sidebar-nav__item" onClick={onOpenArtifacts}>
         <Icon name="artifact" size={NAV_ICON_SIZE} className="sidebar-nav__icon" />
         Artifacts

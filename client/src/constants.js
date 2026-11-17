@@ -62,6 +62,8 @@ export const SCHEDULE_HOURLY = 'hourly'
 export const SCHEDULE_DAILY = 'daily'
 export const SCHEDULE_WEEKLY = 'weekly'
 export const SCHEDULE_MONTHLY = 'monthly'
+export const SCHEDULE_WEEKDAYS = 'weekdays'
+export const SCHEDULE_ONCE = 'once'
 
 export const SCHEDULE_FREQUENCY_OPTIONS = [
   { value: SCHEDULE_HOURLY, label: 'Hourly' },
@@ -75,6 +77,16 @@ export const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thur
 export const SCHEDULE_MONTH_DAY_MAX = 28
 export const SCHEDULE_QUESTION_MAX_LENGTH = 150_000
 export const SCHEDULE_STATUS_ERROR = 'error'
+
+export const DEFAULT_PROFILE = 'support'
+
+export const PROFILE_OPTIONS = [
+  { id: 'support', label: 'Support', hint: 'Simplified explanations focused on behavior' },
+  { id: 'tech', label: 'Tech', hint: 'Detailed code, architecture, and file paths' },
+]
+
+export const BOT_NAME_MAX_LENGTH = 50
+export const BOT_DESCRIPTION_MAX_LENGTH = 1000
 
 export const EMPTY_CELL = '—'
 

@@ -71,12 +71,20 @@
     chat-topbar-live 1.6s ease-out infinite;
 }
 
-.chat-topbar .chat-topbar__menu {
-  display: none;
+.chat-topbar__bot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.chat-topbar__expand {
-  animation: chat-topbar-pop var(--motion-slow) var(--ease-spring) both;
+.chat-topbar__description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1rem;
+  color: var(--text-muted);
 }
 
 .chat-topbar__actions {
@@ -225,11 +233,7 @@
     padding: 0 var(--sp3);
   }
 
-  .chat-topbar .chat-topbar__menu {
-    display: inline-flex;
-  }
-
-  .chat-topbar .chat-topbar__expand {
+  .chat-topbar__description {
     display: none;
   }
 
@@ -258,7 +262,6 @@
 
   .chat-topbar__title,
   .chat-topbar__live,
-  .chat-topbar__expand,
   .chat-topbar__tour,
   .chat-topbar__tour:hover:not(:disabled) {
     animation: none;

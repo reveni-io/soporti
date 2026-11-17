@@ -82,6 +82,14 @@ describe('Landing', () => {
     expect(container.querySelector('#videos').nextElementSibling).toBe(analytics)
   })
 
+  it('presents bots in their own section, right after the automations', () => {
+    const { container } = render(<Landing />)
+    const bots = container.querySelector('#bots')
+
+    expect(bots).toHaveTextContent('Describe a job once. A bot keeps doing it on schedule.')
+    expect(container.querySelector('#automations').nextElementSibling).toBe(bots)
+  })
+
   it('lists the supported LLM providers', () => {
     const { container } = render(<Landing />)
     const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)

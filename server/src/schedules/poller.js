@@ -3,6 +3,7 @@ import { claimDueSchedules, markScheduleRun } from '../db/schedules.js'
 import { isConfigured } from '../llm/model.js'
 import { computeNextRun } from './next-run.js'
 import { runSchedule } from './runner.js'
+import { runBotRoutine } from '../bots/routine-runner.js'
 
 const POLL_INTERVAL_MS = 60_000
 const MAX_RUNS_PER_TICK = 5
@@ -15,6 +16,20 @@ function log(icon, ...args) {
 
 let intervalHandle = null
 
+async function runDueSchedule(schedule, conversationStore) {
+  if (schedule.botId) {
+    const { posted } = await runBotRoutine(schedule, conversationStore)
+    log(
+      '✅',
+      `Routine ${schedule.id} of bot ${schedule.botId} ${posted ? 'posted its report' : 'had nothing to report'}`
+    )
+    return
+  }
+
+  const { conversationId } = await runSchedule(schedule, conversationStore)
+  log('✅', `Schedule ${schedule.id} answered in conversation ${conversationId}`)
+}
+
 export async function runPollOnce(conversationStore) {
   if (!(await isConfigured())) return { ran: 0 }
 
@@ -24,10 +39,9 @@ export async function runPollOnce(conversationStore) {
   for (const schedule of due) {
     try {
       log('🚀', `Running schedule ${schedule.id}: "${schedule.question.slice(0, 80)}"`)
-      const { conversationId } = await runSchedule(schedule, conversationStore)
+      await runDueSchedule(schedule, conversationStore)
       await markScheduleRun(schedule.id, { status: SCHEDULE_STATUS_OK })
       ran++
-      log('✅', `Schedule ${schedule.id} answered in conversation ${conversationId}`)
     } catch (err) {
       console.error(`[schedules] Failed to run schedule ${schedule.id}:`, err)
       await markScheduleRun(schedule.id, {

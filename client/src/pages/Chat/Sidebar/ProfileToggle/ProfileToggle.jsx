@@ -1,16 +1,12 @@
+import { PROFILE_OPTIONS } from '../../../../constants.js'
 import './ProfileToggle.css'
-
-const PROFILES = [
-  { id: 'support', label: 'Support', hint: 'Simplified explanations focused on behavior' },
-  { id: 'tech', label: 'Tech', hint: 'Detailed code, architecture, and file paths' },
-]
 
 export default function ProfileToggle({ selectedProfile, onSelectProfile }) {
   const selectedIndex = Math.max(
-    PROFILES.findIndex(profile => profile.id === selectedProfile),
+    PROFILE_OPTIONS.findIndex(profile => profile.id === selectedProfile),
     0
   )
-  const selected = PROFILES[selectedIndex]
+  const selected = PROFILE_OPTIONS[selectedIndex]
 
   return (
     <div className="sidebar__section profile-toggle">
@@ -18,10 +14,10 @@ export default function ProfileToggle({ selectedProfile, onSelectProfile }) {
         <h2 className="sidebar__section-title profile-toggle__title">Profile</h2>
         <div
           className="profile-toggle__track"
-          style={{ '--profile-index': selectedIndex, '--profile-count': PROFILES.length }}
+          style={{ '--profile-index': selectedIndex, '--profile-count': PROFILE_OPTIONS.length }}
         >
           <span className="profile-toggle__thumb" aria-hidden="true" />
-          {PROFILES.map(profile => (
+          {PROFILE_OPTIONS.map(profile => (
             <button
               key={profile.id}
               type="button"

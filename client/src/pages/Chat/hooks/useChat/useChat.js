@@ -1,12 +1,27 @@
 import { useCallback, useRef, useState } from 'react'
 import { BROWSER_TIMEZONE } from '../../../../constants.js'
-import { getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
+import { getBotMessages, getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
 
 const FIRST_CHAT_KEY = 'chat-1'
+const BOT_CHAT_PREFIX = 'bot-'
 const DATA_PREFIX = 'data: '
 
 function emptyChat() {
   return { sessionId: null, messages: [], isLoading: false }
+}
+
+function emptyBotChat(botId) {
+  return { sessionId: null, messages: [], isLoading: false, botId, isFetching: true, fetchError: null }
+}
+
+function botChatKey(botId) {
+  return `${BOT_CHAT_PREFIX}${botId}`
+}
+
+function withFetchedMessages(chat, messages) {
+  if (chat.isLoading) return { ...chat, isFetching: false }
+
+  return { ...chat, messages, isFetching: false, fetchError: null }
 }
 
 function withChat(chats, key, updater) {
@@ -113,7 +128,7 @@ function firstUserMessageText(messages) {
 
 function toActiveConversations(chats) {
   return Object.values(chats)
-    .filter(chat => chat.sessionId)
+    .filter(chat => chat.sessionId && !chat.botId)
     .map(chat => ({
       id: chat.sessionId,
       title: firstUserMessageText(chat.messages),
@@ -122,13 +137,43 @@ function toActiveConversations(chats) {
     .reverse()
 }
 
-export function useChat(token, onAuthError, onArtifactPublished) {
+function chatRequestBody(chat, text, { selectedSources, profile, skills, attachments }) {
+  const body = {
+    sessionId: chat.sessionId,
+    message: text,
+    selectedSources,
+    profile,
+    skillIds: skills.map(skill => skill.id),
+    attachments: attachments.map(({ previewUrl: _previewUrl, ...sent }) => sent),
+    timezone: BROWSER_TIMEZONE,
+  }
+
+  if (!chat.botId) return body
+
+  return { ...body, botId: chat.botId }
+}
+
+export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
   const [chats, setChats] = useState({ [FIRST_CHAT_KEY]: emptyChat() })
   const [activeKey, setActiveKey] = useState(FIRST_CHAT_KEY)
   const [completedRuns, setCompletedRuns] = useState(0)
   const activeKeyRef = useRef(FIRST_CHAT_KEY)
+  const botIdRef = useRef(botId)
+  const chatsRef = useRef(chats)
+  const onAuthErrorRef = useRef(onAuthError)
   const nextKeyRef = useRef(2)
   const abortControllers = useRef(new Map())
+  botIdRef.current = botId
+  chatsRef.current = chats
+  onAuthErrorRef.current = onAuthError
+
+  const displayedKey = botId ? botChatKey(botId) : activeKey
+
+  const currentKey = useCallback(() => {
+    if (botIdRef.current) return botChatKey(botIdRef.current)
+
+    return activeKeyRef.current
+  }, [])
 
   const updateChat = useCallback((key, updater) => {
     setChats(prev => withChat(prev, key, updater))
@@ -176,7 +221,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
         case 'artifact': {
           const published = { artifactId: event.artifactId, title: event.title, version: event.version }
 
-          if (key === activeKeyRef.current) onArtifactPublished?.(published)
+          if (key === currentKey()) onArtifactPublished?.(published)
           updateChat(key, chat => withLastAssistant(chat, withPart({ type: 'artifact', ...published })))
           break
         }
@@ -186,14 +231,14 @@ export function useChat(token, onAuthError, onArtifactPublished) {
           break
       }
     },
-    [onArtifactPublished, updateChat]
+    [currentKey, onArtifactPublished, updateChat]
   )
 
   const sendMessage = useCallback(
     async (text, { selectedSources, profile, skills = [], attachments = [] }) => {
-      const key = activeKeyRef.current
-      const chat = chats[key]
-      if (!text.trim() || chat.isLoading) return
+      const key = currentKey()
+      const chat = chatsRef.current[key]
+      if (!chat || !text.trim() || chat.isLoading) return
 
       const userMessage = { role: 'user', content: text }
       if (skills.length > 0) userMessage.skills = skills
@@ -213,15 +258,7 @@ export function useChat(token, onAuthError, onArtifactPublished) {
       try {
         const response = await streamChat(
           token,
-          {
-            sessionId: chat.sessionId,
-            message: text,
-            selectedSources,
-            profile,
-            skillIds: skills.map(skill => skill.id),
-            attachments: attachments.map(({ previewUrl: _previewUrl, ...sent }) => sent),
-            timezone: BROWSER_TIMEZONE,
-          },
+          chatRequestBody(chat, text, { selectedSources, profile, skills, attachments }),
           abortController.signal
         )
 
@@ -239,17 +276,17 @@ export function useChat(token, onAuthError, onArtifactPublished) {
         setCompletedRuns(runs => runs + 1)
       }
     },
-    [chats, token, onAuthError, applyEvent, updateChat]
+    [currentKey, token, onAuthError, applyEvent, updateChat]
   )
 
   const stopGeneration = useCallback(() => {
-    const key = activeKeyRef.current
+    const key = currentKey()
     const abortController = abortControllers.current.get(key)
     if (!abortController) return
 
     abortController.abort()
     updateChat(key, chat => ({ ...chat, isLoading: false }))
-  }, [updateChat])
+  }, [currentKey, updateChat])
 
   const newChat = useCallback(() => {
     openChat(emptyChat())
@@ -281,18 +318,61 @@ export function useChat(token, onAuthError, onArtifactPublished) {
     [chats, token, onAuthError, openChat, selectChat, updateChat]
   )
 
-  const activeChat = chats[activeKey]
+  const fetchBotChat = useCallback(
+    async (key, id) => {
+      try {
+        const data = await getBotMessages(token, id)
+        updateChat(key, chat => withFetchedMessages(chat, data.messages || []))
+      } catch (err) {
+        if (isUnauthorized(err)) {
+          onAuthErrorRef.current?.()
+          return
+        }
+        updateChat(key, chat => ({ ...chat, isFetching: false, fetchError: err.message }))
+      }
+    },
+    [token, updateChat]
+  )
+
+  const openBot = useCallback(
+    async id => {
+      const key = botChatKey(id)
+      const known = chatsRef.current[key]
+      if (known?.isLoading) return
+
+      if (!known) setChats(prev => (prev[key] ? prev : { ...prev, [key]: emptyBotChat(id) }))
+      await fetchBotChat(key, id)
+    },
+    [fetchBotChat]
+  )
+
+  const refreshBot = useCallback(
+    async id => {
+      const key = botChatKey(id)
+      const known = chatsRef.current[key]
+      if (!known || known.isLoading) return
+
+      await fetchBotChat(key, id)
+    },
+    [fetchBotChat]
+  )
+
+  const activeChat = chats[displayedKey] ?? emptyBotChat(botId)
 
   return {
     messages: activeChat.messages,
     isLoading: activeChat.isLoading,
+    isFetching: Boolean(activeChat.isFetching),
+    fetchError: activeChat.fetchError ?? null,
     sessionId: activeChat.sessionId,
-    conversationKey: activeKey,
+    conversationKey: displayedKey,
     activeConversations: toActiveConversations(chats),
     completedRuns,
     sendMessage,
     stopGeneration,
     newChat,
     loadConversation,
+    openBot,
+    refreshBot,
   }
 }

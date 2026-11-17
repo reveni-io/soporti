@@ -1,5 +1,5 @@
 import { ANALYTICS_TITLE_MAX_LENGTH } from '../../../constants.js'
-import ModalFrame from '../ModalFrame/ModalFrame.jsx'
+import ModalFrame from '../../../common/ModalFrame/ModalFrame.jsx'
 import DeleteControl from '../../../common/DeleteControl/DeleteControl.jsx'
 import { useCardEditor } from './hooks/useCardEditor/useCardEditor.js'
 import ReviseForm from './ReviseForm/ReviseForm.jsx'

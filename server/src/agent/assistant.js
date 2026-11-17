@@ -3,6 +3,7 @@ import { resolveModelForAgent } from '../llm/model.js'
 import { buildAgentTools, excludeToolsByName, REPO_TOOL_NAMES, restrictToolsByName } from './tools.js'
 import {
   buildBasePrompt,
+  buildBotPrompt,
   buildCurrentDatePrompt,
   buildSourceInstructions,
   buildProfileInstructions,
@@ -30,6 +31,14 @@ import { resolveHubspotAccess } from '../hubspot/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
 import * as shopify from '../shopify/client.js'
 
+function resolveBotRole(bot, { unattended }) {
+  if (!bot) return { botId: null, botPrompt: '' }
+
+  const canManageRoutines = Boolean(bot.id) && !unattended
+
+  return { botId: canManageRoutines ? bot.id : null, botPrompt: buildBotPrompt(bot, { canManageRoutines }) }
+}
+
 export async function createAgent(
   selectedSources,
   profile,
@@ -46,11 +55,13 @@ export async function createAgent(
     unattended = false,
     delegated = false,
     timezone = null,
+    bot = null,
   } = {}
 ) {
   const userTimezone = canonicalizeTimezone(timezone)
   const zone = userTimezone ?? DEFAULT_TIMEZONE
   const policy = buildSourcePolicy(selectedSources)
+  const { botId, botPrompt } = resolveBotRole(bot, { unattended })
 
   const [
     shortcutConfigured,
@@ -119,6 +130,8 @@ export async function createAgent(
     zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
     slackConfigured,
     hubspot: hubspotAccess,
+    botId,
+    profile,
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
@@ -151,6 +164,7 @@ export async function createAgent(
       hubspot: hubspotAccess,
     }),
   ]
+  if (botPrompt) parts.push(botPrompt)
   const datePrompt = buildCurrentDatePrompt(describeInstant(new Date(), zone), {
     isUserTimezone: Boolean(userTimezone),
   })

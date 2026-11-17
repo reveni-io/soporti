@@ -68,6 +68,18 @@
   line-height: 1.25rem;
 }
 
+.message__routine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp1);
+  margin-bottom: var(--sp2);
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1rem;
+  color: var(--text-muted);
+}
+
 .message__bubble--assistant:has(.chart-block, .mermaid-diagram, .csv-block) {
   max-width: 100%;
   width: 100%;

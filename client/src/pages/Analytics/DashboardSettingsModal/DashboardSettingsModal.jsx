@@ -1,5 +1,5 @@
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
-import ModalFrame from '../ModalFrame/ModalFrame.jsx'
+import ModalFrame from '../../../common/ModalFrame/ModalFrame.jsx'
 import DashboardNameForm from '../DashboardNameForm/DashboardNameForm.jsx'
 import DeleteControl from '../../../common/DeleteControl/DeleteControl.jsx'
 import './DashboardSettingsModal.css'

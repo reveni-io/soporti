@@ -69,6 +69,13 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('img', { name: 'A video is being generated' })).toBeNull()
   })
 
+  it('marks the bots link when a bot has something new', () => {
+    render(<Sidebar {...defaultProps} hasUnreadBots />, { wrapper: MemoryRouter })
+
+    expect(screen.getByRole('link', { name: /bots/i })).toHaveAttribute('href', '/bots')
+    expect(screen.getByRole('img', { name: 'A bot has something new' })).toBeInTheDocument()
+  })
+
   it('renders sidebar title', async () => {
     render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
     expect(screen.getByText('Soporti')).toBeInTheDocument()

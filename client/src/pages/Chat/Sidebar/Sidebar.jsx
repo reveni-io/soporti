@@ -30,6 +30,7 @@ export default function Sidebar({
   conversationsReloadKey,
   activeConversations,
   selectedConversationId,
+  hasUnreadBots = false,
   integrations,
   token,
   user,
@@ -76,6 +77,8 @@ export default function Sidebar({
 
         <SidebarNav
           isVideoGenerating={isVideoGenerating}
+          hasUnreadBots={hasUnreadBots}
+          onNavigate={onClose}
           onOpenArtifacts={onOpenArtifacts}
           onOpenSchedules={onOpenSchedules}
         />

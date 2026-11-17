@@ -5,28 +5,18 @@ import {
   MAX_SCHEDULES_PER_USER,
   MAX_SOURCES,
   SCHEDULE_FREQUENCIES,
-  SCHEDULE_HOURLY,
-  SCHEDULE_MONTHLY,
-  SCHEDULE_MONTH_DAY_MAX,
   SCHEDULE_QUESTION_MAX_LENGTH,
-  SCHEDULE_WEEKLY,
 } from '../constants.js'
 import { countSchedules, createSchedule, deleteSchedule, listSchedules, updateSchedule } from '../db/schedules.js'
 import { computeNextRun, isValidTimezone } from '../schedules/next-run.js'
+import { parseScheduleTiming } from '../schedules/timing.js'
 
 const router = Router()
 
 const ID_RE = /^\d{1,9}$/
-const MINUTE_MAX = 59
-const HOUR_MAX = 23
-const WEEKDAY_MAX = 6
-
-function isIntegerInRange(value, min, max) {
-  return Number.isInteger(value) && value >= min && value <= max
-}
 
 function parseScheduleInput(body) {
-  const { question, sources, profile, frequency, minute, hour, weekday, monthDay, timezone } = body ?? {}
+  const { question, sources, profile, frequency, timezone } = body ?? {}
 
   if (typeof question !== 'string' || question.trim().length === 0) {
     return { error: 'A question is required.' }
@@ -43,47 +33,15 @@ function parseScheduleInput(body) {
   if (!SCHEDULE_FREQUENCIES.includes(frequency)) {
     return { error: `Frequency must be one of: ${SCHEDULE_FREQUENCIES.join(', ')}.` }
   }
-  if (!isIntegerInRange(minute, 0, MINUTE_MAX)) {
-    return { error: `Minute must be an integer between 0 and ${MINUTE_MAX}.` }
-  }
+
+  const timing = parseScheduleTiming(body)
+  if (timing.error) return timing
+
   if (!isValidTimezone(timezone)) {
     return { error: 'Timezone must be a valid IANA time zone name.' }
   }
 
-  const value = {
-    question: question.trim(),
-    sources,
-    profile,
-    frequency,
-    minute,
-    hour: null,
-    weekday: null,
-    monthDay: null,
-    timezone,
-  }
-
-  if (frequency === SCHEDULE_HOURLY) return { value }
-
-  if (!isIntegerInRange(hour, 0, HOUR_MAX)) {
-    return { error: `Hour must be an integer between 0 and ${HOUR_MAX}.` }
-  }
-  value.hour = hour
-
-  if (frequency === SCHEDULE_WEEKLY) {
-    if (!isIntegerInRange(weekday, 0, WEEKDAY_MAX)) {
-      return { error: `Weekday must be an integer between 0 (Sunday) and ${WEEKDAY_MAX} (Saturday).` }
-    }
-    value.weekday = weekday
-  }
-
-  if (frequency === SCHEDULE_MONTHLY) {
-    if (!isIntegerInRange(monthDay, 1, SCHEDULE_MONTH_DAY_MAX)) {
-      return { error: `Day of the month must be an integer between 1 and ${SCHEDULE_MONTH_DAY_MAX}.` }
-    }
-    value.monthDay = monthDay
-  }
-
-  return { value }
+  return { value: { question: question.trim(), sources, profile, frequency, ...timing.value, timezone } }
 }
 
 router.get('/', async (req, res) => {

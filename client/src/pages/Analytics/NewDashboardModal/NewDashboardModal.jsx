@@ -1,4 +1,4 @@
-import ModalFrame from '../ModalFrame/ModalFrame.jsx'
+import ModalFrame from '../../../common/ModalFrame/ModalFrame.jsx'
 import DashboardNameForm from '../DashboardNameForm/DashboardNameForm.jsx'
 import './NewDashboardModal.css'
 

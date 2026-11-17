@@ -1,5 +1,6 @@
 import CopyButton from '../../CopyButton/CopyButton.jsx'
 import FeedbackButtons from '../../FeedbackButtons/FeedbackButtons.jsx'
+import Icon from '../../Icon/Icon.jsx'
 import AgentSteps from '../../AgentSteps/AgentSteps.jsx'
 import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
 import Citations from '../../Citations/Citations.jsx'
@@ -8,9 +9,11 @@ import { useCitations } from '../../../hooks/useCitations/useCitations.js'
 import { groupParts } from './group-parts.js'
 
 const PART_SEPARATOR = '\n\n'
+const ROUTINE_ICON_SIZE = 12
 
 export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
   const groups = groupParts(message.parts)
+  const routine = message.parts.find(part => part.type === 'routine')
   const answer = answerMarkdown(message.parts)
   const { citations, isOpen, selectedUrl, select, toggle } = useCitations(answer)
   const canCopy = !isStreaming && answer.length > 0
@@ -19,6 +22,8 @@ export default function AssistantMessage({ message, isStreaming, token, onOpenAr
   return (
     <div className="message message--assistant">
       <div className="message__bubble message__bubble--assistant">
+        {routine && <RoutineLabel title={routine.title} />}
+
         {groups.map((part, index) => (
           <MessagePart
             key={index}
@@ -85,6 +90,15 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citat
   }
 
   return null
+}
+
+function RoutineLabel({ title }) {
+  return (
+    <p className="message__routine">
+      <Icon name="clock" size={ROUTINE_ICON_SIZE} />
+      <span>Routine · {title}</span>
+    </p>
+  )
 }
 
 function TypingIndicator() {

@@ -1,15 +1,25 @@
-import { SCHEDULE_DAILY, SCHEDULE_HOURLY, SCHEDULE_WEEKLY, WEEKDAY_LABELS, YOLO_SOURCE } from '../../../constants.js'
+import {
+  SCHEDULE_DAILY,
+  SCHEDULE_HOURLY,
+  SCHEDULE_ONCE,
+  SCHEDULE_WEEKDAYS,
+  SCHEDULE_WEEKLY,
+  WEEKDAY_LABELS,
+  YOLO_SOURCE,
+} from '../../../constants.js'
 
 function pad(value) {
   return String(value).padStart(2, '0')
 }
 
-export function describeSchedule({ frequency, hour, minute, weekday, monthDay }) {
+export function describeSchedule({ frequency, hour, minute, weekday, monthDay, runDate }) {
   const time = `${pad(hour)}:${pad(minute)}`
 
   if (frequency === SCHEDULE_HOURLY) return `Hourly at :${pad(minute)}`
   if (frequency === SCHEDULE_DAILY) return `Daily at ${time}`
+  if (frequency === SCHEDULE_WEEKDAYS) return `Every weekday at ${time}`
   if (frequency === SCHEDULE_WEEKLY) return `Weekly on ${WEEKDAY_LABELS[weekday]} at ${time}`
+  if (frequency === SCHEDULE_ONCE) return `Once on ${runDate} at ${time}`
 
   return `Monthly on day ${monthDay} at ${time}`
 }

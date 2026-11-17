@@ -36,6 +36,7 @@ import { INTEGRATION_TOOL_NAMES } from './sources.js'
 import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
 import { buildHubspotTools } from './hubspot-tools.js'
+import { buildRoutineTools } from './routine-tools.js'
 
 export const listReposTool = tool({
   name: 'list_repos',
@@ -1352,12 +1353,12 @@ export function buildAgentTools(policy, configured, context = {}) {
   const artifactTools = buildArtifactTools(context.conversationId, context.onArtifactPublished)
   const timeTools = buildTimeTools(context.timezone)
   const slackTools = context.slackConfigured ? [postSlackMessageTool] : []
+  const routineTools = context.botId ? buildRoutineTools(context) : []
+  const sharedTools = [...integrationTools, ...artifactTools, ...timeTools, ...slackTools, ...routineTools]
 
-  if (!policy || policy.unrestricted) {
-    return [...allTools, ...integrationTools, ...artifactTools, ...timeTools, ...slackTools]
-  }
+  if (!policy || policy.unrestricted) return [...allTools, ...sharedTools]
 
   const repoTools = policy.repos.length > 0 ? buildRepoTools(policy.repos) : []
 
-  return [...repoTools, ...integrationTools, ...artifactTools, ...timeTools, ...slackTools]
+  return [...repoTools, ...sharedTools]
 }

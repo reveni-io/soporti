@@ -176,6 +176,13 @@
       "when": 1794851349795,
       "tag": "0024_bizarre_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794933911114,
+      "tag": "0025_bots",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,19 @@ export const SCHEDULE_QUESTION_MAX_LENGTH = 150_000
 export const SCHEDULE_STATUS_OK = 'ok'
 export const SCHEDULE_STATUS_ERROR = 'error'
 export const MAX_SCHEDULES_PER_USER = 20
+export const SCHEDULE_WEEKDAYS = 'weekdays'
+export const SCHEDULE_ONCE = 'once'
+export const ROUTINE_FREQUENCIES = [...SCHEDULE_FREQUENCIES, SCHEDULE_WEEKDAYS, SCHEDULE_ONCE]
+
+export const MAX_BOTS_PER_USER = 10
+export const MAX_ROUTINES_PER_BOT = 10
+export const BOT_NAME_MAX_LENGTH = 50
+export const BOT_DESCRIPTION_MAX_LENGTH = 1000
+export const ROUTINE_TITLE_MAX_LENGTH = 80
+export const ROUTINE_INSTRUCTION_MAX_LENGTH = 4000
+export const ROUTINE_RESULT_MAX_LENGTH = 4000
+export const NOTHING_TO_REPORT = 'NOTHING_TO_REPORT'
+export const BOT_HISTORY_MAX_CHARS = 300_000
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

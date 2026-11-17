@@ -137,6 +137,82 @@ describe('computeNextRun', () => {
     })
   })
 
+  describe('weekdays', () => {
+    it('returns today at the local time when it is a working day and the time is still ahead', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 17, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-07-22T10:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-07-22T15:00:00.000Z')
+    })
+
+    it('returns the next working day once the time has passed', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 17, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-07-22T15:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-07-23T15:00:00.000Z')
+    })
+
+    it('jumps from Friday to Monday', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 17, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-07-24T16:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-07-27T15:00:00.000Z')
+    })
+
+    it('skips the rest of the weekend when it starts on a Saturday', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 17, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-07-25T08:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-07-27T15:00:00.000Z')
+    })
+
+    it('keeps the local wall time when daylight saving starts over the weekend', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 9, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-03-27T09:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-03-30T07:00:00.000Z')
+    })
+
+    it('keeps the local wall time when daylight saving ends over the weekend', () => {
+      const schedule = madridSchedule({ frequency: 'weekdays', hour: 9, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-10-23T08:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-10-26T08:00:00.000Z')
+    })
+  })
+
+  describe('once', () => {
+    it('returns the instant of the date and local time', () => {
+      const schedule = madridSchedule({ frequency: 'once', runDate: '2026-11-20', hour: 9, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-11-17T10:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-11-20T08:00:00.000Z')
+    })
+
+    it('uses the offset in force on that date, not on the reference date', () => {
+      const schedule = madridSchedule({ frequency: 'once', runDate: '2026-03-30', hour: 9, minute: 30 })
+
+      const next = computeNextRun(schedule, new Date('2026-03-20T10:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-03-30T07:30:00.000Z')
+    })
+
+    it('returns the instant as it is even when it has already passed', () => {
+      const schedule = madridSchedule({ frequency: 'once', runDate: '2026-11-20', hour: 9, minute: 0 })
+
+      const next = computeNextRun(schedule, new Date('2026-11-21T10:00:00Z'))
+
+      expect(next.toISOString()).toBe('2026-11-20T08:00:00.000Z')
+    })
+  })
+
   it('never returns an instant equal to the reference time', () => {
     const schedule = madridSchedule({ frequency: 'daily', hour: 10, minute: 0 })
     const from = new Date('2026-07-27T08:00:00Z')

@@ -459,6 +459,24 @@ describe('buildAgentTools', () => {
     expect(names(buildAgentTools())).toEqual([...names(allTools), ...TIME_TOOL_NAMES])
   })
 
+  const ROUTINE_TOOL_NAMES = ['create_routine', 'list_routines', 'update_routine', 'delete_routine']
+
+  it('registers the routine tools only for a bot that can manage its routines', () => {
+    const forBot = buildAgentTools(null, {}, { botId: 4, userId: 7, timezone: 'Europe/Madrid', profile: 'support' })
+    const restrictedForBot = buildAgentTools({ unrestricted: false, repos: [], integrations: [] }, {}, { botId: 4 })
+
+    expect(names(forBot)).toEqual(expect.arrayContaining(ROUTINE_TOOL_NAMES))
+    expect(names(restrictedForBot)).toEqual([...TIME_TOOL_NAMES, ...ROUTINE_TOOL_NAMES])
+    expect(names(buildAgentTools(null, {}, { botId: null }))).not.toContain('create_routine')
+  })
+
+  it('keeps the routine tools out of the selectable tools, so a tool restriction never removes them', () => {
+    const tools = restrictToolsByName(buildAgentTools(null, {}, { botId: 4 }), ['search_code'])
+
+    expect(names(tools)).toEqual(expect.arrayContaining(ROUTINE_TOOL_NAMES))
+    expect(ROUTINE_TOOL_NAMES.some(name => SELECTABLE_TOOL_NAMES.has(name))).toBe(false)
+  })
+
   it('restricted with repos only: guarded repo tools plus always-on Shortcut/Sentry, no list_repos', () => {
     const tools = buildAgentTools(
       { unrestricted: false, repos: ['org/app'], integrations: [] },

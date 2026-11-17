@@ -74,6 +74,14 @@ HubSpot has no single switch: `/admin` → HubSpot gives each area — Contacts,
 - **Slack ticket auto-diagnose** — tickets filed into a Slack List get triaged autonomously, screenshots included, with the diagnosis written back into the ticket
 - **Learns from what worked** — mark an answer as helpful and the case is saved to a knowledge base that later questions search automatically (needs a vector store id in `/admin` → Knowledge base; it runs on OpenAI Vector Stores whichever chat provider you pick, so it needs an OpenAI key of its own when the assistant is on Anthropic)
 
+### Give a job to a bot
+
+- **Bots** — open **Bots** from the chat sidebar (`/bots`) and create an assistant of your own: a name, a description of what it is for, a profile (*support* or *tech*) and a generated avatar you can shuffle until you like it. A bot is private to you and has a single chat that is kept out of the conversation list and search and never expires with the 14-day history. It always runs with every integration configured, like YOLO mode. Up to 10 bots per user
+- **It introduces itself** — the moment it is created, the bot greets you in its chat from the description you wrote, so you can see it understood the job before you hand it any work
+- **Routines from the chat** — ask for something recurring or at a given time ("every weekday at 17:00, go through the new Zendesk tickets and tell me which ones are urgent") and the bot creates the routine itself and confirms the schedule in plain words: hourly, daily, every weekday, weekly, monthly or once at a date and time, in your time zone. Ask it to change or delete one the same way, or open **Routines** in the bot's header to see each routine's next run and last status, pause or resume it, or delete it. Up to 10 routines per bot, on top of your scheduled queries
+- **Results land in the bot's chat** — each run posts its answer into the bot's chat, labelled with the routine, and an unread dot on **Bots** and a badge on the bot's card tell you there is news. The report is part of the conversation, so you can ask a follow-up right below it. A run that fails says so in the chat, and a recurring routine tries again at its next scheduled time
+- **Unattended, and quiet when there is nothing to say** — nobody is there to say yes during a run, so it does the work and reports what it did ("I closed 3 tickets"), and posts to Slack when the instruction asks for it and the Slack bot is configured. Each run knows what it reported last time and when, so "only what is new" works, and a "tell me if…" routine stays silent when nothing happened
+
 ### Keep and share the answers
 
 - **Conversation history** — chats are persisted and reopenable from the sidebar. A new chat shows up there the moment you send the first message, titled with what you asked, and carries a live indicator while the answer is still being written — so a long investigation is visible in the list instead of appearing only once it finishes

@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+vi.mock('drizzle-orm', async importOriginal => ({
+  ...(await importOriginal()),
+  and: (...preds) => ({ op: 'and', preds }),
+  eq: (col, val) => ({ op: 'eq', col, val }),
+  lte: (col, val) => ({ op: 'lte', col, val }),
+  isNull: col => ({ op: 'isNull', col }),
+}))
+
 let queue = []
 let calls = []
 
@@ -8,7 +16,10 @@ function makeChain(op) {
   calls.push(call)
   const chain = {
     from: () => chain,
-    where: () => chain,
+    where: value => {
+      call.steps.where = value
+      return chain
+    },
     orderBy: () => chain,
     limit: value => {
       call.steps.limit = value
@@ -46,6 +57,8 @@ const db = {
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
+const { schedules } = await import('./schema.js')
+
 const {
   listSchedules,
   countSchedules,
@@ -74,12 +87,23 @@ beforeEach(() => {
   calls = []
 })
 
+const OWN_SCHEDULES_ONLY = { op: 'isNull', col: schedules.botId }
+
 describe('listSchedules', () => {
   it('returns the rows from the DB', async () => {
     const rows = [{ id: 1, question: 'Failed payments' }]
     queue = [rows]
 
     expect(await listSchedules(7)).toEqual(rows)
+  })
+
+  it('lists only the scheduled queries of the user, never the routines of a bot', async () => {
+    queue = [[]]
+
+    await listSchedules(7)
+
+    const select = calls.find(call => call.op === 'select')
+    expect(select.steps.where.preds).toEqual([{ op: 'eq', col: schedules.userId, val: 7 }, OWN_SCHEDULES_ONLY])
   })
 })
 
@@ -94,6 +118,15 @@ describe('countSchedules', () => {
     queue = [[]]
 
     expect(await countSchedules(7)).toBe(0)
+  })
+
+  it('does not count the routines of a bot against the limit', async () => {
+    queue = [[{ total: 0 }]]
+
+    await countSchedules(7)
+
+    const select = calls.find(call => call.op === 'select')
+    expect(select.steps.where.preds).toContainEqual(OWN_SCHEDULES_ONLY)
   })
 })
 
@@ -128,6 +161,19 @@ describe('updateSchedule', () => {
 
     expect(await updateSchedule(1, 7, SCHEDULE_INPUT)).toBeNull()
   })
+
+  it('never touches the routine of a bot', async () => {
+    queue = [[]]
+
+    await updateSchedule(1, 7, SCHEDULE_INPUT)
+
+    const update = calls.find(call => call.op === 'update')
+    expect(update.steps.where.preds).toEqual([
+      { op: 'eq', col: schedules.id, val: 1 },
+      { op: 'eq', col: schedules.userId, val: 7 },
+      OWN_SCHEDULES_ONLY,
+    ])
+  })
 })
 
 describe('deleteSchedule', () => {
@@ -141,6 +187,15 @@ describe('deleteSchedule', () => {
     queue = [[]]
 
     expect(await deleteSchedule(1, 7)).toBe(false)
+  })
+
+  it('never deletes the routine of a bot', async () => {
+    queue = [[]]
+
+    await deleteSchedule(1, 7)
+
+    const remove = calls.find(call => call.op === 'delete')
+    expect(remove.steps.where.preds).toContainEqual(OWN_SCHEDULES_ONLY)
   })
 })
 
@@ -174,6 +229,37 @@ describe('claimDueSchedules', () => {
     expect(updates[0].steps.set.nextRunAt).toEqual(nextRuns[1])
     expect(updates[1].steps.set.nextRunAt).toEqual(nextRuns[2])
     expect(updates[0].steps.set.lastRunAt).toBeInstanceOf(Date)
+  })
+
+  it('leaves paused routines out of the claim', async () => {
+    queue = [[]]
+
+    await claimDueSchedules(5, () => new Date())
+
+    const select = calls.find(call => call.op === 'select')
+    expect(select.steps.where.preds).toContainEqual({ op: 'eq', col: schedules.paused, val: false })
+    expect(select.steps.where.preds[0]).toMatchObject({ op: 'lte', col: schedules.nextRunAt })
+  })
+
+  it('deletes a one-off routine instead of rescheduling it, and still returns it to run', async () => {
+    const due = [
+      { id: 1, frequency: 'once', botId: 4, title: 'Remind me', lastRunAt: null },
+      { id: 2, frequency: 'weekdays', botId: 4, title: 'Daily triage', lastRunAt: new Date('2026-07-27T15:00:00Z') },
+    ]
+    const nextRunFor = vi.fn(() => new Date('2026-07-28T15:00:00Z'))
+    queue = [due, [], []]
+
+    const claimed = await claimDueSchedules(5, nextRunFor)
+
+    expect(claimed).toEqual(due)
+    const removals = calls.filter(call => call.op === 'delete')
+    expect(removals).toHaveLength(1)
+    expect(removals[0].steps.where).toEqual({ op: 'eq', col: schedules.id, val: 1 })
+    const updates = calls.filter(call => call.op === 'update')
+    expect(updates).toHaveLength(1)
+    expect(updates[0].steps.where).toEqual({ op: 'eq', col: schedules.id, val: 2 })
+    expect(nextRunFor).toHaveBeenCalledTimes(1)
+    expect(nextRunFor).toHaveBeenCalledWith(due[1])
   })
 
   it('updates nothing when no schedule is due', async () => {

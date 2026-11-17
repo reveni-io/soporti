@@ -355,6 +355,51 @@ export function deleteSchedule(token, id) {
   })
 }
 
+export function getBots(token) {
+  return request('/api/bots', { token, errorMessage: 'Failed to load your bots' })
+}
+
+export function createBot(token, bot) {
+  return request('/api/bots', { method: 'POST', token, body: bot, errorMessage: 'Failed to create the bot' })
+}
+
+export function updateBot(token, id, bot) {
+  return request(`/api/bots/${id}`, { method: 'PUT', token, body: bot, errorMessage: 'Failed to save the bot' })
+}
+
+export function deleteBot(token, id) {
+  return request(`/api/bots/${id}`, { method: 'DELETE', token, errorMessage: 'Failed to delete the bot' })
+}
+
+export function getBotMessages(token, id) {
+  return request(`/api/bots/${id}/messages`, { token, errorMessage: 'Failed to load the conversation' })
+}
+
+export function markBotRead(token, id) {
+  return request(`/api/bots/${id}/read`, { method: 'POST', token, errorMessage: 'Failed to mark the bot as read' })
+}
+
+export function getBotRoutines(token, id) {
+  return request(`/api/bots/${id}/routines`, { token, errorMessage: 'Failed to load the routines' })
+}
+
+export function setBotRoutinePaused(token, botId, routineId, paused) {
+  return request(`/api/bots/${botId}/routines/${routineId}`, {
+    method: 'PATCH',
+    token,
+    body: { paused },
+    errorMessage: 'Failed to update the routine',
+  })
+}
+
+export function deleteBotRoutine(token, botId, routineId) {
+  return request(`/api/bots/${botId}/routines/${routineId}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the routine',
+  })
+}
+
 export function getAdminUsers(token) {
   return request('/api/admin/users', { token, errorMessage: 'Failed to load users' })
 }

@@ -718,4 +718,51 @@ describe('ChatPanel', () => {
       expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     })
   })
+
+  describe('bot mode', () => {
+    const BOT = { id: 3, name: 'Ticket triager', description: 'Reviews the new tickets.', avatarSeed: 'seed-3' }
+
+    it('shows the bot in the topbar instead of a conversation title', () => {
+      const messages = [{ role: 'assistant', parts: [{ type: 'text', content: 'Hi! I am Ticket triager.' }] }]
+      render(<ChatPanel {...defaultProps} messages={messages} bot={BOT} />)
+
+      expect(screen.getByRole('heading', { name: 'Ticket triager' })).toBeInTheDocument()
+      expect(screen.getByText('Reviews the new tickets.')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Share conversation')).not.toBeInTheDocument()
+    })
+
+    it('shows a loading line instead of the empty state while the conversation loads', () => {
+      render(<ChatPanel {...defaultProps} bot={BOT} isFetching />)
+
+      expect(screen.getByText('Loading the conversation…')).toBeInTheDocument()
+      expect(screen.queryByText('Ask Soporti anything')).not.toBeInTheDocument()
+    })
+
+    it('shows why the conversation could not be loaded', () => {
+      render(<ChatPanel {...defaultProps} bot={BOT} fetchError="Failed to load the conversation" />)
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to load the conversation')
+      expect(screen.queryByText('Loading the conversation…')).not.toBeInTheDocument()
+    })
+
+    it('shows nothing in place of an empty conversation once it is loaded', () => {
+      const { container } = render(<ChatPanel {...defaultProps} bot={BOT} />)
+
+      expect(container.querySelector('.chat__empty')).toBeNull()
+      expect(container.querySelector('.chat__status')).toBeNull()
+    })
+
+    it('opens the routines and the bot settings from the topbar', async () => {
+      const onOpenRoutines = vi.fn()
+      const onEditBot = vi.fn()
+      const user = userEvent.setup()
+      render(<ChatPanel {...defaultProps} bot={BOT} onOpenRoutines={onOpenRoutines} onEditBot={onEditBot} />)
+
+      await user.click(screen.getByRole('button', { name: 'Routines' }))
+      await user.click(screen.getByRole('button', { name: 'Edit bot' }))
+
+      expect(onOpenRoutines).toHaveBeenCalledTimes(1)
+      expect(onEditBot).toHaveBeenCalledTimes(1)
+    })
+  })
 })

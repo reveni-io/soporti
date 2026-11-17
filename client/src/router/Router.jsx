@@ -71,7 +71,11 @@ export default function Router() {
   return (
     <Routes>
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-      <Route path={ROUTES.CHAT} element={<ChatRoute />} />
+      <Route element={<ChatRoute />}>
+        <Route path={ROUTES.CHAT} />
+        <Route path={ROUTES.BOTS} />
+        <Route path={ROUTES.BOT} />
+      </Route>
       <Route path={`${ROUTES.ADMIN}/*`} element={<AdminPage />} />
       <Route path={ROUTES.SHARE} element={<ShareRoute />} />
       <Route path={ROUTES.OAUTH_CONSENT} element={<OAuthConsent />} />

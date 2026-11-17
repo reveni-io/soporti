@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import Chat from './Chat.jsx'
 
 function shareCalls() {
@@ -38,8 +39,12 @@ vi.mock('./Sidebar/Sidebar.jsx', () => ({
     activeConversations,
     conversationsReloadKey,
     selectedConversationId,
+    hasUnreadBots,
+    onLoadConversation,
   }) => (
     <div data-testid="sidebar" data-open={isOpen} data-collapsed={isCollapsed}>
+      <span data-testid="has-unread-bots">{String(hasUnreadBots)}</span>
+      <button onClick={() => onLoadConversation('conv-1')}>Load Conversation</button>
       <span data-testid="sidebar-user">{user?.email}</span>
       <span data-testid="active-conversations">{JSON.stringify(activeConversations)}</span>
       <span data-testid="conversations-reload-key">{conversationsReloadKey}</span>
@@ -66,8 +71,22 @@ vi.mock('./SchedulesModal/SchedulesModal.jsx', () => ({
 }))
 
 vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
-  default: ({ messages, onSend, onShare, onOpenSidebar, isSidebarCollapsed, onExpandSidebar, initialQuestion }) => (
+  default: ({
+    messages,
+    onSend,
+    onShare,
+    onOpenSidebar,
+    isSidebarCollapsed,
+    onExpandSidebar,
+    initialQuestion,
+    bot,
+    onOpenRoutines,
+    onEditBot,
+  }) => (
     <div data-testid="chat" data-sidebar-collapsed={isSidebarCollapsed}>
+      <span data-testid="chat-bot">{bot?.name}</span>
+      <button onClick={onOpenRoutines}>Open Routines</button>
+      <button onClick={onEditBot}>Edit Bot</button>
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="initial-question">{initialQuestion}</span>
       <button onClick={() => onSend('hello')}>Send</button>
@@ -124,7 +143,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     expect(screen.getByTestId('login')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
   })
@@ -146,7 +165,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     expect(screen.getByTestId('sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('chat')).toBeInTheDocument()
     expect(screen.queryByTestId('login')).not.toBeInTheDocument()
@@ -169,7 +188,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat initialQuestion="why did that refund fail?" />)
+    render(<Chat initialQuestion="why did that refund fail?" />, { wrapper: MemoryRouter })
     expect(screen.getByTestId('initial-question')).toHaveTextContent('why did that refund fail?')
   })
 
@@ -191,7 +210,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     expect(screen.queryByTestId('schedules-modal')).not.toBeInTheDocument()
 
     await user.click(screen.getByText('Set Tech'))
@@ -222,7 +241,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     expect(screen.getByText('Bad credentials')).toBeInTheDocument()
   })
 
@@ -245,7 +264,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText('Toggle Source'))
     await user.click(screen.getByText('Send'))
@@ -277,7 +296,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('New Chat'))
     expect(newChat).toHaveBeenCalled()
   })
@@ -306,7 +325,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('Share'))
 
     await waitFor(() => {
@@ -332,7 +351,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('Set Tech'))
     expect(localStorage.getItem('selectedProfile')).toBe('tech')
   })
@@ -356,7 +375,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('Set Tech'))
     await user.click(screen.getByText('Send'))
     expect(sendMessage).toHaveBeenCalledWith('hello', {
@@ -391,7 +410,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText('Share'))
     await waitFor(() => {
@@ -431,7 +450,7 @@ describe('Chat', () => {
     global.fetch = vi.fn()
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('Share'))
 
     expect(shareCalls()).toHaveLength(0)
@@ -460,7 +479,7 @@ describe('Chat', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
     await user.click(screen.getByText('Share'))
 
     await waitFor(() => {
@@ -488,7 +507,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    const { container } = render(<Chat />)
+    const { container } = render(<Chat />, { wrapper: MemoryRouter })
     expect(container.querySelector('.chat-page__overlay--visible')).toBeNull()
 
     await user.click(screen.getByText('Open Sidebar'))
@@ -515,7 +534,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    const { container } = render(<Chat />)
+    const { container } = render(<Chat />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText('Open Sidebar'))
     expect(container.querySelector('.chat-page__overlay--visible')).toBeTruthy()
@@ -543,7 +562,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    const { container } = render(<Chat />)
+    const { container } = render(<Chat />, { wrapper: MemoryRouter })
 
     await user.click(screen.getByText('Open Sidebar'))
     const overlay = container.querySelector('.chat-page__overlay--visible')
@@ -571,7 +590,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('false')
 
@@ -601,7 +620,7 @@ describe('Chat', () => {
     })
 
     const user = userEvent.setup()
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(screen.getByTestId('sidebar').dataset.collapsed).toBe('true')
 
@@ -630,7 +649,7 @@ describe('Chat', () => {
       newChat: vi.fn(),
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(screen.getByTestId('sidebar-user').textContent).toBe('ada@example.com')
   })
@@ -659,7 +678,7 @@ describe('Chat', () => {
       sessionId: null,
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(JSON.parse(screen.getByTestId('active-conversations').textContent)).toEqual(activeConversations)
   })
@@ -684,7 +703,7 @@ describe('Chat', () => {
       sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(screen.getByTestId('selected-conversation').textContent).toBe('a3bb189e-8bf9-4888-9912-ace4e6543002')
   })
@@ -709,8 +728,288 @@ describe('Chat', () => {
       sessionId: null,
     })
 
-    render(<Chat />)
+    render(<Chat />, { wrapper: MemoryRouter })
 
     expect(screen.getByTestId('conversations-reload-key').textContent).toBe('3')
+  })
+
+  describe('bots', () => {
+    const SIGNED_IN = {
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    }
+    const TRIAGER = {
+      id: 3,
+      name: 'Ticket triager',
+      description: 'Reviews the new tickets.',
+      profile: 'tech',
+      avatarSeed: 'seed-3',
+      unreadCount: 0,
+    }
+
+    function respond(body, status = 200) {
+      return { ok: status < 400, status, json: async () => body }
+    }
+
+    function chatState(overrides = {}) {
+      return {
+        messages: [],
+        isLoading: false,
+        sendMessage: vi.fn(),
+        stopGeneration: vi.fn(),
+        newChat: vi.fn(),
+        loadConversation: vi.fn().mockResolvedValue(),
+        openBot: vi.fn().mockResolvedValue(),
+        refreshBot: vi.fn().mockResolvedValue(),
+        activeConversations: [],
+        completedRuns: 0,
+        sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
+        ...overrides,
+      }
+    }
+
+    function serveBots(initialBots) {
+      let bots = initialBots
+      global.fetch = vi.fn().mockImplementation((url, options) => {
+        const path = String(url)
+        if (path === '/api/bots' && options.method === 'POST') {
+          const created = { ...TRIAGER, ...JSON.parse(options.body), id: 8 }
+          bots = [...bots, created]
+          return Promise.resolve(respond({ bot: created }, 201))
+        }
+        if (path.startsWith('/api/bots/') && options.method === 'DELETE') {
+          bots = []
+          return Promise.resolve(respond({ ok: true }))
+        }
+        if (path === '/api/bots') return Promise.resolve(respond({ bots }))
+        if (path.endsWith('/routines')) return Promise.resolve(respond({ routines: [] }))
+        return Promise.resolve(respond({ ok: true }))
+      })
+    }
+
+    function LocationProbe() {
+      return <span data-testid="location">{useLocation().pathname}</span>
+    }
+
+    it('shows the bots instead of a chat at /bots', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+
+      render(
+        <MemoryRouter initialEntries={['/bots']}>
+          <Chat />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByRole('link', { name: /ticket triager/i })).toHaveAttribute('href', '/bots/3')
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument()
+    })
+
+    it('opens the chat of the bot at /bots/:botId and marks it read', async () => {
+      serveBots([TRIAGER])
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByText('Ticket triager')).toBeInTheDocument()
+      expect(useChat.mock.lastCall[3]).toBe(3)
+      expect(state.openBot).toHaveBeenCalledWith(3)
+      await waitFor(() =>
+        expect(
+          global.fetch.mock.calls.some(([url, options]) => url === '/api/bots/3/read' && options.method === 'POST')
+        ).toBe(true)
+      )
+      expect(screen.getByTestId('selected-conversation')).toBeEmptyDOMElement()
+    })
+
+    it('says the bot was not found when it is not one of the bots of the user', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+
+      render(
+        <MemoryRouter initialEntries={['/bots/99']}>
+          <Chat />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByRole('heading', { name: 'Bot not found.' })).toBeInTheDocument()
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument()
+    })
+
+    it('sends the messages of a bot with every tool and the profile of the bot', async () => {
+      serveBots([TRIAGER])
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+        </MemoryRouter>
+      )
+      await screen.findByText('Ticket triager')
+      await user.click(screen.getByText('Send'))
+
+      expect(state.sendMessage).toHaveBeenCalledTimes(1)
+      expect(state.sendMessage).toHaveBeenCalledWith('hello', {
+        selectedSources: ['yolo'],
+        profile: 'tech',
+        skills: [],
+        attachments: [],
+      })
+    })
+
+    it('marks the bots link while a bot has something new', async () => {
+      serveBots([{ ...TRIAGER, unreadCount: 2 }])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+
+      render(<Chat />, { wrapper: MemoryRouter })
+
+      await waitFor(() => expect(screen.getByTestId('has-unread-bots')).toHaveTextContent('true'))
+    })
+
+    it('goes back to the chat when a new chat starts from a bot', async () => {
+      serveBots([TRIAGER])
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      await screen.findByText('Ticket triager')
+      await user.click(screen.getByText('New Chat'))
+
+      expect(state.newChat).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('location')).toHaveTextContent('/chat')
+    })
+
+    it('goes back to the chat to open a conversation from a bot', async () => {
+      serveBots([TRIAGER])
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      await user.click(screen.getByText('Load Conversation'))
+
+      expect(state.loadConversation).toHaveBeenCalledWith('conv-1')
+      expect(screen.getByTestId('location')).toHaveTextContent('/chat')
+    })
+
+    it('creates a bot and opens its chat', async () => {
+      serveBots([])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      await user.click(await screen.findByRole('button', { name: 'Create a bot' }))
+      await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Release notes')
+      await user.type(screen.getByRole('textbox', { name: 'What is it for?' }), 'Writes the release notes.')
+      await user.click(screen.getByRole('button', { name: 'Create bot' }))
+
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/bots/8'))
+      expect(screen.getByTestId('chat-bot')).toHaveTextContent('Release notes')
+      expect(screen.queryByRole('dialog', { name: 'New bot' })).not.toBeInTheDocument()
+    })
+
+    it('opens the routines of the bot', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+        </MemoryRouter>
+      )
+      await screen.findByText('Ticket triager')
+      await user.click(screen.getByText('Open Routines'))
+
+      expect(screen.getByRole('dialog', { name: 'Routines' })).toBeInTheDocument()
+      expect(await screen.findByText(/No routines yet/)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Close' }))
+
+      expect(screen.queryByRole('dialog', { name: 'Routines' })).not.toBeInTheDocument()
+    })
+
+    it('edits the bot from its chat', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+        </MemoryRouter>
+      )
+      await screen.findByText('Ticket triager')
+      await user.click(screen.getByText('Edit Bot'))
+
+      expect(screen.getByRole('dialog', { name: 'Edit bot' })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Ticket triager')
+
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit bot' })).not.toBeInTheDocument())
+      expect(global.fetch.mock.calls.some(([url, options]) => url === '/api/bots/3' && options.method === 'PUT')).toBe(
+        true
+      )
+    })
+
+    it('returns to the bots once the bot is deleted', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      await screen.findByText('Ticket triager')
+      await user.click(screen.getByText('Edit Bot'))
+      await user.click(screen.getByRole('button', { name: 'Delete bot' }))
+      await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/bots$/))
+      expect(await screen.findByRole('heading', { name: 'Your own assistants' })).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: 'Edit bot' })).not.toBeInTheDocument()
+    })
   })
 })

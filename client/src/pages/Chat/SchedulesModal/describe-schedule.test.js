@@ -10,6 +10,16 @@ describe('describeSchedule', () => {
     expect(describeSchedule({ frequency: 'daily', hour: 9, minute: 0 })).toBe('Daily at 09:00')
   })
 
+  it('describes a schedule that runs on working days', () => {
+    expect(describeSchedule({ frequency: 'weekdays', hour: 17, minute: 0 })).toBe('Every weekday at 17:00')
+  })
+
+  it('describes a schedule that runs once by its date', () => {
+    expect(describeSchedule({ frequency: 'once', runDate: '2026-11-20', hour: 9, minute: 5 })).toBe(
+      'Once on 2026-11-20 at 09:05'
+    )
+  })
+
   it('describes a weekly schedule by its weekday', () => {
     expect(describeSchedule({ frequency: 'weekly', weekday: 1, hour: 8, minute: 30 })).toBe('Weekly on Monday at 08:30')
   })

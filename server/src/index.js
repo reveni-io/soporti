@@ -22,6 +22,7 @@ import userRouter from './routes/user.js'
 import skillsRouter from './routes/skills.js'
 import apiKeysRouter from './routes/api-keys.js'
 import schedulesRouter from './routes/schedules.js'
+import botsRoute from './routes/bots.js'
 import videosRouter from './routes/videos.js'
 import analyticsRouter from './routes/analytics.js'
 import mcpRoute from './mcp/route.js'
@@ -82,6 +83,7 @@ app.use('/api/user', userRouter)
 app.use('/api/skills', skillsRouter)
 app.use('/api/api-keys', apiKeysRouter)
 app.use('/api/schedules', schedulesRouter)
+app.use('/api/bots', botsRoute(conversationStore))
 app.use('/api/videos', videosRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use(OAUTH_BASE_PATH, oauthRouter)

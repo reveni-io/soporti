@@ -1,7 +1,7 @@
 import { useId } from 'react'
-import Icon from '../../../common/Icon/Icon.jsx'
-import { useEscapeKey } from '../../../hooks/useEscapeKey/useEscapeKey.js'
-import { useOverlayDismiss } from '../../../hooks/useOverlayDismiss/useOverlayDismiss.js'
+import Icon from '../Icon/Icon.jsx'
+import { useEscapeKey } from '../../hooks/useEscapeKey/useEscapeKey.js'
+import { useOverlayDismiss } from '../../hooks/useOverlayDismiss/useOverlayDismiss.js'
 import './ModalFrame.css'
 
 export default function ModalFrame({ title, className, onClose, children }) {

@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('../db/schedules.js', () => ({ claimDueSchedules: vi.fn(), markScheduleRun: vi.fn() }))
 vi.mock('./runner.js', () => ({ runSchedule: vi.fn() }))
+vi.mock('../bots/routine-runner.js', () => ({ runBotRoutine: vi.fn() }))
 vi.mock('../llm/model.js', () => ({ isConfigured: vi.fn() }))
 
 const { claimDueSchedules, markScheduleRun } = await import('../db/schedules.js')
 const { runSchedule } = await import('./runner.js')
+const { runBotRoutine } = await import('../bots/routine-runner.js')
 const { isConfigured } = await import('../llm/model.js')
 const { runPollOnce, startSchedulePoller, stopSchedulePoller } = await import('./poller.js')
 
@@ -13,6 +15,16 @@ const STORE = { createScheduled: vi.fn() }
 
 const DAILY = { id: 1, question: 'Failed payments', frequency: 'daily', minute: 0, hour: 9, timezone: 'Europe/Madrid' }
 const HOURLY = { id: 2, question: 'Open PRs', frequency: 'hourly', minute: 30, timezone: 'Europe/Madrid' }
+const ROUTINE = {
+  id: 3,
+  botId: 4,
+  title: 'Ticket triage',
+  question: 'Triage the new tickets',
+  frequency: 'weekdays',
+  minute: 0,
+  hour: 17,
+  timezone: 'Europe/Madrid',
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -22,6 +34,7 @@ beforeEach(() => {
   claimDueSchedules.mockResolvedValue([])
   markScheduleRun.mockResolvedValue(undefined)
   runSchedule.mockResolvedValue({ conversationId: 'conv_1' })
+  runBotRoutine.mockResolvedValue({ posted: true })
 })
 
 afterEach(() => {
@@ -46,6 +59,36 @@ describe('runPollOnce', () => {
     expect(runSchedule).toHaveBeenNthCalledWith(2, HOURLY, STORE)
     expect(markScheduleRun).toHaveBeenNthCalledWith(1, 1, { status: 'ok' })
     expect(markScheduleRun).toHaveBeenNthCalledWith(2, 2, { status: 'ok' })
+  })
+
+  it('hands the routine of a bot to the bot runner and the rest to the schedule runner', async () => {
+    claimDueSchedules.mockResolvedValue([DAILY, ROUTINE])
+
+    expect(await runPollOnce(STORE)).toEqual({ ran: 2 })
+
+    expect(runSchedule).toHaveBeenCalledTimes(1)
+    expect(runSchedule).toHaveBeenCalledWith(DAILY, STORE)
+    expect(runBotRoutine).toHaveBeenCalledTimes(1)
+    expect(runBotRoutine).toHaveBeenCalledWith(ROUTINE, STORE)
+    expect(markScheduleRun).toHaveBeenNthCalledWith(2, 3, { status: 'ok' })
+  })
+
+  it('counts a routine that had nothing to report as a successful run', async () => {
+    claimDueSchedules.mockResolvedValue([ROUTINE])
+    runBotRoutine.mockResolvedValue({ posted: false })
+
+    expect(await runPollOnce(STORE)).toEqual({ ran: 1 })
+
+    expect(markScheduleRun).toHaveBeenCalledWith(3, { status: 'ok' })
+  })
+
+  it('records the failure of a routine run', async () => {
+    claimDueSchedules.mockResolvedValue([ROUTINE])
+    runBotRoutine.mockRejectedValue(new Error('model unavailable'))
+
+    expect(await runPollOnce(STORE)).toEqual({ ran: 0 })
+
+    expect(markScheduleRun).toHaveBeenCalledWith(3, { status: 'error', error: 'model unavailable' })
   })
 
   it('claims a bounded batch and advances the next run of each row', async () => {

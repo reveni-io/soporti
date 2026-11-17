@@ -1,0 +1,112 @@
+.modal.bot-form-modal {
+  gap: var(--sp4);
+  max-width: 34rem;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.bot-form-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+}
+
+.bot-form-modal__avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp4);
+}
+
+.bot-form-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+}
+
+.bot-form-modal__label,
+.bot-form-modal__hint {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.bot-form-modal__profiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp2);
+  border: none;
+}
+
+.bot-form-modal__profiles legend {
+  margin-bottom: var(--sp1);
+}
+
+.bot-form-modal__profile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: var(--sp2);
+  row-gap: var(--sp1);
+  padding: var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) ease,
+    background-color var(--motion-fast) ease;
+}
+
+.bot-form-modal__profile:hover {
+  border-color: var(--border-strong);
+}
+
+.bot-form-modal__profile--selected,
+.bot-form-modal__profile--selected:hover {
+  border-color: var(--green-chart);
+  background-color: var(--success-low);
+}
+
+.bot-form-modal__profile:has(:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.bot-form-modal__radio {
+  accent-color: var(--green-chart);
+}
+
+.bot-form-modal__profile-hint {
+  grid-column: 1 / -1;
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.bot-form-modal__danger {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp3);
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--sp4);
+}
+
+.bot-form-modal__warning {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.bot-form-modal__danger .alert {
+  justify-self: stretch;
+}
+
+@media (max-width: 768px) {
+  .bot-form-modal__profiles {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bot-form-modal__profile {
+    transition: none;
+  }
+}

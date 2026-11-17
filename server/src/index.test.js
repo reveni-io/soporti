@@ -122,6 +122,14 @@ vi.mock('./routes/chat.js', () => ({
   }),
 }))
 
+vi.mock('./routes/bots.js', () => ({
+  default: vi.fn(() => {
+    const router = Router()
+    router.get('/', (_req, res) => res.json({ bots: [] }))
+    return router
+  }),
+}))
+
 vi.mock('./routes/conversations.js', () => ({
   default: vi.fn(() => {
     const router = Router()
@@ -289,6 +297,13 @@ describe('module-level setup', () => {
     const conversationsRoute = (await import('./routes/conversations.js')).default
     expect(conversationsRoute).toHaveBeenCalledTimes(1)
     expect(conversationsRoute.mock.calls[0][0]).toBeDefined()
+  })
+
+  it('bots route factory was called with the same conversation store as the chat', async () => {
+    const chatRoute = (await import('./routes/chat.js')).default
+    const botsRoute = (await import('./routes/bots.js')).default
+    expect(botsRoute).toHaveBeenCalledTimes(1)
+    expect(botsRoute.mock.calls[0][0]).toBe(chatRoute.mock.calls[0][0])
   })
 
   it('registers the Langfuse trace processor once at boot, replacing the default OpenAI exporter', async () => {

@@ -24,6 +24,46 @@ describe('AssistantMessage', () => {
     expect(container.querySelector('.message__typing')).toBeInTheDocument()
   })
 
+  it('labels the result of a routine with its title', () => {
+    render(
+      <AssistantMessage
+        message={{
+          parts: [
+            { type: 'routine', routineId: 9, title: 'Queue review' },
+            { type: 'text', content: 'Three new tickets.' },
+          ],
+        }}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByText('Routine · Queue review')).toBeInTheDocument()
+    expect(screen.getByText('Three new tickets.')).toBeInTheDocument()
+  })
+
+  it('labels a routine that could not run', () => {
+    render(
+      <AssistantMessage
+        message={{
+          parts: [
+            { type: 'routine', routineId: 9, title: 'Queue review' },
+            { type: 'error', content: 'I could not run this routine.' },
+          ],
+        }}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByText('Routine · Queue review')).toBeInTheDocument()
+    expect(screen.getByText('I could not run this routine.')).toBeInTheDocument()
+  })
+
+  it('shows no routine label on a regular answer', () => {
+    render(<AssistantMessage message={{ parts: [{ type: 'text', content: 'Hello' }] }} isStreaming={false} />)
+
+    expect(screen.queryByText(/^Routine ·/)).not.toBeInTheDocument()
+  })
+
   it('renders text parts as markdown', () => {
     render(<AssistantMessage message={{ parts: [{ type: 'text', content: '**bold**' }] }} isStreaming={false} />)
 

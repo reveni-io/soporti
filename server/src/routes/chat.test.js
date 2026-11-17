@@ -54,6 +54,10 @@ vi.mock('../db/attachment-images.js', () => ({
   getAttachmentImages: vi.fn(async () => new Map()),
 }))
 
+vi.mock('../db/bots.js', () => ({
+  getBot: vi.fn(),
+}))
+
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured, searchSimilarCases } from '../knowledge/client.js'
@@ -61,6 +65,8 @@ import { isConfigured } from '../llm/model.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
+import { getBot } from '../db/bots.js'
+import { withConversationLock } from '../sessions/conversation-lock.js'
 import chatRoute from './chat.js'
 
 function createStreamMock(events, { history, lastResponseId, usage } = {}) {
@@ -102,6 +108,7 @@ function buildResolvedWeb(overrides = {}) {
 
 const conversationStore = {
   resolveWeb: vi.fn(),
+  resolveBot: vi.fn(),
   saveTurn: vi.fn(),
   getInvokedSkillIds: vi.fn(),
 }
@@ -258,6 +265,7 @@ describe('POST /api/chat', () => {
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
       timezone: null,
+      bot: null,
     })
   })
 
@@ -373,6 +381,7 @@ describe('POST /api/chat', () => {
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
       timezone: null,
+      bot: null,
     })
   })
 
@@ -396,6 +405,7 @@ describe('POST /api/chat', () => {
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
       timezone: null,
+      bot: null,
     })
   })
 
@@ -656,6 +666,7 @@ describe('POST /api/chat', () => {
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
       timezone: null,
+      bot: null,
     })
     expect(conversationStore.saveTurn).toHaveBeenCalledWith(
       TEST_CONVERSATION_ID,
@@ -741,6 +752,7 @@ describe('POST /api/chat', () => {
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
       timezone: null,
+      bot: null,
     })
   })
 
@@ -1130,5 +1142,127 @@ describe('POST /api/chat', () => {
         },
       })
     )
+  })
+
+  describe('with a bot', () => {
+    const BOT = { id: 4, name: 'Ticket triager', description: 'Triage the new Zendesk tickets.', profile: 'tech' }
+    const BOT_CONVERSATION_ID = '33333333-3333-4333-8333-333333333333'
+
+    beforeEach(() => {
+      getBot.mockResolvedValue(BOT)
+      conversationStore.resolveBot.mockResolvedValue(
+        buildResolvedWeb({ conversationId: BOT_CONVERSATION_ID, isNewConversation: false })
+      )
+      run.mockResolvedValue(
+        createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'On it.' } }])
+      )
+    })
+
+    it.each([['4'], [0], [-2], [1.5], [1_000_000_000]])('rejects the bot id %s', async botId => {
+      const res = await request(app).post('/').send({ message: 'hello', botId })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('Invalid bot ID.')
+      expect(getBot).not.toHaveBeenCalled()
+    })
+
+    it('answers 404 before opening the stream when the bot is not the user own', async () => {
+      getBot.mockResolvedValue(null)
+
+      const res = await request(app).post('/').send({ message: 'hello', botId: 4 })
+
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe('Bot not found.')
+      expect(getBot).toHaveBeenCalledTimes(1)
+      expect(getBot).toHaveBeenCalledWith(4, 1)
+      expect(conversationStore.resolveBot).not.toHaveBeenCalled()
+      expect(conversationStore.resolveWeb).not.toHaveBeenCalled()
+    })
+
+    it('answers 500 when the bot cannot be loaded', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      getBot.mockRejectedValue(new Error('db down'))
+
+      const res = await request(app).post('/').send({ message: 'hello', botId: 4 })
+
+      expect(res.status).toBe(500)
+      expect(res.body.error).toBe('Failed to load the bot.')
+      consoleError.mockRestore()
+    })
+
+    it('talks in the bot conversation and ignores the session id of the body', async () => {
+      const res = await request(app).post('/').send({ message: 'hello', botId: 4, sessionId: TEST_CONVERSATION_ID })
+
+      expect(conversationStore.resolveWeb).not.toHaveBeenCalled()
+      expect(conversationStore.resolveBot).toHaveBeenCalledWith(4, 1)
+      expect(streamEvents(res)).toContainEqual({ type: 'session_id', sessionId: BOT_CONVERSATION_ID })
+      expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1)
+      expect(conversationStore.saveTurn).toHaveBeenCalledWith(
+        BOT_CONVERSATION_ID,
+        expect.objectContaining({
+          uiMessages: [
+            { role: 'user', parts: [{ type: 'text', content: 'hello' }] },
+            { role: 'assistant', parts: [{ type: 'text', content: 'On it.' }] },
+          ],
+        })
+      )
+    })
+
+    it('runs the bot in yolo mode with its own profile and role, whatever the body selected', async () => {
+      await request(app)
+        .post('/')
+        .send({ message: 'hello', botId: 4, selectedSources: ['org/repo'], profile: 'support' })
+
+      expect(createAgent).toHaveBeenCalledTimes(1)
+      expect(createAgent).toHaveBeenCalledWith(
+        ['yolo'],
+        'tech',
+        expect.objectContaining({
+          conversationId: BOT_CONVERSATION_ID,
+          bot: { id: 4, name: 'Ticket triager', description: 'Triage the new Zendesk tickets.' },
+        })
+      )
+    })
+
+    it('waits for the conversation lock and reads the conversation again once it holds it', async () => {
+      const freshSession = buildSession()
+      conversationStore.resolveBot
+        .mockResolvedValueOnce(
+          buildResolvedWeb({
+            conversationId: BOT_CONVERSATION_ID,
+            previousResponseId: 'resp_before_the_routine',
+            isNewConversation: false,
+          })
+        )
+        .mockResolvedValueOnce(
+          buildResolvedWeb({
+            conversationId: BOT_CONVERSATION_ID,
+            session: freshSession,
+            previousResponseId: undefined,
+            isNewConversation: false,
+          })
+        )
+      let releaseRoutine
+      const routineAppend = withConversationLock(BOT_CONVERSATION_ID, () => {
+        return new Promise(resolve => {
+          releaseRoutine = resolve
+        })
+      })
+
+      const pending = request(app).post('/').send({ message: 'what did the routine find?', botId: 4 })
+      const response = pending.then(res => res)
+      await vi.waitFor(() => expect(conversationStore.getInvokedSkillIds).toHaveBeenCalledTimes(1))
+      await new Promise(resolve => setTimeout(resolve, 20))
+
+      expect(run).not.toHaveBeenCalled()
+
+      releaseRoutine()
+      await routineAppend
+      await response
+
+      expect(conversationStore.resolveBot).toHaveBeenCalledTimes(2)
+      expect(run).toHaveBeenCalledTimes(1)
+      expect(run.mock.calls[0][2]).toMatchObject({ session: freshSession, previousResponseId: undefined })
+    })
   })
 })
