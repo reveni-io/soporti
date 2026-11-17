@@ -1264,5 +1264,22 @@ describe('POST /api/chat', () => {
       expect(run).toHaveBeenCalledTimes(1)
       expect(run.mock.calls[0][2]).toMatchObject({ session: freshSession, previousResponseId: undefined })
     })
+
+    it('ends the stream with an error when the bot conversation cannot be read again under the lock', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      conversationStore.resolveBot
+        .mockResolvedValueOnce(buildResolvedWeb({ conversationId: BOT_CONVERSATION_ID, isNewConversation: false }))
+        .mockRejectedValueOnce(new Error('db down'))
+
+      const res = await request(app).post('/').send({ message: 'hello', botId: 4 })
+
+      const events = streamEvents(res)
+      expect(events).toContainEqual({ type: 'error', message: 'An internal error occurred.' })
+      expect(events[events.length - 1]).toEqual({ type: 'done' })
+      expect(run).not.toHaveBeenCalled()
+      expect(conversationStore.saveTurn).not.toHaveBeenCalled()
+      expect(consoleError).toHaveBeenCalledWith('Failed to resume the bot conversation:', expect.any(Error))
+      consoleError.mockRestore()
+    })
   })
 })

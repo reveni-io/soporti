@@ -169,6 +169,17 @@ describe('bots routes', () => {
       expect(createBot).not.toHaveBeenCalled()
     })
 
+    it('still creates the bot when its greeting cannot be stored', async () => {
+      store.saveTurn.mockRejectedValue(new Error('db down'))
+
+      const res = await request(app).post('/').send(BOT_BODY)
+
+      expect(res.status).toBe(201)
+      expect(res.body.bot).toMatchObject({ id: 4, name: 'Ticket triager' })
+      expect(store.saveTurn).toHaveBeenCalledTimes(1)
+      expect(console.error).toHaveBeenCalledWith('Failed to store the greeting of a new bot:', expect.any(Error))
+    })
+
     it('returns 500 when the bot cannot be created', async () => {
       createBot.mockRejectedValue(new Error('db down'))
 

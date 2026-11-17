@@ -44,6 +44,7 @@ function log(icon, ...args) {
 
 const SAFE_INPUT_FIELDS = ['repo', 'path', 'query']
 const MAX_BOT_ID = 999_999_999
+const INTERNAL_ERROR_EVENT = { type: 'error', message: 'An internal error occurred.' }
 
 const TOOL_START = '  →'
 const TOOL_DONE = '  ✓'
@@ -406,11 +407,21 @@ function resolveConversation(conversationStore, request, { bot, userId }) {
   return conversationStore.resolveWeb(request.sessionId, userId)
 }
 
-function inConversation(conversationStore, { bot, userId, resolved }, task) {
+function resumeBotConversation(conversationStore, { bot, userId }) {
+  return conversationStore.resolveBot(bot.id, userId).catch(err => {
+    console.error('Failed to resume the bot conversation:', err)
+    return null
+  })
+}
+
+function inConversation(conversationStore, { bot, userId, resolved, res }, task) {
   if (!bot) return task(resolved)
 
   return withConversationLock(resolved.conversationId, async () => {
-    return task(await conversationStore.resolveBot(bot.id, userId))
+    const conversation = await resumeBotConversation(conversationStore, { bot, userId })
+    if (!conversation) return sendEvent(res, INTERNAL_ERROR_EVENT)
+
+    return task(conversation)
   })
 }
 
@@ -498,7 +509,7 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
   } catch (err) {
     console.error('❌ Error:', err)
     await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR, userId })
-    sendEvent(res, { type: 'error', message: 'An internal error occurred.' })
+    sendEvent(res, INTERNAL_ERROR_EVENT)
   }
 }
 
@@ -581,7 +592,7 @@ export default function chatRoute(conversationStore) {
       turn: createTurnStream(res),
       context,
     }
-    await inConversation(conversationStore, { bot, userId, resolved }, conversation => {
+    await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
       return runChatTurn(turnContext, conversation)
     })
 

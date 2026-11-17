@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import { eq, and, or, desc, gte, lt, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { eq, and, or, desc, gte, lt, ilike, inArray, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
-import { ownedWebConversation, ownedWebConversations } from '../db/conversations.js'
+import { nonBotConversations, ownedWebConversation, ownedWebConversations } from '../db/conversations.js'
 import { toRenderMessage } from '../db/conversation-render.js'
 import { buildSnippet, toContainsPattern } from './conversation-search.js'
 import { PostgresSession } from './postgres-session.js'
@@ -220,7 +220,7 @@ export class ConversationStore {
         and(
           eq(conversations.userId, userId),
           eq(conversations.source, 'web'),
-          isNull(conversations.botId),
+          nonBotConversations(),
           gte(conversations.updatedAt, cutoff)
         )
       )
@@ -246,7 +246,7 @@ export class ConversationStore {
       .where(
         and(
           ownedWebConversations(userId),
-          isNull(conversations.botId),
+          nonBotConversations(),
           gte(conversations.updatedAt, cutoff),
           or(ilike(conversations.title, pattern), isNotNull(firstMatch.text))
         )
@@ -332,7 +332,7 @@ export class ConversationStore {
     const cutoff = new Date(Date.now() - RETENTION_MS)
     const deleted = await this.db
       .delete(conversations)
-      .where(and(lt(conversations.updatedAt, cutoff), isNull(conversations.botId)))
+      .where(and(lt(conversations.updatedAt, cutoff), nonBotConversations()))
       .returning({ id: conversations.id })
     if (deleted.length > 0) {
       console.log(`[conversations] cleanup: removed ${deleted.length} expired`)

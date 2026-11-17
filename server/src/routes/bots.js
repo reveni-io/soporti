@@ -69,13 +69,17 @@ async function loadBot(req, res, next) {
 }
 
 async function storeGreeting(conversationStore, bot, userId) {
-  const conversation = await conversationStore.resolveBot(bot.id, userId)
-  const greeting = await generateGreeting(bot)
+  try {
+    const conversation = await conversationStore.resolveBot(bot.id, userId)
+    const greeting = await generateGreeting(bot)
 
-  await appendToBotChat(conversationStore, conversation, {
-    parts: [{ type: 'text', content: greeting }],
-    items: buildBotTurnItems(BOT_GREETING_TURN, greeting),
-  })
+    await appendToBotChat(conversationStore, conversation, {
+      parts: [{ type: 'text', content: greeting }],
+      items: buildBotTurnItems(BOT_GREETING_TURN, greeting),
+    })
+  } catch (err) {
+    console.error('Failed to store the greeting of a new bot:', err)
+  }
 }
 
 function routineScope(req) {
