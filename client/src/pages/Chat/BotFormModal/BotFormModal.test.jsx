@@ -50,7 +50,7 @@ describe('BotFormModal', () => {
       name: 'Ticket triager',
       description: 'Reviews the new Zendesk tickets.',
       profile: 'tech',
-      avatarSeed: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      avatarSeed: expect.stringMatching(/^[0-9a-f]{32}$/),
     })
     expect(onCreated).toHaveBeenCalledTimes(1)
     expect(onCreated).toHaveBeenCalledWith({ ...TRIAGER, id: 8 })
