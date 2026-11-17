@@ -5,6 +5,7 @@ import {
   absoluteAppUrl,
   addDatabaseConnection,
   createAdminUser,
+  createBot,
   createSchedule,
   createShare,
   createSkill,
@@ -12,6 +13,8 @@ import {
   cancelVideo,
   createVideo,
   createVideoVariant,
+  deleteBot,
+  deleteBotRoutine,
   deleteConversation,
   deleteSchedule,
   deleteSkill,
@@ -22,6 +25,9 @@ import {
   getAdminStatus,
   getAuthConfig,
   getAuthMethods,
+  getBotMessages,
+  getBotRoutines,
+  getBots,
   getConversation,
   getHubspotConfig,
   getRepos,
@@ -37,6 +43,7 @@ import {
   getVideoThumbnail,
   isUnauthorized,
   listVideos,
+  markBotRead,
   redraftStoryboard,
   refreshSession,
   removeDatabaseConnection,
@@ -49,6 +56,7 @@ import {
   saveHubspotToken,
   saveSlackCredential,
   saveUserInstructions,
+  setBotRoutinePaused,
   searchConversations,
   sendFeedback,
   sendVideoMessage,
@@ -57,6 +65,7 @@ import {
   signInWithPassword,
   streamChat,
   testHubspotConnection,
+  updateBot,
   updateDatabaseConnection,
   updateSchedule,
   updateSkill,
@@ -527,6 +536,103 @@ describe('endpoints', () => {
     const [url, options] = lastCall()
     expect(url).toBe('/api/schedules/3')
     expect(options.method).toBe('DELETE')
+  })
+
+  it('reads the bots', async () => {
+    await getBots('tok')
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots')
+    expect(options.method).toBe('GET')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('creates a bot with its whole definition in the body', async () => {
+    await createBot('tok', {
+      name: 'Ticket triager',
+      description: 'Triage tickets',
+      profile: 'support',
+      avatarSeed: 'a1',
+    })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({
+      name: 'Ticket triager',
+      description: 'Triage tickets',
+      profile: 'support',
+      avatarSeed: 'a1',
+    })
+  })
+
+  it('updates a bot by id', async () => {
+    await updateBot('tok', 4, { name: 'Release notes', description: 'Write notes', profile: 'tech', avatarSeed: 'b2' })
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({
+      name: 'Release notes',
+      description: 'Write notes',
+      profile: 'tech',
+      avatarSeed: 'b2',
+    })
+  })
+
+  it('deletes a bot', async () => {
+    await deleteBot('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4')
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('reads the conversation of a bot', async () => {
+    await getBotMessages('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4/messages')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('marks a bot as read', async () => {
+    await markBotRead('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4/read')
+    expect(options.method).toBe('POST')
+  })
+
+  it('reads the routines of a bot', async () => {
+    await getBotRoutines('tok', 4)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4/routines')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('pauses a routine of a bot', async () => {
+    await setBotRoutinePaused('tok', 4, 9, true)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4/routines/9')
+    expect(options.method).toBe('PATCH')
+    expect(JSON.parse(options.body)).toEqual({ paused: true })
+  })
+
+  it('deletes a routine of a bot', async () => {
+    await deleteBotRoutine('tok', 4, 9)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/bots/4/routines/9')
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('falls back to a generic message when a bot cannot be created', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(500))
+
+    await expect(createBot('tok', { name: 'x' })).rejects.toThrow('Failed to create the bot')
   })
 
   it('saves a slack credential under its own endpoint and body key', async () => {

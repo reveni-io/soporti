@@ -258,6 +258,15 @@ const ICON_SHAPES = {
     </>
   ),
   zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
+  bot: (
+    <>
+      <rect x="4" y="8" width="16" height="12" rx="3" />
+      <path d="M12 8V5" />
+      <circle cx="12" cy="4" r="1" />
+      <line x1="9" y1="13" x2="9" y2="15" />
+      <line x1="15" y1="13" x2="15" y2="15" />
+    </>
+  ),
 }
 
 const ICON_VIEW_BOXES = {

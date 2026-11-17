@@ -6,6 +6,7 @@ export function usePolledResource(fetchResource, { token, intervalMs, shouldPoll
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const onLogoutRef = useRef(onLogout)
+  const isMountedRef = useRef(true)
   onLogoutRef.current = onLogout
 
   const isPolling = Boolean(token) && data !== null && shouldPoll(data)
@@ -30,6 +31,20 @@ export function usePolledResource(fetchResource, { token, intervalMs, shouldPoll
     },
     [fetchResource, token]
   )
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const reload = useCallback(async () => {
+    if (!token) return
+
+    await refresh(() => isMountedRef.current)
+  }, [token, refresh])
 
   useEffect(() => {
     if (!token) return
@@ -61,5 +76,5 @@ export function usePolledResource(fetchResource, { token, intervalMs, shouldPoll
     }
   }, [isPolling, refresh, intervalMs])
 
-  return { data, setData, loading, error }
+  return { data, setData, loading, error, reload }
 }

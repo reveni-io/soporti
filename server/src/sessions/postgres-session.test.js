@@ -10,7 +10,9 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('../db/index.js', () => ({ getDb: vi.fn(() => null) }))
 
+import { protocol } from '@openai/agents'
 import { conversationItems } from '../db/schema.js'
+import { buildBotTurnItems } from '../bots/bot-chat.js'
 import { PostgresSession } from './postgres-session.js'
 
 function hasReplayableOnlyPredicate(pred) {
@@ -187,6 +189,48 @@ describe('PostgresSession', () => {
       { type: 'message', role: 'assistant', content: 'no id' },
       { type: 'function_call_output', call_id: 'c1', output: 'result' },
     ])
+  })
+
+  it('replays the items a bot greeting or routine stores as valid agent input, after the turns around them', async () => {
+    const routineItems = JSON.parse(JSON.stringify(buildBotTurnItems('[Routine "Triage" ran.]', 'Three new tickets.')))
+    await session.addItems([{ type: 'message', role: 'user', content: 'hi' }])
+    await session.addItems(routineItems)
+    await session.addItems([{ type: 'message', role: 'user', content: 'which ones?' }])
+
+    const items = await session.getItems()
+
+    expect(items).toEqual([
+      { type: 'message', role: 'user', content: 'hi' },
+      ...routineItems,
+      { type: 'message', role: 'user', content: 'which ones?' },
+    ])
+    expect(protocol.UserMessageItem.parse(items[1])).toEqual(items[1])
+    expect(protocol.AssistantMessageItem.parse(items[2])).toEqual(items[2])
+    expect(items[2].content).toEqual([{ type: 'output_text', text: 'Three new tickets.' }])
+  })
+
+  it('replays only the recent turns that fit the budget when it has one', async () => {
+    const bounded = new PostgresSession('conv-1', db, { maxReplayChars: 120 })
+    const oldTurn = [
+      { type: 'message', role: 'user', content: 'old question' },
+      { type: 'message', role: 'assistant', content: 'o'.repeat(200) },
+    ]
+    const newTurn = [
+      { type: 'message', role: 'user', content: 'new question' },
+      { type: 'message', role: 'assistant', content: 'new answer' },
+    ]
+    await bounded.addItems([...oldTurn, ...newTurn])
+
+    expect(await bounded.getItems()).toEqual(newTurn)
+    expect(await session.getItems()).toEqual([...oldTurn, ...newTurn])
+    expect(db._rows()).toHaveLength(4)
+  })
+
+  it('keeps the explicit limit behaviour of a bounded session', async () => {
+    const bounded = new PostgresSession('conv-1', db, { maxReplayChars: 10 })
+    await bounded.addItems([{ n: 1 }, { n: 2 }, { n: 3 }])
+
+    expect(await bounded.getItems(2)).toEqual([{ n: 2 }, { n: 3 }])
   })
 
   it('popItem removes and returns the most recent item', async () => {

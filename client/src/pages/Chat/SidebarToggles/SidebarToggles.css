@@ -1,0 +1,34 @@
+.icon-btn.sidebar-toggles__menu {
+  display: none;
+}
+
+.sidebar-toggles__expand {
+  animation: sidebar-toggles-pop var(--motion-slow) var(--ease-spring) both;
+}
+
+@keyframes sidebar-toggles-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .icon-btn.sidebar-toggles__menu {
+    display: inline-flex;
+  }
+
+  .icon-btn.sidebar-toggles__expand {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-toggles__expand {
+    animation: none;
+  }
+}

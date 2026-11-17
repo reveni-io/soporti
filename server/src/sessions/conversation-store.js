@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { eq, and, or, desc, gte, lt, ilike, inArray, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '../db/index.js'
 import { conversations, conversationMessages } from '../db/schema.js'
-import { ownedWebConversation, ownedWebConversations } from '../db/conversations.js'
+import { nonBotConversations, ownedWebConversation, ownedWebConversations } from '../db/conversations.js'
 import { toRenderMessage } from '../db/conversation-render.js'
 import { buildSnippet, toContainsPattern } from './conversation-search.js'
 import { PostgresSession } from './postgres-session.js'
 import { usesContinuationToken, wrapSession } from '../llm/model.js'
+import { BOT_HISTORY_MAX_CHARS } from '../constants.js'
 
 const RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000
@@ -25,6 +26,10 @@ export class ConversationStore {
 
   async buildSession(conversationId) {
     return wrapSession(new PostgresSession(conversationId, this.db))
+  }
+
+  async buildBotSession(conversationId) {
+    return wrapSession(new PostgresSession(conversationId, this.db, { maxReplayChars: BOT_HISTORY_MAX_CHARS }))
   }
 
   async carriedResponseId(storedId) {
@@ -90,6 +95,36 @@ export class ConversationStore {
       previousResponseId: await this.carriedResponseId(existing.lastResponseId),
       isNewConversation: false,
     }
+  }
+
+  async _resumeBotConversation(row) {
+    return {
+      conversationId: row.id,
+      session: await this.buildBotSession(row.id),
+      previousResponseId: await this.carriedResponseId(row.lastResponseId),
+      isNewConversation: false,
+    }
+  }
+
+  async _findBot(botId, userId) {
+    const [row] = await this.db
+      .select({ id: conversations.id, lastResponseId: conversations.lastResponseId })
+      .from(conversations)
+      .where(and(eq(conversations.botId, botId), eq(conversations.userId, userId)))
+      .limit(1)
+    return row ?? null
+  }
+
+  async resolveBot(botId, userId) {
+    const existing = await this._findBot(botId, userId)
+    if (existing) return this._resumeBotConversation(existing)
+
+    await this.db
+      .insert(conversations)
+      .values({ id: randomUUID(), source: 'web', userId, botId })
+      .onConflictDoNothing({ target: conversations.botId })
+
+    return this._resumeBotConversation(await this._findBot(botId, userId))
   }
 
   async createScheduled(userId, scheduleId) {
@@ -182,7 +217,12 @@ export class ConversationStore {
       })
       .from(conversations)
       .where(
-        and(eq(conversations.userId, userId), eq(conversations.source, 'web'), gte(conversations.updatedAt, cutoff))
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.source, 'web'),
+          nonBotConversations(),
+          gte(conversations.updatedAt, cutoff)
+        )
       )
       .orderBy(desc(conversations.updatedAt))
   }
@@ -206,6 +246,7 @@ export class ConversationStore {
       .where(
         and(
           ownedWebConversations(userId),
+          nonBotConversations(),
           gte(conversations.updatedAt, cutoff),
           or(ilike(conversations.title, pattern), isNotNull(firstMatch.text))
         )
@@ -244,6 +285,17 @@ export class ConversationStore {
 
     if (!conversation) return null
 
+    return this._loadMessages(conversationId)
+  }
+
+  async getBotMessages(botId, userId) {
+    const conversation = await this._findBot(botId, userId)
+    if (!conversation) return []
+
+    return this._loadMessages(conversation.id)
+  }
+
+  async _loadMessages(conversationId) {
     const rows = await this.db
       .select({ role: conversationMessages.role, parts: conversationMessages.parts })
       .from(conversationMessages)
@@ -280,7 +332,7 @@ export class ConversationStore {
     const cutoff = new Date(Date.now() - RETENTION_MS)
     const deleted = await this.db
       .delete(conversations)
-      .where(lt(conversations.updatedAt, cutoff))
+      .where(and(lt(conversations.updatedAt, cutoff), nonBotConversations()))
       .returning({ id: conversations.id })
     if (deleted.length > 0) {
       console.log(`[conversations] cleanup: removed ${deleted.length} expired`)

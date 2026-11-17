@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useChat } from './hooks/useChat/useChat.js'
 import { useArtifacts } from './hooks/useArtifacts/useArtifacts.js'
+import { useBots } from './hooks/useBots/useBots.js'
+import { useChatView } from './hooks/useChatView/useChatView.js'
+import { useOpenBot } from './hooks/useOpenBot/useOpenBot.js'
 import { useArtifactShare } from '../../hooks/useArtifactShare/useArtifactShare.js'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
@@ -14,15 +17,28 @@ import ShareModal from '../../common/ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import SchedulesModal from './SchedulesModal/SchedulesModal.jsx'
 import ArtifactsModal from './ArtifactsModal/ArtifactsModal.jsx'
-import { YOLO_SOURCE } from '../../constants.js'
+import BotsPanel from './BotsPanel/BotsPanel.jsx'
+import BotNotFound from './BotNotFound/BotNotFound.jsx'
+import BotFormModal from './BotFormModal/BotFormModal.jsx'
+import RoutinesModal from './RoutinesModal/RoutinesModal.jsx'
+import { DEFAULT_PROFILE, YOLO_SOURCE } from '../../constants.js'
 import { absoluteAppUrl, createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed'
+const BOT_FORM_CREATE = 'create'
+const BOT_FORM_EDIT = 'edit'
+const BOT_SOURCES = [YOLO_SOURCE]
+
+function hasUnread(bot) {
+  return bot.unreadCount > 0
+}
 
 export default function Chat({ initialQuestion = '' }) {
   const [selectedSources, setSelectedSources] = useState([YOLO_SOURCE])
-  const [selectedProfile, setSelectedProfile] = useState(() => localStorage.getItem('selectedProfile') || 'support')
+  const [selectedProfile, setSelectedProfile] = useState(
+    () => localStorage.getItem('selectedProfile') || DEFAULT_PROFILE
+  )
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
@@ -31,6 +47,8 @@ export default function Chat({ initialQuestion = '' }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [schedulesOpen, setSchedulesOpen] = useState(false)
   const [artifactsOpen, setArtifactsOpen] = useState(false)
+  const [botForm, setBotForm] = useState(null)
+  const [routinesOpen, setRoutinesOpen] = useState(false)
   const {
     token,
     user,
@@ -42,6 +60,9 @@ export default function Chat({ initialQuestion = '' }) {
     isLoggingIn,
   } = useAuth()
   const authMethods = useAuthMethods()
+  const view = useChatView()
+  const bots = useBots(token, logout)
+  const bot = bots.bots.find(candidate => candidate.id === view.botId) ?? null
   const skills = useSkills(token, logout)
   const [integrationsReloadKey, setIntegrationsReloadKey] = useState(0)
   const integrations = useAuthedResource(getIntegrations, {
@@ -55,6 +76,8 @@ export default function Chat({ initialQuestion = '' }) {
   const {
     messages,
     isLoading,
+    isFetching,
+    fetchError,
     conversationKey,
     activeConversations,
     completedRuns,
@@ -62,8 +85,20 @@ export default function Chat({ initialQuestion = '' }) {
     stopGeneration,
     newChat,
     loadConversation,
+    openBot,
+    refreshBot,
     sessionId,
-  } = useChat(token, logout, artifacts.openPublished)
+  } = useChat(token, logout, artifacts.openPublished, view.botId)
+  useOpenBot({
+    token,
+    botId: view.botId,
+    unreadCount: bot?.unreadCount ?? 0,
+    isLoading,
+    openBot,
+    refreshBot,
+    reloadBots: bots.reload,
+    onLogout: logout,
+  })
 
   if (!isAuthenticated) {
     return (
@@ -97,12 +132,41 @@ export default function Chat({ initialQuestion = '' }) {
   }
 
   function handleSend(text, skills = [], attachments = []) {
+    if (bot) {
+      sendMessage(text, { selectedSources: BOT_SOURCES, profile: bot.profile, skills, attachments })
+      return
+    }
+
     sendMessage(text, { selectedSources, profile: selectedProfile, skills, attachments })
   }
 
+  function handleNewChat() {
+    newChat()
+    view.showChat()
+  }
+
   async function handleLoadConversation(id) {
+    view.showChat()
     await loadConversation(id)
     setSidebarOpen(false)
+  }
+
+  async function handleBotCreated(created) {
+    await bots.reload()
+    setBotForm(null)
+    view.showBot(created.id)
+  }
+
+  async function handleBotUpdated() {
+    await bots.reload()
+    setBotForm(null)
+  }
+
+  async function handleBotDeleted() {
+    setBotForm(null)
+    setRoutinesOpen(false)
+    view.showBots()
+    await bots.reload()
   }
 
   function handleArtifactDeleted(artifactId) {
@@ -131,7 +195,7 @@ export default function Chat({ initialQuestion = '' }) {
         onToggleSource={toggleSource}
         selectedProfile={selectedProfile}
         onSelectProfile={handleProfileChange}
-        onNewChat={newChat}
+        onNewChat={handleNewChat}
         onLogout={logout}
         onOpenSchedules={() => setSchedulesOpen(true)}
         onOpenArtifacts={() => setArtifactsOpen(true)}
@@ -139,7 +203,8 @@ export default function Chat({ initialQuestion = '' }) {
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={completedRuns}
         activeConversations={activeConversations}
-        selectedConversationId={sessionId}
+        selectedConversationId={view.isChatView ? sessionId : null}
+        hasUnreadBots={bots.bots.some(hasUnread)}
         integrations={integrations}
         token={token}
         user={user}
@@ -148,24 +213,43 @@ export default function Chat({ initialQuestion = '' }) {
         onClose={() => setSidebarOpen(false)}
         onCollapse={() => handleSidebarCollapsed(true)}
       />
-      <ChatPanel
-        messages={messages}
-        isLoading={isLoading}
-        conversationKey={conversationKey}
-        onSend={handleSend}
-        onStop={stopGeneration}
-        hasSourcesSelected={selectedSources.length > 0}
-        onOpenSidebar={() => setSidebarOpen(true)}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onExpandSidebar={() => handleSidebarCollapsed(false)}
-        onShare={handleShare}
-        onLogout={logout}
-        integrations={integrations}
-        token={token}
-        skills={skills.skills}
-        initialQuestion={initialQuestion}
-        onOpenArtifact={artifacts.openArtifact}
-      />
+      {view.isBotsView && (
+        <BotsPanel
+          bots={bots.bots}
+          loading={bots.loading}
+          error={bots.error}
+          onCreate={() => setBotForm(BOT_FORM_CREATE)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onExpandSidebar={() => handleSidebarCollapsed(false)}
+        />
+      )}
+      {view.isBotView && !bot && <BotNotFound loading={bots.loading} />}
+      {(view.isChatView || bot) && (
+        <ChatPanel
+          messages={messages}
+          isLoading={isLoading}
+          conversationKey={conversationKey}
+          onSend={handleSend}
+          onStop={stopGeneration}
+          hasSourcesSelected={Boolean(bot) || selectedSources.length > 0}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onExpandSidebar={() => handleSidebarCollapsed(false)}
+          onShare={handleShare}
+          onLogout={logout}
+          integrations={integrations}
+          token={token}
+          skills={skills.skills}
+          initialQuestion={initialQuestion}
+          onOpenArtifact={artifacts.openArtifact}
+          bot={bot}
+          isFetching={isFetching}
+          fetchError={fetchError}
+          onOpenRoutines={() => setRoutinesOpen(true)}
+          onEditBot={() => setBotForm(BOT_FORM_EDIT)}
+        />
+      )}
       {artifacts.openId && (
         <ArtifactPanel
           artifactId={artifacts.openId}
@@ -218,6 +302,20 @@ export default function Chat({ initialQuestion = '' }) {
           selectedSources={selectedSources}
           selectedProfile={selectedProfile}
         />
+      )}
+      {botForm && (
+        <BotFormModal
+          bot={botForm === BOT_FORM_EDIT ? bot : null}
+          token={token}
+          onClose={() => setBotForm(null)}
+          onLogout={logout}
+          onCreated={handleBotCreated}
+          onUpdated={handleBotUpdated}
+          onDeleted={handleBotDeleted}
+        />
+      )}
+      {routinesOpen && bot && (
+        <RoutinesModal bot={bot} token={token} onClose={() => setRoutinesOpen(false)} onLogout={logout} />
       )}
     </div>
   )

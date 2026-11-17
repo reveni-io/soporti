@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import CopyButton from '../../../common/CopyButton/CopyButton.jsx'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import { absoluteAppUrl } from '../../../services/services.js'
-import ModalFrame from '../ModalFrame/ModalFrame.jsx'
+import ModalFrame from '../../../common/ModalFrame/ModalFrame.jsx'
 import { dashboardPath } from '../dashboard-path.js'
 import './ShareDashboardModal.css'
 

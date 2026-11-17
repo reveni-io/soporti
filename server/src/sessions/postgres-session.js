@@ -1,6 +1,7 @@
 import { eq, and, asc, desc, sql } from 'drizzle-orm'
 import { getDb } from '../db/index.js'
 import { conversationItems } from '../db/schema.js'
+import { keepRecentTurns } from './replay-window.js'
 
 const REPLAYABLE_ONLY = sql`${conversationItems.item}->>'type' is distinct from 'reasoning'`
 const ID_STRIPPED_TYPES = new Set(['function_call', 'function_call_result'])
@@ -19,9 +20,10 @@ function toReplayableItem(item) {
 }
 
 export class PostgresSession {
-  constructor(conversationId, db = getDb()) {
+  constructor(conversationId, db = getDb(), { maxReplayChars = null } = {}) {
     this.conversationId = conversationId
     this.db = db
+    this.maxReplayChars = maxReplayChars
   }
 
   async getSessionId() {
@@ -46,7 +48,9 @@ export class PostgresSession {
       .from(conversationItems)
       .where(replayable)
       .orderBy(asc(conversationItems.seq))
-    return rows.map(r => toReplayableItem(r.item))
+    const items = rows.map(r => toReplayableItem(r.item))
+
+    return this.maxReplayChars ? keepRecentTurns(items, this.maxReplayChars) : items
   }
 
   async addItems(items) {

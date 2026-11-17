@@ -39,6 +39,24 @@ export const appConfig = pgTable('app_config', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const bots = pgTable(
+  'bots',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    profile: text('profile').notNull(),
+    avatarSeed: text('avatar_seed').notNull(),
+    unreadCount: integer('unread_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('bots_user_idx').on(table.userId)]
+)
+
 export const schedules = pgTable(
   'schedules',
   {
@@ -46,6 +64,8 @@ export const schedules = pgTable(
     userId: integer('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    botId: integer('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
+    title: text('title'),
     question: text('question').notNull(),
     sources: jsonb('sources').notNull(),
     profile: text('profile').notNull(),
@@ -54,15 +74,18 @@ export const schedules = pgTable(
     hour: integer('hour'),
     weekday: integer('weekday'),
     monthDay: integer('month_day'),
+    runDate: text('run_date'),
     timezone: text('timezone').notNull(),
+    paused: boolean('paused').notNull().default(false),
     nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
     lastRunAt: timestamp('last_run_at', { withTimezone: true }),
     lastStatus: text('last_status'),
     lastError: text('last_error'),
+    lastResult: text('last_result'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [index('schedules_next_run_idx').on(table.nextRunAt)]
+  table => [index('schedules_next_run_idx').on(table.nextRunAt), index('schedules_bot_idx').on(table.botId)]
 )
 
 export const conversations = pgTable(
@@ -72,6 +95,7 @@ export const conversations = pgTable(
     source: text('source').notNull(),
     userId: integer('user_id').references(() => users.id),
     scheduleId: integer('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+    botId: integer('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
     slackChannelId: text('slack_channel_id'),
     slackThreadTs: text('slack_thread_ts'),
     lastResponseId: text('openai_last_response_id'),
@@ -81,6 +105,7 @@ export const conversations = pgTable(
   },
   table => [
     uniqueIndex('conversations_slack_thread_idx').on(table.slackChannelId, table.slackThreadTs),
+    uniqueIndex('conversations_bot_idx').on(table.botId),
     index('conversations_created_idx').on(table.createdAt),
   ]
 )

@@ -13,6 +13,7 @@ vi.mock('drizzle-orm', () => {
     ilike: (col, val) => ({ op: 'ilike', col, val }),
     inArray: (col, vals) => ({ op: 'inArray', col, vals }),
     isNotNull: col => ({ op: 'isNotNull', col }),
+    isNull: col => ({ op: 'isNull', col }),
     desc: col => ({ dir: 'desc', col }),
     gte: (col, val) => ({ op: 'gte', col, val }),
     lt: (col, val) => ({ op: 'lt', col, val }),
@@ -22,8 +23,9 @@ vi.mock('drizzle-orm', () => {
 
 vi.mock('./postgres-session.js', () => ({
   PostgresSession: class {
-    constructor(conversationId) {
+    constructor(conversationId, _db, options = {}) {
       this.conversationId = conversationId
+      this.options = options
     }
   },
 }))
@@ -44,6 +46,7 @@ const COL_FIELD = new Map([
   [conversations.source, 'source'],
   [conversations.userId, 'userId'],
   [conversations.scheduleId, 'scheduleId'],
+  [conversations.botId, 'botId'],
   [conversations.slackChannelId, 'slackChannelId'],
   [conversations.slackThreadTs, 'slackThreadTs'],
   [conversations.lastResponseId, 'lastResponseId'],
@@ -68,6 +71,7 @@ function match(row, pred) {
   if (pred.op === 'eq') return v === pred.val
   if (pred.op === 'gte') return v >= pred.val
   if (pred.op === 'lt') return v < pred.val
+  if (pred.op === 'isNull') return v == null
   return true
 }
 
@@ -375,6 +379,124 @@ describe('ConversationStore', () => {
     expect(result.conversationId).toBe('winner')
     expect(result.previousResponseId).toBe('resp_w')
     expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
+  it('resolveBot opens the conversation of a bot once and reuses it afterwards', async () => {
+    const first = await store.resolveBot(4, 5)
+
+    expect(first.conversationId).toBeTruthy()
+    expect(first.isNewConversation).toBe(false)
+    expect(first.previousResponseId).toBeUndefined()
+    expect(first.session.underlyingSession.conversationId).toBe(first.conversationId)
+    expect(db._tables.get(conversations)[0]).toMatchObject({ source: 'web', userId: 5, botId: 4 })
+
+    db._tables.get(conversations)[0].lastResponseId = 'resp_bot'
+    const second = await store.resolveBot(4, 5)
+
+    expect(second.conversationId).toBe(first.conversationId)
+    expect(second.previousResponseId).toBe('resp_bot')
+    expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
+  it('resolveBot bounds the replayed history of the bot while resolveWeb replays all of it', async () => {
+    const bot = await store.resolveBot(4, 5)
+    const web = await store.resolveWeb(null, 5)
+
+    expect(bot.session.wrapped).toBe(true)
+    expect(bot.session.underlyingSession.options).toEqual({ maxReplayChars: 300_000 })
+    expect(web.session.underlyingSession.options).toEqual({})
+  })
+
+  it('resolveBot does not duplicate the conversation when a concurrent insert wins the race', async () => {
+    db._tables.get(conversations).push({ id: 'winner', source: 'web', userId: 5, botId: 4, lastResponseId: null })
+    vi.spyOn(store, '_findBot').mockResolvedValueOnce(null)
+
+    const result = await store.resolveBot(4, 5)
+
+    expect(result.conversationId).toBe('winner')
+    expect(db._tables.get(conversations)).toHaveLength(1)
+  })
+
+  it('getBotMessages returns nothing before the bot has a conversation', async () => {
+    expect(await store.getBotMessages(4, 5)).toEqual([])
+  })
+
+  it('getBotMessages returns the messages of the bot conversation of the owner in render shape', async () => {
+    db._tables
+      .get(conversations)
+      .push(
+        { id: 'bot-conv', source: 'web', userId: 5, botId: 4 },
+        { id: 'other-conv', source: 'web', userId: 9, botId: 8 }
+      )
+    db._tables.get(conversationMessages).push(
+      {
+        id: 1,
+        conversationId: 'bot-conv',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'Hi! I am Triager.' }],
+        createdAt: new Date(1),
+      },
+      {
+        id: 2,
+        conversationId: 'bot-conv',
+        role: 'assistant',
+        parts: [
+          { type: 'routine', routineId: 3, title: 'Triage' },
+          { type: 'text', content: 'Two new tickets.' },
+        ],
+        createdAt: new Date(2),
+      },
+      { id: 3, conversationId: 'other-conv', role: 'user', parts: [], createdAt: new Date(3) }
+    )
+
+    expect(await store.getBotMessages(4, 5)).toEqual([
+      { role: 'assistant', parts: [{ type: 'text', content: 'Hi! I am Triager.' }] },
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'routine', routineId: 3, title: 'Triage' },
+          { type: 'text', content: 'Two new tickets.' },
+        ],
+      },
+    ])
+    expect(await store.getBotMessages(8, 5)).toEqual([])
+  })
+
+  it('listWeb leaves the conversations of bots out', async () => {
+    db._tables
+      .get(conversations)
+      .push(
+        { id: 'chat', source: 'web', userId: 5, title: 'Chat', updatedAt: new Date() },
+        { id: 'bot', source: 'web', userId: 5, title: 'Bot', botId: 4, updatedAt: new Date() }
+      )
+
+    const list = await store.listWeb(5)
+    expect(list.map(c => c.id)).toEqual(['chat'])
+  })
+
+  it('searchWeb leaves the conversations of bots out', async () => {
+    const searchDb = makeSearchDb([])
+    const searchStore = new ConversationStore(searchDb)
+
+    await searchStore.searchWeb(5, 'refund')
+
+    const outer = searchDb.queries.find(query => query.from === conversations)
+    expect(outer.where.preds).toContainEqual({ op: 'isNull', col: conversations.botId })
+    expect(match({ userId: 5, source: 'web', updatedAt: new Date(), botId: 4 }, outer.where)).toBe(false)
+    searchStore.destroy()
+  })
+
+  it('cleanupExpired never removes the conversation of a bot, however old', async () => {
+    const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+    db._tables
+      .get(conversations)
+      .push(
+        { id: 'old-chat', source: 'web', userId: 5, updatedAt: old },
+        { id: 'old-bot', source: 'web', userId: 5, botId: 4, updatedAt: old }
+      )
+
+    expect(await store.cleanupExpired()).toBe(1)
+    expect(db._tables.get(conversations).map(c => c.id)).toEqual(['old-bot'])
   })
 
   it('saveTurn updates the response id, derives the title, and appends ui messages', async () => {

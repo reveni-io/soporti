@@ -30,6 +30,12 @@ describe('Icon', () => {
     expect(container.querySelector('[data-icon="share"]')).toHaveAttribute('viewBox', '0 0 16 16')
   })
 
+  it('renders the bot icon', () => {
+    const { container } = render(<Icon name="bot" />)
+
+    expect(container.querySelector('[data-icon="bot"] rect')).toBeInTheDocument()
+  })
+
   it('renders nothing for an unknown icon name', () => {
     const { container } = render(<Icon name="not-an-icon" />)
 

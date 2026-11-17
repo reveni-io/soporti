@@ -143,6 +143,57 @@ describe('usePolledResource', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('fetches the resource again on demand', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce(respond(READY)).mockResolvedValue(respond(RUNNING))
+
+    const { result } = renderHook(() =>
+      usePolledResource(listVideos, { token: 'tok', intervalMs: INTERVAL_MS, shouldPoll: () => false })
+    )
+    await advance(0)
+    expect(result.current.data).toEqual(READY)
+
+    await act(async () => {
+      await result.current.reload()
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(result.current.data).toEqual(RUNNING)
+  })
+
+  it('does not reload without a token', async () => {
+    global.fetch = vi.fn()
+
+    const { result } = renderHook(() =>
+      usePolledResource(listVideos, { token: null, intervalMs: INTERVAL_MS, shouldPoll: isRunning })
+    )
+    await act(async () => {
+      await result.current.reload()
+    })
+
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('ignores a reload that lands after unmount', async () => {
+    let resolveReload
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(READY))
+      .mockReturnValue(new Promise(resolve => (resolveReload = resolve)))
+
+    const { result, unmount } = renderHook(() =>
+      usePolledResource(listVideos, { token: 'tok', intervalMs: INTERVAL_MS, shouldPoll: () => false })
+    )
+    await advance(0)
+    const pending = result.current.reload()
+    unmount()
+    resolveReload(respond(RUNNING))
+    await act(async () => {
+      await pending
+    })
+
+    expect(result.current.data).toEqual(READY)
+  })
+
   it('does not fetch without a token', async () => {
     global.fetch = vi.fn()
 

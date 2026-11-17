@@ -739,4 +739,227 @@ describe('useChat', () => {
       { type: 'artifact', artifactId: 'art-2', title: 'Incident report', version: 1 },
     ])
   })
+
+  describe('bot chats', () => {
+    const GREETING = [{ role: 'assistant', parts: [{ type: 'text', content: 'Hi! I am Triager.' }] }]
+
+    function botMessagesResponse(messages = GREETING) {
+      return { ok: true, status: 200, json: async () => ({ messages }) }
+    }
+
+    it('shows a loading bot chat until its messages arrive', async () => {
+      global.fetch = vi.fn().mockResolvedValue(botMessagesResponse())
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+
+      expect(result.current.isFetching).toBe(true)
+      expect(result.current.messages).toEqual([])
+      expect(result.current.conversationKey).toBe('bot-5')
+
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(global.fetch.mock.calls[0][0]).toBe('/api/bots/5/messages')
+      expect(result.current.isFetching).toBe(false)
+      expect(result.current.messages).toEqual(GREETING)
+    })
+
+    it('sends the bot id with every message of a bot chat', async () => {
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return Promise.resolve(botMessagesResponse())
+        return Promise.resolve(createSSEResponse([{ type: 'session_id', sessionId: 'bot-conv' }, { type: 'done' }]))
+      })
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+      await act(async () => {
+        await result.current.sendMessage('review the queue', { selectedSources: ['yolo'], profile: 'tech' })
+      })
+
+      const chatCall = global.fetch.mock.calls.find(([url]) => url === '/api/chat')
+      const body = JSON.parse(chatCall[1].body)
+      expect(body.botId).toBe(5)
+      expect(body.message).toBe('review the queue')
+      expect(body.selectedSources).toEqual(['yolo'])
+      expect(body.profile).toBe('tech')
+      expect(result.current.messages).toHaveLength(3)
+    })
+
+    it('never sends a bot id from a normal chat', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(createSSEResponse([{ type: 'session_id', sessionId: 'sess-1' }, { type: 'done' }]))
+
+      const { result } = renderHook(() => useChat('token', vi.fn()))
+      await act(async () => {
+        await result.current.sendMessage('hi', { selectedSources: [], profile: 'support' })
+      })
+
+      expect(JSON.parse(global.fetch.mock.calls[0][1].body)).not.toHaveProperty('botId')
+    })
+
+    it('keeps bot chats out of the in-flight conversations', async () => {
+      const stream = createManualStream()
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return Promise.resolve(botMessagesResponse())
+        return Promise.resolve(stream.response)
+      })
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+      act(() => {
+        result.current.sendMessage('review the queue', { selectedSources: ['yolo'], profile: 'support' })
+      })
+      stream.push({ type: 'session_id', sessionId: 'bot-conv' })
+      await waitFor(() => expect(result.current.sessionId).toBe('bot-conv'))
+
+      expect(result.current.activeConversations).toEqual([])
+    })
+
+    it('keeps a bot answering while the user goes back to the normal chat', async () => {
+      const stream = createManualStream()
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return Promise.resolve(botMessagesResponse())
+        return Promise.resolve(stream.response)
+      })
+
+      const { result, rerender } = renderHook(({ botId }) => useChat('token', vi.fn(), undefined, botId), {
+        initialProps: { botId: 5 },
+      })
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+      act(() => {
+        result.current.sendMessage('review the queue', { selectedSources: ['yolo'], profile: 'support' })
+      })
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      rerender({ botId: null })
+      expect(result.current.conversationKey).toBe('chat-1')
+      expect(result.current.messages).toEqual([])
+      expect(result.current.isLoading).toBe(false)
+
+      stream.push({ type: 'text_delta', text: 'Three new tickets.' })
+      rerender({ botId: 5 })
+
+      await waitFor(() =>
+        expect(result.current.messages[2].parts).toEqual([{ type: 'text', content: 'Three new tickets.' }])
+      )
+      expect(result.current.isLoading).toBe(true)
+    })
+
+    it('leaves a streaming bot chat as it is when the bot is opened again', async () => {
+      const stream = createManualStream()
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return Promise.resolve(botMessagesResponse())
+        return Promise.resolve(stream.response)
+      })
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+      act(() => {
+        result.current.sendMessage('review the queue', { selectedSources: ['yolo'], profile: 'support' })
+      })
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      await act(async () => {
+        await result.current.openBot(5)
+        await result.current.refreshBot(5)
+      })
+
+      expect(global.fetch.mock.calls.filter(([url]) => url === '/api/bots/5/messages')).toHaveLength(1)
+      expect(result.current.messages).toHaveLength(3)
+    })
+
+    it('reloads an idle bot chat on refresh', async () => {
+      const routineResult = { role: 'assistant', parts: [{ type: 'routine', routineId: 9, title: 'Queue review' }] }
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(botMessagesResponse())
+        .mockResolvedValue(botMessagesResponse([...GREETING, routineResult]))
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+      await act(async () => {
+        await result.current.refreshBot(5)
+      })
+
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(result.current.messages).toEqual([...GREETING, routineResult])
+    })
+
+    it('does nothing when refreshing a bot that was never opened', async () => {
+      global.fetch = vi.fn()
+
+      const { result } = renderHook(() => useChat('token', vi.fn()))
+      await act(async () => {
+        await result.current.refreshBot(5)
+      })
+
+      expect(global.fetch).not.toHaveBeenCalled()
+    })
+
+    it('exposes why the bot chat could not be loaded', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: 'Bot not found.' }) })
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+
+      expect(result.current.isFetching).toBe(false)
+      expect(result.current.fetchError).toBe('Bot not found.')
+    })
+
+    it('logs out when the bot chat answers 401', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) })
+      const onAuthError = vi.fn()
+
+      const { result } = renderHook(() => useChat('token', onAuthError, undefined, 5))
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+
+      expect(onAuthError).toHaveBeenCalledTimes(1)
+      expect(result.current.fetchError).toBeNull()
+    })
+
+    it('keeps the turn the user started while the bot chat was still loading', async () => {
+      let resolveMessages
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return new Promise(resolve => (resolveMessages = resolve))
+        return Promise.resolve(createManualStream().response)
+      })
+
+      const { result } = renderHook(() => useChat('token', vi.fn(), undefined, 5))
+      let opening
+      act(() => {
+        opening = result.current.openBot(5)
+      })
+      act(() => {
+        result.current.sendMessage('quick one', { selectedSources: ['yolo'], profile: 'support' })
+      })
+      await waitFor(() => expect(result.current.isLoading).toBe(true))
+
+      resolveMessages(botMessagesResponse())
+      await act(async () => {
+        await opening
+      })
+
+      expect(result.current.messages[0]).toEqual({ role: 'user', content: 'quick one' })
+      expect(result.current.isFetching).toBe(false)
+    })
+  })
 })

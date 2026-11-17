@@ -1,7 +1,15 @@
-import { SCHEDULE_DAILY, SCHEDULE_HOURLY, SCHEDULE_MONTHLY, SCHEDULE_WEEKLY } from '../constants.js'
+import {
+  SCHEDULE_DAILY,
+  SCHEDULE_HOURLY,
+  SCHEDULE_MONTHLY,
+  SCHEDULE_ONCE,
+  SCHEDULE_WEEKDAYS,
+  SCHEDULE_WEEKLY,
+} from '../constants.js'
 
 const MINUTE_MS = 60_000
 const DAYS_PER_WEEK = 7
+const WEEKEND_DAYS = new Set([0, 6])
 
 const FREQUENCY_STEPS = {
   [SCHEDULE_HOURLY]: { hours: 1 },
@@ -72,7 +80,39 @@ function targetParts(schedule, from) {
   return { ...atTime, day: schedule.monthDay }
 }
 
+function parseRunDate(runDate) {
+  const [year, month, day] = runDate.split('-').map(Number)
+
+  return { year, month, day }
+}
+
+function computeOnceRun(schedule) {
+  const parts = { ...parseRunDate(schedule.runDate), hour: schedule.hour, minute: schedule.minute }
+
+  return toInstant(parts, schedule.timezone)
+}
+
+function isWorkingDayRunAfter(parts, timezone, from) {
+  return !WEEKEND_DAYS.has(weekdayOf(parts)) && toInstant(parts, timezone) > from
+}
+
+function computeWeekdaysRun(schedule, from) {
+  const today = { ...zonedParts(from, schedule.timezone), hour: schedule.hour, minute: schedule.minute }
+  const candidates = Array.from({ length: DAYS_PER_WEEK }, (_, days) => shiftParts(today, { days }))
+  const target = candidates.find(parts => isWorkingDayRunAfter(parts, schedule.timezone, from))
+
+  return toInstant(target, schedule.timezone)
+}
+
+const SPECIAL_RUNS = {
+  [SCHEDULE_ONCE]: computeOnceRun,
+  [SCHEDULE_WEEKDAYS]: computeWeekdaysRun,
+}
+
 export function computeNextRun(schedule, from = new Date()) {
+  const special = SPECIAL_RUNS[schedule.frequency]
+  if (special) return special(schedule, from)
+
   const target = targetParts(schedule, from)
   const candidate = toInstant(target, schedule.timezone)
 

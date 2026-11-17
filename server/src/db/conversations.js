@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { conversations } from './schema.js'
 
 export function ownedWebConversation(conversationId, userId) {
@@ -7,4 +7,8 @@ export function ownedWebConversation(conversationId, userId) {
 
 export function ownedWebConversations(userId) {
   return and(eq(conversations.userId, userId), eq(conversations.source, 'web'))
+}
+
+export function nonBotConversations() {
+  return isNull(conversations.botId)
 }

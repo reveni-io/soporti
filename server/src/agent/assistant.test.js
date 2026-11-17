@@ -553,6 +553,8 @@ describe('createAgent', () => {
         zendeskWrites: false,
         slackConfigured: false,
         hubspot: null,
+        botId: null,
+        profile: 'support',
       }
     )
   })
@@ -576,6 +578,8 @@ describe('createAgent', () => {
         zendeskWrites: false,
         slackConfigured: false,
         hubspot: null,
+        botId: null,
+        profile: 'support',
       }
     )
   })
@@ -599,6 +603,8 @@ describe('createAgent', () => {
         zendeskWrites: false,
         slackConfigured: false,
         hubspot: null,
+        botId: null,
+        profile: 'support',
       }
     )
   })
@@ -1119,5 +1125,58 @@ describe('createAgent language rule', () => {
     const agent = await createAgent([], 'support', {})
 
     expect(agent.instructions).not.toContain('Final reminder')
+  })
+})
+
+describe('createAgent for a bot', () => {
+  const BOT = { id: 4, name: 'Ticket triager', description: 'Triage the new Zendesk tickets.' }
+
+  beforeEach(() => {
+    for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
+    getZendeskConnection.mockReset().mockResolvedValue(null)
+    buildAgentTools.mockClear()
+    buildAgentTools.mockReturnValue(toolList())
+    listEnabledSubagents.mockReset().mockResolvedValue([])
+    getMainAgentTools.mockReset().mockResolvedValue(null)
+  })
+
+  it('takes the role of the bot and can manage its routines in a chat', async () => {
+    const agent = await createAgent(['yolo'], 'tech', { bot: BOT, userId: 7, conversationId: 'c-1' })
+
+    expect(agent.instructions).toContain('## You are Ticket triager')
+    expect(agent.instructions).toContain('> Triage the new Zendesk tickets.')
+    expect(agent.instructions).toContain('## Routines')
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ botId: 4, userId: 7, profile: 'tech' })
+    )
+  })
+
+  it('takes the role but cannot manage routines in an unattended run', async () => {
+    const agent = await createAgent(['yolo'], 'support', { bot: BOT, userId: 7, unattended: true })
+
+    expect(agent.instructions).toContain('## You are Ticket triager')
+    expect(agent.instructions).not.toContain('## Routines')
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ botId: null })
+    )
+  })
+
+  it('takes the role but cannot manage routines when the bot has no id', async () => {
+    const agent = await createAgent(['yolo'], 'support', { bot: { name: 'Ticket triager', description: 'Triage.' } })
+
+    expect(agent.instructions).toContain('## You are Ticket triager')
+    expect(agent.instructions).not.toContain('## Routines')
+    expect(buildAgentTools.mock.calls[0][2].botId).toBeNull()
+  })
+
+  it('has no bot role and no routine tools outside a bot', async () => {
+    const agent = await createAgent(['yolo'], 'support', { userId: 7 })
+
+    expect(agent.instructions).not.toContain('## You are')
+    expect(buildAgentTools.mock.calls[0][2].botId).toBeNull()
   })
 })

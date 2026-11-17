@@ -1,11 +1,29 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Router from './Router.jsx'
 
-vi.mock('../pages/Chat/Chat.jsx', () => ({
-  default: ({ initialQuestion }) => <div data-testid="chat-page">{initialQuestion}</div>,
-}))
+vi.mock('../pages/Chat/Chat.jsx', async () => {
+  const { useState } = await import('react')
+  const { Link } = await import('react-router-dom')
+
+  function ChatStub({ initialQuestion }) {
+    const [clicks, setClicks] = useState(0)
+
+    return (
+      <>
+        <div data-testid="chat-page">{initialQuestion}</div>
+        <button onClick={() => setClicks(count => count + 1)}>Clicked {clicks}</button>
+        <Link to="/chat">To chat</Link>
+        <Link to="/bots">To bots</Link>
+        <Link to="/bots/7">To bot</Link>
+      </>
+    )
+  }
+
+  return { default: ChatStub }
+})
 vi.mock('../pages/Landing/Landing.jsx', () => ({
   default: () => <div data-testid="landing-page" />,
 }))
@@ -70,6 +88,28 @@ describe('Router', () => {
   it('renders the chat page with no question when the link carries none', () => {
     renderAt('/chat')
     expect(screen.getByTestId('chat-page')).toBeEmptyDOMElement()
+  })
+
+  it('renders the chat page at /bots', () => {
+    renderAt('/bots')
+    expect(screen.getByTestId('chat-page')).toBeInTheDocument()
+  })
+
+  it('renders the chat page at /bots/:botId', () => {
+    renderAt('/bots/7')
+    expect(screen.getByTestId('chat-page')).toBeInTheDocument()
+  })
+
+  it('keeps the same chat page mounted while moving between the chat, the bots and a bot', async () => {
+    const user = userEvent.setup()
+    renderAt('/chat')
+
+    await user.click(screen.getByRole('button', { name: 'Clicked 0' }))
+    await user.click(screen.getByRole('link', { name: 'To bot' }))
+    await user.click(screen.getByRole('link', { name: 'To bots' }))
+    await user.click(screen.getByRole('link', { name: 'To chat' }))
+
+    expect(screen.getByRole('button', { name: 'Clicked 1' })).toBeInTheDocument()
   })
 
   it('renders the public lmstfy page at /lmstfy', () => {

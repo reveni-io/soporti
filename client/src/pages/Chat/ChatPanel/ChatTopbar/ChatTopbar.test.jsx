@@ -90,4 +90,46 @@ describe('ChatTopbar', () => {
 
     expect(container.querySelector('.chat-topbar__live')).toBeNull()
   })
+
+  describe('bot mode', () => {
+    const BOT = { id: 3, name: 'Ticket triager', description: 'Reviews the new tickets.', avatarSeed: 'seed-3' }
+
+    it('shows the name and description of the bot instead of a title', () => {
+      const { container } = render(<ChatTopbar {...BASE_PROPS} bot={BOT} />)
+
+      expect(screen.getByRole('heading', { name: 'Ticket triager' })).toBeInTheDocument()
+      expect(screen.getByText('Reviews the new tickets.')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Why did the payout fail?' })).not.toBeInTheDocument()
+      expect(container.querySelector('img.bot-avatar')).toBeInTheDocument()
+    })
+
+    it('offers the routines and the bot settings instead of the tour and sharing', () => {
+      render(<ChatTopbar {...BASE_PROPS} bot={BOT} />)
+
+      expect(screen.getByRole('button', { name: 'Routines' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit bot' })).toBeInTheDocument()
+      expect(screen.queryByLabelText('Share conversation')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /what can i ask/i })).not.toBeInTheDocument()
+    })
+
+    it('opens the routines', async () => {
+      const onOpenRoutines = vi.fn()
+      const user = userEvent.setup()
+      render(<ChatTopbar {...BASE_PROPS} bot={BOT} onOpenRoutines={onOpenRoutines} />)
+
+      await user.click(screen.getByRole('button', { name: 'Routines' }))
+
+      expect(onOpenRoutines).toHaveBeenCalledTimes(1)
+    })
+
+    it('edits the bot', async () => {
+      const onEditBot = vi.fn()
+      const user = userEvent.setup()
+      render(<ChatTopbar {...BASE_PROPS} bot={BOT} onEditBot={onEditBot} />)
+
+      await user.click(screen.getByRole('button', { name: 'Edit bot' }))
+
+      expect(onEditBot).toHaveBeenCalledTimes(1)
+    })
+  })
 })

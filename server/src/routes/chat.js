@@ -7,9 +7,11 @@ import config from '../config.js'
 import { isValidTimezone } from '../schedules/next-run.js'
 import { searchSimilarCases, isKnowledgeBaseConfigured } from '../knowledge/client.js'
 import { storePendingFeedback } from '../knowledge/feedback.js'
-import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
+import { YOLO_SOURCE, buildSourcesFooter, isYoloMode } from '../agent/sources.js'
 import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
+import { getBot } from '../db/bots.js'
+import { withConversationLock } from '../sessions/conversation-lock.js'
 import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolCallFromRawItem, toolNames } from '../agent/run-items.js'
@@ -41,6 +43,8 @@ function log(icon, ...args) {
 }
 
 const SAFE_INPUT_FIELDS = ['repo', 'path', 'query']
+const MAX_BOT_ID = 999_999_999
+const INTERNAL_ERROR_EVENT = { type: 'error', message: 'An internal error occurred.' }
 
 const TOOL_START = '  →'
 const TOOL_DONE = '  ✓'
@@ -125,6 +129,13 @@ function parseSources(selectedSources, selectedRepos) {
   return Array.isArray(rawSources) ? rawSources : []
 }
 
+function parseBotId(value) {
+  if (value === undefined || value === null) return { value: null }
+  if (!Number.isInteger(value) || value <= 0 || value > MAX_BOT_ID) return { error: 'Invalid bot ID.' }
+
+  return { value }
+}
+
 function parseSkillIds(skillIds) {
   return (Array.isArray(skillIds) ? skillIds : [])
     .filter(id => Number.isInteger(id) && id > 0)
@@ -132,7 +143,7 @@ function parseSkillIds(skillIds) {
 }
 
 function parseChatRequest(body) {
-  const { sessionId, message, selectedSources, selectedRepos, profile, skillIds, attachments, timezone } = body
+  const { sessionId, message, selectedSources, selectedRepos, profile, skillIds, attachments, timezone, botId } = body
 
   const parsedMessage = parseMessage(message)
   if (parsedMessage.error) return parsedMessage
@@ -144,6 +155,9 @@ function parseChatRequest(body) {
   const parsedAttachments = parseAttachments(attachments)
   if (parsedAttachments.error) return parsedAttachments
 
+  const parsedBotId = parseBotId(botId)
+  if (parsedBotId.error) return parsedBotId
+
   return {
     value: {
       sessionId,
@@ -153,6 +167,7 @@ function parseChatRequest(body) {
       skillIds: parseSkillIds(skillIds),
       attachments: parsedAttachments.value,
       timezone: parsedTimezone.value,
+      botId: parsedBotId.value,
     },
   }
 }
@@ -362,135 +377,224 @@ function buildUserParts(request, newSkills) {
   ]
 }
 
-export default function chatRoute(conversationStore) {
-  router.post('/', async (req, res) => {
-    const { error, value: request } = parseChatRequest(req.body)
-    if (error) return res.status(400).json({ error })
+async function loadRequestedBot(botId, userId) {
+  if (!botId) return { bot: null }
 
-    let configured
-    let resolvedImages
-    try {
-      ;[configured, resolvedImages] = await Promise.all([
-        isConfigured(),
-        resolveAttachmentImages(request.attachments, req.user.id),
-      ])
-    } catch (err) {
-      console.error('Failed to load the attached images:', err)
-      return res.status(500).json({ error: 'Failed to load the attached images.' })
-    }
+  try {
+    const bot = await getBot(botId, userId)
+    if (!bot) return { status: 404, error: 'Bot not found.' }
 
-    if (!configured) {
-      return res.status(503).json({
-        error: 'The assistant is not configured. Ask an admin to set the API key and model in the admin panel.',
-      })
-    }
-    if (resolvedImages.error) return res.status(400).json({ error: resolvedImages.error })
+    return { bot }
+  } catch (err) {
+    console.error('Failed to load the bot:', err)
+    return { status: 500, error: 'Failed to load the bot.' }
+  }
+}
 
-    const { conversationId, session, previousResponseId, isNewConversation } = await conversationStore.resolveWeb(
-      request.sessionId,
-      req.user.id
-    )
+function applyBot(request, bot) {
+  if (!bot) return request
 
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+  return { ...request, sources: [YOLO_SOURCE], profile: bot.profile }
+}
+
+function describeBot(bot) {
+  return bot ? { id: bot.id, name: bot.name, description: bot.description } : null
+}
+
+function resolveConversation(conversationStore, request, { bot, userId }) {
+  if (bot) return conversationStore.resolveBot(bot.id, userId)
+
+  return conversationStore.resolveWeb(request.sessionId, userId)
+}
+
+function resumeBotConversation(conversationStore, { bot, userId }) {
+  return conversationStore.resolveBot(bot.id, userId).catch(err => {
+    console.error('Failed to resume the bot conversation:', err)
+    return null
+  })
+}
+
+function inConversation(conversationStore, { bot, userId, resolved, res }, task) {
+  if (!bot) return task(resolved)
+
+  return withConversationLock(resolved.conversationId, async () => {
+    const conversation = await resumeBotConversation(conversationStore, { bot, userId })
+    if (!conversation) return sendEvent(res, INTERNAL_ERROR_EVENT)
+
+    return task(conversation)
+  })
+}
+
+async function loadTurnContext(conversationStore, request, { conversationId, isNewConversation, userId }) {
+  const [similarCases, customInstructions, carriedSkillIds] = await Promise.all([
+    isNewConversation ? searchSimilarCases(request.message) : [],
+    getCustomInstructions(userId).catch(err => {
+      console.error('Failed to load custom instructions:', err)
+      return null
+    }),
+    conversationStore.getInvokedSkillIds(conversationId).catch(err => {
+      console.error('Failed to load conversation skills:', err)
+      return []
+    }),
+  ])
+
+  const activeSkillIds = [...new Set([...carriedSkillIds, ...request.skillIds])].slice(0, MAX_SKILLS_PER_REQUEST)
+  const invokedSkills = await loadInvokedSkills(activeSkillIds, userId)
+  const newSkills = invokedSkills.filter(s => request.skillIds.includes(s.id))
+
+  return { similarCases, customInstructions, invokedSkills, newSkills }
+}
+
+async function runChatTurn(turnContext, { session, previousResponseId }) {
+  const { res, conversationStore, request, bot, userId, conversationId, agentInput, turn, context } = turnContext
+
+  try {
+    const agent = await createAgent(request.sources, request.profile, {
+      customInstructions: context.customInstructions ?? '',
+      skills: context.invokedSkills,
+      skillArguments: request.message,
+      userId,
+      conversationId,
+      onArtifactPublished: turn.queueArtifact,
+      onNestedToolCall: turn.startToolCall,
+      onNestedToolResult: turn.finishToolCall,
+      onNestedUsage: usage => turn.nestedUsage.push(usage),
+      timezone: request.timezone,
+      bot: describeBot(bot),
+    })
+    const agentStart = Date.now()
+
+    log('🚀', 'Agent started')
+
+    const { lastResponseId, usage, unpersistedItems } = await runAgentTurnWithRetry(agent, agentInput, {
+      session,
+      previousResponseId,
+      turn,
+      trace: { sessionId: conversationId, userId, question: request.message },
     })
 
-    sendEvent(res, { type: 'session_id', sessionId: conversationId })
+    const totalMs = Date.now() - agentStart
+    log('✅', `Done in ${totalMs}ms`)
 
-    const [similarCases, customInstructions, carriedSkillIds] = await Promise.all([
-      isNewConversation ? searchSimilarCases(request.message) : [],
-      getCustomInstructions(req.user.id).catch(err => {
-        console.error('Failed to load custom instructions:', err)
-        return null
-      }),
-      conversationStore.getInvokedSkillIds(conversationId).catch(err => {
-        console.error('Failed to load conversation skills:', err)
-        return []
-      }),
+    const footer = isYoloMode(request.sources) ? buildSourcesFooter(turn.toolCalls) : null
+    if (footer) turn.sendText(footer)
+
+    const finalText = turn.parts
+      .filter(p => p.type === 'text')
+      .map(p => p.content)
+      .join('')
+    if (await isKnowledgeBaseConfigured()) {
+      const feedbackId = storePendingFeedback(request.message, finalText)
+      sendEvent(res, { type: 'feedback_id', feedbackId })
+    }
+
+    await conversationStore.saveTurn(conversationId, {
+      lastResponseId,
+      session,
+      unpersistedItems,
+      uiMessages: [
+        { role: 'user', parts: buildUserParts(request, context.newSkills) },
+        { role: 'assistant', parts: turn.parts },
+      ],
+    })
+
+    await recordAgentRun({
+      channel: AGENT_CHANNEL_WEB,
+      status: RUN_STATUS_OK,
+      userId,
+      usage,
+      durationMs: totalMs,
+      tools: toolNames(turn.toolCalls),
+    })
+  } catch (err) {
+    console.error('❌ Error:', err)
+    await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR, userId })
+    sendEvent(res, INTERNAL_ERROR_EVENT)
+  }
+}
+
+async function loadPrerequisites(request, userId) {
+  try {
+    const [configured, resolvedImages] = await Promise.all([
+      isConfigured(),
+      resolveAttachmentImages(request.attachments, userId),
     ])
+    if (!configured) {
+      return {
+        status: 503,
+        error: 'The assistant is not configured. Ask an admin to set the API key and model in the admin panel.',
+      }
+    }
+    if (resolvedImages.error) return { status: 400, error: resolvedImages.error }
 
-    const activeSkillIds = [...new Set([...carriedSkillIds, ...request.skillIds])].slice(0, MAX_SKILLS_PER_REQUEST)
-    const invokedSkills = await loadInvokedSkills(activeSkillIds, req.user.id)
-    const newSkills = invokedSkills.filter(s => request.skillIds.includes(s.id))
+    return { images: resolvedImages.images }
+  } catch (err) {
+    console.error('Failed to load the attached images:', err)
+    return { status: 500, error: 'Failed to load the attached images.' }
+  }
+}
 
-    logIncomingMessage(request, { conversationId, similarCases, customInstructions, invokedSkills, newSkills })
+function openEventStream(res, conversationId) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+
+  sendEvent(res, { type: 'session_id', sessionId: conversationId })
+}
+
+export default function chatRoute(conversationStore) {
+  router.post('/', async (req, res) => {
+    const { error, value: parsedRequest } = parseChatRequest(req.body)
+    if (error) return res.status(400).json({ error })
+
+    const userId = req.user.id
+    const prerequisites = await loadPrerequisites(parsedRequest, userId)
+    if (prerequisites.error) return res.status(prerequisites.status).json({ error: prerequisites.error })
+
+    const requested = await loadRequestedBot(parsedRequest.botId, userId)
+    if (requested.error) return res.status(requested.status).json({ error: requested.error })
+
+    const { bot } = requested
+    const request = applyBot(parsedRequest, bot)
+    const resolved = await resolveConversation(conversationStore, request, { bot, userId })
+    const { conversationId } = resolved
+
+    openEventStream(res, conversationId)
+
+    const context = await loadTurnContext(conversationStore, request, {
+      conversationId,
+      isNewConversation: resolved.isNewConversation,
+      userId,
+    })
+
+    logIncomingMessage(request, { conversationId, ...context })
 
     const agentInput = buildAgentInput(
       buildUserTurn(request.message, {
-        similarCases,
-        commands: newSkills.map(s => s.name),
+        similarCases: context.similarCases,
+        commands: context.newSkills.map(s => s.name),
         attachments: request.attachments,
       }),
-      resolvedImages.images
+      prerequisites.images
     )
 
-    const turn = createTurnStream(res)
-
-    try {
-      const agent = await createAgent(request.sources, request.profile, {
-        customInstructions: customInstructions ?? '',
-        skills: invokedSkills,
-        skillArguments: request.message,
-        userId: req.user.id,
-        conversationId,
-        onArtifactPublished: turn.queueArtifact,
-        onNestedToolCall: turn.startToolCall,
-        onNestedToolResult: turn.finishToolCall,
-        onNestedUsage: usage => turn.nestedUsage.push(usage),
-        timezone: request.timezone,
-      })
-      const agentStart = Date.now()
-
-      log('🚀', 'Agent started')
-
-      const { lastResponseId, usage, unpersistedItems } = await runAgentTurnWithRetry(agent, agentInput, {
-        session,
-        previousResponseId,
-        turn,
-        trace: { sessionId: conversationId, userId: req.user.id, question: request.message },
-      })
-
-      const totalMs = Date.now() - agentStart
-      log('✅', `Done in ${totalMs}ms`)
-
-      const footer = isYoloMode(request.sources) ? buildSourcesFooter(turn.toolCalls) : null
-      if (footer) turn.sendText(footer)
-
-      const finalText = turn.parts
-        .filter(p => p.type === 'text')
-        .map(p => p.content)
-        .join('')
-      if (await isKnowledgeBaseConfigured()) {
-        const feedbackId = storePendingFeedback(request.message, finalText)
-        sendEvent(res, { type: 'feedback_id', feedbackId })
-      }
-
-      await conversationStore.saveTurn(conversationId, {
-        lastResponseId,
-        session,
-        unpersistedItems,
-        uiMessages: [
-          { role: 'user', parts: buildUserParts(request, newSkills) },
-          { role: 'assistant', parts: turn.parts },
-        ],
-      })
-
-      await recordAgentRun({
-        channel: AGENT_CHANNEL_WEB,
-        status: RUN_STATUS_OK,
-        userId: req.user.id,
-        usage,
-        durationMs: totalMs,
-        tools: toolNames(turn.toolCalls),
-      })
-    } catch (err) {
-      console.error('❌ Error:', err)
-      await recordAgentRun({ channel: AGENT_CHANNEL_WEB, status: RUN_STATUS_ERROR, userId: req.user.id })
-      sendEvent(res, { type: 'error', message: 'An internal error occurred.' })
+    const turnContext = {
+      res,
+      conversationStore,
+      request,
+      bot,
+      userId,
+      conversationId,
+      agentInput,
+      turn: createTurnStream(res),
+      context,
     }
+    await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
+      return runChatTurn(turnContext, conversation)
+    })
 
     sendEvent(res, { type: 'done' })
     res.end()

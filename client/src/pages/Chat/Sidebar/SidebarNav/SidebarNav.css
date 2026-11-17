@@ -52,6 +52,16 @@
   transform: scale(1);
 }
 
+.sidebar-nav__item--active {
+  color: var(--sidebar-text);
+}
+
+.sidebar-nav__item--active::before {
+  background-color: var(--sidebar-selected);
+  opacity: 1;
+  transform: scale(1);
+}
+
 .sidebar-nav__item:active {
   transform: scale(0.98);
 }

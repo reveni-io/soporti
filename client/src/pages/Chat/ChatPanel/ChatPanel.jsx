@@ -16,6 +16,7 @@ import MessageRail from './MessageRail/MessageRail.jsx'
 import './ChatPanel.css'
 
 const TOUR_SEEN_KEY = 'soportiTourSeen'
+const BOT_LOADING_TEXT = 'Loading the conversation…'
 
 export default function ChatPanel({
   messages,
@@ -34,6 +35,11 @@ export default function ChatPanel({
   skills = [],
   initialQuestion = '',
   onOpenArtifact,
+  bot = null,
+  isFetching = false,
+  fetchError = null,
+  onOpenRoutines,
+  onEditBot,
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -48,6 +54,7 @@ export default function ChatPanel({
     removeAttachment,
     clearAttachments,
   } = useAttachments(token, onLogout, conversationKey)
+  const isEmpty = messages.length === 0
   const { fill, ...composer } = useComposer({
     skills,
     isLoading,
@@ -78,18 +85,22 @@ export default function ChatPanel({
     <div className="chat">
       <ChatTopbar
         title={conversationTitle(messages)}
-        canShare={messages.length > 0 && Boolean(onShare)}
+        bot={bot}
+        canShare={!isEmpty && Boolean(onShare)}
         isLoading={isLoading}
         isSidebarCollapsed={isSidebarCollapsed}
         onOpenSidebar={onOpenSidebar}
         onExpandSidebar={onExpandSidebar}
         onOpenTour={() => setTourOpen(true)}
         onShare={onShare}
+        onOpenRoutines={onOpenRoutines}
+        onEditBot={onEditBot}
       />
 
       <div className="chat__body">
         <div className="chat__messages" ref={scrollRef}>
-          {messages.length === 0 && (
+          {isEmpty && bot && <BotTranscriptStatus isFetching={isFetching} error={fetchError} />}
+          {isEmpty && !bot && (
             <ChatEmptyState
               hasSourcesSelected={hasSourcesSelected}
               integrations={integrations}
@@ -121,7 +132,7 @@ export default function ChatPanel({
           />
         )}
 
-        {!isFollowing && messages.length > 0 && (
+        {!isFollowing && !isEmpty && (
           <button type="button" className="chat__jump" onClick={pinToBottom}>
             <Icon name="arrow-down" size={14} />
             Jump to latest
@@ -145,4 +156,17 @@ export default function ChatPanel({
       {tourOpen && <TourModal integrations={integrations} onClose={closeTour} onTryExample={handleTourExample} />}
     </div>
   )
+}
+
+function BotTranscriptStatus({ isFetching, error }) {
+  if (error) {
+    return (
+      <p className="alert alert--error chat__fetch-error" role="alert">
+        {error}
+      </p>
+    )
+  }
+  if (isFetching) return <p className="chat__status">{BOT_LOADING_TEXT}</p>
+
+  return null
 }
