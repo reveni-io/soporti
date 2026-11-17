@@ -1,11 +1,17 @@
 import { useState } from 'react'
-import { DEFAULT_PROFILE } from '../../../../constants.js'
+import {
+  BOT_AVATAR_COLORS,
+  BOT_AVATAR_SHAPES,
+  DEFAULT_BOT_AVATAR_MOOD,
+  DEFAULT_PROFILE,
+} from '../../../../constants.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
 import { createBot, deleteBot, updateBot } from '../../../../services/services.js'
 
 const AVATAR_SEED_BYTES = 16
 const HEX_RADIX = 16
 const HEX_BYTE_LENGTH = 2
+const SHUFFLE_TONE_IDS = ['pastel', 'mid', 'deep', 'bright']
 
 function newAvatarSeed() {
   const bytes = crypto.getRandomValues(new Uint8Array(AVATAR_SEED_BYTES))
@@ -13,11 +19,31 @@ function newAvatarSeed() {
   return Array.from(bytes, byte => byte.toString(HEX_RADIX).padStart(HEX_BYTE_LENGTH, '0')).join('')
 }
 
+function pickAtRandom(options) {
+  return options[Math.floor(Math.random() * options.length)]
+}
+
+function randomAvatarStyle(mood) {
+  return {
+    shape: pickAtRandom(BOT_AVATAR_SHAPES).id,
+    hue: pickAtRandom(BOT_AVATAR_COLORS).hue,
+    tone: pickAtRandom(SHUFFLE_TONE_IDS),
+    mood,
+  }
+}
+
+function initialAvatarStyle(bot) {
+  if (!bot) return randomAvatarStyle(DEFAULT_BOT_AVATAR_MOOD)
+
+  return bot.avatarStyle ?? {}
+}
+
 export function useBotForm({ bot, token, onLogout, onCreated, onUpdated, onDeleted }) {
   const [name, setName] = useState(bot?.name ?? '')
   const [description, setDescription] = useState(bot?.description ?? '')
   const [profile, setProfile] = useState(bot?.profile ?? DEFAULT_PROFILE)
   const [avatarSeed, setAvatarSeed] = useState(() => bot?.avatarSeed ?? newAvatarSeed())
+  const [avatarStyle, setAvatarStyle] = useState(() => initialAvatarStyle(bot))
   const submission = useSaveField(onLogout)
   const removal = useSaveField(onLogout)
 
@@ -26,6 +52,11 @@ export function useBotForm({ bot, token, onLogout, onCreated, onUpdated, onDelet
 
   function shuffleAvatar() {
     setAvatarSeed(newAvatarSeed())
+    setAvatarStyle(current => randomAvatarStyle(current.mood ?? DEFAULT_BOT_AVATAR_MOOD))
+  }
+
+  function pickAvatarTrait(trait, value) {
+    setAvatarStyle(current => ({ ...current, [trait]: value }))
   }
 
   function persist(fields) {
@@ -37,7 +68,7 @@ export function useBotForm({ bot, token, onLogout, onCreated, onUpdated, onDelet
   async function submit() {
     if (!canSave) return
 
-    const fields = { name: name.trim(), description: description.trim(), profile, avatarSeed }
+    const fields = { name: name.trim(), description: description.trim(), profile, avatarSeed, avatarStyle }
     const notify = isEditing ? onUpdated : onCreated
 
     await submission.save(async () => {
@@ -59,10 +90,12 @@ export function useBotForm({ bot, token, onLogout, onCreated, onUpdated, onDelet
     description,
     profile,
     avatarSeed,
+    avatarStyle,
     setName,
     setDescription,
     setProfile,
     shuffleAvatar,
+    pickAvatarTrait,
     canSave,
     isSaving: submission.saving,
     saveError: submission.error,

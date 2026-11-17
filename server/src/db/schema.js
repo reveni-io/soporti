@@ -50,6 +50,7 @@ export const bots = pgTable(
     description: text('description').notNull(),
     profile: text('profile').notNull(),
     avatarSeed: text('avatar_seed').notNull(),
+    avatarStyle: jsonb('avatar_style'),
     unreadCount: integer('unread_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -6,7 +6,7 @@ import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
 import './BotsSection.css'
 
 const POINTS = [
-  'Private to you: a name, a description of its job, a support or tech profile and an avatar of its own, shuffled until you like it',
+  'Private to you: a name, a description of its job, a support or tech profile and an animated avatar of its own. Pick its shape, color, tone and mood, or shuffle until you like it, and it looks thoughtful while it works',
   'It greets you from its description the moment it is created, so you see it understood the job before you hand it any work',
   'Ask for something recurring in plain words — “every weekday at 17:00”, “every Monday at 9”, “once, on Friday at 10” — and it creates the routine from the chat, then confirms the schedule',
   'Every run posts its report into the bot’s chat, tagged with the routine, and an unread dot tells you which bot has news; ask a follow-up right below it',
@@ -18,6 +18,7 @@ const BOT = {
   name: 'Ticket Triage',
   description: 'Keeps an eye on the new Zendesk tickets and tells me which ones need me first.',
   avatarSeed: 'ticket-triage',
+  avatarStyle: { shape: 'cloud', hue: 195, tone: 'mid', mood: 'happy' },
 }
 
 const GREETING =
@@ -59,7 +60,7 @@ export default function BotsSection() {
         <div className="lp-split__visual">
           <PreviewWindow className="lp-bots" badge="Bots">
             <div className="lp-bots__head">
-              <BotAvatar seed={BOT.avatarSeed} size={HEAD_AVATAR_SIZE} />
+              <BotAvatar seed={BOT.avatarSeed} avatarStyle={BOT.avatarStyle} size={HEAD_AVATAR_SIZE} />
               <div className="lp-bots__who">
                 <span className="lp-bots__name">{BOT.name}</span>
                 <span className="lp-bots__description">{BOT.description}</span>

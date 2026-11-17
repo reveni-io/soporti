@@ -33,7 +33,7 @@ export default function ChatTopbar({
         <div className="chat-topbar__heading">
           {isLoading && <span className="chat-topbar__live" aria-hidden="true" />}
           {bot ? (
-            <BotHeading bot={bot} />
+            <BotHeading bot={bot} isThinking={isLoading} />
           ) : (
             <h2 key={title} className="chat-topbar__title" title={title}>
               {title}
@@ -53,10 +53,10 @@ export default function ChatTopbar({
   )
 }
 
-function BotHeading({ bot }) {
+function BotHeading({ bot, isThinking }) {
   return (
     <>
-      <BotAvatar seed={bot.avatarSeed} size={BOT_AVATAR_SIZE} />
+      <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={BOT_AVATAR_SIZE} isThinking={isThinking} />
       <div className="chat-topbar__bot">
         <h2 key={bot.name} className="chat-topbar__title" title={bot.name}>
           {bot.name}

@@ -4,6 +4,7 @@ import { BOT_GREETING_TURN, VALID_PROFILES } from '../agent/system-prompt.js'
 import { BOT_DESCRIPTION_MAX_LENGTH, BOT_NAME_MAX_LENGTH, MAX_BOTS_PER_USER } from '../constants.js'
 import { countBots, createBot, deleteBot, getBot, listBots, markBotRead, updateBot } from '../db/bots.js'
 import { deleteRoutine, getRoutine, listRoutines, setRoutinePaused } from '../db/routines.js'
+import { parseAvatarStyle } from '../bots/avatar-style.js'
 import { appendToBotChat, buildBotTurnItems } from '../bots/bot-chat.js'
 import { generateGreeting } from '../bots/greeting.js'
 import { parseRequiredText } from '../bots/input.js'
@@ -24,7 +25,7 @@ function parseAvatarSeed(avatarSeed) {
 }
 
 function parseBotInput(body) {
-  const { name, description, profile, avatarSeed } = body ?? {}
+  const { name, description, profile, avatarSeed, avatarStyle } = body ?? {}
 
   const parsedName = parseRequiredText(name, { label: 'The name', maxLength: BOT_NAME_MAX_LENGTH })
   if (parsedName.error) return parsedName
@@ -42,8 +43,17 @@ function parseBotInput(body) {
   const parsedSeed = parseAvatarSeed(avatarSeed)
   if (parsedSeed.error) return parsedSeed
 
+  const parsedStyle = parseAvatarStyle(avatarStyle)
+  if (parsedStyle.error) return parsedStyle
+
   return {
-    value: { name: parsedName.value, description: parsedDescription.value, profile, avatarSeed: parsedSeed.value },
+    value: {
+      name: parsedName.value,
+      description: parsedDescription.value,
+      profile,
+      avatarSeed: parsedSeed.value,
+      avatarStyle: parsedStyle.value,
+    },
   }
 }
 

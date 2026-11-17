@@ -17,6 +17,7 @@ describe('BotsSection', () => {
 
     expect(container.querySelectorAll('.lp-points li')).toHaveLength(6)
     expect(screen.getByText(/private to you: a name, a description of its job/i)).toBeInTheDocument()
+    expect(screen.getByText(/pick its shape, color, tone and mood, or shuffle/i)).toBeInTheDocument()
     expect(screen.getByText(/it greets you from its description/i)).toBeInTheDocument()
     expect(screen.getByText(/it creates the routine from the chat/i)).toBeInTheDocument()
     expect(screen.getByText(/an unread dot tells you which bot has news/i)).toBeInTheDocument()
@@ -24,12 +25,13 @@ describe('BotsSection', () => {
     expect(screen.getByText(/stays silent when there is nothing new/i)).toBeInTheDocument()
   })
 
-  it('heads the chat with the bot avatar, name and description', () => {
+  it('heads the chat with the animated bot avatar, name and description', () => {
     const { container } = render(<BotsSection />)
 
     const head = container.querySelector('.lp-bots__head')
 
-    expect(head.querySelector('img')).toHaveAttribute('width', '36')
+    expect(head.querySelector('svg.bot-avatar')).toHaveAttribute('width', '36')
+    expect(head.querySelector('svg.bot-avatar > g')).toHaveClass('mo-always')
     expect(within(head).getByText('Ticket Triage')).toBeInTheDocument()
     expect(within(head).getByText(/keeps an eye on the new zendesk tickets/i)).toBeInTheDocument()
     expect(within(head).getByText('Routines')).toBeInTheDocument()
