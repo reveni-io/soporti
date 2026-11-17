@@ -49,46 +49,6 @@ vi.mock('./settings.js', () => ({
   ),
 }))
 
-vi.mock('../github/client.js', () => ({
-  listRepos: vi.fn(),
-}))
-
-vi.mock('../figma/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../sendcloud/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../hubspot/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../notion/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../postgres/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../helpjuice/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../shopify/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../google-drive/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
-vi.mock('../betterstack/client.js', () => ({
-  isConfigured: vi.fn(() => false),
-}))
-
 vi.mock('./handler.js', () => ({
   processMessage: vi.fn(),
 }))
@@ -121,7 +81,6 @@ vi.mock('../db/users.js', () => ({
   updateCustomInstructions: vi.fn(async (_userId, value) => (value && value.trim().length > 0 ? value : null)),
 }))
 
-const { listRepos } = await import('../github/client.js')
 const { processMessage } = await import('./handler.js')
 const { isKnowledgeBaseConfigured } = await import('../knowledge/client.js')
 const { isConfigured } = await import('../llm/model.js')
@@ -222,9 +181,6 @@ describe('Slack bot', () => {
       expect(app).not.toBeNull()
       expect(registeredEventHandlers).toHaveProperty('app_mention')
       expect(registeredEventHandlers).toHaveProperty('message')
-      expect(registeredActionHandlers).toHaveProperty('confirm_selection')
-      expect(registeredActionHandlers).toHaveProperty('select_profile')
-      expect(registeredActionHandlers).toHaveProperty('select_sources')
     })
 
     it('returns null when not configured', async () => {
@@ -290,60 +246,43 @@ describe('Slack bot', () => {
       )
     })
 
-    it('shows source selector on first mention with repos', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> what is this?', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      expect(listRepos).toHaveBeenCalled()
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          channel: 'C123',
-          blocks: expect.any(Array),
-          text: 'Select sources and profile to continue.',
-        })
-      )
-    })
-
-    it('skips selector on follow-up in thread with existing sources', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+    it('answers the first mention right away in yolo mode with the default profile', async () => {
       processMessage.mockResolvedValue({ text: 'Agent response' })
 
       await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> initial question', ts: 'thread-ts', channel: 'C123' },
+        event: { text: '<@U123BOT> what is this?', ts: 'ev-ts', channel: 'C123', user: 'U456' },
         client: mockClient,
         context: { teamId: 'T123' },
       })
 
-      const confirmBody = {
-        message: { ts: 'msg-ts' },
-        channel: { id: 'C123' },
-        user: { id: 'U456' },
-      }
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
+      expect(processMessage).toHaveBeenCalledTimes(1)
+      expect(processMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ displayQuestion: 'what is this?', selectedSources: ['yolo'], profile: 'support' })
+      )
+      expect(mockClient.chatStream).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'C123', thread_ts: 'ev-ts', recipient_user_id: 'U456' })
+      )
+    })
 
-      await registeredActionHandlers['confirm_selection']({
-        body: confirmBody,
+    it('keeps answering follow-ups in the same thread in yolo mode', async () => {
+      processMessage.mockResolvedValue({ text: 'Agent response' })
+
+      await registeredEventHandlers['app_mention']({
+        event: { text: '<@U123BOT> initial question', ts: 'thread-ts', channel: 'C123', user: 'U456' },
         client: mockClient,
-        ack: vi.fn(),
+        context: { teamId: 'T123' },
       })
-
-      mockClient.chatStream.mockClear()
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> follow up', ts: 'ev-ts-2', thread_ts: 'thread-ts', channel: 'C123', user: 'U456' },
         client: mockClient,
         context: { teamId: 'T123' },
       })
 
-      expect(mockClient.chatStream).toHaveBeenCalledWith(
+      expect(processMessage).toHaveBeenCalledTimes(2)
+      expect(processMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ displayQuestion: 'follow up', selectedSources: ['yolo'], profile: 'support' })
+      )
+      expect(mockClient.chatStream).toHaveBeenLastCalledWith(
         expect.objectContaining({
           channel: 'C123',
           thread_ts: 'thread-ts',
@@ -355,31 +294,10 @@ describe('Slack bot', () => {
     })
 
     it('tells the user the assistant is unconfigured instead of running and failing', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-      processMessage.mockResolvedValue({ text: 'Agent response' })
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> initial question', ts: 'thread-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
-      processMessage.mockClear()
-      mockClient.chat.postMessage.mockClear()
       isConfigured.mockResolvedValueOnce(false)
 
       await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> follow up', ts: 'ev-ts-2', thread_ts: 'thread-ts', channel: 'C123' },
+        event: { text: '<@U123BOT> initial question', ts: 'thread-ts', channel: 'C123' },
         client: mockClient,
         context: { teamId: 'T123' },
       })
@@ -390,113 +308,7 @@ describe('Slack bot', () => {
       expect(processMessage).not.toHaveBeenCalled()
     })
 
-    it('sends error when no repos found', async () => {
-      listRepos.mockResolvedValue([])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> hello', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: expect.stringContaining('No repositories found'),
-        })
-      )
-    })
-
-    it('includes integration source options when integrations are configured', async () => {
-      const notion = await import('../notion/client.js')
-      const postgres = await import('../postgres/client.js')
-      const helpjuice = await import('../helpjuice/client.js')
-      const shopify = await import('../shopify/client.js')
-      const googleDrive = await import('../google-drive/client.js')
-      const betterstack = await import('../betterstack/client.js')
-      const figma = await import('../figma/client.js')
-      const sendcloud = await import('../sendcloud/client.js')
-      const hubspot = await import('../hubspot/client.js')
-
-      notion.isConfigured.mockReturnValue(true)
-      postgres.isConfigured.mockReturnValue(true)
-      helpjuice.isConfigured.mockReturnValue(true)
-      shopify.isConfigured.mockReturnValue(true)
-      googleDrive.isConfigured.mockReturnValue(true)
-      betterstack.isConfigured.mockReturnValue(true)
-      figma.isConfigured.mockReturnValue(true)
-      sendcloud.isConfigured.mockReturnValue(true)
-      hubspot.isConfigured.mockReturnValue(true)
-
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> hello', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      const callArg = mockClient.chat.postMessage.mock.calls.find(call =>
-        (call[0]?.blocks || []).some(b => b.accessory?.options?.some(o => o.value === 'integration:notion'))
-      )
-      expect(callArg).toBeTruthy()
-
-      const blocks = callArg[0].blocks
-      const sourceSelect = blocks.find(b => b.accessory?.action_id === 'select_sources')
-      const values = sourceSelect.accessory.options.map(o => o.value)
-
-      expect(values).toContain('integration:notion')
-      expect(values).toContain('integration:postgres')
-      expect(values).toContain('integration:helpjuice')
-      expect(values).toContain('integration:shopify')
-      expect(values).toContain('integration:google-drive')
-      expect(values).toContain('integration:betterstack')
-      expect(values).toContain('integration:figma')
-      expect(values).toContain('integration:sendcloud')
-      expect(values).toContain('integration:hubspot')
-    })
-
-    it('omits integration source options when their integrations are not configured', async () => {
-      const notion = await import('../notion/client.js')
-      const googleDrive = await import('../google-drive/client.js')
-      const betterstack = await import('../betterstack/client.js')
-      const figma = await import('../figma/client.js')
-      const sendcloud = await import('../sendcloud/client.js')
-      const hubspot = await import('../hubspot/client.js')
-      notion.isConfigured.mockReturnValue(false)
-      googleDrive.isConfigured.mockReturnValue(false)
-      betterstack.isConfigured.mockReturnValue(false)
-      figma.isConfigured.mockReturnValue(false)
-      sendcloud.isConfigured.mockReturnValue(false)
-      hubspot.isConfigured.mockReturnValue(false)
-
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> hello', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      const callArg = mockClient.chat.postMessage.mock.calls.find(call =>
-        (call[0]?.blocks || []).some(b => b.accessory?.action_id === 'select_sources')
-      )
-      expect(callArg).toBeTruthy()
-
-      const blocks = callArg[0].blocks
-      const sourceSelect = blocks.find(b => b.accessory?.action_id === 'select_sources')
-      const values = sourceSelect.accessory.options.map(o => o.value)
-
-      expect(values).not.toContain('integration:notion')
-      expect(values).not.toContain('integration:google-drive')
-      expect(values).not.toContain('integration:betterstack')
-      expect(values).not.toContain('integration:figma')
-      expect(values).not.toContain('integration:sendcloud')
-      expect(values).not.toContain('integration:hubspot')
-    })
-
     it('adds thread context into the question sent to processMessage', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
       mockClient.conversations.replies.mockResolvedValue({
         messages: [
           { ts: 'ev-ts-2', text: 'should be filtered out' },
@@ -518,18 +330,6 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
       const processCall = processMessage.mock.calls[0][0]
       expect(processCall.message).toContain('Thread context — previous messages in this thread')
       expect(processCall.message).toContain('context line')
@@ -538,7 +338,7 @@ describe('Slack bot', () => {
     })
   })
 
-  describe('confirm_selection handler', () => {
+  describe('answering a question', () => {
     let mockClient
     let conversationStore
 
@@ -548,62 +348,7 @@ describe('Slack bot', () => {
       await startSlackBot(conversationStore)
     })
 
-    it('sends error when pending question not found', async () => {
-      await registeredActionHandlers['confirm_selection']({
-        body: {
-          message: { ts: 'unknown-ts' },
-          channel: { id: 'C123' },
-          user: { id: 'U456' },
-        },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: expect.stringContaining('expired'),
-        })
-      )
-    })
-
-    it('sends ephemeral when no sources selected', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      const msgTs = 'msg-ts-ephemeral-unique'
-      mockClient.chat.postMessage.mockResolvedValueOnce({ ts: msgTs })
-
-      const threadTs = 'ev-ts-ephemeral-thread-unique'
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: threadTs, channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [] },
-        body: { message: { ts: msgTs } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: {
-          message: { ts: msgTs },
-          channel: { id: 'C123' },
-          user: { id: 'U456' },
-        },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
-      expect(mockClient.chat.postEphemeral).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: 'Please select at least one source.',
-        })
-      )
-    })
-
-    it('runs agent on successful selection', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+    it('runs the agent and asks whether the answer helped', async () => {
       processMessage.mockResolvedValue({ text: 'Agent response' })
       conversationStore.resolveSlack.mockResolvedValue({
         conversationId: 'conv-1',
@@ -618,27 +363,10 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: {
-          message: { ts: 'msg-ts' },
-          channel: { id: 'C123' },
-          user: { id: 'U456' },
-        },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
-      expect(mockClient.chat.update).toHaveBeenCalled()
       expect(processMessage).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.any(String),
-          selectedSources: ['org/repo1'],
+          message: 'test question',
+          selectedSources: ['yolo'],
           profile: 'support',
           isNewConversation: false,
         })
@@ -648,23 +376,12 @@ describe('Slack bot', () => {
 
     it('omits the feedback prompt when the knowledge base is not configured', async () => {
       isKnowledgeBaseConfigured.mockResolvedValueOnce(false)
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockResolvedValue({ text: 'Agent response' })
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123' },
         client: mockClient,
         context: { teamId: 'T123' },
-      })
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
       })
 
       expect(mockClient.chat.postMessage).not.toHaveBeenCalledWith(
@@ -676,7 +393,6 @@ describe('Slack bot', () => {
       const longText = 'a'.repeat(13_000)
       const client = buildMockRolloverClient()
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: longText })
         return { text: longText, footer: '' }
@@ -686,18 +402,6 @@ describe('Slack bot', () => {
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(client.chatStream).toHaveBeenCalledTimes(2)
@@ -714,7 +418,6 @@ describe('Slack bot', () => {
       const paragraph = `${'a'.repeat(299)}\n`
       const client = buildMockRolloverClient()
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: paragraph.repeat(40) })
         return { text: paragraph.repeat(40), footer: '' }
@@ -726,18 +429,6 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
-      })
-
       expect(client.streamers[0].append).toHaveBeenCalledWith({ markdown_text: paragraph.repeat(36) })
       expect(client.streamers[1].append).toHaveBeenCalledWith({ markdown_text: paragraph.repeat(4) })
     })
@@ -746,7 +437,6 @@ describe('Slack bot', () => {
       const code = 'x'.repeat(11_000)
       const client = buildMockRolloverClient()
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: '```js\n' })
         await onProgress({ type: 'text_delta', delta: code })
@@ -757,18 +447,6 @@ describe('Slack bot', () => {
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(client.chatStream).toHaveBeenCalledTimes(3)
@@ -782,7 +460,6 @@ describe('Slack bot', () => {
       const streamedText = 'a'.repeat(11_000)
       const footer = `\n\n_Sources consulted: ${'org/repo, '.repeat(120)}_`
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: streamedText })
         return { text: streamedText + footer, footer }
@@ -794,24 +471,11 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
       expect(mockClient.streamer.append).toHaveBeenCalledWith({ markdown_text: streamedText })
       expect(mockClient.streamer.stop).toHaveBeenCalledWith(undefined)
     })
 
     it('streams text deltas and tool steps into the same message', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({
           type: 'tool_start',
@@ -831,18 +495,6 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
       expect(mockClient.streamer.append).toHaveBeenCalledWith({
         chunks: [
           { type: 'task_update', id: 'task-0', title: 'Reading file', details: 'src/auth.js', status: 'in_progress' },
@@ -859,7 +511,6 @@ describe('Slack bot', () => {
     })
 
     it('closes the stream with the sources footer when the agent ran in yolo mode', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockResolvedValue({ text: 'Answer\n\n_Sources: org/repo1_', footer: '\n\n_Sources: org/repo1_' })
 
       await registeredEventHandlers['app_mention']({
@@ -868,43 +519,18 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
-      })
-
       expect(mockClient.streamer.stop).toHaveBeenCalledWith({ markdown_text: '\n\n_Sources: org/repo1_' })
     })
 
     it('shows an error message when processMessage throws', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockRejectedValue(new Error('agent boom'))
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client: mockClient,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client: mockClient,
-        ack: vi.fn(),
       })
 
       expect(mockClient.streamer.stop).toHaveBeenCalledWith({
@@ -922,7 +548,6 @@ describe('Slack bot', () => {
       streamer.stop.mockRejectedValue(new Error('streaming not available on this plan'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'tool_start', taskId: 'task-0', name: 'list_repos', arguments: '{}' })
         await onProgress({ type: 'text_delta', delta: 'The answer.' })
@@ -933,18 +558,6 @@ describe('Slack bot', () => {
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(client.chat.postMessage).toHaveBeenCalledWith(
@@ -962,7 +575,6 @@ describe('Slack bot', () => {
       streamer.append.mockRejectedValue(new Error('streaming not available'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: 'a' })
         await onProgress({ type: 'text_delta', delta: 'b' })
@@ -974,18 +586,6 @@ describe('Slack bot', () => {
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(streamer.append).toHaveBeenCalledTimes(1)
@@ -1001,7 +601,6 @@ describe('Slack bot', () => {
       streamer.append.mockRejectedValue(new Error('streaming not available'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: longAnswer })
         return { text: longAnswer, footer: '' }
@@ -1011,18 +610,6 @@ describe('Slack bot', () => {
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(client.filesUploadV2).not.toHaveBeenCalled()
@@ -1039,25 +626,12 @@ describe('Slack bot', () => {
       streamer.stop.mockRejectedValue(new Error('stopStream exploded'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockResolvedValue({ text: 'The answer.', footer: '' })
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(client.chat.postMessage).toHaveBeenCalledWith(expect.objectContaining({ text: 'The answer.' }))
@@ -1069,26 +643,13 @@ describe('Slack bot', () => {
       const client = buildMockClient()
       client.chatStream = undefined
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockResolvedValue({ text: 'The answer.' })
 
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
-        client,
-        context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
       await expect(
-        registeredActionHandlers['confirm_selection']({
-          body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        registeredEventHandlers['app_mention']({
+          event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
           client,
-          ack: vi.fn(),
+          context: { teamId: 'T123' },
         })
       ).resolves.not.toThrow()
 
@@ -1104,25 +665,12 @@ describe('Slack bot', () => {
       streamer.ts = undefined
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockRejectedValue(new Error('agent boom'))
 
       await registeredEventHandlers['app_mention']({
         event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
         client,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
       })
 
       expect(streamer.stop).not.toHaveBeenCalled()
@@ -1138,26 +686,13 @@ describe('Slack bot', () => {
       streamer.stop.mockRejectedValue(new Error('An API error occurred: msg_too_long'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockRejectedValue(new Error('agent boom'))
 
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
-        client,
-        context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
       await expect(
-        registeredActionHandlers['confirm_selection']({
-          body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
+        registeredEventHandlers['app_mention']({
+          event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123', user: 'U1' },
           client,
-          ack: vi.fn(),
+          context: { teamId: 'T123' },
         })
       ).resolves.not.toThrow()
 
@@ -1177,7 +712,6 @@ describe('Slack bot', () => {
       streamer.append.mockRejectedValue(new Error('An API error occurred: msg_too_long'))
       const client = buildMockClient(streamer)
 
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
       processMessage.mockImplementation(async ({ onProgress }) => {
         await onProgress({ type: 'text_delta', delta: 'partial answer' })
         throw new Error('agent boom')
@@ -1189,79 +723,11 @@ describe('Slack bot', () => {
         context: { teamId: 'T123' },
       })
 
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: { message: { ts: 'msg-ts' }, channel: { id: 'C123' }, user: { id: 'U456' } },
-        client,
-        ack: vi.fn(),
-      })
-
       expect(streamer.stop).not.toHaveBeenCalled()
       expect(client.chat.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({ text: '⚠️ An error occurred while processing your request.' })
       )
       consoleSpy.mockRestore()
-    })
-  })
-
-  describe('select_profile action handler', () => {
-    let mockClient
-
-    beforeEach(async () => {
-      mockClient = buildMockClient()
-      await startSlackBot(buildMockConversationStore())
-    })
-
-    it('saves selected profile to pending question', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      const ack = vi.fn()
-      await registeredActionHandlers['select_profile']({
-        action: { selected_option: { value: 'tech' } },
-        body: { message: { ts: 'msg-ts' } },
-        ack,
-      })
-
-      expect(ack).toHaveBeenCalled()
-    })
-  })
-
-  describe('select_sources action handler', () => {
-    let mockClient
-
-    beforeEach(async () => {
-      mockClient = buildMockClient()
-      await startSlackBot(buildMockConversationStore())
-    })
-
-    it('saves selected sources to pending question', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
-
-      await registeredEventHandlers['app_mention']({
-        event: { text: '<@U123BOT> test question', ts: 'ev-ts', channel: 'C123' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      const ack = vi.fn()
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }, { value: 'integration:notion' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack,
-      })
-
-      expect(ack).toHaveBeenCalled()
     })
   })
 
@@ -1273,8 +739,8 @@ describe('Slack bot', () => {
       await startSlackBot(buildMockConversationStore())
     })
 
-    it('shows source selector for first DM', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+    it('answers the first DM right away in yolo mode', async () => {
+      processMessage.mockResolvedValue({ text: 'Agent response' })
 
       await registeredEventHandlers['message']({
         event: {
@@ -1282,16 +748,18 @@ describe('Slack bot', () => {
           ts: 'dm-ts',
           channel: 'D123',
           channel_type: 'im',
+          user: 'U456',
         },
         client: mockClient,
         context: { teamId: 'T123' },
       })
 
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          channel: 'D123',
-          blocks: expect.any(Array),
-        })
+      expect(processMessage).toHaveBeenCalledTimes(1)
+      expect(processMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Hello bot', selectedSources: ['yolo'], profile: 'support' })
+      )
+      expect(mockClient.chatStream).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'D123', thread_ts: 'dm-ts', recipient_user_id: 'U456' })
       )
     })
 
@@ -1342,8 +810,7 @@ describe('Slack bot', () => {
       expect(mockClient.chat.postMessage).not.toHaveBeenCalled()
     })
 
-    it('processes DM with existing sources', async () => {
-      listRepos.mockResolvedValue([{ fullName: 'org/repo1' }])
+    it('answers a follow-up in a DM thread', async () => {
       processMessage.mockResolvedValue({ text: 'Agent response' })
 
       await registeredEventHandlers['message']({
@@ -1355,22 +822,6 @@ describe('Slack bot', () => {
         },
         client: mockClient,
         context: { teamId: 'T123' },
-      })
-
-      await registeredActionHandlers['select_sources']({
-        action: { selected_options: [{ value: 'org/repo1' }] },
-        body: { message: { ts: 'msg-ts' } },
-        ack: vi.fn(),
-      })
-
-      await registeredActionHandlers['confirm_selection']({
-        body: {
-          message: { ts: 'msg-ts' },
-          channel: { id: 'D123' },
-          user: { id: 'U456' },
-        },
-        client: mockClient,
-        ack: vi.fn(),
       })
 
       mockClient.chatStream.mockClear()
@@ -1398,43 +849,6 @@ describe('Slack bot', () => {
           task_display_mode: 'timeline',
         })
       )
-    })
-
-    it('sends error when no repos found in DM', async () => {
-      listRepos.mockResolvedValue([])
-
-      await registeredEventHandlers['message']({
-        event: { text: 'Hello DM', ts: 'dm-ts', channel: 'D123', channel_type: 'im' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          channel: 'D123',
-          text: expect.stringContaining('No repositories found'),
-        })
-      )
-    })
-
-    it('sends error when listRepos throws in DM', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-      listRepos.mockRejectedValue(new Error('db fail'))
-
-      await registeredEventHandlers['message']({
-        event: { text: 'Hello DM', ts: 'dm-ts', channel: 'D123', channel_type: 'im' },
-        client: mockClient,
-        context: { teamId: 'T123' },
-      })
-
-      expect(consoleSpy).toHaveBeenCalledWith('[slack] Error showing repo selector in DM:', expect.any(Error))
-      expect(mockClient.chat.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: '⚠️ Failed to load repositories.',
-        })
-      )
-      consoleSpy.mockRestore()
     })
   })
 

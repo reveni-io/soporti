@@ -1,16 +1,6 @@
 import pkg from '@slack/bolt'
 const { App, LogLevel } = pkg
 
-import { listRepos } from '../github/client.js'
-import * as notion from '../notion/client.js'
-import * as postgres from '../postgres/client.js'
-import * as helpjuice from '../helpjuice/client.js'
-import * as shopify from '../shopify/client.js'
-import * as googleDrive from '../google-drive/client.js'
-import * as betterstack from '../betterstack/client.js'
-import * as figma from '../figma/client.js'
-import * as sendcloud from '../sendcloud/client.js'
-import * as hubspot from '../hubspot/client.js'
 import { YOLO_SOURCE } from '../agent/sources.js'
 import { processMessage } from './handler.js'
 import { getSlackSettings } from './settings.js'
@@ -23,6 +13,7 @@ import { isConfigured as isLlmConfigured } from '../llm/model.js'
 import { upsertSlackUser, getCustomInstructions, updateCustomInstructions } from '../db/users.js'
 
 const MAX_INSTRUCTIONS_LENGTH = 50_000
+const SLACK_SOURCES = [YOLO_SOURCE]
 
 const TASK_DISPLAY_MODE = 'timeline'
 const TASK_IN_PROGRESS = 'in_progress'
@@ -73,173 +64,7 @@ async function handleInstructionsCommand({ slackUserId, slackUserName, argText }
 let slackApp = null
 let conversationStore = null
 
-const pendingQuestions = new Map()
-
-const threadSources = new Map()
-
-const threadProfiles = new Map()
-
-setInterval(
-  () => {
-    const cutoff = Date.now() - 10 * 60 * 1000
-    for (const [key, entry] of pendingQuestions) {
-      if (entry.createdAt < cutoff) pendingQuestions.delete(key)
-    }
-  },
-  10 * 60 * 1000
-).unref()
-
 export { isSlackConfigured } from './settings.js'
-
-async function buildSourceSelectorBlocks(question, repos) {
-  const sourceOptions = [
-    {
-      text: { type: 'plain_text', text: '⚡ YOLO (auto)' },
-      description: { type: 'plain_text', text: 'Let the agent decide which sources to use' },
-      value: YOLO_SOURCE,
-    },
-  ]
-
-  if (await notion.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Notion' },
-      description: { type: 'plain_text', text: 'Search and read Notion pages' },
-      value: 'integration:notion',
-    })
-  }
-
-  if (await postgres.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Database' },
-      description: { type: 'plain_text', text: 'Query and explore the connected PostgreSQL databases' },
-      value: 'integration:postgres',
-    })
-  }
-
-  if (await helpjuice.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Helpjuice' },
-      description: { type: 'plain_text', text: 'Search and read help center articles' },
-      value: 'integration:helpjuice',
-    })
-  }
-
-  if (await shopify.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Shopify' },
-      description: { type: 'plain_text', text: 'Query Shopify orders, products, and webhooks (read-only)' },
-      value: 'integration:shopify',
-    })
-  }
-
-  if (await googleDrive.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Google Drive' },
-      description: { type: 'plain_text', text: 'Search, browse and read Google Drive documents' },
-      value: 'integration:google-drive',
-    })
-  }
-
-  if (await betterstack.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Better Stack' },
-      description: { type: 'plain_text', text: 'Search and query application logs' },
-      value: 'integration:betterstack',
-    })
-  }
-
-  if (await figma.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Figma' },
-      description: { type: 'plain_text', text: 'Look at Figma designs, render screenshots and read their comments' },
-      value: 'integration:figma',
-    })
-  }
-
-  if (await sendcloud.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'Sendcloud' },
-      description: { type: 'plain_text', text: 'Track parcels, returns and shipping methods (read-only)' },
-      value: 'integration:sendcloud',
-    })
-  }
-
-  if (await hubspot.isConfigured()) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: 'HubSpot' },
-      description: { type: 'plain_text', text: 'Search and read HubSpot CRM records, and write what /admin allows' },
-      value: 'integration:hubspot',
-    })
-  }
-
-  for (const r of repos.slice(0, 99)) {
-    sourceOptions.push({
-      text: { type: 'plain_text', text: r.fullName.slice(0, 75) },
-      value: r.fullName,
-    })
-  }
-
-  const profileOptions = [
-    {
-      text: { type: 'plain_text', text: 'Support' },
-      description: { type: 'plain_text', text: 'Simple, non-technical answers' },
-      value: 'support',
-    },
-    {
-      text: { type: 'plain_text', text: 'Tech' },
-      description: { type: 'plain_text', text: 'Detailed code and architecture' },
-      value: 'tech',
-    },
-  ]
-
-  return [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `> ${question}`,
-      },
-    },
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Sources:*',
-      },
-      accessory: {
-        type: 'multi_static_select',
-        placeholder: { type: 'plain_text', text: 'Choose sources...' },
-        options: sourceOptions,
-        action_id: 'select_sources',
-      },
-    },
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '*Profile:*',
-      },
-      accessory: {
-        type: 'static_select',
-        placeholder: { type: 'plain_text', text: 'Choose a profile...' },
-        options: profileOptions,
-        initial_option: profileOptions[0],
-        action_id: 'select_profile',
-      },
-    },
-    {
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: 'Go' },
-          style: 'primary',
-          action_id: 'confirm_selection',
-        },
-      ],
-    },
-  ]
-}
 
 async function fetchThreadContext({ client, channelId, threadTs, eventTs }) {
   if (!eventTs || threadTs === eventTs) return null
@@ -424,17 +249,7 @@ async function deliverError({ client, channelId, threadTs, progress }) {
   await client.chat.postMessage({ channel: channelId, thread_ts: threadTs, text: STREAM_ERROR_TEXT })
 }
 
-async function runAndReply({
-  client,
-  channelId,
-  threadTs,
-  question,
-  displayQuestion,
-  sources,
-  profile,
-  slackUserId,
-  teamId,
-}) {
+async function runAndReply({ client, channelId, threadTs, question, displayQuestion, slackUserId, teamId }) {
   if (!(await isLlmConfigured())) {
     await client.chat.postMessage({
       channel: channelId,
@@ -468,10 +283,10 @@ async function runAndReply({
       message: question,
       displayQuestion,
       conversationId,
-      selectedSources: sources,
+      selectedSources: SLACK_SOURCES,
       session,
       previousResponseId,
-      profile,
+      profile: DEFAULT_PROFILE,
       slackUserId,
       isNewConversation,
       onProgress: progress.handleProgress,
@@ -520,73 +335,6 @@ async function runAndReply({
   }
 }
 
-async function answerOrPromptSources({
-  client,
-  channelId,
-  threadTs,
-  question,
-  displayQuestion,
-  slackUserId,
-  teamId,
-  logContext,
-}) {
-  const threadKey = `${channelId}-${threadTs}`
-  const existingSources = threadSources.get(threadKey)
-
-  if (existingSources) {
-    await runAndReply({
-      client,
-      channelId,
-      threadTs,
-      question,
-      displayQuestion,
-      sources: existingSources,
-      profile: threadProfiles.get(threadKey) || DEFAULT_PROFILE,
-      slackUserId,
-      teamId,
-    })
-    return
-  }
-
-  try {
-    const repos = await listRepos()
-
-    if (repos.length === 0) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: threadTs,
-        text: 'No repositories found. Check the GitHub token configuration.',
-      })
-      return
-    }
-
-    const result = await client.chat.postMessage({
-      channel: channelId,
-      thread_ts: threadTs,
-      blocks: await buildSourceSelectorBlocks(displayQuestion, repos),
-      text: 'Select sources and profile to continue.',
-    })
-
-    pendingQuestions.set(result.ts, {
-      question,
-      displayQuestion,
-      channelId,
-      threadTs,
-      selectedProfile: DEFAULT_PROFILE,
-      slackUserId,
-      teamId,
-      createdAt: Date.now(),
-    })
-  } catch (err) {
-    console.error(`[slack] Error showing repo selector${logContext}:`, err)
-    await client.chat.postMessage({
-      channel: channelId,
-      thread_ts: threadTs,
-      text: '⚠️ Failed to load repositories.',
-    })
-  }
-}
-
 export async function startSlackBot(store) {
   if (store) conversationStore = store
 
@@ -624,28 +372,7 @@ export async function startSlackBot(store) {
       return
     }
 
-    await answerOrPromptSources({
-      client,
-      channelId,
-      threadTs,
-      question,
-      displayQuestion,
-      slackUserId,
-      teamId,
-      logContext: '',
-    })
-  })
-
-  slackApp.action('select_profile', async ({ action, body, ack }) => {
-    await ack()
-    const pending = pendingQuestions.get(body.message.ts)
-    if (pending) pending.selectedProfile = action.selected_option.value
-  })
-
-  slackApp.action('select_sources', async ({ action, body, ack }) => {
-    await ack()
-    const pending = pendingQuestions.get(body.message.ts)
-    if (pending) pending.selectedSources = (action.selected_options || []).map(o => o.value)
+    await runAndReply({ client, channelId, threadTs, question, displayQuestion, slackUserId, teamId })
   })
 
   async function handleFeedback({ action, body, client, ack }, useful) {
@@ -704,78 +431,6 @@ export async function startSlackBot(store) {
     })
   })
 
-  slackApp.action('confirm_selection', async ({ body, client, ack }) => {
-    await ack()
-
-    const messageTs = body.message.ts
-    const channelId = body.channel.id
-    const pending = pendingQuestions.get(messageTs)
-
-    if (!pending) {
-      await client.chat.postMessage({
-        channel: channelId,
-        thread_ts: messageTs,
-        text: '⚠️ This selection has expired. Please ask your question again.',
-      })
-      return
-    }
-
-    const rawSelectedSources = pending.selectedSources
-    if (!rawSelectedSources || rawSelectedSources.length === 0) {
-      await client.chat.postEphemeral({
-        channel: channelId,
-        user: body.user.id,
-        text: 'Please select at least one source.',
-      })
-      return
-    }
-
-    const selectedSources = rawSelectedSources.includes(YOLO_SOURCE) ? [YOLO_SOURCE] : rawSelectedSources
-
-    pendingQuestions.delete(messageTs)
-    const { question, displayQuestion, threadTs, selectedProfile, slackUserId, teamId } = pending
-    const profile = selectedProfile || DEFAULT_PROFILE
-    const profileLabel = profile === 'tech' ? 'Tech' : 'Support'
-    const sourceLabels = selectedSources
-      .map(s => {
-        if (s === YOLO_SOURCE) return '⚡ YOLO'
-        if (s.startsWith('integration:')) return s.replace('integration:', '')
-        return `\`${s}\``
-      })
-      .join(', ')
-
-    const threadKey = `${channelId}-${threadTs}`
-    threadSources.set(threadKey, selectedSources)
-    threadProfiles.set(threadKey, profile)
-
-    await client.chat.update({
-      channel: channelId,
-      ts: messageTs,
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `> ${displayQuestion || question}\n\n*Sources:* ${sourceLabels} · *Profile:* ${profileLabel}`,
-          },
-        },
-      ],
-      text: `Sources: ${selectedSources.join(', ')} · Profile: ${profileLabel}`,
-    })
-
-    await runAndReply({
-      client,
-      channelId,
-      threadTs,
-      question,
-      displayQuestion,
-      sources: selectedSources,
-      profile,
-      slackUserId: slackUserId || body.user.id,
-      teamId: teamId || body.team?.id,
-    })
-  })
-
   slackApp.event('message', async ({ event, client, context }) => {
     if (event.channel_type !== 'im') return
     if (event.bot_id || event.subtype) return
@@ -788,16 +443,7 @@ export async function startSlackBot(store) {
 
     if (!question) return
 
-    await answerOrPromptSources({
-      client,
-      channelId,
-      threadTs,
-      question,
-      displayQuestion: question,
-      slackUserId,
-      teamId,
-      logContext: ' in DM',
-    })
+    await runAndReply({ client, channelId, threadTs, question, displayQuestion: question, slackUserId, teamId })
   })
 
   await slackApp.start()
