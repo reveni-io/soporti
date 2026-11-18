@@ -1,5 +1,6 @@
 import { describeInstant } from '../agent/clock.js'
 import { DEFAULT_TIMEZONE } from '../constants.js'
+import { findUserById } from '../db/users.js'
 import { mapWithConcurrency } from '../review/concurrency.js'
 import { redactSecrets } from '../review/output-guard.js'
 import { callSlack } from './client.js'
@@ -11,8 +12,8 @@ export const DEFAULT_THREAD_MESSAGES = 100
 export const MAX_READ_MESSAGES = 200
 export const MAX_MESSAGE_CHARS = 4_000
 
-const PUBLIC_CHANNEL_ID_RE = /^C[A-Z0-9]{8,}$/
-const NON_PUBLIC_ID_RE = /^[DG][A-Z0-9]{8,}$/
+const CHANNEL_ID_RE = /^[CG][A-Z0-9]{8,}$/
+const DIRECT_MESSAGE_ID_RE = /^D[A-Z0-9]{8,}$/
 const CHANNEL_REFERENCE_RE = /^<#([A-Z0-9]+)(?:\|[^>]*)?>$/
 const LEADING_HASH_RE = /^#/
 const MESSAGE_TS_RE = /^\d{9,10}\.\d{6}$/
@@ -21,22 +22,34 @@ const USER_MENTION_RE = /<@([UW][A-Z0-9]+)(?:\|[^>]*)?>/g
 const CHANNEL_MENTION_RE = /<#[A-Z0-9]+\|([^>]*)>/g
 const BROADCAST_MENTION_RE = /<!(here|channel|everyone)(?:\|[^>]*)?>/g
 const GROUP_MENTION_RE = /<!subteam\^[A-Z0-9]+\|([^>]*)>/g
-const CHANNEL_PAGE_SIZE = 1000
-const MAX_CHANNEL_PAGES = 10
+const PAGE_SIZE = 1000
+const MAX_PAGES = 10
 const CHANNEL_CACHE_TTL_MS = 60_000
 const USER_CACHE_TTL_MS = 3_600_000
 const WORKSPACE_CACHE_TTL_MS = 3_600_000
-const USER_LOOKUP_CONCURRENCY = 5
+const LOOKUP_CONCURRENCY = 5
 const SKIPPED_SUBTYPES = new Set(['channel_join', 'channel_leave'])
-const CHANNELS_CACHE_KEY = 'channels'
+const PUBLIC_CHANNELS_CACHE_KEY = 'public-channels'
+const PRIVATE_CHANNELS_CACHE_KEY = 'private-channels'
 const WORKSPACE_CACHE_KEY = 'workspace'
-const NOT_PUBLIC_MESSAGE =
-  'This conversation is not a public channel. Soporti only reads public Slack channels, never private channels, group messages or direct messages.'
+const DIRECT_MESSAGE_ERROR = 'This conversation is a direct message or a group message. Soporti never reads them.'
+const PRIVATE_WITHOUT_IDENTITY_ERROR =
+  'This is a private channel. Soporti reads one only for its members, and it cannot match the person asking to a Slack user (by their Slack account or their email), so here it reads only public channels.'
+const PRIVATE_NOT_MEMBER_ERROR =
+  'This is a private channel and the person asking is not a member of it. Soporti reads a private channel only for its members.'
+const PRIVATE_IN_SHARED_THREAD_ERROR =
+  'This is a private channel, and everyone in this Slack conversation would read the answer. Ask from a direct message with the bot, or from that same channel.'
 const READ_ERROR_MESSAGES = {
   not_in_channel:
     'The Soporti bot is not a member of this channel, so it cannot read it. Someone in the channel has to add it first with /invite.',
-  channel_not_found: 'Slack cannot find this channel. Soporti only reads public channels.',
+  channel_not_found:
+    'Slack cannot find this channel. A private channel is only visible once the bot has been added to it.',
   thread_not_found: 'There is no message with that ts in this channel.',
+}
+const INFO_ERROR_MESSAGES = {
+  ...READ_ERROR_MESSAGES,
+  missing_scope:
+    'Slack does not let the bot see this conversation: it is a direct or group message, which Soporti never reads, or a private channel while the Slack app lacks the groups:read scope.',
 }
 
 const cache = new Map()
@@ -59,10 +72,17 @@ function isPublicChannel(channel) {
   return channel?.is_channel === true && channel.is_private === false && !channel.is_im && !channel.is_mpim
 }
 
+function isPrivateChannel(channel) {
+  const isChannelLike = channel?.is_channel === true || channel?.is_group === true
+
+  return isChannelLike && channel.is_private === true && !channel.is_im && !channel.is_mpim
+}
+
 function toChannelSummary(channel) {
   return {
     id: channel.id,
     name: channel.name,
+    private: channel.is_private === true,
     topic: channel.topic?.value || null,
     purpose: channel.purpose?.value || null,
     members: channel.num_members ?? null,
@@ -70,48 +90,134 @@ function toChannelSummary(channel) {
   }
 }
 
-async function fetchPublicChannels() {
-  const channels = []
+function byName(a, b) {
+  return a.name.localeCompare(b.name)
+}
+
+async function collectPages(method, params, pickItems) {
+  const items = []
   let cursor = null
 
-  for (let page = 0; page < MAX_CHANNEL_PAGES; page++) {
-    const data = await readSlack('conversations.list', {
-      types: 'public_channel',
-      exclude_archived: 'true',
-      limit: String(CHANNEL_PAGE_SIZE),
-      cursor,
-    })
-    channels.push(...data.channels.filter(isPublicChannel).map(toChannelSummary))
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const data = await readSlack(method, { ...params, limit: String(PAGE_SIZE), cursor })
+    items.push(...pickItems(data))
 
     cursor = data.response_metadata?.next_cursor || null
     if (!cursor) break
   }
 
-  return channels.sort((a, b) => a.name.localeCompare(b.name))
+  return items
+}
+
+async function fetchChannels(types, isWanted) {
+  const channels = await collectPages('conversations.list', { types, exclude_archived: 'true' }, data => {
+    return data.channels ?? []
+  })
+
+  return channels.filter(isWanted).map(toChannelSummary).sort(byName)
 }
 
 function loadPublicChannels() {
-  return remember(CHANNELS_CACHE_KEY, CHANNEL_CACHE_TTL_MS, fetchPublicChannels)
+  return remember(PUBLIC_CHANNELS_CACHE_KEY, CHANNEL_CACHE_TTL_MS, () =>
+    fetchChannels('public_channel', isPublicChannel)
+  )
+}
+
+function loadBotPrivateChannels() {
+  return remember(PRIVATE_CHANNELS_CACHE_KEY, CHANNEL_CACHE_TTL_MS, () => {
+    return fetchChannels('private_channel', isPrivateChannel)
+  })
+}
+
+async function fetchMembers(channelId) {
+  const members = await collectPages('conversations.members', { channel: channelId }, data => data.members ?? [])
+
+  return new Set(members)
+}
+
+async function isChannelMember(channelId, slackUserId) {
+  const members = await remember(`members:${channelId}`, CHANNEL_CACHE_TTL_MS, () => fetchMembers(channelId))
+
+  return members.has(slackUserId)
+}
+
+async function fetchSlackIdByEmail(email) {
+  const data = await readSlack('users.lookupByEmail', { email })
+
+  return data.user?.id ?? null
+}
+
+async function lookUpSlackIdByEmail(email) {
+  try {
+    return await remember(`email:${email}`, USER_CACHE_TTL_MS, () => fetchSlackIdByEmail(email))
+  } catch (err) {
+    console.error('[slack] Failed to find the Slack user of the person asking:', err.message)
+    return null
+  }
+}
+
+async function findViewerSlackId(userId) {
+  if (!userId) return null
+
+  const user = await findUserById(userId)
+  if (user?.slackId) return user.slackId
+  if (!user?.email) return null
+
+  return lookUpSlackIdByEmail(user.email)
+}
+
+function answersInSharedSlackThread(viewer, channelId) {
+  const origin = viewer.slackChannelId
+  if (!origin || DIRECT_MESSAGE_ID_RE.test(origin)) return false
+
+  return origin !== channelId
+}
+
+async function listViewerPrivateChannels(viewer) {
+  const slackUserId = await findViewerSlackId(viewer.userId)
+  if (!slackUserId) return []
+
+  const candidates = (await loadBotPrivateChannels()).filter(channel => {
+    return !answersInSharedSlackThread(viewer, channel.id)
+  })
+  const isMember = await mapWithConcurrency(candidates, LOOKUP_CONCURRENCY, channel => {
+    return isChannelMember(channel.id, slackUserId)
+  })
+
+  return candidates.filter((_, index) => isMember[index])
+}
+
+async function loadReadablePrivateChannels(viewer) {
+  try {
+    return { channels: await listViewerPrivateChannels(viewer) }
+  } catch (err) {
+    console.error('[slack] Failed to list the private channels:', err.message)
+    return { channels: [], notice: `Private channels could not be listed: ${err.message}` }
+  }
 }
 
 function matchesQuery(channel, needle) {
   return [channel.name, channel.topic, channel.purpose].some(field => field?.toLowerCase().includes(needle))
 }
 
-export async function listPublicChannels({ query = '', limit = DEFAULT_CHANNEL_RESULTS } = {}) {
-  const channels = await loadPublicChannels()
+export async function listChannels({ query = '', limit = DEFAULT_CHANNEL_RESULTS, viewer = {} } = {}) {
+  const [publicChannels, privates] = await Promise.all([loadPublicChannels(), loadReadablePrivateChannels(viewer)])
+  const channels = [...publicChannels, ...privates.channels].sort(byName)
   const needle = query.trim().replace(LEADING_HASH_RE, '').toLowerCase()
   const matches = needle ? channels.filter(channel => matchesQuery(channel, needle)) : channels
 
-  return { channels: matches.slice(0, limit), total: matches.length, hasMore: matches.length > limit }
+  const result = { channels: matches.slice(0, limit), total: matches.length, hasMore: matches.length > limit }
+  if (privates.notice) result.notice = privates.notice
+
+  return result
 }
 
 function parseChannelReference(channel) {
   const raw = String(channel ?? '').trim()
   const id = CHANNEL_REFERENCE_RE.exec(raw)?.[1] ?? raw
 
-  if (NON_PUBLIC_ID_RE.test(id)) throw new Error(NOT_PUBLIC_MESSAGE)
-  if (PUBLIC_CHANNEL_ID_RE.test(id)) return { id }
+  if (DIRECT_MESSAGE_ID_RE.test(id)) throw new Error(DIRECT_MESSAGE_ERROR)
+  if (CHANNEL_ID_RE.test(id)) return { id }
 
   const name = raw.replace(LEADING_HASH_RE, '').toLowerCase()
   if (!name) throw new Error('A Slack channel name or id is required.')
@@ -119,22 +225,37 @@ function parseChannelReference(channel) {
   return { name }
 }
 
-async function findChannelIdByName(name) {
-  const channels = await loadPublicChannels()
-  const match = channels.find(channel => channel.name === name)
-  if (!match) throw new Error(`There is no public Slack channel named #${name}.`)
+async function findChannelIdByName(name, viewer) {
+  const publicMatch = (await loadPublicChannels()).find(channel => channel.name === name)
+  if (publicMatch) return publicMatch.id
 
-  return match.id
+  const slackUserId = await findViewerSlackId(viewer.userId)
+  const privateMatch = slackUserId && (await loadBotPrivateChannels()).find(channel => channel.name === name)
+  if (privateMatch && (await isChannelMember(privateMatch.id, slackUserId))) return privateMatch.id
+
+  throw new Error(
+    `There is no public Slack channel named #${name}, nor a private one that both the bot and the person asking are in.`
+  )
 }
 
-async function resolvePublicChannel(channel) {
+async function assertCanRead(channel, viewer) {
+  if (isPublicChannel(channel)) return
+  if (!isPrivateChannel(channel)) throw new Error(DIRECT_MESSAGE_ERROR)
+
+  const slackUserId = await findViewerSlackId(viewer.userId)
+  if (!slackUserId) throw new Error(PRIVATE_WITHOUT_IDENTITY_ERROR)
+  if (!(await isChannelMember(channel.id, slackUserId))) throw new Error(PRIVATE_NOT_MEMBER_ERROR)
+  if (answersInSharedSlackThread(viewer, channel.id)) throw new Error(PRIVATE_IN_SHARED_THREAD_ERROR)
+}
+
+async function resolveReadableChannel(channel, viewer) {
   const reference = parseChannelReference(channel)
-  const id = reference.id ?? (await findChannelIdByName(reference.name))
+  const id = reference.id ?? (await findChannelIdByName(reference.name, viewer))
 
-  const data = await readSlack('conversations.info', { channel: id })
-  if (!isPublicChannel(data.channel)) throw new Error(NOT_PUBLIC_MESSAGE)
+  const data = await callSlack('conversations.info', { channel: id }, INFO_ERROR_MESSAGES)
+  await assertCanRead(data.channel, viewer)
 
-  return { id: data.channel.id, name: data.channel.name }
+  return { id: data.channel.id, name: data.channel.name, private: data.channel.is_private === true }
 }
 
 function displayName(user) {
@@ -171,7 +292,7 @@ function collectUserIds(messages) {
 
 async function resolveUserNames(messages) {
   const ids = collectUserIds(messages)
-  const names = await mapWithConcurrency(ids, USER_LOOKUP_CONCURRENCY, lookUpUserName)
+  const names = await mapWithConcurrency(ids, LOOKUP_CONCURRENCY, lookUpUserName)
 
   return new Map(ids.map((id, index) => [id, names[index]]))
 }
@@ -264,9 +385,16 @@ function toPage(channel, data, messages) {
 
 export async function readChannelHistory(
   channel,
-  { timeMin = null, timeMax = null, limit = DEFAULT_HISTORY_MESSAGES, cursor = null, timeZone = DEFAULT_TIMEZONE } = {}
+  {
+    timeMin = null,
+    timeMax = null,
+    limit = DEFAULT_HISTORY_MESSAGES,
+    cursor = null,
+    timeZone = DEFAULT_TIMEZONE,
+    viewer = {},
+  } = {}
 ) {
-  const target = await resolvePublicChannel(channel)
+  const target = await resolveReadableChannel(channel, viewer)
   const data = await readSlack('conversations.history', {
     channel: target.id,
     oldest: toSlackTs(timeMin),
@@ -294,10 +422,10 @@ function parseMessageTs(ts) {
 export async function readThread(
   channel,
   ts,
-  { limit = DEFAULT_THREAD_MESSAGES, cursor = null, timeZone = DEFAULT_TIMEZONE } = {}
+  { limit = DEFAULT_THREAD_MESSAGES, cursor = null, timeZone = DEFAULT_TIMEZONE, viewer = {} } = {}
 ) {
   const threadTs = parseMessageTs(ts)
-  const target = await resolvePublicChannel(channel)
+  const target = await resolveReadableChannel(channel, viewer)
   const data = await readSlack('conversations.replies', {
     channel: target.id,
     ts: threadTs,

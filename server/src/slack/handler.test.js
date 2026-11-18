@@ -265,9 +265,30 @@ describe('processMessage', () => {
     expect(createAgent).toHaveBeenCalledWith([], 'tech', {
       customInstructions: '',
       userId: null,
+      slackChannelId: undefined,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
     })
+  })
+
+  it('tells the agent which Slack conversation the question came from', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await processMessage({
+      message: 'summarize #squad-returns',
+      selectedSources: ['yolo'],
+      session: {},
+      profile: 'support',
+      slackChannelId: 'D0123ABCD',
+      isNewConversation: false,
+    })
+
+    expect(createAgent).toHaveBeenCalledTimes(1)
+    expect(createAgent).toHaveBeenCalledWith(
+      ['yolo'],
+      'support',
+      expect.objectContaining({ slackChannelId: 'D0123ABCD' })
+    )
   })
 
   it('skips the similar cases search on a reply to an existing thread', async () => {

@@ -34,11 +34,13 @@ describe('IntegrationsSection', () => {
     expect(container.querySelector('[data-icon="google-calendar"]')).toHaveAttribute('fill', 'currentColor')
   })
 
-  it('presents Slack as reading public channels only, with its brand mark', () => {
+  it('presents Slack as reading private channels only for their members, with its brand mark', () => {
     const { container } = render(<IntegrationsSection />)
 
     expect(screen.getByText('Slack')).toBeInTheDocument()
-    expect(screen.getByText(/Private channels and direct messages are refused in code/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/a private one only for the people in it, and refuses direct and group messages/)
+    ).toBeInTheDocument()
     expect(container.querySelector('[data-icon="slack"]')).toHaveAttribute('fill', 'currentColor')
   })
 })

@@ -92,6 +92,7 @@ export async function processMessage({
   profile,
   slackUserId,
   slackUserName,
+  slackChannelId,
   isNewConversation,
   onProgress,
 }) {
@@ -113,6 +114,7 @@ export async function processMessage({
   const agent = await createAgent(selectedSources, profile, {
     customInstructions,
     userId,
+    slackChannelId,
     onNestedToolCall: call => turn.toolCalls.push(call),
     onNestedUsage: usage => turn.nestedUsage.push(usage),
   })

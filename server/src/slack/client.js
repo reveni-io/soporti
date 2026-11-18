@@ -19,11 +19,12 @@ const SLACK_ERROR_MESSAGES = {
 }
 
 function describeSlackError(method, data, errorMessages) {
+  if (errorMessages[data.error]) return errorMessages[data.error]
   if (data.error === MISSING_SCOPE_ERROR) {
     return `The Slack app is missing the ${data.needed ?? 'required'} scope. Add it in api.slack.com/apps → OAuth & Permissions and reinstall the app.`
   }
 
-  return errorMessages[data.error] ?? SLACK_ERROR_MESSAGES[data.error] ?? `Slack API ${method} failed: ${data.error}.`
+  return SLACK_ERROR_MESSAGES[data.error] ?? `Slack API ${method} failed: ${data.error}.`
 }
 
 function compactParams(params) {
