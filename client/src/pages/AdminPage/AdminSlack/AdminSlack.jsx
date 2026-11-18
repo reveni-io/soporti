@@ -39,8 +39,9 @@ export default function AdminSlack({ token, onLogout }) {
           </li>
           <li>
             Add the bot scopes <code>app_mentions:read</code>, <code>chat:write</code>, <code>channels:history</code>,{' '}
-            <code>im:history</code>, <code>im:read</code> (for auto-diagnose also <code>lists:read</code>,{' '}
-            <code>lists:write</code>, <code>files:read</code>) and install the app to the workspace.
+            <code>channels:read</code>, <code>users:read</code>, <code>im:history</code>, <code>im:read</code> (for
+            auto-diagnose also <code>lists:read</code>, <code>lists:write</code>, <code>files:read</code>) and install
+            the app to the workspace. The assistant reads only the public channels the bot has been added to.
           </li>
           <li>
             Subscribe to the bot events <code>app_mention</code> and <code>message.im</code>.

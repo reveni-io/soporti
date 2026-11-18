@@ -513,7 +513,7 @@ describe('createAgent', () => {
 
     expect(buildAgentTools).toHaveBeenCalledWith(
       expect.anything(),
-      expect.anything(),
+      expect.objectContaining({ slackConfigured: true }),
       expect.objectContaining({ slackConfigured: true })
     )
     expect(withSlack.instructions).toContain('## Posting to Slack')
@@ -522,6 +522,16 @@ describe('createAgent', () => {
     const withoutSlack = await createAgent([], 'support')
 
     expect(withoutSlack.instructions).not.toContain('## Posting to Slack')
+  })
+
+  it('adds the Slack reading rules when Slack is selected and its reading tools were registered', async () => {
+    isSlackConfigured.mockResolvedValue(true)
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'read_slack_channel']))
+
+    const agent = await createAgent(['integration:slack'], 'support')
+
+    expect(agent.instructions).toContain('## Slack integration')
+    expect(agent.instructions).toContain('The user has enabled the **Slack** integration.')
   })
 
   it('tells the model to embed Figma renders only in a web conversation', async () => {

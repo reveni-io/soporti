@@ -125,6 +125,7 @@ export async function createAgent(
     zendeskConfigured: Boolean(zendeskConnection),
     sendcloudConfigured,
     hubspotConfigured: Boolean(hubspotAccess),
+    slackConfigured,
   }
 
   const registered = buildAgentTools(policy, configured, {

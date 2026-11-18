@@ -129,6 +129,7 @@ export const INTEGRATION_TOOL_NAMES = {
     'get_shopify_webhooks',
     'shopify_graphql_query',
   ],
+  slack: ['list_slack_channels', 'read_slack_channel', 'read_slack_thread'],
 }
 
 const TOOL_TO_INTEGRATION = Object.fromEntries(

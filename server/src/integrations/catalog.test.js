@@ -15,6 +15,7 @@ const figmaIsConfigured = vi.fn()
 const zendeskIsConfigured = vi.fn()
 const sendcloudIsConfigured = vi.fn()
 const hubspotIsConfigured = vi.fn()
+const isSlackConfigured = vi.fn()
 
 vi.mock('../notion/client.js', () => ({ isConfigured: (...args) => notionIsConfigured(...args) }))
 vi.mock('../postgres/client.js', () => ({ isConfigured: (...args) => postgresIsConfigured(...args) }))
@@ -31,6 +32,7 @@ vi.mock('../figma/client.js', () => ({ isConfigured: (...args) => figmaIsConfigu
 vi.mock('../zendesk/client.js', () => ({ isConfigured: (...args) => zendeskIsConfigured(...args) }))
 vi.mock('../sendcloud/client.js', () => ({ isConfigured: (...args) => sendcloudIsConfigured(...args) }))
 vi.mock('../hubspot/client.js', () => ({ isConfigured: (...args) => hubspotIsConfigured(...args) }))
+vi.mock('../slack/settings.js', () => ({ isSlackConfigured: (...args) => isSlackConfigured(...args) }))
 
 const { listConfiguredIntegrations, GITHUB_INTEGRATION_ID } = await import('./catalog.js')
 
@@ -50,6 +52,7 @@ function configureAll(value) {
   zendeskIsConfigured.mockResolvedValue(value)
   sendcloudIsConfigured.mockResolvedValue(value)
   hubspotIsConfigured.mockResolvedValue(value)
+  isSlackConfigured.mockResolvedValue(value)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -77,6 +80,7 @@ describe('listConfiguredIntegrations', () => {
       'zendesk',
       'sendcloud',
       'hubspot',
+      'slack',
     ])
     expect(integrations.find(integration => integration.id === 'betterstack')).toEqual({
       id: 'betterstack',
@@ -110,6 +114,7 @@ describe('listConfiguredIntegrations', () => {
       zendesk: true,
       sendcloud: true,
       hubspot: true,
+      slack: true,
     })
   })
 
@@ -199,5 +204,22 @@ describe('listConfiguredIntegrations', () => {
       description: 'Search and read HubSpot CRM records, and write what /admin allows',
       selectable: true,
     })
+  })
+
+  it('lists Slack once the bot is configured', async () => {
+    configureAll(false)
+    isSlackConfigured.mockResolvedValue(true)
+
+    const integrations = await listConfiguredIntegrations(7)
+
+    expect(isSlackConfigured).toHaveBeenCalledTimes(1)
+    expect(integrations.slice(1)).toEqual([
+      {
+        id: 'slack',
+        name: 'Slack',
+        description: 'Read the public Slack channels the bot is in, threads included',
+        selectable: true,
+      },
+    ])
   })
 })

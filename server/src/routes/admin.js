@@ -69,6 +69,7 @@ import {
   setSlackAppToken,
   getSlackSigningSecret,
   setSlackSigningSecret,
+  isSlackConfigured,
 } from '../slack/settings.js'
 import { restartSlackBot } from '../slack/bot.js'
 import {
@@ -168,6 +169,7 @@ const INTEGRATION_CHECKS = {
   zendesk: isZendeskConfigured,
   sendcloud: isSendcloudConfigured,
   hubspot: isHubspotConfigured,
+  slack: isSlackConfigured,
 }
 
 function validEmail(email) {
