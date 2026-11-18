@@ -131,6 +131,7 @@ const isFigmaConfigured = vi.fn()
 const isZendeskConfigured = vi.fn()
 const isSendcloudConfigured = vi.fn()
 const isHubspotConfigured = vi.fn()
+const isSlackConfigured = vi.fn()
 const INTEGRATION_CHECK_MOCKS = [
   isShortcutConfigured,
   isSentryConfigured,
@@ -147,6 +148,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isZendeskConfigured,
   isSendcloudConfigured,
   isHubspotConfigured,
+  isSlackConfigured,
 ]
 
 vi.mock('./stats.js', () => ({ clearStatsCache, default: {} }))
@@ -234,6 +236,7 @@ vi.mock('../slack/settings.js', () => ({
   setSlackAppToken,
   getSlackSigningSecret,
   setSlackSigningSecret,
+  isSlackConfigured,
 }))
 vi.mock('../slack/bot.js', () => ({ restartSlackBot }))
 vi.mock('../github/settings.js', () => ({
@@ -2512,6 +2515,19 @@ describe('GET /api/admin/subagents', () => {
     expect(group.tools).toContain('search_hubspot_records')
     expect(group.tools).toContain('reply_hubspot_conversation')
     expect(isHubspotConfigured).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers the Slack reading tools as a group, configured once the bot is', async () => {
+    isSlackConfigured.mockResolvedValue(true)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.body.tools.groups.find(group => group.id === 'slack')).toEqual({
+      id: 'slack',
+      label: 'Slack',
+      configured: true,
+      tools: ['list_slack_channels', 'read_slack_channel', 'read_slack_thread'],
+    })
   })
 
   it('returns 500 when the rows cannot be read', async () => {

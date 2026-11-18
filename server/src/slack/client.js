@@ -7,6 +7,7 @@ const MAX_MESSAGE_CHARS = 12_000
 const CHANNEL_ID_RE = /^[CG][A-Z0-9]{8,}$/
 const LEADING_HASH_RE = /^#/
 const NOT_CONFIGURED_MESSAGE = 'Slack is not configured. Set the bot token in the admin panel (Slack section).'
+const MISSING_SCOPE_ERROR = 'missing_scope'
 const SLACK_ERROR_MESSAGES = {
   not_in_channel:
     'The bot is not a member of this channel, so it cannot post there. Someone in the channel has to invite it first.',
@@ -17,11 +18,19 @@ const SLACK_ERROR_MESSAGES = {
   users_not_found: 'No Slack user has that email address.',
 }
 
-function describeSlackError(method, code) {
-  return SLACK_ERROR_MESSAGES[code] ?? `Slack API ${method} failed: ${code}.`
+function describeSlackError(method, data, errorMessages) {
+  if (data.error === MISSING_SCOPE_ERROR) {
+    return `The Slack app is missing the ${data.needed ?? 'required'} scope. Add it in api.slack.com/apps → OAuth & Permissions and reinstall the app.`
+  }
+
+  return errorMessages[data.error] ?? SLACK_ERROR_MESSAGES[data.error] ?? `Slack API ${method} failed: ${data.error}.`
 }
 
-async function callSlack(method, params) {
+function compactParams(params) {
+  return Object.entries(params).filter(([, value]) => value !== null && value !== undefined && value !== '')
+}
+
+export async function callSlack(method, params, errorMessages = {}) {
   const token = await getSlackBotToken()
   if (!token) throw new Error(NOT_CONFIGURED_MESSAGE)
 
@@ -33,12 +42,12 @@ async function callSlack(method, params) {
       method: 'POST',
       signal: controller.signal,
       headers: { Authorization: `Bearer ${token}` },
-      body: new URLSearchParams(params),
+      body: new URLSearchParams(compactParams(params)),
     })
     if (!res.ok) throw new Error(`Slack API ${method} failed (${res.status}).`)
 
     const data = await res.json()
-    if (!data.ok) throw new Error(describeSlackError(method, data.error))
+    if (!data.ok) throw new Error(describeSlackError(method, data, errorMessages))
 
     return data
   } finally {

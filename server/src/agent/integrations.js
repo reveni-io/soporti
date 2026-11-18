@@ -14,6 +14,7 @@ export const INTEGRATIONS = {
   zendesk: { label: 'Zendesk', flag: 'zendeskConfigured' },
   sendcloud: { label: 'Sendcloud', flag: 'sendcloudConfigured' },
   hubspot: { label: 'HubSpot', flag: 'hubspotConfigured' },
+  slack: { label: 'Slack', flag: 'slackConfigured' },
 }
 
 export const ALWAYS_AVAILABLE_INTEGRATIONS = new Set(['shortcut', 'sentry'])

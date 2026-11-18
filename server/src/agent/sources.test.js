@@ -159,6 +159,17 @@ describe('collectConsultedSources', () => {
     expect(collectConsultedSources(calls).integrations).toEqual(['Gmail', 'Google Calendar'])
   })
 
+  it('credits Slack for reading channels and threads', () => {
+    const calls = [
+      { name: 'list_slack_channels', arguments: '{"query":"support"}' },
+      { name: 'read_slack_channel', arguments: '{"channel":"#support"}' },
+      { name: 'read_slack_thread', arguments: '{"channel":"#support","ts":"1700000000.123456"}' },
+    ]
+
+    expect(collectConsultedSources(calls).integrations).toEqual(['Slack'])
+    expect(buildSourcesFooter(calls)).toContain('_Sources consulted: Slack_')
+  })
+
   it('credits Better Stack once for any of the log tools', () => {
     const calls = [
       { name: 'list_log_sources', arguments: '{}' },

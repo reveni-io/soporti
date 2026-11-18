@@ -166,6 +166,18 @@ vi.mock('../slack/client.js', () => ({
   postMessage: vi.fn(),
 }))
 
+vi.mock('../slack/channels.js', () => ({
+  listPublicChannels: vi.fn(),
+  readChannelHistory: vi.fn(),
+  readThread: vi.fn(),
+  DEFAULT_CHANNEL_RESULTS: 100,
+  MAX_CHANNEL_RESULTS: 500,
+  DEFAULT_HISTORY_MESSAGES: 50,
+  DEFAULT_THREAD_MESSAGES: 100,
+  MAX_READ_MESSAGES: 200,
+  MAX_MESSAGE_CHARS: 4000,
+}))
+
 vi.mock('../config.js', () => ({
   default: {
     postgres: { connection: 'test' },
@@ -228,6 +240,7 @@ const {
   buildGranolaTools,
   buildGmailTools,
   buildGoogleCalendarTools,
+  buildSlackReadTools,
   buildZendeskTools,
   buildShortcutWriteTools,
 } = await import('./tools.js')
@@ -2021,5 +2034,79 @@ describe('buildAgentTools with Slack', () => {
     const tools = restrictToolsByName(buildAgentTools(unrestricted, {}, { slackConfigured: true }), ['search_code'])
 
     expect(names(tools)).toContain('post_slack_message')
+  })
+
+  it('registers the reading tools when Slack is a selected source or in YOLO mode, once the bot is configured', () => {
+    const readTools = ['list_slack_channels', 'read_slack_channel', 'read_slack_thread']
+    const withSlack = { unrestricted: false, repos: [], integrations: ['slack'] }
+
+    expect(names(buildAgentTools(withSlack, { slackConfigured: true }))).toEqual(expect.arrayContaining(readTools))
+    expect(names(buildAgentTools(unrestricted, { slackConfigured: true }))).toEqual(expect.arrayContaining(readTools))
+    expect(names(buildAgentTools(restricted, { slackConfigured: true }))).not.toContain('read_slack_channel')
+    expect(names(buildAgentTools(withSlack, { slackConfigured: false }))).not.toContain('read_slack_channel')
+  })
+})
+
+describe('buildSlackReadTools', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const READ = { channel: '#support', timeMin: null, timeMax: null, limit: 50, cursor: null }
+
+  it('lists the public channels matching the query', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    channelsMod.listPublicChannels.mockResolvedValue({ channels: [{ id: 'C0123ABCD', name: 'support' }], total: 1 })
+
+    const [list] = buildSlackReadTools('Europe/Madrid')
+    const result = await list.execute({ query: 'sup', limit: 20 })
+
+    expect(JSON.parse(result)).toEqual({ channels: [{ id: 'C0123ABCD', name: 'support' }], total: 1 })
+    expect(channelsMod.listPublicChannels).toHaveBeenCalledTimes(1)
+    expect(channelsMod.listPublicChannels).toHaveBeenCalledWith({ query: 'sup', limit: 20 })
+  })
+
+  it('reads a channel within a window given in the conversation zone', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    channelsMod.readChannelHistory.mockResolvedValue({ messages: [], hasMore: false })
+
+    const [, read] = buildSlackReadTools('Europe/Madrid')
+    const result = await read.execute({ ...READ, timeMin: '2026-11-18', timeMax: '2026-11-19', cursor: 'older' })
+
+    expect(JSON.parse(result)).toEqual({ messages: [], hasMore: false })
+    expect(channelsMod.readChannelHistory).toHaveBeenCalledTimes(1)
+    expect(channelsMod.readChannelHistory).toHaveBeenCalledWith('#support', {
+      timeMin: '2026-11-17T23:00:00.000Z',
+      timeMax: '2026-11-18T23:00:00.000Z',
+      limit: 50,
+      cursor: 'older',
+      timeZone: 'Europe/Madrid',
+    })
+  })
+
+  it('rejects an unreadable or backwards window without calling Slack', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    const [, read] = buildSlackReadTools()
+
+    const unreadable = JSON.parse(await read.execute({ ...READ, timeMin: 'last week' }))
+    const backwards = JSON.parse(await read.execute({ ...READ, timeMin: '2026-11-19', timeMax: '2026-11-18' }))
+
+    expect(unreadable.error).toMatch(/Unrecognized time "last week"/)
+    expect(backwards.error).toBe('timeMax must be later than timeMin.')
+    expect(channelsMod.readChannelHistory).not.toHaveBeenCalled()
+  })
+
+  it('reads a thread by its channel and ts', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    channelsMod.readThread.mockResolvedValue({ messages: [{ ts: '1700000000.123456', text: 'Q' }] })
+
+    const [, , thread] = buildSlackReadTools('Europe/Madrid')
+    const result = await thread.execute({ channel: 'C0123ABCD', ts: 'p1700000000123456', limit: 100, cursor: null })
+
+    expect(JSON.parse(result)).toEqual({ messages: [{ ts: '1700000000.123456', text: 'Q' }] })
+    expect(channelsMod.readThread).toHaveBeenCalledTimes(1)
+    expect(channelsMod.readThread).toHaveBeenCalledWith('C0123ABCD', 'p1700000000123456', {
+      limit: 100,
+      cursor: null,
+      timeZone: 'Europe/Madrid',
+    })
   })
 })

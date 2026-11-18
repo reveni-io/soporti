@@ -83,6 +83,14 @@ describe('questionsForCategories', () => {
     }
   })
 
+  it('suggests reading Slack channels only once Slack is configured', () => {
+    const withSlack = questionsForCategories(['team'], [{ id: 'slack', name: 'Slack' }], 10)
+    const withoutSlack = questionsForCategories(['team'], [github], 10)
+
+    expect(withSlack.map(question => question.text)).toContain('What did the team discuss in #support today?')
+    expect(withoutSlack).toEqual([])
+  })
+
   it('is deterministic', () => {
     const a = questionsForCategories(['product'], [github])
     const b = questionsForCategories(['product'], [github])

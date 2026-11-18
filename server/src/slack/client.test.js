@@ -6,7 +6,7 @@ vi.mock('./settings.js', () => ({ getSlackBotToken }))
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-const { postDirectMessage, postMessage } = await import('./client.js')
+const { callSlack, postDirectMessage, postMessage } = await import('./client.js')
 
 function slackResponse(data, { ok = true, status = 200 } = {}) {
   return { ok, status, json: async () => data }
@@ -170,6 +170,47 @@ describe('postDirectMessage', () => {
 
   it('refuses an empty message', async () => {
     await expect(postDirectMessage({ slackId: 'U0123ABCD' }, '  ')).rejects.toThrow('needs some text')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('callSlack', () => {
+  it('sends only the parameters that have a value', async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: true, channels: [] }))
+
+    const data = await callSlack('conversations.list', {
+      types: 'public_channel',
+      cursor: null,
+      oldest: '',
+      latest: undefined,
+    })
+
+    expect(data).toEqual({ ok: true, channels: [] })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch.mock.calls[0][0]).toBe('https://slack.com/api/conversations.list')
+    expect(sentParams(0)).toEqual({ types: 'public_channel' })
+  })
+
+  it("prefers the caller's explanation of an error over the default one", async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: false, error: 'not_in_channel' }))
+
+    await expect(
+      callSlack('conversations.history', { channel: 'C0123ABCD' }, { not_in_channel: 'Add the bot to read it.' })
+    ).rejects.toThrow('Add the bot to read it.')
+  })
+
+  it('names the scope the Slack app is missing', async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: false, error: 'missing_scope', needed: 'channels:read' }))
+
+    await expect(callSlack('conversations.list', {})).rejects.toThrow(
+      'The Slack app is missing the channels:read scope. Add it in api.slack.com/apps → OAuth & Permissions and reinstall the app.'
+    )
+  })
+
+  it('fails with the admin hint while no bot token is stored', async () => {
+    getSlackBotToken.mockResolvedValue(null)
+
+    await expect(callSlack('auth.test', {})).rejects.toThrow('Slack is not configured.')
     expect(mockFetch).not.toHaveBeenCalled()
   })
 })

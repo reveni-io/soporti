@@ -51,13 +51,15 @@ Deploy accordingly:
 - Only enable it on channels restricted to your own staff.
 - Do **not** enable it if the channel accepts external or guest submitters.
 
-### 4. Slack: channel membership IS the posting boundary
+### 4. Slack: channel membership IS the posting and reading boundary
 
 Once the Slack bot is configured, every agent run — web chat, Slack, scheduled queries, MCP and auto-diagnose — carries `post_slack_message`, which posts as the bot in any channel the bot has been invited to. There is no channel allowlist in code: what the agent read (database rows, tickets, documents) can be posted wherever the bot is a member, and a prompt-injected ticket or document could in principle steer an unattended run into doing so.
 
+The same membership decides what the agent can read with the Slack source (`list_slack_channels`, `read_slack_channel`, `read_slack_thread`): every user of Soporti can read, through the bot, any **public** channel the bot is a member of. Private channels, group messages and direct messages are refused in code — each read asks Slack for the conversation and rejects it unless it is a public channel — so granting the bot `groups:history` or `im:history` never exposes them through these tools. Channel messages are written by anyone in the workspace, including guests and Slack Connect partners, so they are another prompt-injection surface: the system prompt declares them data, never instructions.
+
 Deploy accordingly:
 
-- Invite the bot only to channels whose members may see what the agent can read, and remove it from the ones that no longer need it.
+- Invite the bot only to channels whose members may see what the agent can read, and whose content every Soporti user may read; remove it from the ones that no longer need it.
 - Never grant the bot `chat:write.public`: without it, the bot cannot post in a channel it has not been invited to.
 
 ### Built-in guardrails (they reduce the risks above — they do not eliminate them)

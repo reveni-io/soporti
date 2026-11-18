@@ -121,6 +121,17 @@ export const EXAMPLE_QUESTIONS = [
   },
 
   {
+    category: 'team',
+    integrationId: 'slack',
+    text: 'What did the team discuss in #support today?',
+  },
+  {
+    category: 'team',
+    integrationId: 'slack',
+    text: 'Summarize this Slack thread and list the open questions: <paste a message link>',
+  },
+
+  {
     category: 'general',
     text: 'What tools and data do you have access to?',
   },

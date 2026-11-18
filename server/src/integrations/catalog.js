@@ -13,6 +13,7 @@ import * as figma from '../figma/client.js'
 import * as zendesk from '../zendesk/client.js'
 import * as sendcloud from '../sendcloud/client.js'
 import * as hubspot from '../hubspot/client.js'
+import { isSlackConfigured } from '../slack/settings.js'
 import { ALWAYS_AVAILABLE_INTEGRATIONS, INTEGRATIONS } from '../agent/integrations.js'
 
 export const GITHUB_INTEGRATION_ID = 'github'
@@ -62,6 +63,7 @@ const CATALOG = [
     sendcloud.isConfigured
   ),
   catalogEntry('hubspot', 'Search and read HubSpot CRM records, and write what /admin allows', hubspot.isConfigured),
+  catalogEntry('slack', 'Read the public Slack channels the bot is in, threads included', isSlackConfigured),
 ]
 
 export async function listConfiguredIntegrations(userId) {
