@@ -57,6 +57,7 @@ export async function createAgent(
     delegated = false,
     timezone = null,
     bot = null,
+    slackChannelId = null,
   } = {}
 ) {
   const userTimezone = canonicalizeTimezone(timezone)
@@ -137,6 +138,7 @@ export async function createAgent(
     figmaComments: figmaConfigured && figmaCommentsEnabled,
     zendeskWrites: Boolean(zendeskConnection?.writesEnabled),
     slackConfigured,
+    slackChannelId,
     hubspot: hubspotAccess,
     botId,
     profile,

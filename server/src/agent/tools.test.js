@@ -167,7 +167,7 @@ vi.mock('../slack/client.js', () => ({
 }))
 
 vi.mock('../slack/channels.js', () => ({
-  listPublicChannels: vi.fn(),
+  listChannels: vi.fn(),
   readChannelHistory: vi.fn(),
   readThread: vi.fn(),
   DEFAULT_CHANNEL_RESULTS: 100,
@@ -2051,24 +2051,25 @@ describe('buildSlackReadTools', () => {
   beforeEach(() => vi.clearAllMocks())
 
   const READ = { channel: '#support', timeMin: null, timeMax: null, limit: 50, cursor: null }
+  const VIEWER = { userId: 7, slackChannelId: 'D0123ABCD' }
 
-  it('lists the public channels matching the query', async () => {
+  it('lists the channels the person asking can read', async () => {
     const channelsMod = await import('../slack/channels.js')
-    channelsMod.listPublicChannels.mockResolvedValue({ channels: [{ id: 'C0123ABCD', name: 'support' }], total: 1 })
+    channelsMod.listChannels.mockResolvedValue({ channels: [{ id: 'C0123ABCD', name: 'support' }], total: 1 })
 
-    const [list] = buildSlackReadTools('Europe/Madrid')
+    const [list] = buildSlackReadTools({ ...VIEWER, timezone: 'Europe/Madrid' })
     const result = await list.execute({ query: 'sup', limit: 20 })
 
     expect(JSON.parse(result)).toEqual({ channels: [{ id: 'C0123ABCD', name: 'support' }], total: 1 })
-    expect(channelsMod.listPublicChannels).toHaveBeenCalledTimes(1)
-    expect(channelsMod.listPublicChannels).toHaveBeenCalledWith({ query: 'sup', limit: 20 })
+    expect(channelsMod.listChannels).toHaveBeenCalledTimes(1)
+    expect(channelsMod.listChannels).toHaveBeenCalledWith({ query: 'sup', limit: 20, viewer: VIEWER })
   })
 
-  it('reads a channel within a window given in the conversation zone', async () => {
+  it('reads a channel for the person asking within a window given in the conversation zone', async () => {
     const channelsMod = await import('../slack/channels.js')
     channelsMod.readChannelHistory.mockResolvedValue({ messages: [], hasMore: false })
 
-    const [, read] = buildSlackReadTools('Europe/Madrid')
+    const [, read] = buildSlackReadTools({ ...VIEWER, timezone: 'Europe/Madrid' })
     const result = await read.execute({ ...READ, timeMin: '2026-11-18', timeMax: '2026-11-19', cursor: 'older' })
 
     expect(JSON.parse(result)).toEqual({ messages: [], hasMore: false })
@@ -2079,7 +2080,21 @@ describe('buildSlackReadTools', () => {
       limit: 50,
       cursor: 'older',
       timeZone: 'Europe/Madrid',
+      viewer: VIEWER,
     })
+  })
+
+  it('reads with nobody behind it when the run has no user', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    channelsMod.readChannelHistory.mockResolvedValue({ messages: [] })
+
+    const [, read] = buildSlackReadTools()
+    await read.execute(READ)
+
+    expect(channelsMod.readChannelHistory).toHaveBeenCalledWith(
+      '#support',
+      expect.objectContaining({ timeZone: 'UTC', viewer: { userId: null, slackChannelId: null } })
+    )
   })
 
   it('rejects an unreadable or backwards window without calling Slack', async () => {
@@ -2094,11 +2109,11 @@ describe('buildSlackReadTools', () => {
     expect(channelsMod.readChannelHistory).not.toHaveBeenCalled()
   })
 
-  it('reads a thread by its channel and ts', async () => {
+  it('reads a thread for the person asking by its channel and ts', async () => {
     const channelsMod = await import('../slack/channels.js')
     channelsMod.readThread.mockResolvedValue({ messages: [{ ts: '1700000000.123456', text: 'Q' }] })
 
-    const [, , thread] = buildSlackReadTools('Europe/Madrid')
+    const [, , thread] = buildSlackReadTools({ ...VIEWER, timezone: 'Europe/Madrid' })
     const result = await thread.execute({ channel: 'C0123ABCD', ts: 'p1700000000123456', limit: 100, cursor: null })
 
     expect(JSON.parse(result)).toEqual({ messages: [{ ts: '1700000000.123456', text: 'Q' }] })
@@ -2107,6 +2122,22 @@ describe('buildSlackReadTools', () => {
       limit: 100,
       cursor: null,
       timeZone: 'Europe/Madrid',
+      viewer: VIEWER,
+    })
+  })
+
+  it('hands the person asking and the Slack origin from the agent context to the tools', async () => {
+    const channelsMod = await import('../slack/channels.js')
+    channelsMod.listChannels.mockResolvedValue({ channels: [] })
+    const policy = { unrestricted: false, repos: [], integrations: ['slack'] }
+
+    const tools = buildAgentTools(policy, { slackConfigured: true }, { userId: 7, slackChannelId: 'C0999ZZZZ' })
+    await tools.find(candidate => candidate.name === 'list_slack_channels').execute({ query: '', limit: 100 })
+
+    expect(channelsMod.listChannels).toHaveBeenCalledWith({
+      query: '',
+      limit: 100,
+      viewer: { userId: 7, slackChannelId: 'C0999ZZZZ' },
     })
   })
 })

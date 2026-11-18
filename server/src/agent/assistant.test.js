@@ -524,6 +524,16 @@ describe('createAgent', () => {
     expect(withoutSlack.instructions).not.toContain('## Posting to Slack')
   })
 
+  it('passes the Slack conversation a question came from to the tool builder', async () => {
+    await createAgent(['yolo'], 'support', { userId: 7, slackChannelId: 'C0123ABCD' })
+
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ userId: 7, slackChannelId: 'C0123ABCD' })
+    )
+  })
+
   it('adds the Slack reading rules when Slack is selected and its reading tools were registered', async () => {
     isSlackConfigured.mockResolvedValue(true)
     buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'read_slack_channel']))
@@ -569,6 +579,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        slackChannelId: null,
         hubspot: null,
         botId: null,
         profile: 'support',
@@ -594,6 +605,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        slackChannelId: null,
         hubspot: null,
         botId: null,
         profile: 'support',
@@ -619,6 +631,7 @@ describe('createAgent', () => {
         figmaComments: false,
         zendeskWrites: false,
         slackConfigured: false,
+        slackChannelId: null,
         hubspot: null,
         botId: null,
         profile: 'support',

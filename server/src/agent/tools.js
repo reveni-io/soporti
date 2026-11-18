@@ -981,7 +981,7 @@ A calendar with an \`error\` (notFound: an unknown address, an account outside t
 const SLACK_CHANNEL_PARAM = z
   .string()
   .describe(
-    'The public channel: its name ("#support" or "support"), its id ("C0123ABCD") or a channel mention like <#C0123ABCD|support>.'
+    'The channel: its name ("#support" or "support"), its id ("C0123ABCD") or a channel mention like <#C0123ABCD|support>.'
   )
 
 const SLACK_CURSOR_PARAM = z
@@ -1000,11 +1000,13 @@ function slackMessageLimit(defaultLimit) {
     .describe(`Messages per page. Default ${defaultLimit}, maximum ${slackChannels.MAX_READ_MESSAGES}.`)
 }
 
-export function buildSlackReadTools(timezone = DEFAULT_TIMEZONE) {
+export function buildSlackReadTools({ userId = null, slackChannelId = null, timezone = DEFAULT_TIMEZONE } = {}) {
+  const viewer = { userId, slackChannelId }
+
   return [
     tool({
       name: 'list_slack_channels',
-      description: `List the public channels of the Slack workspace, sorted by name, with their id, topic, purpose, member count and \`botIsMember\`: the Soporti bot can only read the channels it is a member of. Private channels, group messages and direct messages are never listed and can never be read. \`query\` matches part of the name, topic or purpose ("incident" finds #incidents and #inc-payments); an empty query lists them all. \`hasMore\` true means more channels matched than were returned.`,
+      description: `List the Slack channels you can read, sorted by name: every public channel, plus the private channels that both the bot and the person asking are members of (\`private: true\`). Each has its id, topic, purpose, member count and \`botIsMember\`: the bot can only read the channels it is a member of. Other private channels, group messages and direct messages are never listed and can never be read. \`query\` matches part of the name, topic or purpose ("incident" finds #incidents and #inc-payments); an empty query lists them all. \`hasMore\` true means more channels matched than were returned; a \`notice\` means the private channels could not be listed.`,
       parameters: z.object({
         query: z
           .string()
@@ -1021,13 +1023,13 @@ export function buildSlackReadTools(timezone = DEFAULT_TIMEZONE) {
           ),
       }),
       execute: async input => {
-        const result = await slackChannels.listPublicChannels(input)
+        const result = await slackChannels.listChannels({ ...input, viewer })
         return JSON.stringify(result)
       },
     }),
     tool({
       name: 'read_slack_channel',
-      description: `Read the messages of a public Slack channel, newest first, within an optional window. Each message has its ts, time (in the user's time zone), author, text (mentions shown as @name, capped at ${slackChannels.MAX_MESSAGE_CHARS} characters, \`truncated: true\` when cut), the names of attached files and a url to cite. Thread replies are not included: a message with \`replies\` started a thread — read it with read_slack_thread when the answer may be in it. \`hasMore\` true means older messages remain in the window: pass \`nextCursor\` to read on, or say the read is partial. Resolve "today" or "this week" with resolve_time_range first and pass its from as timeMin and its to as timeMax. Fails when the channel is private or the bot is not a member of it.`,
+      description: `Read the messages of a Slack channel, newest first, within an optional window. Each message has its ts, time (in the user's time zone), author, text (mentions shown as @name, capped at ${slackChannels.MAX_MESSAGE_CHARS} characters, \`truncated: true\` when cut), the names of attached files and a url to cite. Thread replies are not included: a message with \`replies\` started a thread — read it with read_slack_thread when the answer may be in it. \`hasMore\` true means older messages remain in the window: pass \`nextCursor\` to read on, or say the read is partial. Resolve "today" or "this week" with resolve_time_range first and pass its from as timeMin and its to as timeMax. A private channel is read only when the person asking is a member of it, and \`channel.private\` says so. Fails for a direct or group message, a private channel the person asking is not in, or a channel the bot is not in, and the error says which.`,
       parameters: z.object({
         channel: SLACK_CHANNEL_PARAM,
         timeMin: z
@@ -1052,13 +1054,14 @@ export function buildSlackReadTools(timezone = DEFAULT_TIMEZONE) {
           limit: input.limit,
           cursor: input.cursor,
           timeZone: timezone,
+          viewer,
         })
         return JSON.stringify(result)
       },
     }),
     tool({
       name: 'read_slack_thread',
-      description: `Read a whole thread of a public Slack channel, the parent message first and then every reply, in the same shape as read_slack_channel. From a message link like https://acme.slack.com/archives/C0123ABCD/p1700000000123456 the channel is C0123ABCD and the ts is p1700000000123456 (pass it as it is); when the link has a thread_ts, that is the thread's ts. \`hasMore\` true means more replies remain: pass \`nextCursor\` to read on. Fails when the channel is private or the bot is not a member of it.`,
+      description: `Read a whole thread of a Slack channel, the parent message first and then every reply, in the same shape as read_slack_channel. From a message link like https://acme.slack.com/archives/C0123ABCD/p1700000000123456 the channel is C0123ABCD and the ts is p1700000000123456 (pass it as it is); when the link has a thread_ts, that is the thread's ts. \`hasMore\` true means more replies remain: pass \`nextCursor\` to read on. Same rules as read_slack_channel: a private channel only for its members, never a direct or group message.`,
       parameters: z.object({
         channel: SLACK_CHANNEL_PARAM,
         ts: z
@@ -1074,6 +1077,7 @@ export function buildSlackReadTools(timezone = DEFAULT_TIMEZONE) {
           limit: input.limit,
           cursor: input.cursor,
           timeZone: timezone,
+          viewer,
         })
         return JSON.stringify(result)
       },
@@ -1582,7 +1586,7 @@ const INTEGRATION_TOOLS = {
   zendesk: ({ userId, zendeskWrites }) => buildZendeskTools(userId, zendeskWrites),
   sendcloud: SENDCLOUD_TOOLS,
   hubspot: ({ hubspot, userId }) => buildHubspotTools({ ...hubspot, userId }),
-  slack: ({ timezone }) => buildSlackReadTools(timezone),
+  slack: ({ userId, slackChannelId, timezone }) => buildSlackReadTools({ userId, slackChannelId, timezone }),
 }
 
 export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])

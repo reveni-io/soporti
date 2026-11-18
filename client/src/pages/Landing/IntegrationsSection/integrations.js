@@ -79,7 +79,7 @@ export const INTEGRATIONS = [
   {
     id: 'slack',
     name: 'Slack',
-    desc: 'Lists the public channels and reads their messages and threads — who said what and when, with a link to each message — so the answer settled in #support last week is one question away. Private channels and direct messages are refused in code, and it only reads the channels the bot was added to.',
+    desc: 'Lists the channels and reads their messages and threads — who said what and when, with a link to each message — so the answer settled in #support last week is one question away. It reads the channels the bot was added to, a private one only for the people in it, and refuses direct and group messages in code.',
   },
   {
     id: 'shortcut',

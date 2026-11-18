@@ -199,6 +199,14 @@ describe('callSlack', () => {
     ).rejects.toThrow('Add the bot to read it.')
   })
 
+  it("prefers the caller's explanation of a missing scope too", async () => {
+    mockFetch.mockResolvedValueOnce(slackResponse({ ok: false, error: 'missing_scope', needed: 'mpim:read' }))
+
+    await expect(
+      callSlack('conversations.info', { channel: 'G0123ABCD' }, { missing_scope: 'Soporti never reads it.' })
+    ).rejects.toThrow('Soporti never reads it.')
+  })
+
   it('names the scope the Slack app is missing', async () => {
     mockFetch.mockResolvedValueOnce(slackResponse({ ok: false, error: 'missing_scope', needed: 'channels:read' }))
 

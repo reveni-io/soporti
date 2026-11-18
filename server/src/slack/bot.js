@@ -288,6 +288,7 @@ async function runAndReply({ client, channelId, threadTs, question, displayQuest
       previousResponseId,
       profile: DEFAULT_PROFILE,
       slackUserId,
+      slackChannelId: channelId,
       isNewConversation,
       onProgress: progress.handleProgress,
     })

@@ -257,7 +257,12 @@ describe('Slack bot', () => {
 
       expect(processMessage).toHaveBeenCalledTimes(1)
       expect(processMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ displayQuestion: 'what is this?', selectedSources: ['yolo'], profile: 'support' })
+        expect.objectContaining({
+          displayQuestion: 'what is this?',
+          selectedSources: ['yolo'],
+          profile: 'support',
+          slackChannelId: 'C123',
+        })
       )
       expect(mockClient.chatStream).toHaveBeenCalledWith(
         expect.objectContaining({ channel: 'C123', thread_ts: 'ev-ts', recipient_user_id: 'U456' })
