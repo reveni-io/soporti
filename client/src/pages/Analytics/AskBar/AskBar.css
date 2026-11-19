@@ -21,7 +21,7 @@
 }
 
 .ask-bar__card:has(.ask-bar__input:disabled) {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   box-shadow: none;
 }
 

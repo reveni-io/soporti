@@ -61,7 +61,7 @@
 }
 
 .repo-picker__option:hover {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .repo-picker__option:has(input:disabled) {

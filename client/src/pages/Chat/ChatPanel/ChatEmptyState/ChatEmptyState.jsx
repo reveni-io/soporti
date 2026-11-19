@@ -23,7 +23,7 @@ export default function ChatEmptyState({ hasSourcesSelected, integrations, stats
   if (!hasSourcesSelected) {
     return (
       <div className="chat__empty">
-        <GridPattern variant="light" />
+        <GridPattern variant="surface" />
         <h2>Select a source to get started</h2>
         <p>Pick one or more sources (repos or integrations) from the sidebar, then ask your question.</p>
       </div>
@@ -34,7 +34,7 @@ export default function ChatEmptyState({ hasSourcesSelected, integrations, stats
 
   return (
     <div className="chat__empty">
-      <GridPattern variant="light" />
+      <GridPattern variant="surface" />
       <h2>Ask Soporti anything</h2>
       <p>
         I can explore code, query data, read docs and help articles, and dig into tickets and errors using the tools

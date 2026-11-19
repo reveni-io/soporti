@@ -1,5 +1,7 @@
 import BotAvatar from '../../../../common/BotAvatar/BotAvatar.jsx'
 import Icon from '../../../../common/Icon/Icon.jsx'
+import SharedElement from '../../../../common/SharedElement/SharedElement.jsx'
+import { botAvatarTransitionName, botNameTransitionName } from '../../bot-transition-names.js'
 import SidebarToggles from '../../SidebarToggles/SidebarToggles.jsx'
 import './ChatTopbar.css'
 
@@ -56,11 +58,15 @@ export default function ChatTopbar({
 function BotHeading({ bot, isThinking }) {
   return (
     <>
-      <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={BOT_AVATAR_SIZE} isThinking={isThinking} />
+      <SharedElement name={botAvatarTransitionName(bot.id)}>
+        <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={BOT_AVATAR_SIZE} isThinking={isThinking} />
+      </SharedElement>
       <div className="chat-topbar__bot">
-        <h2 key={bot.name} className="chat-topbar__title" title={bot.name}>
-          {bot.name}
-        </h2>
+        <SharedElement name={botNameTransitionName(bot.id)}>
+          <h2 key={bot.name} className="chat-topbar__title" title={bot.name}>
+            {bot.name}
+          </h2>
+        </SharedElement>
         <p className="chat-topbar__description" title={bot.description}>
           {bot.description}
         </p>

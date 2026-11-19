@@ -108,7 +108,7 @@
 .dashboard-grid__resize:hover,
 .dashboard-grid__resize:focus-visible,
 .dashboard-grid__item--resizing .dashboard-grid__resize {
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }
 
 .dashboard-grid__resize:focus-visible {

@@ -21,7 +21,7 @@
 .card-skeleton__bar {
   flex: 1;
   max-width: 3.5rem;
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   animation: card-skeleton-wave 1.8s ease-in-out infinite;
 }
@@ -82,7 +82,7 @@
 @keyframes card-skeleton-wave {
   0%,
   100% {
-    background: var(--bg-cool);
+    background: var(--bg-subtle);
   }
 
   50% {

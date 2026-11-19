@@ -25,7 +25,7 @@
   flex-direction: column;
   gap: var(--sp2);
   padding: var(--sp3) var(--sp4);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border-color: var(--border-strong);
 }
 

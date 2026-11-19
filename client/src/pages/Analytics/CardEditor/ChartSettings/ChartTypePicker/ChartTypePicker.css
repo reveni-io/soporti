@@ -38,7 +38,7 @@
 .chart-type-picker__option[aria-pressed='true'] {
   color: var(--text-primary);
   font-weight: 600;
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 @media (max-width: 480px) {

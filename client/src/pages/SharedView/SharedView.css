@@ -29,7 +29,7 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-secondary);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   padding: var(--sp1) var(--sp2);
   border-radius: var(--radius-sm);
