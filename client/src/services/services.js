@@ -641,6 +641,13 @@ export function getGithubShadowStats(token, repos) {
   })
 }
 
+export function getLegalUsage(token, page) {
+  return request(`/api/admin/config/jev/legal/usage?page=${page}`, {
+    token,
+    errorMessage: 'Failed to load the Legal usage',
+  })
+}
+
 export function getJevHistory(token, id, page) {
   return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
     token,

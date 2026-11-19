@@ -7,6 +7,7 @@ import AdminGoogleDrive from './AdminGoogleDrive/AdminGoogleDrive.jsx'
 import AdminHelpjuice from './AdminHelpjuice/AdminHelpjuice.jsx'
 import AdminHubspot from './AdminHubspot/AdminHubspot.jsx'
 import AdminJev from './AdminJev/AdminJev.jsx'
+import AdminLegal from './AdminLegal/AdminLegal.jsx'
 import AdminKnowledge from './AdminKnowledge/AdminKnowledge.jsx'
 import AdminLangfuse from './AdminLangfuse/AdminLangfuse.jsx'
 import AdminLlm from './AdminLlm/AdminLlm.jsx'
@@ -29,6 +30,7 @@ export const SECTIONS = [
   { path: 'subagents', label: 'Subagents', icon: 'subagents', Component: AdminSubagents },
   { path: 'video', label: 'Video', icon: 'video', Component: AdminVideo },
   { path: 'jev', label: 'Jev', icon: 'bot', Component: AdminJev },
+  { path: 'legal', label: 'Legal', icon: 'meeting-notes', Component: AdminLegal },
   { path: 'knowledge', label: 'Knowledge base', icon: 'help-center', Component: AdminKnowledge },
   { path: 'github', label: 'GitHub', icon: 'github', Component: AdminGithub },
   { path: 'google-drive', label: 'Google Drive', icon: 'google-drive', Component: AdminGoogleDrive },

@@ -6,8 +6,9 @@ import PaginatedTable from '../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../dates.js'
 
 const HEADERS = ['Version', 'Date', 'Author', 'Change', '']
+const HEADERS_WITH_CALLS = ['Version', 'Date', 'Author', 'Change', 'Calls that used it', '']
 
-export default function VersionsTable({ token, project, state, onLogout }) {
+export default function VersionsTable({ token, project, state, onLogout, withCalls = false }) {
   const [page, setPage] = useState(1)
   const { result, error } = useJevPage(getJevVersions, { token, documentId: project, page }, onLogout)
   const currentVersion = state.document.setVersion
@@ -19,27 +20,33 @@ export default function VersionsTable({ token, project, state, onLogout }) {
   if (error) return <p className="alert alert--error">{error}</p>
   if (!result) return <p className="admin__muted">Loading...</p>
 
-  const rows = result.entries.map(entry => ({
-    key: entry.version,
-    cells: [
+  function toCells(entry) {
+    const cells = [
       <>
         v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
       </>,
       formatDateTime(entry.at),
       entry.author,
       entry.change,
+    ]
+    if (withCalls) cells.push((entry.calls ?? 0).toLocaleString())
+    cells.push(
       entry.version !== currentVersion && (
         <button className="btn btn--secondary btn--sm" type="button" onClick={() => handleRestore(entry)}>
           Restore
         </button>
-      ),
-    ],
-  }))
+      )
+    )
+
+    return cells
+  }
+
+  const rows = result.entries.map(entry => ({ key: entry.version, cells: toCells(entry) }))
 
   return (
     <>
       <PaginatedTable
-        headers={HEADERS}
+        headers={withCalls ? HEADERS_WITH_CALLS : HEADERS}
         rows={rows}
         page={result.page}
         pageSize={result.pageSize}
