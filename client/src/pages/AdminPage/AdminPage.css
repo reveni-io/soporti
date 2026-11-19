@@ -197,6 +197,10 @@
   min-width: 90px;
 }
 
+.admin__nowrap {
+  white-space: nowrap;
+}
+
 .admin__switch {
   display: flex;
   align-items: flex-start;

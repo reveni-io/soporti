@@ -9,7 +9,7 @@ function toRow(entry, index) {
   return {
     key: `${entry.at}-${index}`,
     cells: [
-      formatDateTime(entry.at),
+      <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
       entry.author,
       entry.change,
       entry.rev === null ? <span className="admin__muted">immediate</span> : `v${entry.rev}`,

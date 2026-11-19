@@ -10,7 +10,7 @@ export default function DocBar({ label, state }) {
       {saveError && <p className="alert alert--error">{saveError}</p>}
 
       <div className="admin__form admin__form--row">
-        <span className="admin__muted docbar__text">
+        <span className="admin__muted docbar__text" title={`${label} · version ${document.rev}${lastSave}`}>
           <strong>{label}</strong> · version {document.rev}
           {lastSave}
         </span>
