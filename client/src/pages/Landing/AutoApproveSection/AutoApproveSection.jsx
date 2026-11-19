@@ -17,10 +17,9 @@ export default function AutoApproveSection() {
           <span className="lp-eyebrow">Auto-approve</span>
           <h2 className="lp-h2">Soporti approves the safe PRs, and only those.</h2>
           <p className="lp-lead">
-            Pick the repos in <strong>/admin</strong> and start them in <strong>shadow</strong>: every review Soporti
-            posts says whether it would have approved the PR, and nothing is approved. Turn a repo <strong>on</strong>{' '}
-            when the shadow results convince you, and Soporti approves a PR when none of your rules or questions vetoes
-            it.
+            Pick the repos and start them in <strong>shadow</strong>: every review Soporti posts says whether it would
+            have approved the PR, and nothing is approved. Turn a repo <strong>on</strong> when the shadow results
+            convince you, and Soporti approves a PR when none of your rules or questions vetoes it.
           </p>
           <ul className="lp-points">
             <li>
