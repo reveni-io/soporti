@@ -7,6 +7,8 @@ import DocBar from '../../DocBar/DocBar.jsx'
 import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
+import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
+import ReviewRules from '../ReviewRules/ReviewRules.jsx'
 
 const AUTO_APPROVE_OFF = 'off'
 
@@ -39,6 +41,10 @@ export default function GithubAutoApprove({ token, onLogout }) {
 
   return (
     <>
+      <AdminSection title="Auto-approve repos">
+        <AutoApproveRepos key={project.document.rev} token={token} state={project} onLogout={onLogout} />
+      </AdminSection>
+
       <AdminSection title="Questions and answers for this review">
         <p className="note">
           Mark the answers that block an approval. In repos set to <code>on</code>, when Jev gives one of them, or is
@@ -51,6 +57,10 @@ export default function GithubAutoApprove({ token, onLogout }) {
           catalog={catalog}
           inUseMessage={describeSetUsers(project.document.data.repos)}
         />
+      </AdminSection>
+
+      <AdminSection title="Rules">
+        <ReviewRules state={project} />
       </AdminSection>
 
       <AdminSection title="Versions">

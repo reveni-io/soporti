@@ -616,6 +616,22 @@ export function getJevVersions(token, id, page) {
   })
 }
 
+export function checkGithubAutoApproveRepo(token, name) {
+  return request('/api/admin/config/jev/github/repos/check', {
+    method: 'POST',
+    token,
+    body: { name },
+    errorMessage: 'Failed to check the repo',
+  })
+}
+
+export function getGithubShadowStats(token, repos) {
+  return request(`/api/admin/config/jev/github/shadow-stats?repos=${encodeURIComponent(repos.join(','))}`, {
+    token,
+    errorMessage: 'Failed to load the shadow results',
+  })
+}
+
 export function getJevHistory(token, id, page) {
   return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
     token,
