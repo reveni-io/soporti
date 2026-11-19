@@ -307,6 +307,11 @@
   word-break: break-all;
 }
 
+.admin__kv--text .admin__kv-row dd {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
 .admin__kv-row code {
   font-family: var(--font-mono, monospace);
   font-size: var(--fs-sm);
