@@ -55,7 +55,6 @@ export default function ReviewRules({ state }) {
               <th>Rule</th>
               <th>Role</th>
               <th>Limit</th>
-              <th>What it checks</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
@@ -64,10 +63,14 @@ export default function ReviewRules({ state }) {
               const definition = RULES_BY_ID.get(rule.id)
               return (
                 <tr key={rule.id}>
-                  <td>{definition.label}</td>
+                  <td>
+                    <span className="review-rules__name">{definition.label}</span>
+                    {definition.checks}{' '}
+                    <span className="admin__muted">{RULE_ROLES.find(role => role.value === rule.role).help}.</span>
+                  </td>
                   <td>
                     <select
-                      className="input"
+                      className="input input--select admin__select--compact"
                       aria-label={`Role of ${definition.label}`}
                       value={rule.role}
                       onChange={event => updateRule(rule.id, { role: event.target.value })}
@@ -82,7 +85,7 @@ export default function ReviewRules({ state }) {
                   <td>
                     {definition.limits ? (
                       <select
-                        className="input"
+                        className="input input--select admin__select--compact"
                         aria-label={`Limit of ${definition.label}`}
                         value={String(rule.limit)}
                         onChange={event => handleLimitChange(definition, event.target.value)}
@@ -96,10 +99,6 @@ export default function ReviewRules({ state }) {
                     ) : (
                       <span className="admin__muted">none</span>
                     )}
-                  </td>
-                  <td>
-                    {definition.checks}{' '}
-                    <span className="admin__muted">{RULE_ROLES.find(role => role.value === rule.role).help}.</span>
                   </td>
                   <td>
                     <button
@@ -120,7 +119,7 @@ export default function ReviewRules({ state }) {
       {missing.length > 0 && (
         <div className="admin__form admin__form--row">
           <select
-            className="input"
+            className="input input--select"
             aria-label="Rule to add"
             value={ruleToAdd.id}
             onChange={event => setToAdd(event.target.value)}

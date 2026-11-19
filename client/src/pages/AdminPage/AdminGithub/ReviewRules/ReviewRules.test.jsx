@@ -22,7 +22,7 @@ describe('ReviewRules', () => {
   it('lists the rules with their role, limit and what they check', () => {
     render(<ReviewRules state={rulesState()} />)
 
-    expect(screen.getByRole('cell', { name: 'CI status' })).toBeInTheDocument()
+    expect(screen.getByText('CI status')).toHaveClass('review-rules__name')
     expect(screen.getByRole('combobox', { name: 'Limit of Max review effort' })).toHaveValue('10')
     expect(screen.getByText(/The estimated review time is at most the limit\./)).toBeInTheDocument()
     expect(screen.getByDisplayValue('src/payments/**')).toBeInTheDocument()

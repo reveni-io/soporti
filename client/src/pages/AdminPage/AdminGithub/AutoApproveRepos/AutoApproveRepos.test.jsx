@@ -49,7 +49,9 @@ describe('AutoApproveRepos', () => {
   it('keeps on out of reach until the repo is saved in shadow', () => {
     render(<AutoApproveRepos token="tok" state={reposState()} onLogout={vi.fn()} />)
 
-    expect(screen.getByRole('option', { name: 'on (shadow first)' })).toBeDisabled()
+    expect(
+      within(screen.getByRole('combobox', { name: 'Mode of acme/web' })).getByRole('option', { name: 'on' })
+    ).toBeDisabled()
     expect(
       within(screen.getByRole('combobox', { name: 'Mode of acme/docs' })).getByRole('option', { name: 'on' })
     ).toBeEnabled()
