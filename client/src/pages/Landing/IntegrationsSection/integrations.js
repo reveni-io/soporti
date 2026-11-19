@@ -13,6 +13,12 @@ export const INTEGRATIONS = [
     ring: 'inner',
     desc: 'Searches production logs and aggregates them with read-only SQL.',
   },
+  {
+    id: 'aws',
+    name: 'AWS',
+    ring: 'inner',
+    desc: 'Checks firing alarms, ECS deploys and crashed tasks, and any CloudWatch metric. Read-only.',
+  },
   { id: 'notion', name: 'Notion', ring: 'inner', desc: 'Reads the pages and databases shared with it.' },
   { id: 'shopify', name: 'Shopify', ring: 'inner', desc: 'Looks up orders, products and webhooks, store by store.' },
   {

@@ -123,6 +123,7 @@ const isNotionConfigured = vi.fn()
 const isHelpjuiceConfigured = vi.fn()
 const isPostgresConfigured = vi.fn()
 const isBetterstackConfigured = vi.fn()
+const isAwsConfigured = vi.fn()
 const isGranolaConfigured = vi.fn()
 const isGmailConfigured = vi.fn()
 const isGoogleCalendarConfigured = vi.fn()
@@ -140,6 +141,7 @@ const INTEGRATION_CHECK_MOCKS = [
   isHelpjuiceConfigured,
   isPostgresConfigured,
   isBetterstackConfigured,
+  isAwsConfigured,
   isGranolaConfigured,
   isGmailConfigured,
   isGoogleCalendarConfigured,
@@ -293,6 +295,18 @@ vi.mock('../granola/settings.js', () => ({ isGranolaConfigured }))
 vi.mock('../google-workspace/settings.js', () => ({ isGmailConfigured, isGoogleCalendarConfigured }))
 vi.mock('../zendesk/settings.js', () => ({ isZendeskConfigured }))
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured }))
+vi.mock('../aws/settings.js', () => ({ isAwsConfigured }))
+const awsRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
+vi.mock('./admin-aws.js', async () => {
+  const { Router } = await import('express')
+  const awsRouter = Router()
+  awsRouter.get('/', awsRouteReached)
+  awsRouter.put('/enabled', awsRouteReached)
+  awsRouter.put('/region', awsRouteReached)
+  awsRouter.put('/access-key', awsRouteReached)
+  awsRouter.post('/test', awsRouteReached)
+  return { default: awsRouter }
+})
 const sendcloudRouteReached = vi.fn((_req, res) => res.json({ reached: true }))
 vi.mock('./admin-sendcloud.js', async () => {
   const { Router } = await import('express')
@@ -452,6 +466,7 @@ beforeEach(() => {
   currentDbRole = 'admin'
   sendcloudRouteReached.mockClear()
   hubspotRouteReached.mockClear()
+  awsRouteReached.mockClear()
   videoRouteReached.mockClear()
 })
 
@@ -586,6 +601,34 @@ describe('/api/admin/config/sendcloud', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reached: true })
     expect(sendcloudRouteReached).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('/api/admin/config/aws', () => {
+  const AWS_REQUESTS = [
+    ['get', '/api/admin/config/aws'],
+    ['put', '/api/admin/config/aws/enabled'],
+    ['put', '/api/admin/config/aws/region'],
+    ['put', '/api/admin/config/aws/access-key'],
+    ['post', '/api/admin/config/aws/test'],
+  ]
+
+  it.each(AWS_REQUESTS)('rejects a non-admin %s %s with 403 before the AWS routes', async (method, path) => {
+    currentDbRole = 'user'
+
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Admin access required.' })
+    expect(awsRouteReached).not.toHaveBeenCalled()
+  })
+
+  it.each(AWS_REQUESTS)('lets an admin %s %s reach the AWS routes', async (method, path) => {
+    const res = await request(app)[method](path)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reached: true })
+    expect(awsRouteReached).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -2462,6 +2505,26 @@ describe('GET /api/admin/subagents', () => {
     })
     expect(byId.notion.configured).toBe(false)
     expect(byId.notion.tools).toEqual(['search_notion_pages', 'get_notion_page'])
+  })
+
+  it('offers the AWS tools as a group, configured once the switch is on', async () => {
+    isAwsConfigured.mockResolvedValue(true)
+
+    const res = await request(app).get('/api/admin/subagents')
+
+    expect(res.body.tools.groups.find(group => group.id === 'aws')).toEqual({
+      id: 'aws',
+      label: 'AWS',
+      configured: true,
+      tools: [
+        'aws_list_alarms',
+        'aws_list_ecs_clusters',
+        'aws_list_ecs_services',
+        'aws_get_ecs_service',
+        'aws_list_metrics',
+        'aws_get_metric_data',
+      ],
+    })
   })
 
   it('resolves the granola check against the requesting admin, whose key it is', async () => {

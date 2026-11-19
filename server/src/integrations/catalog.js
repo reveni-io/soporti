@@ -6,6 +6,7 @@ import * as googleDrive from '../google-drive/client.js'
 import * as shortcut from '../shortcut/client.js'
 import * as sentry from '../sentry/client.js'
 import * as betterstack from '../betterstack/client.js'
+import * as aws from '../aws/client.js'
 import * as granola from '../granola/client.js'
 import * as gmail from '../gmail/client.js'
 import * as googleCalendar from '../google-calendar/client.js'
@@ -51,6 +52,7 @@ const CATALOG = [
     googleCalendar.isConfigured
   ),
   catalogEntry('betterstack', 'Search and query application logs', betterstack.isConfigured),
+  catalogEntry('aws', 'Check CloudWatch alarms, ECS services and metrics (read-only)', aws.isConfigured),
   catalogEntry('figma', 'Look at Figma designs, render screenshots and read their comments', figma.isConfigured),
   catalogEntry(
     'zendesk',

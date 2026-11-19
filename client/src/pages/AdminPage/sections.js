@@ -1,4 +1,5 @@
 import AdminAuthentication from './AdminAuthentication/AdminAuthentication.jsx'
+import AdminAws from './AdminAws/AdminAws.jsx'
 import AdminBetterstack from './AdminBetterstack/AdminBetterstack.jsx'
 import AdminDatabase from './AdminDatabase/AdminDatabase.jsx'
 import AdminFigma from './AdminFigma/AdminFigma.jsx'
@@ -40,6 +41,7 @@ export const SECTIONS = [
   { path: 'figma', label: 'Figma', icon: 'figma', Component: AdminFigma },
   { path: 'sentry', label: 'Sentry', icon: 'sentry', Component: AdminSentry },
   { path: 'betterstack', label: 'Better Stack', icon: 'betterstack', Component: AdminBetterstack },
+  { path: 'aws', label: 'AWS', icon: 'aws', Component: AdminAws },
   { path: 'slack', label: 'Slack', icon: 'slack', Component: AdminSlack },
   { path: 'langfuse', label: 'Langfuse', icon: 'clock', Component: AdminLangfuse },
 ]
