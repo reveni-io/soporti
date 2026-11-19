@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import './Landing.css'
 import { readStoredToken } from '../../context/AuthContext.jsx'
 import { ROUTES } from '../../router/constants.js'
+import { THEME } from '../../constants.js'
 import AnswersSection from './AnswersSection/AnswersSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
 import BentoSection from './BentoSection/BentoSection.jsx'
@@ -31,7 +32,7 @@ export default function Landing({ hideCta = false }) {
   const visibleCta = hideCta ? null : cta
 
   return (
-    <div className={`lp${INTRO_CLASSES[intro.phase]}`}>
+    <div className={`lp${INTRO_CLASSES[intro.phase]}`} data-theme={THEME.LIGHT}>
       {intro.phase !== INTRO_PHASES.DONE && (
         <LandingIntro isLeaving={intro.phase === INTRO_PHASES.LEAVING} targetRef={brandRef} onSkip={intro.skip} />
       )}

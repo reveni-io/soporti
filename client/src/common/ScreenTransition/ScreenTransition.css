@@ -1,0 +1,29 @@
+::view-transition-old(.screen) {
+  animation: screen-out var(--motion-base) var(--ease-in) both;
+}
+
+::view-transition-new(.screen) {
+  animation: screen-in var(--motion-slow) var(--ease-out-expo) var(--motion-stagger-wide) both;
+}
+
+@keyframes screen-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--sp2) * -1)) scale(0.985);
+  }
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--sp4)) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

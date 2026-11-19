@@ -12,7 +12,7 @@
 
 .studio-panel__skeleton-row {
   height: var(--sp16);
-  background: linear-gradient(90deg, var(--bg-cool), var(--bg-surface), var(--bg-cool));
+  background: linear-gradient(90deg, var(--bg-subtle), var(--bg-surface), var(--bg-subtle));
   background-size: 200% 100%;
   animation: studio-panel-shimmer 1.6s ease-in-out infinite;
 }

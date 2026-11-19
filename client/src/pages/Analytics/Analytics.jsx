@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
+import ScreenTransition from '../../common/ScreenTransition/ScreenTransition.jsx'
 import { useAnalyticsDashboards } from './hooks/useAnalyticsDashboards/useAnalyticsDashboards.js'
 import { dashboardPath } from './dashboard-path.js'
 import DashboardHeader from './DashboardHeader/DashboardHeader.jsx'
@@ -18,13 +19,9 @@ export default function Analytics({ dashboardId }) {
   if (dashboardId) {
     return (
       <div className="analytics">
-        <DashboardView
-          key={dashboardId}
-          dashboardId={dashboardId}
-          token={token}
-          onLogout={logout}
-          directory={directory}
-        />
+        <ScreenTransition key={dashboardId}>
+          <DashboardView dashboardId={dashboardId} token={token} onLogout={logout} directory={directory} />
+        </ScreenTransition>
       </div>
     )
   }

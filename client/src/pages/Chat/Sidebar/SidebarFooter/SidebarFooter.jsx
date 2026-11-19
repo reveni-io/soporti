@@ -1,4 +1,5 @@
 import Icon from '../../../../common/Icon/Icon.jsx'
+import ThemeToggle from '../../../../common/ThemeToggle/ThemeToggle.jsx'
 import './SidebarFooter.css'
 
 const FOOTER_ICON_SIZE = 16
@@ -9,6 +10,7 @@ export default function SidebarFooter({ user, onOpenSettings, onLogout }) {
   return (
     <div className="sidebar-footer">
       <Account user={user} />
+      <ThemeToggle className="icon-btn--inverse sidebar-footer__theme" />
       <button
         type="button"
         className="icon-btn icon-btn--inverse sidebar-footer__settings"

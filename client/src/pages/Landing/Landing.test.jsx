@@ -29,6 +29,16 @@ describe('Landing', () => {
     expect(screen.getByRole('heading', { level: 1, name: /ask anything about your data/i })).toBeInTheDocument()
   })
 
+  it('keeps its light app windows while the app itself is in the dark theme', () => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+
+    const { container } = render(<Landing />)
+
+    expect(container.firstChild).toHaveAttribute('data-theme', 'light')
+
+    document.documentElement.removeAttribute('data-theme')
+  })
+
   it('shows a "Log in" CTA to /login when there is no session', () => {
     render(<Landing />)
 

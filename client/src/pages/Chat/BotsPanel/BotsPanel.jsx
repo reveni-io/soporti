@@ -1,7 +1,9 @@
 import { Link, generatePath } from 'react-router-dom'
 import BotAvatar from '../../../common/BotAvatar/BotAvatar.jsx'
 import Icon from '../../../common/Icon/Icon.jsx'
+import SharedElement from '../../../common/SharedElement/SharedElement.jsx'
 import { ROUTES } from '../../../router/constants.js'
+import { botAvatarTransitionName, botNameTransitionName } from '../bot-transition-names.js'
 import SidebarToggles from '../SidebarToggles/SidebarToggles.jsx'
 import './BotsPanel.css'
 
@@ -65,9 +67,13 @@ function BotCard({ bot }) {
   return (
     <li className="bots-panel__item">
       <Link className="card bots-panel__card" to={generatePath(ROUTES.BOT, { botId: String(bot.id) })}>
-        <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={CARD_AVATAR_SIZE} />
+        <SharedElement name={botAvatarTransitionName(bot.id)}>
+          <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={CARD_AVATAR_SIZE} />
+        </SharedElement>
         <div className="bots-panel__card-body">
-          <span className="bots-panel__name">{bot.name}</span>
+          <SharedElement name={botNameTransitionName(bot.id)}>
+            <span className="bots-panel__name">{bot.name}</span>
+          </SharedElement>
           <p className="bots-panel__description">{bot.description}</p>
         </div>
         {bot.unreadCount > 0 && (

@@ -50,7 +50,7 @@ export default function ArtifactView({ id }) {
 
   return (
     <div className="artifact-view">
-      <GridPattern variant="light" />
+      <GridPattern variant="surface" />
 
       <header className="artifact-view__header">
         <Link className="artifact-view__back" to={ROUTES.CHAT}>

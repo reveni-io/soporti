@@ -37,33 +37,10 @@
   --chart-6: #6f4fc0;
   --chart-7: #ad8b2a;
   --chart-8: #c85a94;
-  --chart-other: var(--green-low);
-  --chart-grid: var(--border-low);
-  --chart-axis: var(--border-high);
-
-  --overlay-primary: rgba(var(--green-deep-rgb), 0.45);
-
-  --link-color: #c05e10;
-  --link-hover: #f28536;
-
-  --bg-app: var(--bg-warm);
-  --bg-surface: var(--white);
-  --bg-surface-raised: var(--white);
-  --bg-input: var(--white);
-  --bg-sidebar: var(--green-deep);
-
-  --text-primary: var(--green-deep);
-  --text-secondary: var(--green-mid);
-  --text-muted: var(--green-low);
-  --text-on-accent: var(--green-deep);
-
-  --border-default: var(--border-low);
-  --border-strong: var(--border-high);
 
   --sidebar-text: var(--green-inverse);
   --sidebar-text-soft: rgba(var(--green-inverse-rgb), 0.65);
   --sidebar-text-muted: rgba(var(--green-inverse-rgb), 0.45);
-  --sidebar-border: rgba(var(--green-inverse-rgb), 0.14);
   --sidebar-hover: rgba(var(--green-inverse-rgb), 0.07);
   --sidebar-selected: rgba(var(--green-bright-rgb), 0.14);
   --sidebar-selected-border: rgba(var(--green-bright-rgb), 0.35);
@@ -74,22 +51,14 @@
   --btn-primary-bg: var(--green-bright);
   --btn-primary-bg-hover: var(--green-bright-hover);
   --btn-primary-color: var(--green-deep);
-  --btn-primary-disabled-bg: var(--border-low);
-  --btn-primary-disabled-color: var(--green-low);
   --btn-danger-bg: var(--orange-500);
   --btn-danger-bg-hover: var(--orange-700);
   --btn-danger-color: var(--white);
 
   --focus-ring: 0 0 0 3px rgba(var(--green-bright-rgb), 0.25);
 
-  --shadow-card-hover: 0 12px 32px rgba(var(--green-deep-rgb), 0.08);
-  --shadow-modal: 0 12px 40px rgba(var(--green-deep-rgb), 0.15);
   --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.35);
-  --shadow-drawer: 4px 0 24px rgba(var(--green-deep-rgb), 0.3);
-  --shadow-card: 0 1px 2px rgba(var(--green-deep-rgb), 0.04);
-  --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
   --shadow-glow: 0 8px 24px rgba(var(--green-bright-rgb), 0.3);
-  --shadow-topbar: 0 10px 30px rgba(var(--green-deep-rgb), 0.06);
   --shadow-window: 0 40px 90px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(var(--green-inverse-rgb), 0.06);
   --shadow-glow-strong: 0 0 40px rgba(var(--green-bright-rgb), 0.45);
 
@@ -100,10 +69,13 @@
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --motion-fast: 0.16s;
   --motion-base: 0.24s;
   --motion-slow: 0.42s;
   --motion-reveal: 0.9s;
+  --motion-wipe: 0.7s;
   --motion-stagger: 30ms;
   --motion-stagger-wide: 90ms;
 
@@ -158,6 +130,120 @@
   --layout-landing-max: 75rem;
 }
 
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: var(--bg-warm);
+  --bg-surface: var(--white);
+  --bg-surface-raised: var(--white);
+  --bg-input: var(--white);
+  --bg-sidebar: var(--green-deep);
+  --bg-subtle: var(--bg-cool);
+  --bg-emphasis: var(--green-deep);
+  --bg-accent-subtle: var(--green-inverse);
+  --bg-paper: var(--white);
+  --bg-code: var(--green-deep);
+  --bg-code-header: var(--green-deep-soft);
+  --bg-app-rgb: var(--bg-warm-rgb);
+  --ink-rgb: var(--green-deep-rgb);
+
+  --text-primary: var(--green-deep);
+  --text-secondary: var(--green-mid);
+  --text-muted: var(--green-low);
+  --text-on-accent: var(--green-deep);
+  --accent-strong: var(--green-chart);
+  --text-on-emphasis: var(--green-inverse);
+
+  --border-default: var(--border-low);
+  --border-strong: var(--border-high);
+  --border-hover: var(--green-mid);
+
+  --warning-text: var(--orange-900);
+  --warning-bg: var(--orange-50);
+  --warning-border: var(--orange-300);
+  --success-text: var(--green-deep);
+  --success-bg: var(--success-low);
+  --success-border: var(--green-chart);
+
+  --chart-other: var(--green-low);
+  --chart-grid: var(--border-low);
+  --chart-axis: var(--border-high);
+
+  --overlay-primary: rgba(var(--green-deep-rgb), 0.45);
+
+  --link-color: #c05e10;
+  --link-hover: #f28536;
+
+  --sidebar-border: rgba(var(--green-inverse-rgb), 0.14);
+
+  --btn-primary-disabled-bg: var(--border-low);
+  --btn-primary-disabled-color: var(--green-low);
+
+  --shadow-card-hover: 0 12px 32px rgba(var(--green-deep-rgb), 0.08);
+  --shadow-modal: 0 12px 40px rgba(var(--green-deep-rgb), 0.15);
+  --shadow-drawer: 4px 0 24px rgba(var(--green-deep-rgb), 0.3);
+  --shadow-card: 0 1px 2px rgba(var(--green-deep-rgb), 0.04);
+  --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
+  --shadow-topbar: 0 10px 30px rgba(var(--green-deep-rgb), 0.06);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-app: #0b130b;
+  --bg-surface: #111b11;
+  --bg-surface-raised: #152115;
+  --bg-input: #0e170e;
+  --bg-sidebar: #060d06;
+  --bg-subtle: #182518;
+  --bg-emphasis: #1f3a1e;
+  --bg-accent-subtle: #132613;
+  --bg-paper: #eef3ed;
+  --bg-code: #091109;
+  --bg-code-header: #172717;
+  --bg-app-rgb: 11, 19, 11;
+  --ink-rgb: var(--green-inverse-rgb);
+
+  --text-primary: #e5efe3;
+  --text-secondary: #a8b8a6;
+  --text-muted: #7c8e7b;
+  --accent-strong: #6fd96c;
+  --text-on-emphasis: #e5efe3;
+
+  --border-default: #213021;
+  --border-strong: #324632;
+  --border-hover: #557055;
+
+  --warning-text: #f5ab72;
+  --warning-bg: rgba(var(--orange-500-rgb), 0.12);
+  --warning-border: rgba(var(--orange-500-rgb), 0.4);
+  --success-text: #a3eca1;
+  --success-bg: rgba(var(--green-bright-rgb), 0.12);
+  --success-border: rgba(var(--green-bright-rgb), 0.45);
+
+  --chart-other: #6a7d69;
+  --chart-grid: var(--border-default);
+  --chart-axis: var(--border-strong);
+
+  --overlay-primary: rgba(0, 0, 0, 0.6);
+
+  --link-color: var(--orange-500);
+  --link-hover: var(--orange-300);
+
+  --sidebar-border: rgba(var(--green-inverse-rgb), 0.09);
+
+  --btn-primary-disabled-bg: #1e2b1e;
+  --btn-primary-disabled-color: #66786a;
+
+  --shadow-card-hover: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-drawer: 4px 0 24px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-drag: 0 18px 40px rgba(0, 0, 0, 0.5);
+  --shadow-topbar: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
 *,
 *::before,
 *::after {
@@ -196,6 +282,6 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--border-high);
+  background-color: var(--border-strong);
   border-radius: 3px;
 }

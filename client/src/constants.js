@@ -161,3 +161,5 @@ export const ANALYTICS_PROMPT_MAX_LENGTH = 2000
 export const ANALYTICS_TITLE_MAX_LENGTH = 120
 export const ANALYTICS_SQL_MAX_LENGTH = 20_000
 export const ANALYTICS_DASHBOARD_NAME_MAX_LENGTH = 80
+
+export const THEME = { LIGHT: 'light', DARK: 'dark' }

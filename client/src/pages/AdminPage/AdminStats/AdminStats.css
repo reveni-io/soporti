@@ -24,7 +24,7 @@
   padding: var(--sp4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .admin-stats__card-value {

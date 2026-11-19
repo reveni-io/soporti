@@ -96,6 +96,7 @@
 }
 
 .admin__nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sp2);
@@ -104,7 +105,6 @@
   color: var(--text-secondary);
   text-decoration: none;
   border-radius: var(--radius-md);
-  border-left: 2px solid transparent;
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
@@ -118,7 +118,7 @@
 }
 
 .admin__nav-link:hover {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   color: var(--text-primary);
 }
 
@@ -127,14 +127,23 @@
 }
 
 .admin__nav-link--active {
-  background-color: var(--success-low);
-  color: var(--green-deep);
+  background-color: var(--success-bg);
+  color: var(--success-text);
   font-weight: 600;
-  border-left-color: var(--green-bright);
+}
+
+.admin__nav-indicator {
+  position: absolute;
+  top: var(--sp1);
+  bottom: var(--sp1);
+  left: 0;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background-color: var(--green-bright);
 }
 
 .admin__nav-link--active .admin__nav-icon {
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }
 
 .admin__content {
@@ -171,7 +180,7 @@
 
 .admin__saved {
   font-size: var(--fs-md);
-  color: var(--green-chart);
+  color: var(--accent-strong);
   align-self: center;
 }
 
@@ -215,7 +224,7 @@
   flex: 0 0 36px;
   height: 20px;
   margin-top: 1px;
-  background-color: var(--border-high);
+  background-color: var(--border-strong);
   border-radius: var(--radius-pill);
   position: relative;
   transition: background-color 0.15s ease;
@@ -246,7 +255,7 @@
 }
 
 .admin__switch input:focus-visible + .admin__switch-slider {
-  outline: 2px solid var(--green-mid);
+  outline: 2px solid var(--border-hover);
   outline-offset: 2px;
 }
 
@@ -267,7 +276,7 @@
   display: flex;
   flex-direction: column;
   padding: var(--sp3) var(--sp4);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
 }
@@ -366,7 +375,7 @@
 }
 
 .admin__chip-remove:hover {
-  color: var(--orange-700);
+  color: var(--warning-text);
 }
 
 @media (max-width: 768px) {
