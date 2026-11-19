@@ -108,6 +108,22 @@ describe('askQuestions', () => {
     expect(JSON.parse(options.body)).toEqual({ model: 'jev-latest', state: { diff: '+ a' }, questions: QUESTIONS })
   })
 
+  it.each([
+    ['an answer that is not JSON', new SyntaxError('Unexpected token'), 'Jev error (invalid response)'],
+    [
+      'a body that times out',
+      Object.assign(new Error('aborted'), { name: 'TimeoutError' }),
+      'Jev error (timeout after 30 s)',
+    ],
+  ])('fails with a Jev error on %s', async (_case, error, message) => {
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: () => Promise.reject(error) })
+
+    const failure = ask().catch(err => err)
+
+    expect(await failure).toBeInstanceOf(JevApiError)
+    expect((await failure).message).toBe(message)
+  })
+
   it('keeps the requested model when the answer does not name one', async () => {
     mockFetch.mockResolvedValue(mockResponse({}))
 

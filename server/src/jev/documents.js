@@ -154,13 +154,13 @@ function parseNoulDetails({ flagAt }) {
   return { value: { flagAt: result.value } }
 }
 
-const QUESTION_DETAIL_PARSERS = {
-  [QUESTION_CHOICE]: parseChoiceDetails,
-  [QUESTION_NOUL]: parseNoulDetails,
-}
+const QUESTION_DETAIL_PARSERS = new Map([
+  [QUESTION_CHOICE, parseChoiceDetails],
+  [QUESTION_NOUL, parseNoulDetails],
+])
 
 function parseQuestion(question) {
-  const parseDetails = QUESTION_DETAIL_PARSERS[question?.type]
+  const parseDetails = QUESTION_DETAIL_PARSERS.get(question?.type)
   if (!parseDetails) return { error: 'The type must be choice or noul.' }
 
   const common = parseFields(question, COMMON_QUESTION_PARSERS)
@@ -253,11 +253,11 @@ function parseGithubProject(data) {
   return { value: { ...project.value, repos: repos.value } }
 }
 
-const DOCUMENT_PARSERS = {
-  [JEV_SETTINGS_DOCUMENT]: parseJevSettings,
-  [JEV_GITHUB_DOCUMENT]: parseGithubProject,
-  [JEV_LEGAL_DOCUMENT]: data => parseProject(data, SET_PARSERS),
-}
+const DOCUMENT_PARSERS = new Map([
+  [JEV_SETTINGS_DOCUMENT, parseJevSettings],
+  [JEV_GITHUB_DOCUMENT, parseGithubProject],
+  [JEV_LEGAL_DOCUMENT, data => parseProject(data, SET_PARSERS)],
+])
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
@@ -318,7 +318,7 @@ function findSaveError(previous, next, inUseQueries) {
 }
 
 export function isJevDocument(id) {
-  return Object.hasOwn(DOCUMENT_PARSERS, id)
+  return DOCUMENT_PARSERS.has(id)
 }
 
 export function defaultJevDocument(id) {
@@ -326,7 +326,7 @@ export function defaultJevDocument(id) {
 }
 
 export function parseJevDocument(id, data) {
-  return DOCUMENT_PARSERS[id](data)
+  return DOCUMENT_PARSERS.get(id)(data)
 }
 
 export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0 } = {}) {
