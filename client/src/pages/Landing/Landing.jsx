@@ -6,6 +6,7 @@ import ArtifactsSection from './ArtifactsSection/ArtifactsSection.jsx'
 import AttachmentsSection from './AttachmentsSection/AttachmentsSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
 import BotsSection from './BotsSection/BotsSection.jsx'
+import CustomerRepliesSection from './CustomerRepliesSection/CustomerRepliesSection.jsx'
 import HubspotSection from './HubspotSection/HubspotSection.jsx'
 import McpSection from './McpSection/McpSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
@@ -62,6 +63,7 @@ export default function Landing({ hideCta = false }) {
       <AutomationsSection />
       <BotsSection />
       <AutoApproveSection />
+      <CustomerRepliesSection />
       <McpSection />
       <LmstfySection />
       <SafetySection />
