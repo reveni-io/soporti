@@ -1,10 +1,10 @@
 .lp-skills-preview {
   width: 100%;
-  max-width: 480px;
+  max-width: 26rem;
 }
 
 .lp-skills-preview__window {
-  height: 330px;
+  height: 19.5rem;
 }
 
 .lp-skills-preview__body {
@@ -105,19 +105,6 @@
   vertical-align: -2px;
   background: var(--green-chart);
   animation: lpSkillCaretBlink 1s step-end infinite;
-}
-
-.lp-skills-preview__send {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--green-bright);
-  color: var(--green-deep);
-  font-size: var(--fs-md);
-  font-weight: 600;
 }
 
 @keyframes lpSkillCaretBlink {

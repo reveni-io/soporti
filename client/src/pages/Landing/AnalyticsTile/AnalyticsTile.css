@@ -1,0 +1,208 @@
+.lp-analytics-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  width: 100%;
+  max-width: 40rem;
+  color: var(--text-primary);
+}
+
+.lp-analytics-tile__ask {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp2) var(--sp2) var(--sp4);
+  border: 1px solid rgba(var(--green-bright-rgb), 0.55);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-night-rgb), 0.75);
+  box-shadow: 0 0 0 4px rgba(var(--green-bright-rgb), 0.08);
+  color: var(--green-inverse);
+}
+
+.lp-analytics-tile__ask svg {
+  color: var(--green-bright);
+}
+
+.lp-analytics-tile__prompt {
+  flex: 1;
+  font-size: var(--fs-base);
+}
+
+.lp-analytics-tile__create {
+  padding: var(--sp1) var(--sp3);
+  border-radius: var(--radius-pill);
+  background: var(--green-bright);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--green-deep);
+}
+
+.lp-analytics-tile__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  grid-template-rows: repeat(2, 7.5rem);
+  gap: var(--sp3);
+}
+
+.lp-analytics-tile__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  min-height: 0;
+  padding: var(--sp3) var(--sp4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-drag);
+}
+
+.lp-analytics-tile__card--tall {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.lp-analytics-tile__label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.lp-analytics-tile__figure {
+  font-family: var(--font-heading);
+  font-size: var(--fs-5xl);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-analytics-tile__delta {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--green-chart);
+}
+
+.lp-analytics-tile__columns {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: var(--sp1);
+  min-height: 0;
+}
+
+.lp-analytics-tile__column {
+  flex: 1;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--green-chart);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 1s var(--ease-out-expo);
+  transition-delay: calc(0.3s + var(--i, 0) * 70ms);
+}
+
+.lp-analytics-tile__column:nth-child(even) {
+  background: rgba(var(--green-chart-rgb), 0.5);
+}
+
+.is-visible .lp-analytics-tile__column {
+  transform: scaleY(1);
+}
+
+.lp-analytics-tile__generating {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--sp2);
+}
+
+.lp-analytics-tile__skeleton {
+  height: 3.5rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--bg-cool) 25%, var(--border-default) 50%, var(--bg-cool) 75%);
+  background-size: 200% 100%;
+  animation: lp-shimmer-block 1.4s linear infinite;
+}
+
+.lp-analytics-tile__skeleton--short {
+  width: 60%;
+  height: 0.75rem;
+}
+
+.lp-analytics-tile__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-analytics-tile__plot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp2);
+  min-height: 0;
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-analytics-tile__lines {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: visible;
+}
+
+.lp-analytics-tile__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
+  animation: lp-analytics-tile-draw 1.6s var(--ease-out-expo) forwards;
+}
+
+.lp-analytics-tile__line--1 {
+  stroke: var(--chart-1);
+}
+
+.lp-analytics-tile__line--2 {
+  stroke: var(--chart-2);
+  animation-delay: 0.2s;
+}
+
+@keyframes lp-analytics-tile-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.lp-analytics-tile__legend {
+  display: flex;
+  gap: var(--sp3);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+.lp-analytics-tile__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+}
+
+.lp-analytics-tile__key::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.lp-analytics-tile__key--1::before {
+  background: var(--chart-1);
+}
+
+.lp-analytics-tile__key--2::before {
+  background: var(--chart-2);
+}
