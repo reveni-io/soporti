@@ -5,6 +5,7 @@ export const INTEGRATIONS = {
   postgres: { label: 'Database', flag: 'postgresConfigured' },
   sentry: { label: 'Sentry', flag: 'sentryConfigured' },
   betterstack: { label: 'Better Stack', flag: 'betterstackConfigured' },
+  aws: { label: 'AWS', flag: 'awsConfigured' },
   helpjuice: { label: 'Helpjuice', flag: 'helpjuiceConfigured' },
   shopify: { label: 'Shopify', flag: 'shopifyConfigured' },
   granola: { label: 'Granola', flag: 'granolaConfigured' },

@@ -211,6 +211,21 @@ You can also post an internal note with zendesk_post_internal_note — a private
 - **Write it for the agent who will answer**: the draft reply, then the evidence behind it (records, policies, links), clearly separated. Never invent an order, a refund or a policy nobody found.
 - **Report what you did.** Give the ticket url once the note is posted.`
 
+const AWS_SECTION = `## AWS integration
+
+You have read-only tools over the AWS account Soporti runs against: CloudWatch alarms, ECS clusters and services, and CloudWatch metrics. Use them when the user asks whether something is down or slow in production, what was deployed and when, why a service keeps restarting, or how a queue or a resource is doing. Application logs are not here — search them with the log tools when those are available.
+
+- **Is anything down?** Start with aws_list_alarms (only the alarms firing now) and aws_list_ecs_services (unhealthy services come first). Autoscaling alarms are already left out: never report one as an incident.
+- **One service in detail**: aws_get_ecs_service gives its deployments, its latest events and the tasks that stopped recently with the reason and exit code of each container. Exit code 137 or "OutOfMemory" means the container ran out of memory; "Essential container in task exited" means the process died — read the container's exit code and reason. Stopped tasks are only kept for about an hour, so an empty list does not mean nothing crashed earlier: say so and look at the service events too.
+- **Deployments**: a service with \`deploying: true\` or a deployment whose \`rolloutState\` is IN_PROGRESS is rolling out right now; FAILED means ECS rolled it back or gave up. Quote \`lastDeploymentAt\` and the task definition revision when asked what changed.
+- **Metrics**: discover before you read. aws_list_metrics without a namespace lists the namespaces (custom ones often hold queue depths and business counters); with one it lists the metrics and their dimensions. Pass those dimensions verbatim to aws_get_metric_data, and report the summary (latest, max, average) rather than every datapoint.
+- **The cluster**: leave \`cluster\` out when there is a single one; otherwise call aws_list_ecs_clusters first.
+- **When AWS refuses**: an error saying AWS denied an action means the IAM policy is missing it. Tell the user which action, and that an AWS administrator has to add it — never retry it another way.
+
+### What NOT to do
+- You cannot restart, scale, deploy or change anything in AWS. When the user asks for that, say they have to do it in AWS themselves.
+- Never guess a service, cluster or metric name — list them first.`
+
 const SENDCLOUD_SECTION = `## Sendcloud integration
 
 You have read-only tools over the Sendcloud shipping accounts linked to Soporti. Use them whenever the user asks where a parcel is, why it has not arrived, what happened to a return, or which carriers and shipping methods are available.
@@ -426,6 +441,7 @@ const INTEGRATION_PROMPT_SECTIONS = {
   figma: buildFigmaSection,
   zendesk: withWriteSection(ZENDESK_READ_SECTION, ZENDESK_WRITE_SECTION),
   sendcloud: SENDCLOUD_SECTION,
+  aws: AWS_SECTION,
   hubspot: buildHubspotSection,
   gmail: GMAIL_SECTION,
   'google-calendar': GOOGLE_CALENDAR_SECTION,
@@ -828,6 +844,7 @@ const INTEGRATION_INSTRUCTIONS = {
     'The user has enabled the **Shopify** integration. Use the Shopify tools (get_shopify_order, search_shopify_orders, get_shopify_product, get_shopify_webhooks, shopify_graphql_query) to query Shopify stores and compare data with the backend when relevant.',
   betterstack:
     'The user has enabled the **Better Stack** integration. Use the log tools (list_log_sources, describe_log_source, search_logs, query_logs) to search and aggregate application logs when relevant to the conversation.',
+  aws: "The user has enabled the **AWS** integration. Use aws_list_alarms and aws_list_ecs_services to check whether anything is down, aws_get_ecs_service for a service's deployments, events and recently stopped tasks, and aws_list_metrics with aws_get_metric_data to read CloudWatch metrics; it is read-only, so never claim to have restarted, scaled or deployed anything.",
   granola:
     'The user has enabled the **Granola** integration. Use search_granola_notes and get_granola_note to read their own meeting notes when the answer may have been settled in a call; search by company, person or project, since only titles and owners are matched, and cite the note url.',
   gmail:

@@ -10,6 +10,7 @@ export const QUESTION_ROWS = [
   ],
   [
     { icon: 'betterstack', text: 'What failed in production between 15:00 and 15:30?' },
+    { icon: 'aws', text: 'Why did the worker restart twice this morning?' },
     { icon: 'sendcloud', text: 'Order #1042 has not arrived yet. What happened to the parcel?' },
     { icon: 'slack', text: 'What did #support decide about partial refunds last week?' },
     { icon: 'hubspot', text: 'Which deals with Acme are still open, and who owns them?' },

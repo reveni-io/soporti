@@ -27,6 +27,7 @@ const ALL_CONFIGURED = {
   postgresConfigured: true,
   shopifyConfigured: true,
   betterstackConfigured: true,
+  awsConfigured: true,
   granolaConfigured: true,
   gmailConfigured: true,
   calendarConfigured: true,
@@ -60,6 +61,7 @@ describe('buildBasePrompt', () => {
       'PostgreSQL',
       'Sentry',
       'Better Stack',
+      'AWS',
       'Helpjuice',
       'Shopify',
       'Figma',
@@ -104,6 +106,27 @@ describe('buildBasePrompt', () => {
     expect(withNotes).toContain('### Posting internal notes')
     expect(readOnly).toContain('You never reply to the requester')
     expect(readOnly).not.toContain('### Posting internal notes')
+  })
+
+  it('adds the AWS section only when AWS is configured, and says it is read-only', () => {
+    const policy = buildSourcePolicy(['integration:aws'])
+
+    const prompt = buildBasePrompt(policy, { configured: ALL_CONFIGURED })
+    const unconfigured = buildBasePrompt(policy, { configured: { ...ALL_CONFIGURED, awsConfigured: false } })
+
+    expect(prompt).toContain('## AWS integration')
+    expect(prompt).toContain('Autoscaling alarms are already left out')
+    expect(prompt).toContain('Exit code 137')
+    expect(prompt).toContain('You cannot restart, scale, deploy or change anything in AWS')
+    expect(unconfigured).not.toContain('## AWS integration')
+  })
+
+  it('names the AWS tools when the user selects AWS as a source', () => {
+    const instructions = buildSourceInstructions(['integration:aws'], { awsConfigured: true })
+
+    expect(instructions).toContain('**AWS** integration')
+    expect(instructions).toContain('aws_get_ecs_service')
+    expect(instructions).toContain('never claim to have restarted, scaled or deployed anything')
   })
 
   it('tells the agent how to pick a Sendcloud account and that it cannot change anything', () => {
