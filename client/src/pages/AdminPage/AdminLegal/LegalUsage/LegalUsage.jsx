@@ -8,7 +8,7 @@ function toRow(run, index) {
   return {
     key: `${run.at}-${index}`,
     cells: [
-      formatDateTime(run.at),
+      <span className="admin__nowrap">{formatDateTime(run.at)}</span>,
       run.query,
       run.owner,
       run.setVersion === null ? '—' : `v${run.setVersion}`,

@@ -93,7 +93,7 @@ describe('AdminLegal', () => {
     render(<AdminLegal token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByText('warns Legal at 60 or more')).toBeInTheDocument()
-    expect(await screen.findByRole('columnheader', { name: 'Calls that used it' })).toBeInTheDocument()
+    expect(await screen.findByRole('columnheader', { name: 'Calls' })).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: (1284).toLocaleString() })).toBeInTheDocument()
     expect(screen.getByText('Legal project')).toBeInTheDocument()
   })

@@ -6,7 +6,7 @@ import PaginatedTable from '../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../dates.js'
 
 const HEADERS = ['Version', 'Date', 'Author', 'Change', '']
-const HEADERS_WITH_CALLS = ['Version', 'Date', 'Author', 'Change', 'Calls that used it', '']
+const HEADERS_WITH_CALLS = ['Version', 'Date', 'Author', 'Change', 'Calls', '']
 
 export default function VersionsTable({ token, project, state, onLogout, withCalls = false }) {
   const [page, setPage] = useState(1)
