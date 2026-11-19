@@ -14,6 +14,7 @@ CREATE TABLE "legal_cases" (
 	"language" text,
 	"status" text NOT NULL,
 	"reason" text,
+	"set_version" integer,
 	"jev" jsonb,
 	"warnings" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL

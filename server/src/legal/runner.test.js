@@ -124,6 +124,7 @@ describe('runLegalSchedule', () => {
       ...DRAFT,
       status: 'checked',
       reason: null,
+      setVersion: 7,
       jev: {
         setVersion: 7,
         model: 'jev-1.13.0',
@@ -191,7 +192,7 @@ describe('runLegalSchedule', () => {
   it('keeps the draft but marks the case not checked when Jev cannot answer', async () => {
     findsTickets([])
     readLegalTickets.mockResolvedValue([ticket('1')])
-    runJevCheck.mockResolvedValue({ status: 'unavailable', reason: 'Daily limit exceeded (50 calls)' })
+    runJevCheck.mockResolvedValue({ status: 'unavailable', setVersion: 7, reason: 'Daily limit exceeded (50 calls)' })
 
     await runLegalSchedule(SCHEDULE, store(), { logger })
 
@@ -199,6 +200,7 @@ describe('runLegalSchedule', () => {
       draft: DRAFT.draft,
       status: 'not_checked',
       reason: 'Daily limit exceeded (50 calls)',
+      setVersion: 7,
       jev: null,
       warnings: 0,
     })
@@ -229,6 +231,7 @@ describe('runLegalSchedule', () => {
     expect(saveLegalCase.mock.calls[0][0]).toMatchObject({
       status: 'not_checked',
       reason,
+      setVersion: null,
       draft: null,
       dataFacts: null,
     })

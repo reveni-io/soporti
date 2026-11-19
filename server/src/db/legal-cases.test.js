@@ -22,6 +22,16 @@ function makeChain(op) {
     where: record('where'),
     values: record('values'),
     onConflictDoNothing: record('onConflictDoNothing'),
+    innerJoin: () => chain,
+    groupBy: record('groupBy'),
+    having: record('having'),
+    orderBy: () => chain,
+    limit: record('limit'),
+    offset: record('offset'),
+    as: alias => {
+      call.steps.as = alias
+      return { checked: 'runs.checked', at: 'runs.at' }
+    },
     then: (resolve, reject) => Promise.resolve(queue.shift() ?? []).then(resolve, reject),
   }
   return chain
@@ -31,7 +41,8 @@ const db = { select: () => makeChain('select'), insert: () => makeChain('insert'
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { legalCases } = await import('./schema.js')
-const { findDraftedLegalCases, isDrafted, saveLegalCase } = await import('./legal-cases.js')
+const { countLegalRuns, findDraftedLegalCases, isDrafted, listUncheckedLegalRuns, saveLegalCase } =
+  await import('./legal-cases.js')
 
 const TICKET = { source: 'zendesk', ticketId: '48213', messageHash: 'abc' }
 
@@ -69,5 +80,40 @@ describe('saveLegalCase', () => {
 
     expect(calls[0].steps.values).toEqual({ ...TICKET, scheduleId: 3 })
     expect(calls[0].steps).toHaveProperty('onConflictDoNothing')
+  })
+})
+
+describe('countLegalRuns', () => {
+  it('counts the runs checked in full and the runs with an unchecked case', async () => {
+    queue.push([{ checked: 27, notChecked: 6 }])
+
+    expect(await countLegalRuns()).toEqual({ checked: 27, notChecked: 6 })
+    expect(calls[0].steps.groupBy).toBe(legalCases.conversationId)
+    expect(calls[0].steps.as).toBe('runs')
+  })
+
+  it('reports no runs without cases', async () => {
+    expect(await countLegalRuns()).toEqual({ checked: 0, notChecked: 0 })
+  })
+})
+
+describe('listUncheckedLegalRuns', () => {
+  it('returns one page of the runs Jev could not check, with the total', async () => {
+    const entries = [
+      {
+        at: '2026-11-19T07:00:00Z',
+        query: 'Draft replies',
+        owner: 'ana@example.com',
+        setVersion: 7,
+        reasons: 'Jev error (HTTP 502)',
+      },
+    ]
+    queue.push(entries, [{ total: 6 }])
+
+    expect(await listUncheckedLegalRuns(2)).toEqual({ entries, total: 6, page: 2, pageSize: 5 })
+    const page = calls.find(call => call.steps.limit)
+    expect(page.steps.limit).toBe(5)
+    expect(page.steps.offset).toBe(5)
+    expect(calls[0].steps.as).toBe('unchecked_runs')
   })
 })

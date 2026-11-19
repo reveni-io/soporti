@@ -31,7 +31,15 @@ const getShadowStats = vi.fn()
 vi.mock('../db/auto-approve-evaluations.js', () => ({ getShadowStats }))
 
 const countJevCallsByProjectSince = vi.fn()
-vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince }))
+const countJevCallsBySetVersion = vi.fn()
+vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince, countJevCallsBySetVersion }))
+
+const countLegalSchedules = vi.fn()
+vi.mock('../db/schedules.js', () => ({ countLegalSchedules }))
+
+const countLegalRuns = vi.fn()
+const listUncheckedLegalRuns = vi.fn()
+vi.mock('../db/legal-cases.js', () => ({ countLegalRuns, listUncheckedLegalRuns }))
 
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
@@ -71,6 +79,7 @@ beforeEach(() => {
   })
   getJevDocument.mockResolvedValue({ id: 'jev', rev: 1, data: { enabled: true }, setVersion: 0 })
   getLatestJevSave.mockResolvedValue(null)
+  countLegalSchedules.mockResolvedValue(0)
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -549,5 +558,89 @@ describe('GET /api/admin/config/jev/github/shadow-stats', () => {
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the shadow results.' })
+  })
+})
+
+describe('Legal in the Jev admin routes', () => {
+  it('refuses to empty the Legal set while scheduled queries use it', async () => {
+    countLegalSchedules.mockResolvedValue(3)
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 5, data: {}, setVersion: 4 } })
+
+    await request(app)
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 4, data: { set: { ...LEGAL_SET, questions: [] } } })
+
+    const [, options] = saveJevDocument.mock.calls[0]
+    expect(options.plan({ rev: 4, data: { set: LEGAL_SET } })).toEqual({
+      error: 'Cannot delete the set: 3 scheduled queries have Review with Jev (Legal) on. They must turn it off first.',
+    })
+  })
+
+  it('adds the calls of each version of the Legal set', async () => {
+    listJevSetVersions.mockResolvedValue({
+      entries: [{ version: 2 }, { version: 1 }],
+      total: 2,
+      page: 1,
+      pageSize: 5,
+    })
+    countJevCallsBySetVersion.mockResolvedValue([{ setVersion: 2, calls: 17 }])
+
+    const res = await request(app).get('/api/admin/config/jev/documents/legal/versions')
+
+    expect(res.body.entries).toEqual([
+      { version: 2, calls: 17 },
+      { version: 1, calls: 0 },
+    ])
+    expect(countJevCallsBySetVersion).toHaveBeenCalledWith('legal')
+  })
+
+  it('leaves the GitHub versions without calls', async () => {
+    listJevSetVersions.mockResolvedValue({ entries: [{ version: 1 }], total: 1, page: 1, pageSize: 5 })
+
+    const res = await request(app).get('/api/admin/config/jev/documents/github/versions')
+
+    expect(res.body.entries).toEqual([{ version: 1 }])
+    expect(countJevCallsBySetVersion).not.toHaveBeenCalled()
+  })
+
+  it('reports the Legal usage with a page of the runs Jev could not check', async () => {
+    const unchecked = {
+      entries: [
+        {
+          at: SAVED_AT,
+          query: 'Draft replies',
+          owner: 'ana@example.com',
+          setVersion: 7,
+          reasons: 'Jev error (HTTP 502)',
+        },
+      ],
+      total: 1,
+      page: 2,
+      pageSize: 5,
+    }
+    countLegalSchedules.mockResolvedValue(4)
+    countLegalRuns.mockResolvedValue({ checked: 27, notChecked: 6 })
+    listUncheckedLegalRuns.mockResolvedValue(unchecked)
+
+    const res = await request(app).get('/api/admin/config/jev/legal/usage?page=2')
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ queriesOn: 4, checkedRuns: 27, uncheckedRuns: 6, unchecked })
+    expect(listUncheckedLegalRuns).toHaveBeenCalledWith(2)
+  })
+
+  it('rejects an invalid page of the Legal usage', async () => {
+    const res = await request(app).get('/api/admin/config/jev/legal/usage?page=x')
+
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 500 when the Legal usage cannot be read', async () => {
+    countLegalRuns.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/config/jev/legal/usage')
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to load the Legal usage.' })
   })
 })

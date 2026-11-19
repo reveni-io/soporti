@@ -663,6 +663,7 @@ export const legalCases = pgTable(
     language: text('language'),
     status: text('status').notNull(),
     reason: text('reason'),
+    setVersion: integer('set_version'),
     jev: jsonb('jev'),
     warnings: integer('warnings').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

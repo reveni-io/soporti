@@ -22,3 +22,11 @@ export async function countJevCallsByProjectSince(since) {
     .where(gte(jevCalls.createdAt, since))
     .groupBy(jevCalls.project)
 }
+
+export async function countJevCallsBySetVersion(project) {
+  return getDb()
+    .select({ setVersion: jevCalls.setVersion, calls: count() })
+    .from(jevCalls)
+    .where(eq(jevCalls.project, project))
+    .groupBy(jevCalls.setVersion)
+}

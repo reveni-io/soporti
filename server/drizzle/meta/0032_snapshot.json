@@ -1,5 +1,5 @@
 {
-  "id": "4674eff7-e47d-468a-b305-c380c3853753",
+  "id": "38f02108-face-4f74-8d06-bd14df1b7fc7",
   "prevId": "438de30d-e947-4516-9de9-6d437d50586c",
   "version": "7",
   "dialect": "postgresql",
@@ -1947,6 +1947,12 @@
         "reason": {
           "name": "reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "set_version": {
+          "name": "set_version",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },

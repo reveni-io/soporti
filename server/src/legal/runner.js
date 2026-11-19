@@ -57,11 +57,14 @@ async function draftReply(task, ticket, logger) {
 }
 
 function describeCheck(check) {
-  if (check.status !== JEV_CHECK_ANSWERED) return { status: LEGAL_CASE_NOT_CHECKED, reason: check.reason, jev: null }
+  const setVersion = check.setVersion ?? null
+  if (check.status !== JEV_CHECK_ANSWERED) {
+    return { status: LEGAL_CASE_NOT_CHECKED, reason: check.reason, setVersion, jev: null }
+  }
 
-  const { setVersion, model, minConfidence, rows } = check
+  const { model, minConfidence, rows } = check
 
-  return { status: LEGAL_CASE_CHECKED, reason: null, jev: { setVersion, model, minConfidence, rows } }
+  return { status: LEGAL_CASE_CHECKED, reason: null, setVersion, jev: { setVersion, model, minConfidence, rows } }
 }
 
 async function checkCase(ticket, drafted) {
@@ -87,7 +90,7 @@ async function handleTicket(context, ticket) {
   const { task, schedule, conversationId, logger } = context
   const drafted = await draftReply(task, ticket, logger)
   const outcome = drafted.error
-    ? { status: LEGAL_CASE_NOT_CHECKED, reason: drafted.error, jev: null }
+    ? { status: LEGAL_CASE_NOT_CHECKED, reason: drafted.error, setVersion: null, jev: null }
     : await checkCase(ticket, drafted.value)
   const legalCase = {
     source: ticket.source,

@@ -31,7 +31,8 @@ const db = { select: () => makeChain('select'), insert: () => makeChain('insert'
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { jevCalls } = await import('./schema.js')
-const { countJevCallsByProjectSince, countJevCallsSince, recordJevCall } = await import('./jev-calls.js')
+const { countJevCallsByProjectSince, countJevCallsBySetVersion, countJevCallsSince, recordJevCall } =
+  await import('./jev-calls.js')
 
 const SINCE = new Date('2026-11-19T00:00:00.000Z')
 
@@ -80,5 +81,15 @@ describe('countJevCallsByProjectSince', () => {
 
     expect(await countJevCallsByProjectSince(SINCE)).toEqual([{ project: 'github', calls: 3 }])
     expect(calls[0].steps.groupBy).toBe(jevCalls.project)
+  })
+})
+
+describe('countJevCallsBySetVersion', () => {
+  it('groups the calls of a project by set version', async () => {
+    queue.push([{ setVersion: 7, calls: 17 }])
+
+    expect(await countJevCallsBySetVersion('legal')).toEqual([{ setVersion: 7, calls: 17 }])
+    expect(calls[0].steps.where).toEqual({ op: 'eq', col: jevCalls.project, val: 'legal' })
+    expect(calls[0].steps.groupBy).toBe(jevCalls.setVersion)
   })
 })
