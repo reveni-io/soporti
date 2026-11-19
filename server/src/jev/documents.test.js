@@ -59,6 +59,10 @@ describe('defaultJevDocument', () => {
 })
 
 describe('parseJevDocument', () => {
+  it.each(['unknown', 'toString', 'constructor'])('rejects the unknown document %s', id => {
+    expect(parseJevDocument(id, {})).toEqual({ error: 'Unknown document.' })
+  })
+
   it('normalizes a valid project set', () => {
     const { value } = parseLegal()
 
