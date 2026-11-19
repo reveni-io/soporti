@@ -22,5 +22,5 @@ CREATE TABLE "legal_cases" (
 --> statement-breakpoint
 ALTER TABLE "legal_cases" ADD CONSTRAINT "legal_cases_schedule_id_schedules_id_fk" FOREIGN KEY ("schedule_id") REFERENCES "public"."schedules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "legal_cases" ADD CONSTRAINT "legal_cases_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "legal_cases_ticket_message_idx" ON "legal_cases" USING btree ("schedule_id","source","ticket_id","message_hash");--> statement-breakpoint
+CREATE UNIQUE INDEX "legal_cases_ticket_message_idx" ON "legal_cases" USING btree ("schedule_id","source","ticket_id","message_hash") WHERE "legal_cases"."draft" is not null;--> statement-breakpoint
 CREATE INDEX "legal_cases_created_idx" ON "legal_cases" USING btree ("created_at");

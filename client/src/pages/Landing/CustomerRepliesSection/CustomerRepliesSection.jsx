@@ -24,7 +24,7 @@ export default function CustomerRepliesSection() {
             <li>One draft per ticket, in the customer’s language, stating only what the data shows</li>
             <li>A Careful warning for unusual requests, data that does not match, promises or someone else’s data</li>
             <li>Nothing is sent: edit the reply, copy it and send it from the ticket</li>
-            <li>A ticket is drafted again only when the customer writes again</li>
+            <li>A ticket is drafted again only when the customer writes again or its draft failed</li>
           </ul>
         </div>
 

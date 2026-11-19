@@ -18,6 +18,7 @@ export async function findDraftedLegalCases(scheduleId, tickets) {
     .where(
       and(
         eq(legalCases.scheduleId, scheduleId),
+        isNotNull(legalCases.draft),
         inArray(
           legalCases.messageHash,
           tickets.map(ticket => ticket.messageHash)

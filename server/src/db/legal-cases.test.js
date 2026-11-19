@@ -5,6 +5,7 @@ vi.mock('drizzle-orm', async importOriginal => ({
   and: (...preds) => ({ op: 'and', preds }),
   eq: (col, val) => ({ op: 'eq', col, val }),
   inArray: (col, val) => ({ op: 'inArray', col, val }),
+  isNotNull: col => ({ op: 'isNotNull', col }),
 }))
 
 let queue = []
@@ -52,7 +53,7 @@ beforeEach(() => {
 })
 
 describe('findDraftedLegalCases', () => {
-  it('finds the tickets of the query already drafted for the same customer message', async () => {
+  it('finds the tickets of the query already drafted for the same customer message, failed drafts aside', async () => {
     queue.push([TICKET])
 
     const drafted = await findDraftedLegalCases(3, [TICKET, { ...TICKET, ticketId: '2', messageHash: 'def' }])
@@ -63,6 +64,7 @@ describe('findDraftedLegalCases', () => {
       op: 'and',
       preds: [
         { op: 'eq', col: legalCases.scheduleId, val: 3 },
+        { op: 'isNotNull', col: legalCases.draft },
         { op: 'inArray', col: legalCases.messageHash, val: ['abc', 'def'] },
       ],
     })

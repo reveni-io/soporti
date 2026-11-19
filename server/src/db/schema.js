@@ -669,7 +669,9 @@ export const legalCases = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   table => [
-    uniqueIndex('legal_cases_ticket_message_idx').on(table.scheduleId, table.source, table.ticketId, table.messageHash),
+    uniqueIndex('legal_cases_ticket_message_idx')
+      .on(table.scheduleId, table.source, table.ticketId, table.messageHash)
+      .where(sql`${table.draft} is not null`),
     index('legal_cases_created_idx').on(table.createdAt),
   ]
 )
