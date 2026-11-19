@@ -1,0 +1,6 @@
+.number-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+}

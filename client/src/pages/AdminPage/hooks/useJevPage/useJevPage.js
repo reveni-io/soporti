@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
-import { getJevHistory, isUnauthorized } from '../../../../services/services.js'
+import { isUnauthorized } from '../../../../services/services.js'
 
-export function useJevHistory(token, documentId, page, onLogout) {
-  const [history, setHistory] = useState(null)
+export function useJevPage(fetchPage, { token, documentId, page }, onLogout) {
+  const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let active = true
     async function load() {
       try {
-        const data = await getJevHistory(token, documentId, page)
-        if (active) setHistory(data)
+        const data = await fetchPage(token, documentId, page)
+        if (active) setResult(data)
       } catch (err) {
         if (isUnauthorized(err)) {
           onLogout?.()
@@ -23,7 +23,7 @@ export function useJevHistory(token, documentId, page, onLogout) {
     return () => {
       active = false
     }
-  }, [token, documentId, page, onLogout])
+  }, [fetchPage, token, documentId, page, onLogout])
 
-  return { history, error }
+  return { result, error }
 }

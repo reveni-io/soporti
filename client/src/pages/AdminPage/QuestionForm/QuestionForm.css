@@ -1,0 +1,19 @@
+.question-form {
+  gap: var(--sp3);
+}
+
+.question-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}
+
+.question-form__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+  white-space: nowrap;
+}

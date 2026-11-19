@@ -38,10 +38,31 @@ describe('useJevDocument', () => {
     act(() => result.current.updateDraft({ set: { description: 'New' } }))
     await act(() => result.current.save())
 
-    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ rev: 2, data: { set: { description: 'New' } } })
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+      rev: 2,
+      data: { set: { description: 'New' } },
+      restoredFrom: null,
+    })
     expect(result.current.document).toEqual(saved)
     expect(result.current.dirty).toBe(false)
     expect(result.current.savedAt).toEqual(expect.any(Number))
+  })
+
+  it('sends the restored version with the next save and forgets it after', async () => {
+    const saved = { ...SAVED, rev: 3, setVersion: 2 }
+    global.fetch = vi.fn().mockResolvedValueOnce(respond(200, SAVED)).mockResolvedValueOnce(respond(200, saved))
+
+    const { result } = renderHook(() => useJevDocument('tok', 'legal', stableLogout))
+    await waitFor(() => expect(result.current.document).not.toBeNull())
+    act(() => result.current.restore(1, draft => ({ set: { ...draft.set, description: 'From v1' } })))
+
+    expect(result.current.restoredFrom).toBe(1)
+    expect(result.current.draft).toEqual({ set: { description: 'From v1' } })
+
+    await act(() => result.current.save())
+
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body).restoredFrom).toBe(1)
+    expect(result.current.restoredFrom).toBeNull()
   })
 
   it('keeps a conflict until the latest version is reloaded', async () => {

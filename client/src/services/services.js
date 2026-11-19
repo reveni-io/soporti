@@ -600,12 +600,19 @@ export function getJevDocument(token, id) {
   return request(`/api/admin/config/jev/documents/${id}`, { token, errorMessage: 'Failed to load the settings' })
 }
 
-export function saveJevDocument(token, id, { rev, data }) {
+export function saveJevDocument(token, id, { rev, data, restoredFrom }) {
   return request(`/api/admin/config/jev/documents/${id}`, {
     method: 'PUT',
     token,
-    body: { rev, data },
+    body: { rev, data, restoredFrom },
     errorMessage: 'Failed to save the settings',
+  })
+}
+
+export function getJevVersions(token, id, page) {
+  return request(`/api/admin/config/jev/documents/${id}/versions?page=${page}`, {
+    token,
+    errorMessage: 'Failed to load the versions',
   })
 }
 

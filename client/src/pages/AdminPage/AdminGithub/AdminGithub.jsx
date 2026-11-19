@@ -10,6 +10,7 @@ import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import GithubAutoApprove from './GithubAutoApprove/GithubAutoApprove.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
 
@@ -159,6 +160,8 @@ export default function AdminGithub({ token, onLogout }) {
           {!catalogError && catalogSavedAt && !catalogDirty && <span className="admin__saved">Saved</span>}
         </div>
       </AdminSection>
+
+      <GithubAutoApprove token={token} onLogout={onLogout} />
     </>
   )
 }
