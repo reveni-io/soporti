@@ -10,6 +10,7 @@ import HubspotSection from './HubspotSection/HubspotSection.jsx'
 import McpSection from './McpSection/McpSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
 import InstructionsSection from './InstructionsSection/InstructionsSection.jsx'
+import AutoApproveSection from './AutoApproveSection/AutoApproveSection.jsx'
 import LandingCta from './LandingCta/LandingCta.jsx'
 import LandingFooter from './LandingFooter/LandingFooter.jsx'
 import LandingHero from './LandingHero/LandingHero.jsx'
@@ -60,6 +61,7 @@ export default function Landing({ hideCta = false }) {
       <SkillsSection />
       <AutomationsSection />
       <BotsSection />
+      <AutoApproveSection />
       <McpSection />
       <LmstfySection />
       <SafetySection />
