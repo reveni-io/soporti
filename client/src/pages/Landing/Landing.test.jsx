@@ -1,135 +1,51 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import Landing from './Landing.jsx'
 
 vi.mock('../../common/GridPattern/GridPattern.jsx', () => ({ default: () => <div data-testid="grid" /> }))
 vi.mock('../../common/ChartBlock/ChartBlock.jsx', () => ({ default: () => <div data-testid="chart" /> }))
 vi.mock('../../common/CsvBlock/CsvBlock.jsx', () => ({ default: () => <div data-testid="csv" /> }))
-vi.mock('./HeroChat/HeroChat.jsx', () => ({ default: () => <div data-testid="hero-chat" /> }))
-vi.mock('./SettingsPreview/SettingsPreview.jsx', () => ({ default: () => <div data-testid="settings-preview" /> }))
-vi.mock('./SkillsPreview/SkillsPreview.jsx', () => ({ default: () => <div data-testid="skills-preview" /> }))
 vi.mock('react-syntax-highlighter', () => ({ Prism: ({ children }) => <pre>{children}</pre> }))
 vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({ oneDark: {} }))
 
+const INTRO_SEEN_KEY = 'soporti_landing_intro_seen'
+const REPO = 'https://github.com/reveni-io/soporti'
+
 describe('Landing', () => {
   beforeEach(() => {
-    try {
-      localStorage.clear()
-    } catch {}
+    localStorage.clear()
+    sessionStorage.clear()
+    sessionStorage.setItem(INTRO_SEEN_KEY, '1')
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
   it('renders the hero headline', () => {
     render(<Landing />)
-    expect(screen.getByText('how your product works')).toBeInTheDocument()
+
+    expect(screen.getByRole('heading', { level: 1, name: /ask anything about your data/i })).toBeInTheDocument()
   })
 
   it('shows a "Log in" CTA to /login when there is no session', () => {
     render(<Landing />)
+
     const logins = screen.getAllByRole('link', { name: /log in/i })
     expect(logins.length).toBeGreaterThan(0)
-    expect(logins[0]).toHaveAttribute('href', '/login')
+    logins.forEach(link => expect(link).toHaveAttribute('href', '/login'))
     expect(screen.queryByRole('link', { name: /open soporti/i })).not.toBeInTheDocument()
   })
 
   it('shows an "Open Soporti" CTA to /chat when a session exists', () => {
     localStorage.setItem('auth_token', 'tok')
+
     render(<Landing />)
-    const enter = screen.getAllByRole('link', { name: /open soporti/i })
-    expect(enter.length).toBeGreaterThan(0)
-    expect(enter[0]).toHaveAttribute('href', '/chat')
-    expect(screen.queryByRole('link', { name: /log in/i })).not.toBeInTheDocument()
-  })
 
-  it('lists the connected integrations', () => {
-    const { container } = render(<Landing />)
-    const intNames = [...container.querySelectorAll('.lp-int__name')].map(el => el.textContent)
-    expect(intNames).toContain('GitHub')
-    expect(intNames).toContain('Help Center')
-    expect(intNames).toContain('Shopify')
-  })
-
-  it('presents the Sendcloud integration in its own section', () => {
-    const { container } = render(<Landing />)
-
-    expect(container.querySelector('#sendcloud')).toHaveTextContent('Where is the parcel?')
-  })
-
-  it('presents the HubSpot integration in its own section, right after Sendcloud', () => {
-    const { container } = render(<Landing />)
-    const hubspot = container.querySelector('#hubspot')
-
-    expect(hubspot).toHaveTextContent('Ask and update the CRM without leaving Soporti')
-    expect(container.querySelector('#sendcloud').nextElementSibling).toBe(hubspot)
-  })
-
-  it('presents the product videos in their own section, right after artifacts', () => {
-    const { container } = render(<Landing />)
-    const videos = container.querySelector('#videos')
-
-    expect(videos).toHaveTextContent('From a brief to a product video, with its own soundtrack.')
-    expect(container.querySelector('#artifacts').nextElementSibling).toBe(videos)
-  })
-
-  it('presents analytics in its own section, right after the product videos', () => {
-    const { container } = render(<Landing />)
-    const analytics = container.querySelector('#analytics')
-
-    expect(analytics).toHaveTextContent('Ask for a chart. Get a live dashboard you arrange by hand.')
-    expect(container.querySelector('#videos').nextElementSibling).toBe(analytics)
-  })
-
-  it('presents bots in their own section, right after the automations', () => {
-    const { container } = render(<Landing />)
-    const bots = container.querySelector('#bots')
-
-    expect(bots).toHaveTextContent('Describe a job once. A bot keeps doing it on schedule.')
-    expect(container.querySelector('#automations').nextElementSibling).toBe(bots)
-  })
-
-  it('lists the supported LLM providers', () => {
-    const { container } = render(<Landing />)
-    const provNames = [...container.querySelectorAll('.lp-prov__name')].map(el => el.textContent)
-    expect(provNames).toEqual(['OpenAI', 'Anthropic'])
-  })
-
-  it('links to the public GitHub repository (nav + footer, always visible)', () => {
-    render(<Landing hideCta />)
-    const ghLinks = screen.getAllByRole('link', { name: /github/i })
-    expect(ghLinks.length).toBeGreaterThanOrEqual(2)
-    ghLinks.forEach(link => {
-      expect(link).toHaveAttribute('href', 'https://github.com/reveni-io/soporti')
-    })
-  })
-
-  it('shows real example questions', () => {
-    render(<Landing />)
-    expect(screen.getByText(/sign up with an email that already exists/i)).toBeInTheDocument()
-  })
-
-  it('presents skills as /commands, with a nav link to the section', () => {
-    const { container } = render(<Landing />)
-    expect(screen.getByRole('link', { name: 'Skills' })).toHaveAttribute('href', '#skills')
-    expect(container.querySelector('#skills')).toBeTruthy()
-    expect(screen.getByTestId('skills-preview')).toBeInTheDocument()
-    expect(screen.getByText('/code-review')).toBeInTheDocument()
-    expect(screen.getByText(/follows it for the rest of that/i)).toBeInTheDocument()
-  })
-
-  it('presents the public "Let Me Soporti That For You" link, with its own section', () => {
-    const { container } = render(<Landing />)
-    expect(container.querySelector('#lmstfy')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /make a link/i })).toHaveAttribute('href', '/lmstfy')
-  })
-
-  it('embeds a real (pre-rendered) Mermaid diagram even without a session', () => {
-    const { container } = render(<Landing />)
-    const diagram = container.querySelector('.mermaid-diagram')
-    expect(diagram).toBeTruthy()
-    expect(diagram.querySelector('svg')).toBeTruthy()
+    const opens = screen.getAllByRole('link', { name: /open soporti/i })
+    expect(opens.length).toBeGreaterThan(0)
+    opens.forEach(link => expect(link).toHaveAttribute('href', '/chat'))
   })
 
   it('falls back to the logged-out CTA when localStorage is unavailable', () => {
@@ -138,10 +54,99 @@ describe('Landing', () => {
         throw new Error('storage disabled')
       },
     })
+
     render(<Landing />)
-    const logins = screen.getAllByRole('link', { name: /log in/i })
-    expect(logins.length).toBeGreaterThan(0)
-    expect(logins[0]).toHaveAttribute('href', '/login')
+
+    expect(screen.getAllByRole('link', { name: /log in/i })[0]).toHaveAttribute('href', '/login')
+  })
+
+  it('points every call to action to the repository on the public build', () => {
+    render(<Landing hideCta />)
+
+    expect(screen.queryByRole('link', { name: /log in/i })).not.toBeInTheDocument()
+    const github = screen.getAllByRole('link', { name: /get it on github/i })
+    expect(github).toHaveLength(2)
+    github.forEach(link => expect(link).toHaveAttribute('href', REPO))
+    expect(screen.getByLabelText('Soporti on GitHub')).toHaveAttribute('href', REPO)
+    expect(screen.getByRole('link', { name: /view on github/i })).toHaveAttribute('href', REPO)
+  })
+
+  it('links every navigation item to a section of the page', () => {
+    const { container } = render(<Landing />)
+
+    const links = screen.getAllByRole('link').filter(link => link.getAttribute('href').startsWith('#'))
+    expect(links.length).toBeGreaterThanOrEqual(5)
+    links.forEach(link => expect(container.querySelector(link.getAttribute('href'))).toBeInTheDocument())
+  })
+
+  it('shows real example questions', () => {
+    render(<Landing />)
+
+    expect(screen.getAllByText(/signs up with an email that already exists/i).length).toBeGreaterThan(0)
+  })
+
+  it('presents the answers, the deliverables, the integrations, the automations, MCP and security', () => {
+    render(<Landing />)
+
+    expect(screen.getByRole('heading', { level: 2, name: /charts, tables, diagrams and code/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /when the answer is a deliverable/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /plugged into the tools/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /it keeps working/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /your other agents can ask soporti/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /zero blast radius/i })).toBeInTheDocument()
+  })
+
+  describe('intro', () => {
+    beforeEach(() => {
+      sessionStorage.clear()
+      vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    })
+
+    it('plays the intro on the first visit of the session and then hands over to the page', async () => {
+      vi.useFakeTimers()
+      const { container } = render(<Landing />)
+
+      expect(container.querySelector('.lp-intro')).toBeInTheDocument()
+      expect(container.firstChild).toHaveClass('lp--intro-playing')
+
+      await act(async () => {
+        vi.advanceTimersByTime(2300)
+      })
+      expect(container.firstChild).toHaveClass('lp--intro-leaving')
+
+      await act(async () => {
+        vi.advanceTimersByTime(1100)
+      })
+      expect(container.querySelector('.lp-intro')).not.toBeInTheDocument()
+      expect(container.firstChild).toHaveClass('lp')
+      expect(container.firstChild).not.toHaveClass('lp--intro-leaving')
+    })
+
+    it('holds the hero demo until the intro is gone', async () => {
+      vi.useFakeTimers()
+      render(<Landing />)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+      expect(screen.queryByText('How many returns did Acme get in the last 7 days?')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1300)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600)
+      })
+      expect(screen.getByText('How many returns did Acme get in the last 7 days?')).toBeInTheDocument()
+    })
+
+    it('does not play again in the same session', () => {
+      sessionStorage.setItem(INTRO_SEEN_KEY, '1')
+
+      const { container } = render(<Landing />)
+
+      expect(container.querySelector('.lp-intro')).not.toBeInTheDocument()
+    })
   })
 
   describe('scroll reveal', () => {
@@ -153,11 +158,19 @@ describe('Landing', () => {
         this.elements = []
         observers.push(this)
       }
-      observe(el) {
-        this.elements.push(el)
+      observe(element) {
+        this.elements.push(element)
       }
       unobserve() {}
       disconnect() {}
+    }
+
+    function intersect(isIntersecting) {
+      act(() => {
+        observers.forEach(observer =>
+          observer.elements.forEach(element => observer.callback([{ isIntersecting, target: element }], observer))
+        )
+      })
     }
 
     beforeEach(() => {
@@ -165,21 +178,18 @@ describe('Landing', () => {
       vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
     })
 
-    const intersect = isIntersecting => {
-      observers.forEach(io => io.elements.forEach(el => io.callback([{ isIntersecting, target: el }], io)))
-    }
-
-    it('reveals sections only when they scroll into view', () => {
+    it('reveals each section only once it scrolls into view', () => {
       const { container } = render(<Landing />)
-      expect(container.querySelector('.lp-reveal.is-visible')).toBeNull()
+      const stages = container.querySelectorAll('.lp-stage')
+
+      expect(stages.length).toBeGreaterThan(5)
+      expect(container.querySelector('.lp-stage.is-visible')).toBeNull()
 
       intersect(false)
-      expect(container.querySelector('.lp-reveal.is-visible')).toBeNull()
+      expect(container.querySelector('.lp-stage.is-visible')).toBeNull()
 
       intersect(true)
-      const revealed = container.querySelectorAll('.lp-reveal.is-visible')
-      expect(revealed.length).toBeGreaterThan(0)
-      expect(revealed.length).toBe(container.querySelectorAll('.lp-reveal').length)
+      expect(container.querySelectorAll('.lp-stage.is-visible')).toHaveLength(stages.length)
     })
   })
 })

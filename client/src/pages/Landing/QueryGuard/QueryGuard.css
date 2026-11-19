@@ -1,0 +1,88 @@
+.lp-guard .lp-preview-window {
+  height: 25rem;
+}
+
+.lp-guard__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding: var(--sp5);
+  list-style: none;
+}
+
+.lp-guard__check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.1);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--green-inverse-rgb), 0.03);
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+  transition:
+    border-color var(--motion-base) ease,
+    background-color var(--motion-base) ease;
+}
+
+.lp-guard__statement {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: rgba(var(--green-inverse-rgb), 0.86);
+}
+
+.lp-guard__verdict {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  animation: lp-pop-in var(--motion-base) var(--ease-out-expo);
+}
+
+.lp-guard__check--checking {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--green-inverse-rgb), 0.03) 25%,
+    rgba(var(--green-bright-rgb), 0.1) 50%,
+    rgba(var(--green-inverse-rgb), 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation:
+    lp-pop-in var(--motion-slow) var(--ease-out-expo),
+    lp-shimmer-block 1.2s linear infinite;
+}
+
+.lp-guard__check--checking .lp-guard__verdict {
+  color: rgba(var(--green-inverse-rgb), 0.5);
+}
+
+.lp-guard__check--allowed {
+  border-color: rgba(var(--green-bright-rgb), 0.4);
+}
+
+.lp-guard__check--allowed .lp-guard__verdict {
+  color: var(--green-bright);
+}
+
+.lp-guard__check--blocked {
+  border-color: rgba(var(--orange-500-rgb), 0.45);
+  background: rgba(var(--orange-500-rgb), 0.06);
+}
+
+.lp-guard__check--blocked .lp-guard__statement {
+  text-decoration: line-through;
+  text-decoration-color: var(--orange-500);
+  color: rgba(var(--green-inverse-rgb), 0.5);
+}
+
+.lp-guard__check--blocked .lp-guard__verdict {
+  color: var(--orange-300);
+}
+
+.lp-guard__check--redacted {
+  border-color: rgba(var(--green-inverse-rgb), 0.25);
+}
+
+.lp-guard__check--redacted .lp-guard__verdict {
+  color: rgba(var(--green-inverse-rgb), 0.75);
+}

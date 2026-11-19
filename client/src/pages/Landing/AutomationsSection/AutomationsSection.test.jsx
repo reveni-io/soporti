@@ -1,45 +1,79 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import AutomationsSection from './AutomationsSection.jsx'
 
 describe('AutomationsSection', () => {
-  it('renders a light card per automation, each with its bullets', () => {
+  it('opens on the pull request reviews', () => {
     const { container } = render(<AutomationsSection />)
 
-    expect(container.querySelector('.lp-feat__grid--2col')).toBeInTheDocument()
-    expect(container.querySelectorAll('.lp-feat--light')).toHaveLength(4)
-    expect(container.querySelectorAll('.lp-feat__list')).toHaveLength(4)
-    expect(screen.getByText('Slack teammate')).toBeInTheDocument()
-    expect(screen.getByText('Scheduled queries')).toBeInTheDocument()
-    expect(screen.getByText('Automated PR reviews')).toBeInTheDocument()
-    expect(screen.getByText('Learns from feedback')).toBeInTheDocument()
-    expect(screen.getByText(/never blocks/i)).toBeInTheDocument()
+    expect(container.querySelector('section')).toHaveAttribute('id', 'automations')
     expect(
-      screen.getByText(/whole diff, your standards and the stories already loaded, so nothing goes unread/i)
+      screen.getByRole('heading', { level: 2, name: /it keeps working when nobody is asking/i })
     ).toBeInTheDocument()
-    expect(screen.getByText(/cites your REVIEW.md, CLAUDE.md & ADRs/i)).toBeInTheDocument()
-    expect(screen.getByText(/one walkthrough per PR, updated in place/i)).toBeInTheDocument()
-    expect(screen.getByText(/one-click suggestions and a prompt for your AI agent/i)).toBeInTheDocument()
-    expect(screen.getByText(/nits stay collapsed/i)).toBeInTheDocument()
-    expect(screen.getByText(/never repeat resolved findings/i)).toBeInTheDocument()
-    expect(screen.getByText(/marks that comment “Addressed in commit …” and resolves the thread/i)).toBeInTheDocument()
-    expect(screen.getByText(/a team of Soporti agents reviews the code/i)).toBeInTheDocument()
-    expect(screen.getByText(/specialized passes in parallel: correctness, security, standards/i)).toBeInTheDocument()
-    expect(screen.getByText(/split the correctness pass across up to four agents/i)).toBeInTheDocument()
-    expect(screen.getByText(/tries to refute every actionable finding/i)).toBeInTheDocument()
-    expect(screen.getByText(/folds duplicates into one comment/i)).toBeInTheDocument()
-    expect(screen.getByText(/at the turn limit it hands in what it already verified/i)).toBeInTheDocument()
-    expect(screen.getByText(/why each one was flagged/i)).toBeInTheDocument()
-    expect(screen.getByText(/every push gets re-reviewed/i)).toBeInTheDocument()
-    expect(screen.getByText(/ties a broken test to the line that broke it/i)).toBeInTheDocument()
-    expect(screen.getByText(/comment “@soporti review” on the PR/i)).toBeInTheDocument()
-    expect(screen.getByText(/any other @-mention gets a reply/i)).toBeInTheDocument()
-    expect(screen.getByText(/hourly, daily, weekly or monthly/i)).toBeInTheDocument()
-    expect(screen.getByText(/edit the question, cadence or sources anytime/i)).toBeInTheDocument()
-    expect(screen.getByText(/errors in the last hour” are measured from when each run starts/i)).toBeInTheDocument()
-    expect(screen.getByText(/posts to a channel when you ask, from any conversation/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/summarize the new Sentry issues in #support” — and each run posts it there/i)
-    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /reviews every pull request/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Fix refund rounding for partial returns')
+  })
+
+  it('shows the Slack thread and the scheduled query when they are picked', async () => {
+    const user = userEvent.setup()
+    render(<AutomationsSection />)
+
+    await user.click(screen.getByRole('tab', { name: /answers in slack threads/i }))
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('why are refunds failing for Acme since this morning?')
+
+    await user.click(screen.getByRole('tab', { name: /runs on a schedule/i }))
+    expect(screen.getByRole('tab', { name: /runs on a schedule/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Scheduled queries')
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'lp-automations-tab-schedule')
+  })
+
+  describe('auto-advance (with IntersectionObserver)', () => {
+    let observers
+
+    class MockIntersectionObserver {
+      constructor(callback) {
+        this.callback = callback
+        this.elements = []
+        observers.push(this)
+      }
+      observe(element) {
+        this.elements.push(element)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+
+    beforeEach(() => {
+      observers = []
+      vi.useFakeTimers()
+      vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+      vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    })
+
+    afterEach(() => {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    })
+
+    it('moves on to the next automation on its own while in view', async () => {
+      render(<AutomationsSection />)
+      act(() => {
+        observers.forEach(observer =>
+          observer.elements.forEach(element => observer.callback([{ isIntersecting: true, target: element }]))
+        )
+      })
+
+      expect(
+        screen.getByRole('tab', { name: /reviews every pull request/i }).querySelector('.lp-progress-bar')
+      ).toBeTruthy()
+
+      await act(async () => {
+        vi.advanceTimersByTime(10000)
+      })
+
+      expect(screen.getByRole('tab', { name: /answers in slack threads/i })).toHaveAttribute('aria-selected', 'true')
+    })
   })
 })

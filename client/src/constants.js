@@ -33,8 +33,6 @@ export const ATTACHMENT_MIME_TYPES = { ...DOCUMENT_MIME_TYPES, ...IMAGE_MIME_TYP
 
 export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_MIME_TYPES).join(',')
 
-export const IMAGE_RETENTION_DAYS = 30
-
 export const THUMBNAIL_MAX_PIXELS = 96
 export const THUMBNAIL_MIME_TYPE = 'image/webp'
 export const THUMBNAIL_QUALITY = 0.7

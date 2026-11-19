@@ -98,7 +98,7 @@ export default function SkillsPreview() {
               <span className="lp-skills-preview__placeholder">Ask Soporti anything...</span>
             )}
           </div>
-          <span className="lp-skills-preview__send">&#8593;</span>
+          <span className="lp-send">&#8593;</span>
         </div>
       </PreviewWindow>
     </div>

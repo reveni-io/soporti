@@ -1,25 +1,36 @@
-import GridPattern from '../../../common/GridPattern/GridPattern.jsx'
-import Icon from '../../../common/Icon/Icon.jsx'
+import CtaButton from '../CtaButton/CtaButton.jsx'
+import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
+import { GITHUB_CTA, GITHUB_URL } from '../constants.js'
+import { useReveal } from '../hooks/useReveal/useReveal.js'
+import { staggerStyle } from '../stagger.js'
+import './LandingCta.css'
 
-const ARROW_STROKE = 2.2
+const GITHUB_ICON_SIZE = 16
 
 export default function LandingCta({ cta }) {
+  const ref = useReveal()
+
   return (
-    <section className="lp-section lp-section--dark lp-cta">
-      <div className="lp-cta__grid">
-        <GridPattern variant="dark" />
-      </div>
-      <div className="lp__inner lp-cta__inner">
-        <h2 className="lp-cta__title">Stop guessing. Just ask Soporti.</h2>
-        <p className="lp-cta__sub">Your AI teammate for code, data &amp; docs — one question away.</p>
-        {cta && (
-          <div className="lp-cta__actions">
-            <a className="lp-btn lp-btn--primary" href={cta.href}>
-              {cta.label}
-              <Icon name="arrow-right" className="lp-btn__arrow" strokeWidth={ARROW_STROKE} />
+    <section className="lp-cta">
+      <div className="lp-cta__glow" aria-hidden="true" />
+      <div className="lp-cta__horizon" aria-hidden="true" />
+      <div className="lp__inner lp-cta__inner" ref={ref}>
+        <h2 className="lp-cta__title lp-rise">
+          Stop guessing. <br />
+          <em className="lp-gradient-text">Just ask Soporti.</em>
+        </h2>
+        <p className="lp-cta__sub lp-rise" style={staggerStyle(1)}>
+          Your AI teammate for code, data and docs, one question away.
+        </p>
+        <div className="lp-cta__actions lp-rise" style={staggerStyle(2)}>
+          <CtaButton cta={cta ?? GITHUB_CTA} />
+          {cta && (
+            <a className="lp-btn lp-btn--ghost" href={GITHUB_URL} target="_blank" rel="noreferrer">
+              <IntegrationIcon id="github" size={GITHUB_ICON_SIZE} />
+              Star on GitHub
             </a>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </section>
   )

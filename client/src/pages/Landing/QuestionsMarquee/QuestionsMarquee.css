@@ -1,0 +1,78 @@
+.lp-questions {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding-block: var(--sp4) var(--sp20);
+}
+
+.lp-questions__title {
+  margin-bottom: var(--sp5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+  color: rgba(var(--green-inverse-rgb), 0.5);
+}
+
+.lp-questions__row {
+  display: flex;
+  gap: var(--sp3);
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, var(--green-deep) 14%, var(--green-deep) 86%, transparent);
+}
+
+.lp-questions__track {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--sp3);
+  min-width: 100%;
+  list-style: none;
+  animation: lp-marquee 70s linear infinite;
+}
+
+.lp-questions__row--reverse .lp-questions__track {
+  animation-direction: reverse;
+  animation-duration: 80s;
+}
+
+.lp-questions__row:hover .lp-questions__track {
+  animation-play-state: paused;
+}
+
+.lp-questions__chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp5);
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.1);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-inverse-rgb), 0.035);
+  font-size: var(--fs-base);
+  white-space: nowrap;
+  color: rgba(var(--green-inverse-rgb), 0.78);
+  transition:
+    border-color var(--motion-base) ease,
+    background-color var(--motion-base) ease,
+    color var(--motion-base) ease;
+}
+
+.lp-questions__chip svg {
+  flex-shrink: 0;
+  color: var(--green-bright);
+}
+
+.lp-questions__chip:hover {
+  border-color: rgba(var(--green-bright-rgb), 0.5);
+  background: rgba(var(--green-bright-rgb), 0.08);
+  color: var(--green-inverse);
+}
+
+@keyframes lp-marquee {
+  to {
+    transform: translateX(calc(-100% - var(--sp3)));
+  }
+}

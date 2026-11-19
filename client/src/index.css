@@ -4,6 +4,7 @@
   --green-bright-hover: #57d754;
   --green-deep: #042503;
   --green-deep-soft: #0d3a0b;
+  --green-night: #021602;
   --green-inverse: #f0fbee;
   --green-mid: #556654;
   --green-low: #8a9d89;
@@ -16,9 +17,11 @@
 
   --green-bright-rgb: 108, 232, 105;
   --green-deep-rgb: 4, 37, 3;
+  --green-night-rgb: 2, 22, 2;
   --green-inverse-rgb: 240, 251, 238;
   --green-chart-rgb: 47, 158, 44;
   --bg-warm-rgb: 250, 244, 240;
+  --orange-500-rgb: 242, 133, 54;
 
   --orange-50: #fdeadd;
   --orange-300: #f2b280;
@@ -87,21 +90,28 @@
   --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
   --shadow-glow: 0 8px 24px rgba(var(--green-bright-rgb), 0.3);
   --shadow-topbar: 0 10px 30px rgba(var(--green-deep-rgb), 0.06);
+  --shadow-window: 0 40px 90px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(var(--green-inverse-rgb), 0.06);
+  --shadow-glow-strong: 0 0 40px rgba(var(--green-bright-rgb), 0.45);
 
   --blur-overlay: 6px;
   --blur-enter: 3px;
+  --blur-reveal: 8px;
+  --blur-glass: 16px;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --motion-fast: 0.16s;
   --motion-base: 0.24s;
   --motion-slow: 0.42s;
+  --motion-reveal: 0.9s;
   --motion-stagger: 30ms;
+  --motion-stagger-wide: 90ms;
 
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
   --radius-pill: 999px;
 
   --sp1: 0.25rem;
@@ -112,7 +122,12 @@
   --sp6: 1.5rem;
   --sp8: 2rem;
   --sp10: 2.5rem;
+  --sp12: 3rem;
   --sp16: 4rem;
+  --sp20: 5rem;
+  --sp32: 8rem;
+  --sp-gutter: clamp(var(--sp5), 5vw, var(--sp12));
+  --sp-section: clamp(var(--sp20), 11vw, var(--sp32));
 
   --artifact-panel-width: 30rem;
   --sidebar-width: 17.5rem;
@@ -134,6 +149,13 @@
   --fs-2xl: 1.25rem;
   --fs-3xl: 1.5rem;
   --fs-4xl: 1.75rem;
+  --fs-lead: clamp(1rem, 1.4vw, 1.175rem);
+  --fs-display-sm: clamp(1.6rem, 2.6vw, 2.1rem);
+  --fs-display-md: clamp(2.1rem, 4.6vw, 3.6rem);
+  --fs-display-lg: clamp(2.7rem, 6.4vw, 5.4rem);
+  --fs-display-xl: clamp(4.5rem, 21vw, 19rem);
+
+  --layout-landing-max: 75rem;
 }
 
 *,

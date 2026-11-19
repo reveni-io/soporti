@@ -1,0 +1,121 @@
+.lp-schedule-demo .lp-preview-window {
+  height: 28rem;
+}
+
+.lp-schedule-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+  padding: var(--sp5);
+}
+
+.lp-schedule-demo__query {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-cool);
+}
+
+.lp-schedule-demo__question {
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.lp-schedule-demo__settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp1);
+}
+
+.lp-schedule-demo__runs {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding-left: var(--sp5);
+  list-style: none;
+}
+
+.lp-schedule-demo__runs::before {
+  content: '';
+  position: absolute;
+  top: var(--sp2);
+  bottom: var(--sp2);
+  left: 4px;
+  width: 2px;
+  background: var(--border-default);
+}
+
+.lp-schedule-demo__run {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-sm);
+}
+
+.lp-schedule-demo__marker {
+  position: absolute;
+  top: var(--sp1);
+  left: calc(-1 * var(--sp5));
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green-chart);
+  box-shadow: 0 0 0 3px var(--bg-surface);
+}
+
+.lp-schedule-demo__run--stage-0 .lp-schedule-demo__marker {
+  background: var(--border-strong);
+}
+
+.lp-schedule-demo__run--stage-1 .lp-schedule-demo__marker {
+  background: var(--bg-surface);
+  box-shadow:
+    0 0 0 3px var(--bg-surface),
+    0 0 0 5px rgba(var(--green-chart-rgb), 0.35);
+  animation: lp-pulse 1s ease-in-out infinite;
+}
+
+.lp-schedule-demo__when {
+  font-weight: 600;
+}
+
+.lp-schedule-demo__result {
+  color: var(--text-secondary);
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-schedule-demo__run--past {
+  opacity: 0.6;
+}
+
+.lp-schedule-demo__post {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  padding: var(--sp3) var(--sp4);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--green-chart);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-drag);
+  animation: lp-pop-in var(--motion-slow) var(--ease-spring);
+}
+
+.lp-schedule-demo__post ul {
+  padding-left: var(--sp4);
+  color: var(--text-secondary);
+}
+
+.lp-schedule-demo__channel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+}

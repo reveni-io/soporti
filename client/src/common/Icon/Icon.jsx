@@ -9,6 +9,12 @@ const ICON_SHAPES = {
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </>
   ),
+  lock: (
+    <>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </>
+  ),
   shield: (
     <>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

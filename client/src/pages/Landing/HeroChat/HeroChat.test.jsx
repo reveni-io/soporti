@@ -1,82 +1,58 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import HeroChat from './HeroChat.jsx'
 
+const QUESTION = { role: 'user', text: 'Look up order #1024 in Shopify for Acme' }
+
+function assistant(overrides) {
+  return { role: 'assistant', phase: 'tools', tools: [], answer: [], ...overrides }
+}
+
 describe('HeroChat', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
+  it('renders the chat window with its composer', () => {
+    render(<HeroChat messages={[]} />)
 
-  afterEach(() => {
-    vi.clearAllTimers()
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
-
-  it('renders the chat window chrome', () => {
-    render(<HeroChat />)
     expect(screen.getByText('Soporti')).toBeInTheDocument()
     expect(screen.getByText('YOLO')).toBeInTheDocument()
+    expect(screen.getByText('Ask Soporti anything…')).toBeInTheDocument()
   })
 
-  it('plays the first question as the loop advances', async () => {
-    render(<HeroChat />)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(700)
-    })
-    expect(screen.getByText(/how many returns did acme get/i)).toBeInTheDocument()
+  it('shows the question and the thinking indicator before any tool runs', () => {
+    const { container } = render(<HeroChat messages={[QUESTION, assistant({ phase: 'thinking' })]} />)
+
+    expect(screen.getByText(QUESTION.text)).toBeInTheDocument()
+    expect(container.querySelector('.message__typing')).toBeInTheDocument()
   })
 
-  it('renders a static exchange when reduced motion is preferred', () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
-    render(<HeroChat />)
-    expect(screen.getByText(/how many returns did acme get/i)).toBeInTheDocument()
-    expect(screen.getByText('1,284 returns')).toBeInTheDocument()
+  it('shows a running tool without its duration and lights its source up', () => {
+    const tools = [{ source: 'shopify', label: 'Searching Shopify', detail: 'order #1024', duration: '0.8s' }]
+    const { container } = render(<HeroChat messages={[QUESTION, assistant({ tools })]} />)
+
+    expect(screen.getByText('Searching Shopify')).toBeInTheDocument()
+    expect(screen.queryByText('0.8s')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-source="shopify"]')).toHaveAttribute('data-state', 'running')
+    expect(container.querySelector('[data-source="github"]')).toHaveAttribute('data-state', 'idle')
   })
 
-  it('shows the thinking indicator after the question lands', async () => {
-    const { container } = render(<HeroChat />)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1600)
-    })
-    expect(container.querySelector('.message__typing')).toBeTruthy()
+  it('marks a finished tool with its duration and keeps a source running while another of its tools runs', () => {
+    const tools = [
+      { source: 'github', label: 'Searching code', detail: 'labels', duration: '1.4s', done: true },
+      { source: 'github', label: 'Reading file', detail: 'labels/service.rb', duration: '0.5s' },
+      { source: 'postgres', label: 'Querying database', detail: 'returns', duration: '0.6s', done: true },
+    ]
+    const { container } = render(<HeroChat messages={[QUESTION, assistant({ tools })]} />)
+
+    expect(screen.getByText('1.4s')).toBeInTheDocument()
+    expect(screen.queryByText('0.5s')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-source="github"]')).toHaveAttribute('data-state', 'running')
+    expect(container.querySelector('[data-source="postgres"]')).toHaveAttribute('data-state', 'done')
   })
 
-  it('runs a tool and marks it done with its duration', async () => {
-    render(<HeroChat />)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2800)
-    })
-    expect(screen.getByText('Querying database')).toBeInTheDocument()
-    expect(screen.getByText('returns · merchant Acme')).toBeInTheDocument()
-    expect(screen.queryByText('1.2s')).not.toBeInTheDocument()
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1250)
-    })
-    expect(screen.getByText('✓')).toBeInTheDocument()
-    expect(screen.getByText('1.2s')).toBeInTheDocument()
-  })
+  it('renders the streamed answer with its highlighted tokens', () => {
+    const answer = [{ t: 'Order ' }, { t: '#1024', b: true }, { t: ' is fulfilled.' }]
+    render(<HeroChat messages={[QUESTION, assistant({ phase: 'answer', answer })]} />)
 
-  it('streams the answer token by token', async () => {
-    render(<HeroChat />)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(4500)
-    })
-    expect(screen.getByText(/acme had/i)).toBeInTheDocument()
-    expect(screen.queryByText('wrong size')).not.toBeInTheDocument()
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1200)
-    })
-    expect(screen.getByText('wrong size')).toBeInTheDocument()
-    expect(screen.getByText(/\(38%\)\./)).toBeInTheDocument()
-  })
-
-  it('advances to the next scenario after the full exchange', async () => {
-    render(<HeroChat />)
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10700)
-    })
-    expect(screen.getByText(/look up order #1024 in shopify/i)).toBeInTheDocument()
-    expect(screen.queryByText(/how many returns did acme get/i)).not.toBeInTheDocument()
+    expect(screen.getByText('#1024').tagName).toBe('STRONG')
+    expect(screen.getByText(/is fulfilled/)).toBeInTheDocument()
   })
 })

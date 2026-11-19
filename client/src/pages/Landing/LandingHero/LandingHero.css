@@ -1,0 +1,209 @@
+.lp-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-top: calc(var(--sp32) + var(--sp8));
+  padding-bottom: var(--sp20);
+}
+
+.lp-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  z-index: -1;
+  height: 35%;
+  background: linear-gradient(to bottom, transparent, var(--green-night));
+}
+
+.lp-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.lp-hero__grid {
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(100vh, 56rem);
+  opacity: 0.6;
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 45%, var(--green-deep) 25%, transparent 78%);
+}
+
+.lp-hero__aurora {
+  position: absolute;
+  background: radial-gradient(closest-side, var(--aurora-color), transparent);
+  opacity: 0.75;
+  will-change: transform;
+  animation: lp-hero-drift 18s ease-in-out infinite alternate;
+}
+
+.lp-hero__aurora--one {
+  --aurora-color: rgba(var(--green-bright-rgb), 0.32);
+  top: -24%;
+  left: 2%;
+  width: 60vw;
+  height: 48vw;
+}
+
+.lp-hero__aurora--two {
+  --aurora-color: color-mix(in srgb, var(--chart-4) 55%, transparent);
+  top: -16%;
+  right: -4%;
+  width: 54vw;
+  height: 44vw;
+  animation-duration: 23s;
+  animation-delay: -7s;
+}
+
+.lp-hero__aurora--three {
+  --aurora-color: rgba(var(--green-chart-rgb), 0.42);
+  top: 40%;
+  left: 14%;
+  width: 72vw;
+  height: 36vw;
+  animation-duration: 27s;
+  animation-delay: -12s;
+}
+
+@keyframes lp-hero-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, 8%, 0) scale(1.18);
+  }
+}
+
+.lp-hero__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.lp-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp1) var(--sp3) var(--sp1) var(--sp3);
+  border: 1px solid rgba(var(--green-bright-rgb), 0.3);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-bright-rgb), 0.07);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green-bright);
+  animation: lp-pop-in 0.9s var(--ease-out-expo) both;
+  transition:
+    background-color var(--motion-base) ease,
+    border-color var(--motion-base) ease;
+}
+
+.lp-hero__badge:hover {
+  border-color: rgba(var(--green-bright-rgb), 0.6);
+  background: rgba(var(--green-bright-rgb), 0.14);
+}
+
+.lp-hero__badge-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-bright);
+}
+
+.lp-hero__badge-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: lp-ping 2s ease-out infinite;
+}
+
+.lp-hero__title {
+  margin-top: var(--sp8);
+  font-family: var(--font-heading);
+  font-size: var(--fs-display-lg);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  animation: lp-pop-in 1s var(--ease-out-expo) 0.08s both;
+}
+
+.lp-hero__topic {
+  display: inline-block;
+  overflow: hidden;
+  padding: 0 0.08em 0.12em 0;
+  vertical-align: bottom;
+}
+
+.lp-hero__topic-word {
+  display: inline-block;
+  padding-right: 0.06em;
+  font-style: italic;
+  animation:
+    lp-hero-word 0.9s var(--ease-out-expo) both,
+    lp-shimmer 7s linear infinite;
+}
+
+@keyframes lp-hero-word {
+  from {
+    opacity: 0;
+    transform: translateY(70%) rotate(4deg);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.lp-hero__subtitle {
+  max-width: 40rem;
+  margin-top: var(--sp8);
+  font-size: var(--fs-lead);
+  line-height: 1.65;
+  color: rgba(var(--green-inverse-rgb), 0.72);
+  text-wrap: pretty;
+  animation: lp-pop-in 1s var(--ease-out-expo) 0.16s both;
+}
+
+.lp-hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp3);
+  margin-top: var(--sp10);
+  animation: lp-pop-in 1s var(--ease-out-expo) 0.24s both;
+}
+
+.lp-hero__proof {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp2) var(--sp6);
+  margin-top: var(--sp8);
+  list-style: none;
+  font-size: var(--fs-md);
+  color: rgba(var(--green-inverse-rgb), 0.58);
+  animation: lp-pop-in 1s var(--ease-out-expo) 0.32s both;
+}
+
+.lp-hero__proof li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.lp-hero__proof svg {
+  color: var(--green-bright);
+}
+
+.lp-hero__visual {
+  width: 100%;
+  margin-top: var(--sp20);
+}
