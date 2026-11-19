@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SchedulesModal from './SchedulesModal.jsx'
 
@@ -18,12 +18,20 @@ const DAILY = {
   lastRunAt: '2026-07-27T07:00:00.000Z',
   lastStatus: 'ok',
   lastError: null,
+  legal: false,
 }
 
 function mockFetch(schedules, { deleteResponse } = {}) {
   let current = schedules
 
   return vi.fn().mockImplementation((url, options = {}) => {
+    if (options.method === 'PATCH') {
+      const legal = JSON.parse(options.body).legal
+      current = current.map(schedule =>
+        url.includes(`/api/schedules/${schedule.id}/`) ? { ...schedule, legal } : schedule
+      )
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedule: DAILY }) })
+    }
     if (options.method === 'PUT') {
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedule: DAILY }) })
     }
@@ -41,6 +49,41 @@ beforeEach(() => {
 })
 
 describe('SchedulesModal', () => {
+  it('turns the Legal review of a query on from its row', async () => {
+    global.fetch = mockFetch([DAILY])
+    const user = userEvent.setup()
+
+    render(
+      <SchedulesModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} selectedSources={[]} selectedProfile="tech" />
+    )
+    const toggle = await screen.findByRole('switch', { name: 'Review with Jev (Legal)' })
+    expect(screen.getByText(/Anyone can turn on Review with Jev \(Legal\) in their own queries/)).toBeInTheDocument()
+
+    await user.click(toggle)
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Review with Jev (Legal)' })).toBeChecked())
+    const patch = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PATCH')
+    expect(patch[0]).toContain('/api/schedules/1/legal')
+    expect(JSON.parse(patch[1].body)).toEqual({ legal: true })
+  })
+
+  it('shows five queries and five more each time the list is scrolled to the end', async () => {
+    global.fetch = mockFetch(
+      Array.from({ length: 12 }, (_, index) => ({ ...DAILY, id: index + 1, question: `Question ${index + 1}` }))
+    )
+
+    render(
+      <SchedulesModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} selectedSources={[]} selectedProfile="tech" />
+    )
+
+    expect(await screen.findByText('Question 5')).toBeInTheDocument()
+    expect(screen.queryByText('Question 6')).not.toBeInTheDocument()
+
+    fireEvent.scroll(screen.getByRole('list'))
+    expect(screen.getByText('Question 10')).toBeInTheDocument()
+    expect(screen.queryByText('Question 11')).not.toBeInTheDocument()
+  })
+
   it('lists every schedule with its cadence and its runs', async () => {
     global.fetch = mockFetch([DAILY])
 

@@ -83,6 +83,7 @@ export const schedules = pgTable(
     lastStatus: text('last_status'),
     lastError: text('last_error'),
     lastResult: text('last_result'),
+    legal: boolean('legal').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

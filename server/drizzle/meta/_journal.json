@@ -218,6 +218,13 @@
       "when": 1795102835653,
       "tag": "0030_auto_approve_evaluations",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795104163193,
+      "tag": "0031_schedules_legal",
+      "breakpoints": true
     }
   ]
 }

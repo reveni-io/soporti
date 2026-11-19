@@ -18,6 +18,7 @@ const scheduleColumns = {
   lastRunAt: schedules.lastRunAt,
   lastStatus: schedules.lastStatus,
   lastError: schedules.lastError,
+  legal: schedules.legal,
 }
 
 const runnableColumns = {
@@ -64,6 +65,23 @@ export async function updateSchedule(id, userId, schedule) {
     .where(ownedSchedule(id, userId))
     .returning(scheduleColumns)
   return row ?? null
+}
+
+export async function setScheduleLegal(id, userId, legal) {
+  const [row] = await getDb()
+    .update(schedules)
+    .set({ legal, updatedAt: new Date() })
+    .where(ownedSchedule(id, userId))
+    .returning(scheduleColumns)
+  return row ?? null
+}
+
+export async function countLegalSchedules() {
+  const [row] = await getDb()
+    .select({ total: sql`count(*)::int` })
+    .from(schedules)
+    .where(and(eq(schedules.legal, true), isNull(schedules.botId)))
+  return row?.total ?? 0
 }
 
 export async function deleteSchedule(id, userId) {

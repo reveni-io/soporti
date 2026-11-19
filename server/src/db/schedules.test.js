@@ -67,6 +67,8 @@ const {
   deleteSchedule,
   claimDueSchedules,
   markScheduleRun,
+  setScheduleLegal,
+  countLegalSchedules,
 } = await import('./schedules.js')
 
 const SCHEDULE_INPUT = {
@@ -288,5 +290,42 @@ describe('markScheduleRun', () => {
 
     const update = calls.find(call => call.op === 'update')
     expect(update.steps.set).toMatchObject({ lastStatus: 'error', lastError: 'boom' })
+  })
+})
+
+describe('setScheduleLegal', () => {
+  it('changes only the Legal review of an owned query', async () => {
+    queue = [[{ id: 1, legal: true }]]
+
+    expect(await setScheduleLegal(1, 7, true)).toEqual({ id: 1, legal: true })
+    const update = calls.find(call => call.op === 'update')
+    expect(update.steps.set).toEqual({ legal: true, updatedAt: expect.any(Date) })
+    expect(update.steps.where.preds).toEqual([
+      { op: 'eq', col: schedules.id, val: 1 },
+      { op: 'eq', col: schedules.userId, val: 7 },
+      OWN_SCHEDULES_ONLY,
+    ])
+  })
+
+  it('returns null when the query is not owned', async () => {
+    queue = [[]]
+
+    expect(await setScheduleLegal(1, 7, false)).toBeNull()
+  })
+})
+
+describe('countLegalSchedules', () => {
+  it('counts the queries of every user with the Legal review on', async () => {
+    queue = [[{ total: 4 }]]
+
+    expect(await countLegalSchedules()).toBe(4)
+    const select = calls.find(call => call.op === 'select')
+    expect(select.steps.where.preds).toEqual([{ op: 'eq', col: schedules.legal, val: true }, OWN_SCHEDULES_ONLY])
+  })
+
+  it('returns 0 without rows', async () => {
+    queue = [[]]
+
+    expect(await countLegalSchedules()).toBe(0)
   })
 })

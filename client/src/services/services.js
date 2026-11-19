@@ -368,6 +368,15 @@ export function updateSchedule(token, id, schedule) {
   })
 }
 
+export function setScheduleLegal(token, id, legal) {
+  return request(`/api/schedules/${id}/legal`, {
+    method: 'PATCH',
+    token,
+    body: { legal },
+    errorMessage: 'Failed to change the Legal review',
+  })
+}
+
 export function deleteSchedule(token, id) {
   return request(`/api/schedules/${id}`, {
     method: 'DELETE',
