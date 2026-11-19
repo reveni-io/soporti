@@ -563,6 +563,35 @@ export function saveVideoEffort(token, effort) {
   })
 }
 
+export function getJevConfig(token) {
+  return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
+}
+
+export function saveJevApiKey(token, apiKey) {
+  return request('/api/admin/config/jev/api-key', {
+    method: 'PUT',
+    token,
+    body: { apiKey },
+    errorMessage: 'Failed to save the API key',
+  })
+}
+
+export function testJevConnection(token) {
+  return request('/api/admin/config/jev/test', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to test the connection',
+  })
+}
+
+export function scanJevModels(token) {
+  return request('/api/admin/config/jev/models/scan', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to scan for models',
+  })
+}
+
 export function getSubagents(token) {
   return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
 }

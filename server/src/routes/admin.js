@@ -5,6 +5,7 @@ import adminSendcloudRouter from './admin-sendcloud.js'
 import adminPostgresRouter from './admin-postgres.js'
 import adminHubspotRouter from './admin-hubspot.js'
 import adminVideoRouter from './admin-video.js'
+import adminJevRouter from './admin-jev.js'
 import { hashPassword, validatePassword } from '../auth/password.js'
 import { verifySetupCode, announceSetupCode } from '../auth/setup-code.js'
 import { getAllowedDomains, setAllowedDomains } from '../auth/allowed-domains.js'
@@ -331,6 +332,7 @@ router.use('/config/sendcloud', adminSendcloudRouter)
 router.use('/config/postgres', adminPostgresRouter)
 router.use('/config/hubspot', adminHubspotRouter)
 router.use('/config/video', adminVideoRouter)
+router.use('/config/jev', adminJevRouter)
 
 router.get('/users', async (_req, res) => {
   try {
