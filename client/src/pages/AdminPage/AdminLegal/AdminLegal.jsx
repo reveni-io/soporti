@@ -19,7 +19,7 @@ function describeSetUsers(queriesOn) {
 
   const queries = queriesOn === 1 ? '1 scheduled query has' : `${queriesOn} scheduled queries have`
 
-  return `Cannot delete the set: ${queries} Review with Jev (Legal) on. They must turn it off first.`
+  return `Cannot delete the set: ${queries} Legal review on. They must turn it off first.`
 }
 
 export default function AdminLegal({ token, onLogout }) {
@@ -50,7 +50,7 @@ export default function AdminLegal({ token, onLogout }) {
         </p>
         <ol className="admin__steps">
           <li>
-            A scheduled query with <strong>Review with Jev (Legal)</strong> on runs at its time.
+            A scheduled query with <strong>Legal review</strong> on runs at its time.
           </li>
           <li>Soporti reads the customer tickets and the data, and drafts a reply for each one.</li>
           <li>
@@ -109,7 +109,7 @@ export default function AdminLegal({ token, onLogout }) {
         </p>
         <p className="note">
           There is no switch here to turn Legal on. Each user turns it on per query with the{' '}
-          <strong>Review with Jev (Legal)</strong> check in Scheduled queries.
+          <strong>Legal review</strong> check in Scheduled queries.
         </p>
       </AdminSection>
 

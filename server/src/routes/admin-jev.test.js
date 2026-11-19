@@ -572,7 +572,7 @@ describe('Legal in the Jev admin routes', () => {
 
     const [, options] = saveJevDocument.mock.calls[0]
     expect(options.plan({ rev: 4, data: { set: LEGAL_SET } })).toEqual({
-      error: 'Cannot delete the set: 3 scheduled queries have Review with Jev (Legal) on. They must turn it off first.',
+      error: 'Cannot delete the set: 3 scheduled queries have Legal review on. They must turn it off first.',
     })
   })
 

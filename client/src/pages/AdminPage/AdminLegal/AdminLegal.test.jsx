@@ -107,9 +107,7 @@ describe('AdminLegal', () => {
     await user.click(screen.getByRole('button', { name: 'Delete set' }))
 
     expect(
-      screen.getByText(
-        'Cannot delete the set: 3 scheduled queries have Review with Jev (Legal) on. They must turn it off first.'
-      )
+      screen.getByText('Cannot delete the set: 3 scheduled queries have Legal review on. They must turn it off first.')
     ).toBeInTheDocument()
   })
 

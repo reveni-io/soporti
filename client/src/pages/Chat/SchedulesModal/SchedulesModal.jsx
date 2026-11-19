@@ -73,8 +73,8 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
           sidebar. You can keep chatting in it like in any other conversation.
         </p>
         <p className="note">
-          Anyone can turn on Review with Jev (Legal) in their own queries. Each query with it on calls Jev with the
-          shared key. It belongs to each query: turning it on in one does not change the others.
+          Anyone can turn on Legal review in their own queries. It belongs to each query: turning it on in one does not
+          change the others.
         </p>
 
         {loading && <p className="schedules-modal__status">Loading…</p>}
@@ -143,7 +143,7 @@ function ScheduleRow({ schedule, isConfirming, onEdit, onAskDelete, onCancelDele
             checked={schedule.legal}
             onChange={event => onLegalChange(event.target.checked)}
           />
-          Review with Jev (Legal)
+          Legal review
         </label>
       </div>
 

@@ -75,9 +75,9 @@ describe('ScheduleForm', () => {
       />
     )
 
-    const check = screen.getByRole('checkbox', { name: 'Review with Jev (Legal)' })
+    const check = screen.getByRole('checkbox', { name: 'Legal review' })
     expect(check).not.toBeChecked()
-    expect(screen.getByText(/There is no sampling\. A query without the check never calls Jev\./)).toBeInTheDocument()
+    expect(screen.getByText(/There is no sampling\. A query without the check is never reviewed\./)).toBeInTheDocument()
 
     await user.type(screen.getByLabelText(/question/i), 'Draft replies to the tickets Legal received yesterday')
     await user.click(check)
@@ -247,7 +247,7 @@ describe('ScheduleForm', () => {
     expect(screen.getByLabelText('minute')).toHaveValue('30')
     expect(screen.getByText('Uses reveni-io/soporti · tech profile · America/New_York')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
-    expect(screen.queryByRole('checkbox', { name: 'Review with Jev (Legal)' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Legal review' })).not.toBeInTheDocument()
   })
 
   it('saves the edited schedule in place with its stored sources, profile and time zone', async () => {

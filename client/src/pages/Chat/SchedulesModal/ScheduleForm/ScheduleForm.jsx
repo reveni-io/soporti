@@ -227,11 +227,11 @@ export default function ScheduleForm({
               onChange={event => setLegal(event.target.checked)}
               disabled={saving}
             />
-            Review with Jev (Legal)
+            Legal review
           </label>
           <span className="schedule-form__hint">
-            If checked, Jev checks every run: the customer’s request and Soporti’s reply, and warns Legal about anything
-            odd. There is no sampling. A query without the check never calls Jev.
+            If checked, Soporti checks every run: the customer’s request and its reply, and warns Legal about anything
+            odd. There is no sampling. A query without the check is never reviewed.
           </span>
         </>
       )}

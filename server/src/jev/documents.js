@@ -307,7 +307,7 @@ function versionedSet(data) {
 function describeQueriesInUse(count) {
   const queries = count === 1 ? '1 scheduled query has' : `${count} scheduled queries have`
 
-  return `Cannot delete the set: ${queries} Review with Jev (Legal) on. They must turn it off first.`
+  return `Cannot delete the set: ${queries} Legal review on. They must turn it off first.`
 }
 
 function findSaveError(previous, next, inUseQueries) {

@@ -56,12 +56,12 @@ describe('SchedulesModal', () => {
     render(
       <SchedulesModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} selectedSources={[]} selectedProfile="tech" />
     )
-    const toggle = await screen.findByRole('switch', { name: 'Review with Jev (Legal)' })
-    expect(screen.getByText(/Anyone can turn on Review with Jev \(Legal\) in their own queries/)).toBeInTheDocument()
+    const toggle = await screen.findByRole('switch', { name: 'Legal review' })
+    expect(screen.getByText(/Anyone can turn on Legal review in their own queries/)).toBeInTheDocument()
 
     await user.click(toggle)
 
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Review with Jev (Legal)' })).toBeChecked())
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Legal review' })).toBeChecked())
     const patch = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PATCH')
     expect(patch[0]).toContain('/api/schedules/1/legal')
     expect(JSON.parse(patch[1].body)).toEqual({ legal: true })

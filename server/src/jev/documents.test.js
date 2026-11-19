@@ -188,7 +188,7 @@ describe('planJevSave', () => {
     const empty = { set: legalSet({ questions: [] }) }
 
     expect(planJevSave({ rev: 3, data: saved }, empty, { inUseQueries: 1 })).toEqual({
-      error: 'Cannot delete the set: 1 scheduled query has Review with Jev (Legal) on. They must turn it off first.',
+      error: 'Cannot delete the set: 1 scheduled query has Legal review on. They must turn it off first.',
     })
     expect(planJevSave({ rev: 3, data: saved }, empty).change).toBe('Questions')
   })
