@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { JEV_CHECK_ANSWERED, JEV_LEGAL_DOCUMENT, LEGAL_CASE_CHECKED, LEGAL_CASE_NOT_CHECKED } from '../constants.js'
-import { findDraftedLegalCases, isDrafted, saveLegalCase } from '../db/legal-cases.js'
+import { deleteLegalCases, findDraftedLegalCases, isDrafted, saveLegalCase } from '../db/legal-cases.js'
 import { runJevCheck } from '../jev/check.js'
 import { loadCustomInstructions, runUnattended } from '../schedules/unattended-run.js'
 import { buildDraftTask, buildTicketSearchTask } from './prompt.js'
@@ -145,6 +145,15 @@ function buildMessages(question, cases, waiting) {
   ]
 }
 
+async function discardRun(conversationStore, { conversationId, userId }, logger) {
+  try {
+    await deleteLegalCases(conversationId)
+    await conversationStore.deleteWeb(conversationId, userId)
+  } catch (err) {
+    logger.error('[legal] Failed to clean up a failed run:', err.message)
+  }
+}
+
 export async function runLegalSchedule(schedule, conversationStore, { logger = console } = {}) {
   const { conversationId, session } = await conversationStore.createScheduled(schedule.userId, schedule.id)
 
@@ -169,9 +178,7 @@ export async function runLegalSchedule(schedule, conversationStore, { logger = c
 
     return { conversationId, cases: cases.length }
   } catch (err) {
-    await conversationStore.deleteWeb(conversationId, schedule.userId).catch(deleteErr => {
-      logger.error('[legal] Failed to clean up a failed run:', deleteErr.message)
-    })
+    await discardRun(conversationStore, { conversationId, userId: schedule.userId }, logger)
     throw err
   }
 }

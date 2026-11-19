@@ -37,11 +37,11 @@ function makeChain(op) {
   return chain
 }
 
-const db = { select: () => makeChain('select'), insert: () => makeChain('insert') }
+const db = { select: () => makeChain('select'), insert: () => makeChain('insert'), delete: () => makeChain('delete') }
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { legalCases } = await import('./schema.js')
-const { countLegalRuns, findDraftedLegalCases, isDrafted, listUncheckedLegalRuns, saveLegalCase } =
+const { countLegalRuns, deleteLegalCases, findDraftedLegalCases, isDrafted, listUncheckedLegalRuns, saveLegalCase } =
   await import('./legal-cases.js')
 
 const TICKET = { source: 'zendesk', ticketId: '48213', messageHash: 'abc' }
@@ -80,6 +80,15 @@ describe('saveLegalCase', () => {
 
     expect(calls[0].steps.values).toEqual({ ...TICKET, scheduleId: 3 })
     expect(calls[0].steps).toHaveProperty('onConflictDoNothing')
+  })
+})
+
+describe('deleteLegalCases', () => {
+  it('deletes the cases of one run conversation', async () => {
+    await deleteLegalCases('conv-1')
+
+    expect(calls[0].op).toBe('delete')
+    expect(calls[0].steps.where).toEqual({ op: 'eq', col: legalCases.conversationId, val: 'conv-1' })
   })
 })
 

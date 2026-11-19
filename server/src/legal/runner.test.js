@@ -9,10 +9,12 @@ vi.mock('./tickets.js', async importOriginal => ({ ...(await importOriginal()), 
 
 const findDraftedLegalCases = vi.fn()
 const saveLegalCase = vi.fn()
+const deleteLegalCases = vi.fn()
 vi.mock('../db/legal-cases.js', async importOriginal => ({
   ...(await importOriginal()),
   findDraftedLegalCases,
   saveLegalCase,
+  deleteLegalCases,
 }))
 
 const runJevCheck = vi.fn()
@@ -68,6 +70,7 @@ beforeEach(() => {
   loadCustomInstructions.mockResolvedValue('Be brief.')
   findDraftedLegalCases.mockResolvedValue(new Set())
   saveLegalCase.mockResolvedValue()
+  deleteLegalCases.mockResolvedValue()
   runJevCheck.mockResolvedValue({
     status: 'answered',
     setVersion: 7,
@@ -254,6 +257,18 @@ describe('runLegalSchedule', () => {
       dataFacts: null,
     })
     expect(runJevCheck).not.toHaveBeenCalled()
+  })
+
+  it('removes the saved cases with the conversation when the run cannot be saved, so they are drafted again', async () => {
+    findsTickets([])
+    readLegalTickets.mockResolvedValue([ticket('1')])
+    const conversations = store()
+    conversations.saveTurn.mockRejectedValue(new Error('db down'))
+
+    await expect(runLegalSchedule(SCHEDULE, conversations, { logger })).rejects.toThrow('db down')
+    expect(saveLegalCase).toHaveBeenCalledTimes(1)
+    expect(deleteLegalCases).toHaveBeenCalledWith('conv-1')
+    expect(conversations.deleteWeb).toHaveBeenCalledWith('conv-1', 7)
   })
 
   it('removes the conversation and fails when the tickets cannot be found', async () => {

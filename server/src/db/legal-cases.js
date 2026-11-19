@@ -36,6 +36,10 @@ export async function saveLegalCase(legalCase) {
   await getDb().insert(legalCases).values(legalCase).onConflictDoNothing()
 }
 
+export async function deleteLegalCases(conversationId) {
+  await getDb().delete(legalCases).where(eq(legalCases.conversationId, conversationId))
+}
+
 function isRunChecked() {
   return sql`bool_and(${legalCases.status} = ${LEGAL_CASE_CHECKED})`
 }
