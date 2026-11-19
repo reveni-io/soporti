@@ -23,7 +23,7 @@ export default function LegalUsage({ usage, error, onPage }) {
 
   return (
     <>
-      <dl className="admin__kv admin-legal__kv">
+      <dl className="admin__kv admin__kv--text">
         <div className="admin__kv-row">
           <dt>Check on</dt>
           <dd>{describeQueries(usage.queriesOn)}</dd>

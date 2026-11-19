@@ -12,7 +12,6 @@ import StatusRow from '../StatusRow/StatusRow.jsx'
 import VersionsTable from '../VersionsTable/VersionsTable.jsx'
 import LegalUsage from './LegalUsage/LegalUsage.jsx'
 import { describeQueries } from './describe-queries.js'
-import './AdminLegal.css'
 
 function describeSetUsers(queriesOn) {
   if (!queriesOn) return null
@@ -68,7 +67,7 @@ export default function AdminLegal({ token, onLogout }) {
             Legal needs the API key and Jev calls turned on in the Jev section, and at least one saved question.
           </p>
         )}
-        <dl className="admin__kv admin-legal__kv">
+        <dl className="admin__kv admin__kv--text">
           <div className="admin__kv-row">
             <dt>API key</dt>
             <dd>Shared, from the Jev section ({catalog.keyConfigured ? 'configured' : 'not configured'})</dd>
