@@ -190,7 +190,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
 
 function QuestionItem({ number, question, labels, isLocked, onEdit, onDelete }) {
   return (
-    <div className="admin__kv question-set__item">
+    <div className="admin__kv admin__kv--text question-set__item">
       <div className="question-set__item-head">
         <strong className="question-set__item-title">
           {number}. {question.text}
