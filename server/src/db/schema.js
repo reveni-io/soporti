@@ -611,3 +611,18 @@ export const jevHistory = pgTable(
   },
   table => [index('jev_history_document_created_idx').on(table.documentId, table.createdAt)]
 )
+
+export const jevCalls = pgTable(
+  'jev_calls',
+  {
+    id: serial('id').primaryKey(),
+    project: text('project').notNull(),
+    setVersion: integer('set_version').notNull(),
+    model: text('model').notNull(),
+    answeredModel: text('answered_model'),
+    status: text('status').notNull(),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('jev_calls_project_created_idx').on(table.project, table.createdAt)]
+)

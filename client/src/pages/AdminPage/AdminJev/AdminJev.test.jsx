@@ -24,6 +24,7 @@ function mockApi(routes) {
     [`GET ${BASE}`]: [okResponse({ keyConfigured: false, models: [], scannedAt: null })],
     [`GET ${BASE}/documents/jev`]: [okResponse(UNSAVED)],
     [`GET ${BASE}/documents/jev/history?page=1`]: [okResponse(NO_HISTORY)],
+    [`GET ${BASE}/usage`]: [okResponse({ projects: [] })],
     ...routes,
   }
   global.fetch = vi.fn(async (url, options = {}) => {

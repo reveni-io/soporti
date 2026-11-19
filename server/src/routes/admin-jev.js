@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { countJevCallsByProjectSince } from '../db/jev-calls.js'
 import {
   addJevHistoryEntry,
   getJevDocument,
@@ -17,6 +18,8 @@ const PAGE_RE = /^[1-9]\d{0,5}$/
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
 const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
+const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+const PROJECTS = [JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT]
 
 const router = Router()
 
@@ -152,6 +155,18 @@ router.post('/models/scan', async (_req, res) => {
     res.json({ ...catalog, newModels: countNewModels(saved.models, models) })
   } catch (err) {
     sendFailure(res, err, 'scan the Jev models')
+  }
+})
+
+router.get('/usage', async (_req, res) => {
+  try {
+    const counts = await countJevCallsByProjectSince(new Date(Date.now() - USAGE_WINDOW_MS))
+    const callsOf = project => counts.find(row => row.project === project)?.calls ?? 0
+
+    res.json({ projects: PROJECTS.map(id => ({ id, calls: callsOf(id) })) })
+  } catch (err) {
+    console.error('Failed to load the Jev usage:', err)
+    res.status(500).json({ error: 'Failed to load the Jev usage.' })
   }
 })
 

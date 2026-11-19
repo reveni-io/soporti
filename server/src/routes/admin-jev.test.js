@@ -22,6 +22,9 @@ vi.mock('../db/jev-documents.js', () => ({
   listJevHistory,
 }))
 
+const countJevCallsByProjectSince = vi.fn()
+vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince }))
+
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
 const { default: adminJevRouter } = await import('./admin-jev.js')
@@ -371,5 +374,34 @@ describe('GET /api/admin/config/jev/documents/:id/history', () => {
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the change history.' })
+  })
+})
+
+describe('GET /api/admin/config/jev/usage', () => {
+  it('counts the calls of each project in the last 30 days', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
+    countJevCallsByProjectSince.mockResolvedValue([{ project: 'legal', calls: 41 }])
+
+    const res = await request(app).get('/api/admin/config/jev/usage')
+
+    vi.useRealTimers()
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      projects: [
+        { id: 'github', calls: 0 },
+        { id: 'legal', calls: 41 },
+      ],
+    })
+    expect(countJevCallsByProjectSince).toHaveBeenCalledWith(new Date('2026-10-20T12:00:00.000Z'))
+  })
+
+  it('returns 500 when the usage cannot be read', async () => {
+    countJevCallsByProjectSince.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/config/jev/usage')
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to load the Jev usage.' })
   })
 })

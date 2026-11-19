@@ -7,6 +7,7 @@ import { useJevDocument } from '../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
 import DocBar from '../DocBar/DocBar.jsx'
+import JevUsage from './JevUsage/JevUsage.jsx'
 import JevHistory from '../JevHistory/JevHistory.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
@@ -95,6 +96,13 @@ export default function AdminJev({ token, onLogout }) {
         <p className="note">
           Turning it off stops the calls of ALL projects, Legal included. It does not change the auto-approve mode of
           the GitHub repos.
+        </p>
+      </AdminSection>
+
+      <AdminSection title="Usage">
+        <JevUsage token={token} onLogout={onLogout} />
+        <p className="admin__muted">
+          There is no question editor here. Each project keeps its own questions and answers: GitHub and Legal.
         </p>
       </AdminSection>
 

@@ -592,6 +592,10 @@ export function scanJevModels(token) {
   })
 }
 
+export function getJevUsage(token) {
+  return request('/api/admin/config/jev/usage', { token, errorMessage: 'Failed to load the Jev usage' })
+}
+
 export function getJevDocument(token, id) {
   return request(`/api/admin/config/jev/documents/${id}`, { token, errorMessage: 'Failed to load the settings' })
 }
