@@ -44,6 +44,10 @@ function buildInit(apiKey, body) {
   }
 }
 
+function timeoutMessage(totalMs) {
+  return `Jev error (timeout after ${totalMs / MS_PER_SECOND} s)`
+}
+
 async function attempt(path, { apiKey, body, remainingMs, totalMs }) {
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
@@ -55,10 +59,16 @@ async function attempt(path, { apiKey, body, remainingMs, totalMs }) {
     const error = new JevApiError(describeStatus(response.status), response.status)
     return { error, retryable: isRetryableStatus(response.status) }
   } catch (err) {
-    if (err.name === TIMEOUT_ERROR) {
-      return { error: new JevApiError(`Jev error (timeout after ${totalMs / MS_PER_SECOND} s)`), retryable: false }
-    }
+    if (err.name === TIMEOUT_ERROR) return { error: new JevApiError(timeoutMessage(totalMs)), retryable: false }
     return { error: new JevApiError('Jev error (could not reach the API)'), retryable: true }
+  }
+}
+
+async function readJson(response, totalMs) {
+  try {
+    return await response.json()
+  } catch (err) {
+    throw new JevApiError(err.name === TIMEOUT_ERROR ? timeoutMessage(totalMs) : 'Jev error (invalid response)')
   }
 }
 
@@ -71,7 +81,7 @@ async function request(path, { body = null, timeoutMs, maxAttempts = 1 }) {
 
   for (let attemptNumber = 1; ; attemptNumber++) {
     const outcome = await attempt(path, { apiKey, body, remainingMs: deadline - Date.now(), totalMs: timeoutMs })
-    if (outcome.response) return outcome.response.json()
+    if (outcome.response) return readJson(outcome.response, timeoutMs)
 
     const canRetry = outcome.retryable && attemptNumber < maxAttempts && deadline - Date.now() > backoffMs
     if (!canRetry) throw outcome.error

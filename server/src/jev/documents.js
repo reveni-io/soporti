@@ -143,13 +143,13 @@ function parseNoulDetails({ flagAt }) {
   return { value: { flagAt: result.value } }
 }
 
-const QUESTION_DETAIL_PARSERS = {
-  [QUESTION_CHOICE]: parseChoiceDetails,
-  [QUESTION_NOUL]: parseNoulDetails,
-}
+const QUESTION_DETAIL_PARSERS = new Map([
+  [QUESTION_CHOICE, parseChoiceDetails],
+  [QUESTION_NOUL, parseNoulDetails],
+])
 
 function parseQuestion(question) {
-  const parseDetails = QUESTION_DETAIL_PARSERS[question?.type]
+  const parseDetails = QUESTION_DETAIL_PARSERS.get(question?.type)
   if (!parseDetails) return { error: 'The type must be choice or noul.' }
 
   const common = parseFields(question, COMMON_QUESTION_PARSERS)
@@ -231,11 +231,11 @@ function parseProject(data, setParsers) {
   return { value: { set: set.value } }
 }
 
-const DOCUMENT_PARSERS = {
-  [JEV_SETTINGS_DOCUMENT]: parseJevSettings,
-  [JEV_GITHUB_DOCUMENT]: data => parseProject(data, GITHUB_SET_PARSERS),
-  [JEV_LEGAL_DOCUMENT]: data => parseProject(data, SET_PARSERS),
-}
+const DOCUMENT_PARSERS = new Map([
+  [JEV_SETTINGS_DOCUMENT, parseJevSettings],
+  [JEV_GITHUB_DOCUMENT, data => parseProject(data, GITHUB_SET_PARSERS)],
+  [JEV_LEGAL_DOCUMENT, data => parseProject(data, SET_PARSERS)],
+])
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
@@ -284,7 +284,7 @@ function versionedSet(data) {
 }
 
 export function isJevDocument(id) {
-  return Object.hasOwn(DOCUMENT_PARSERS, id)
+  return DOCUMENT_PARSERS.has(id)
 }
 
 export function defaultJevDocument(id) {
@@ -292,7 +292,7 @@ export function defaultJevDocument(id) {
 }
 
 export function parseJevDocument(id, data) {
-  return DOCUMENT_PARSERS[id](data)
+  return DOCUMENT_PARSERS.get(id)(data)
 }
 
 export function planJevSave(current, next) {
