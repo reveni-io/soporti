@@ -1,9 +1,13 @@
 import { useState } from 'react'
+import { JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
 import { getJevConfig, saveJevApiKey, scanJevModels, testJevConnection } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
+import { useJevDocument } from '../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import DocBar from '../DocBar/DocBar.jsx'
+import JevHistory from '../JevHistory/JevHistory.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
 import { formatDateTime } from '../dates.js'
@@ -27,6 +31,7 @@ function describeCatalog({ models, scannedAt }, newModels) {
 
 export default function AdminJev({ token, onLogout }) {
   const { config, error, patchConfig } = useAuthedConfig(getJevConfig, token, onLogout)
+  const settings = useJevDocument(token, JEV_SETTINGS_DOCUMENT, onLogout)
   const [keyRevision, setKeyRevision] = useState(0)
 
   async function saveApiKey(value) {
@@ -35,41 +40,75 @@ export default function AdminJev({ token, onLogout }) {
     setKeyRevision(revision => revision + 1)
   }
 
-  if (error || !config) return <AdminSectionStatus title="Jev" error={error} />
+  function handleCallsChange(event) {
+    const enabled = event.target.checked
+    settings.updateDraft(draft => ({ ...draft, enabled }))
+  }
+
+  const loadError = error ?? settings.loadError
+  if (loadError || !config || !settings.document) return <AdminSectionStatus title="Jev" error={loadError} />
 
   return (
-    <AdminSection title="Jev connection">
-      <p className="admin__muted">
-        Jev answers a set of questions about a document and returns each answer with a confidence. Soporti calls it from
-        two projects: GitHub PR reviews and Legal. This section holds only what both share. Each project configures its
-        own model, timeout and min confidence.
-      </p>
+    <>
+      <AdminSection title="Jev connection">
+        <p className="admin__muted">
+          Jev answers a set of questions about a document and returns each answer with a confidence. Soporti calls it
+          from two projects: GitHub PR reviews and Legal. This section holds only what both share: the API key and the
+          switch for all calls. Each project configures its own model, timeout and min confidence.
+        </p>
 
-      <StatusRow configured={config.keyConfigured} />
+        <StatusRow configured={config.keyConfigured} />
 
-      <SecretField
-        placeholder="Jev API key"
-        configuredPlaceholder="Paste a new key to replace it"
-        configured={config.keyConfigured}
-        onSave={saveApiKey}
-        onLogout={onLogout}
-        saveLabel="Save key"
-      />
+        <SecretField
+          placeholder="Jev API key"
+          configuredPlaceholder="Paste a new key to replace it"
+          configured={config.keyConfigured}
+          onSave={saveApiKey}
+          onLogout={onLogout}
+          saveLabel="Save key"
+        />
 
-      <p className="note">One key for the PR review and Legal projects. Rotating or removing it affects both.</p>
-      <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
+        <p className="note">One key for the PR review and Legal projects. Rotating or removing it affects both.</p>
+        <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
 
-      <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
-      <ModelScan
-        key={`scan-${keyRevision}`}
-        token={token}
-        onLogout={onLogout}
-        config={config}
-        onScanned={patchConfig}
-      />
+        <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
+        <ModelScan
+          key={`scan-${keyRevision}`}
+          token={token}
+          onLogout={onLogout}
+          config={config}
+          onScanned={patchConfig}
+        />
 
-      <p className="admin__muted">Each project picks its model from this saved list.</p>
-    </AdminSection>
+        <p className="admin__muted">Each project picks its model from this saved list.</p>
+      </AdminSection>
+
+      <AdminSection title="Jev calls">
+        <label className="admin__switch">
+          <input type="checkbox" checked={settings.draft.enabled} onChange={handleCallsChange} />
+          <span className="admin__switch-slider" aria-hidden="true" />
+          <span className="admin__switch-label">
+            Allow Jev calls
+            <span className="admin__muted">When off, Soporti does not call Jev from any project.</span>
+          </span>
+        </label>
+        <p className="note">
+          Turning it off stops the calls of ALL projects, Legal included. It does not change the auto-approve mode of
+          the GitHub repos.
+        </p>
+      </AdminSection>
+
+      <AdminSection title="Change history">
+        <JevHistory
+          key={`${settings.document.rev}-${keyRevision}`}
+          token={token}
+          documentId={JEV_SETTINGS_DOCUMENT}
+          onLogout={onLogout}
+        />
+      </AdminSection>
+
+      <DocBar label="Jev settings" state={settings} />
+    </>
   )
 }
 

@@ -592,6 +592,26 @@ export function scanJevModels(token) {
   })
 }
 
+export function getJevDocument(token, id) {
+  return request(`/api/admin/config/jev/documents/${id}`, { token, errorMessage: 'Failed to load the settings' })
+}
+
+export function saveJevDocument(token, id, { rev, data }) {
+  return request(`/api/admin/config/jev/documents/${id}`, {
+    method: 'PUT',
+    token,
+    body: { rev, data },
+    errorMessage: 'Failed to save the settings',
+  })
+}
+
+export function getJevHistory(token, id, page) {
+  return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
+    token,
+    errorMessage: 'Failed to load the change history',
+  })
+}
+
 export function getSubagents(token) {
   return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
 }
