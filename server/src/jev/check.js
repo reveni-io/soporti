@@ -76,6 +76,7 @@ async function callJev(project, loaded, { state, questions }) {
       status: JEV_CHECK_ANSWERED,
       setVersion,
       model: response.model,
+      minConfidence: set.minConfidence,
       rows: readJevAnswers(questions, response.answers, set.minConfidence),
     }
   } catch (err) {

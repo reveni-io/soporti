@@ -11,6 +11,7 @@ const DECIDED_BY_JEV = 'jev'
 const DECIDED_AS_TODAY = 'today'
 const CI_RULE = 'ci'
 const PENDING_ANSWER = 'Pending'
+const INFO_ROLE = 'info'
 const RULE_LABELS = new Map(GITHUB_RULES.map(rule => [rule.id, rule.label]))
 
 export async function loadAutoApproveRepo(repoFullName, { logger = console } = {}) {
@@ -49,6 +50,7 @@ function asToday(todayEvent, reason, result = null) {
     pendingOnly: false,
     setVersion: result?.setVersion ?? null,
     model: result?.model ?? null,
+    minConfidence: null,
     gates: [],
     questions: [],
   }
@@ -70,7 +72,9 @@ function isPendingCi(row) {
 
 function fromJev(result, rules) {
   const rulesById = new Map(rules.map(rule => [rule.id, rule]))
-  const blocking = result.rows.filter(isBlocking)
+  const gates = result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById))
+  const questions = result.rows.filter(row => !ruleIdOf(row.questionId))
+  const blocking = [...gates.filter(gate => gate.role !== INFO_ROLE), ...questions].filter(isBlocking)
 
   return {
     approve: blocking.length === 0,
@@ -79,8 +83,9 @@ function fromJev(result, rules) {
     pendingOnly: blocking.length > 0 && blocking.every(isPendingCi),
     setVersion: result.setVersion,
     model: result.model,
-    gates: result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById)),
-    questions: result.rows.filter(row => !ruleIdOf(row.questionId)),
+    minConfidence: result.minConfidence,
+    gates,
+    questions,
   }
 }
 
@@ -130,5 +135,8 @@ export async function decideAutoApprove(context, { logger = console } = {}) {
 
   const isApproved = repo.mode === AUTO_APPROVE_ON && outcome.approve
 
-  return { event: isApproved ? APPROVE : COMMENT, autoApprove: { repo: repo.name, mode: repo.mode, ...outcome } }
+  return {
+    event: isApproved ? APPROVE : COMMENT,
+    autoApprove: { repo: repo.name, mode: repo.mode, jevAsked: repo.jev, ...outcome },
+  }
 }

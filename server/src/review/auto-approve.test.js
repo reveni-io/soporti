@@ -15,6 +15,7 @@ const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
 const RULES = [
   { id: 'ci', role: 'veto' },
   { id: 'nitpicks', role: 'veto', limit: 3 },
+  { id: 'walkthrough', role: 'info' },
 ]
 
 function context({ mode = 'on', jev = true, todayEvent = 'COMMENT' } = {}) {
@@ -45,7 +46,7 @@ function row(questionId, answer, { flagged = false, unsure = false } = {}) {
 function answered(rows) {
   runJevCheck.mockImplementation(async ({ buildExtraQuestions }) => {
     buildExtraQuestions({ rules: RULES })
-    return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', rows }
+    return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', minConfidence: 0.75, rows }
   })
 }
 
@@ -100,8 +101,10 @@ describe('decideAutoApprove', () => {
     expect(autoApprove).toMatchObject({
       repo: 'acme/web',
       mode: 'on',
+      jevAsked: true,
       approve: true,
       decidedBy: 'jev',
+      minConfidence: 0.75,
       reason: null,
       pendingOnly: false,
       setVersion: 9,
@@ -147,6 +150,15 @@ describe('decideAutoApprove', () => {
     expect(autoApprove).toMatchObject({ approve: false, pendingOnly: false })
   })
 
+  it('never lets an info rule block, even when Jev is not sure', async () => {
+    answered([row('rule:walkthrough', 'No', { unsure: true }), row('q1', 'No')])
+
+    const { event, autoApprove } = await decideAutoApprove(context(), { logger })
+
+    expect(event).toBe('APPROVE')
+    expect(autoApprove.gates[0]).toMatchObject({ label: 'Walkthrough', role: 'info', unsure: true })
+  })
+
   it('says when only a pending CI holds the approval back', async () => {
     answered([row('rule:ci', 'Pending', { flagged: true }), row('q1', 'No')])
 
@@ -159,7 +171,12 @@ describe('decideAutoApprove', () => {
     const { event, autoApprove } = await decideAutoApprove(context({ jev: false, todayEvent: 'APPROVE' }), { logger })
 
     expect(event).toBe('APPROVE')
-    expect(autoApprove).toMatchObject({ approve: true, decidedBy: 'today', reason: 'Jev is off for this repo' })
+    expect(autoApprove).toMatchObject({
+      jevAsked: false,
+      approve: true,
+      decidedBy: 'today',
+      reason: 'Jev is off for this repo',
+    })
     expect(runJevCheck).not.toHaveBeenCalled()
   })
 

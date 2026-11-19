@@ -155,7 +155,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       passes: team.passes,
       verification: verification.stats,
       coverage: { files: changedFiles, reviewedPaths: team.reviewedPaths, notReviewed },
-      context: { trigger: current, history, headSha: reviewedSha, standards, spec },
+      context: { trigger: current, history, headSha: reviewedSha, standards, spec, reviewerLogin },
     }
 
     const walkthrough = renderWalkthrough({ ...review, ciStatus, reviewerLogin })

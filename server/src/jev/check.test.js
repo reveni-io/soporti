@@ -62,6 +62,7 @@ describe('runJevCheck', () => {
       status: 'answered',
       setVersion: 7,
       model: 'jev-1.14.0',
+      minConfidence: 0.75,
       rows: [
         {
           questionId: 'q1',
