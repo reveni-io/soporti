@@ -27,6 +27,9 @@ vi.mock('../db/jev-documents.js', () => ({
 const getRepository = vi.fn()
 vi.mock('../github/client.js', () => ({ getRepository }))
 
+const getShadowStats = vi.fn()
+vi.mock('../db/auto-approve-evaluations.js', () => ({ getShadowStats }))
+
 const countJevCallsByProjectSince = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince }))
 
@@ -508,5 +511,43 @@ describe('POST /api/admin/config/jev/github/repos/check', () => {
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to check the repo.' })
+  })
+})
+
+describe('GET /api/admin/config/jev/github/shadow-stats', () => {
+  it('reports the PRs evaluated in shadow, how many would be approved and the days of data', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
+    getShadowStats.mockResolvedValue([
+      { repo: 'acme/web', evaluated: 96, wouldApprove: 40, since: '2026-11-05T13:00:00.000Z' },
+    ])
+
+    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web,acme/docs')
+
+    vi.useRealTimers()
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({
+      repos: [
+        { repo: 'acme/web', evaluated: 96, wouldApprove: 40, days: 14 },
+        { repo: 'acme/docs', evaluated: 0, wouldApprove: 0, days: 0 },
+      ],
+    })
+    expect(getShadowStats).toHaveBeenCalledWith(['acme/web', 'acme/docs'])
+  })
+
+  it.each(['', '?repos=', '?repos=acme'])('rejects %s', async query => {
+    const res = await request(app).get(`/api/admin/config/jev/github/shadow-stats${query}`)
+
+    expect(res.status).toBe(400)
+    expect(getShadowStats).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the results cannot be read', async () => {
+    getShadowStats.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web')
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to load the shadow results.' })
   })
 })

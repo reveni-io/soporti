@@ -58,6 +58,15 @@ vi.mock('./spec.js', () => ({
   loadSpec: mockLoadSpec,
 }))
 
+const mockLoadAutoApproveRepo = vi.fn()
+const mockDecideAutoApprove = vi.fn()
+vi.mock('./auto-approve.js', () => ({
+  loadAutoApproveRepo: mockLoadAutoApproveRepo,
+  decideAutoApprove: mockDecideAutoApprove,
+}))
+mockLoadAutoApproveRepo.mockResolvedValue(null)
+mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+
 const mockAcquireWorktree = vi.fn()
 const mockWorktreeRelease = vi.fn()
 const mockGitDiffAt = vi.fn()
@@ -306,6 +315,28 @@ describe('runReview', () => {
 
     await runReview(trigger(), { logger: silentLogger })
 
+    expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
+  })
+
+  it('lets the auto-approve settings of the repo decide the event, with the mode read at the start', async () => {
+    const repo = { name: 'acme-io/app', mode: 'on', jev: true, denylist: [] }
+    const autoApprove = { repo: 'acme-io/app', mode: 'on', approve: true, decidedBy: 'jev' }
+    mockLoadAutoApproveRepo.mockResolvedValueOnce(repo)
+    mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
+    setupHappyPath({ verdict: 'comment', findings: [] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockLoadAutoApproveRepo).toHaveBeenCalledWith('acme-io/app', { logger: silentLogger })
+    expect(mockDecideAutoApprove).toHaveBeenCalledTimes(1)
+    const [context] = mockDecideAutoApprove.mock.calls[0]
+    expect(context).toMatchObject({
+      repo,
+      todayEvent: 'COMMENT',
+      pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
+      review: { findings: [], notReviewed: [], fixedThreads: [] },
+    })
+    expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
   })
 

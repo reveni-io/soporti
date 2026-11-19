@@ -59,7 +59,7 @@ function unavailable({ set, setVersion }, reason) {
   return { status: JEV_CHECK_UNAVAILABLE, setVersion, model: set.model, reason }
 }
 
-async function callJev(project, loaded, state) {
+async function callJev(project, loaded, { state, questions }) {
   const { set, setVersion } = loaded
   const call = { project, setVersion, model: set.model }
 
@@ -67,7 +67,7 @@ async function callJev(project, loaded, state) {
     const response = await askQuestions({
       model: set.model,
       state,
-      questions: buildJevQuestions(set.questions),
+      questions: buildJevQuestions(questions),
       timeoutMs: set.timeoutSeconds * MS_PER_SECOND,
     })
     await recordJevCall({ ...call, answeredModel: response.model, status: CALL_ANSWERED })
@@ -76,7 +76,7 @@ async function callJev(project, loaded, state) {
       status: JEV_CHECK_ANSWERED,
       setVersion,
       model: response.model,
-      rows: readJevAnswers(set.questions, response.answers, set.minConfidence),
+      rows: readJevAnswers(questions, response.answers, set.minConfidence),
     }
   } catch (err) {
     if (!(err instanceof JevApiError)) throw err
@@ -86,10 +86,12 @@ async function callJev(project, loaded, state) {
   }
 }
 
-export async function runJevCheck({ project, state }) {
+export async function runJevCheck({ project, state, buildExtraQuestions = () => [] }) {
   const loaded = await loadProject(project)
   const blocker = await findBlocker(project, loaded, JSON.stringify(state).length)
   if (blocker) return unavailable(loaded, blocker)
 
-  return callJev(project, loaded, state)
+  const questions = [...buildExtraQuestions(loaded.set), ...loaded.set.questions]
+
+  return callJev(project, loaded, { state, questions })
 }

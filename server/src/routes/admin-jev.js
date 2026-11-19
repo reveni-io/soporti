@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince } from '../db/jev-calls.js'
 import {
   addJevHistoryEntry,
@@ -20,6 +21,8 @@ const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
 const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
+const MAX_STATS_REPOS = 100
+const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
 const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
@@ -63,6 +66,24 @@ function parsePage(value) {
   if (typeof value !== 'string' || !PAGE_RE.test(value)) return { error: '"page" must be a positive whole number.' }
 
   return { value: Number(value) }
+}
+
+function parseRepoList(value) {
+  const repos = typeof value === 'string' ? value.split(',').map(name => name.trim()) : []
+  if (repos.length === 0 || repos.length > MAX_STATS_REPOS || !repos.every(name => REPO_NAME_RE.test(name))) {
+    return { error: '"repos" must be a comma-separated list of org/repo names.' }
+  }
+
+  return { value: repos }
+}
+
+function toShadowStats(repo, rows) {
+  const row = rows.find(stats => stats.repo === repo)
+  if (!row) return { repo, evaluated: 0, wouldApprove: 0, days: 0 }
+
+  const days = Math.max(1, Math.ceil((Date.now() - new Date(row.since).getTime()) / DAY_MS))
+
+  return { repo, evaluated: row.evaluated, wouldApprove: row.wouldApprove, days }
 }
 
 function describeKeyChange(hadKey, hasKey) {
@@ -260,6 +281,19 @@ router.post('/github/repos/check', async (req, res) => {
     res.status(422).json({
       error: `The CI token cannot read ${name}. Give the token read access to the repo, or check the name.`,
     })
+  }
+})
+
+router.get('/github/shadow-stats', async (req, res) => {
+  const { error, value: repos } = parseRepoList(req.query.repos)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    const rows = await getShadowStats(repos)
+    res.json({ repos: repos.map(repo => toShadowStats(repo, rows)) })
+  } catch (err) {
+    console.error('Failed to load the shadow results:', err)
+    res.status(500).json({ error: 'Failed to load the shadow results.' })
   }
 })
 

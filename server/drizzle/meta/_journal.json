@@ -211,6 +211,13 @@
       "when": 1795101693968,
       "tag": "0029_jev_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795102835653,
+      "tag": "0030_auto_approve_evaluations",
+      "breakpoints": true
     }
   ]
 }

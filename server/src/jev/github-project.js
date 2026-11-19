@@ -9,7 +9,7 @@ const MAX_NITPICKS = 15
 const MERGE_RISKS = ['Low', 'Medium', 'High']
 const REVIEW_EFFORT_MINUTES = [5, 10, 20, 30]
 
-const GITHUB_RULES = [
+export const GITHUB_RULES = [
   { id: 'ci', label: 'CI status' },
   { id: 'findings', label: 'Blocking findings' },
   { id: 'spec', label: 'Spec check' },

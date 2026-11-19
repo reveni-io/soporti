@@ -89,6 +89,18 @@ describe('runJevCheck', () => {
     })
   })
 
+  it('asks the extra questions built from the saved set first', async () => {
+    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+    const buildExtraQuestions = vi.fn().mockReturnValue([rule])
+
+    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions })
+
+    expect(buildExtraQuestions).toHaveBeenCalledWith(SET)
+    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci', 'q1'])
+    expect(result.rows.map(row => row.questionId)).toEqual(['rule:ci', 'q1'])
+  })
+
   it('records a failed call and reports why', async () => {
     askQuestions.mockRejectedValue(new JevApiError('Jev error (HTTP 502)', 502))
 

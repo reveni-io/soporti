@@ -57,6 +57,7 @@ function buildHistory({ reviews, threads, comments, reviewerLogin }) {
     ),
     ownThreads: ownThreads.map(trimThread),
     openThreads: ownThreads.filter(thread => thread.ref).map(toOpenThread),
+    unresolvedThreads: startedThreads.filter(thread => !thread.isResolved).length,
     humanReviews: withBody(
       submitted
         .filter(review => !isOwn(review.user?.login))

@@ -25,6 +25,7 @@ const CATEGORY_LABELS = {
   standards: '📏 Standards',
   spec: '📋 Spec',
 }
+const MERGE_RISK_ICONS = { High: '🔴', Medium: '🟠', Unknown: '⚪' }
 const EFFORT_LABELS = ['Trivial', 'Simple', 'Moderate', 'Complex', 'Very complex']
 const CHECK_STATUSES = {
   passed: { icon: '✅', label: 'Passed' },
@@ -395,14 +396,22 @@ function renderFileList(title, entries) {
   return renderDetails(`${title} (${entries.length})`, lines.join('\n'))
 }
 
-function describeMergeRisk(findings, notReviewed, passes, event) {
+export function classifyMergeRisk(findings, notReviewed, passes) {
   const [mostSevere] = sortBySeverity(findings)
   const failedFinders = describeFailedFinders(passes)
 
-  if (mostSevere?.severity === 'critical') return `🔴 High · ${singleLine(mostSevere.title)}`
-  if (mostSevere?.severity === 'major') return `🟠 Medium · ${singleLine(mostSevere.title)}`
-  if (notReviewed.length > 0) return `⚪ Unknown · ${notReviewed.length} file(s) not reviewed`
-  if (failedFinders) return `⚪ Unknown · ${failedFinders}`
+  if (mostSevere?.severity === 'critical') return { level: 'High', detail: singleLine(mostSevere.title) }
+  if (mostSevere?.severity === 'major') return { level: 'Medium', detail: singleLine(mostSevere.title) }
+  if (notReviewed.length > 0) return { level: 'Unknown', detail: `${notReviewed.length} file(s) not reviewed` }
+  if (failedFinders) return { level: 'Unknown', detail: failedFinders }
+
+  return { level: 'Low', detail: null }
+}
+
+function describeMergeRisk(findings, notReviewed, passes, event) {
+  const { level, detail } = classifyMergeRisk(findings, notReviewed, passes)
+
+  if (detail) return `${MERGE_RISK_ICONS[level]} ${level} · ${detail}`
   if (event === 'APPROVE') return '🟢 Low · trivial change, approved'
 
   return '🟢 Low · no blocking issues found'
