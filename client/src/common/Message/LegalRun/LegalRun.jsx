@@ -32,7 +32,7 @@ export default function LegalRun({ cases }) {
               <th>#</th>
               <th>Ticket</th>
               <th>Customer</th>
-              <th>Jev</th>
+              <th>Legal review</th>
               <th>Next step</th>
             </tr>
           </thead>
@@ -102,7 +102,7 @@ function LegalCase({ number, legalCase }) {
       <DraftReply legalCase={legalCase} label={label} reply={reply} textareaRef={textareaRef} onChange={setReply} />
       <p className="legal-run__muted">Edit the reply if needed, copy it and send it from the ticket.</p>
 
-      <JevCheck legalCase={legalCase} />
+      <ReviewCheck legalCase={legalCase} />
 
       <div className="legal-run__actions">
         <button
@@ -155,19 +155,15 @@ function DraftReply({ legalCase, label, reply, textareaRef, onChange }) {
   )
 }
 
-function JevCheck({ legalCase }) {
-  if (!legalCase.jev) {
-    return <p className="alert alert--warning">Jev did not check this case: {legalCase.reason}.</p>
-  }
+function ReviewCheck({ legalCase }) {
+  if (!legalCase.review) return <p className="alert alert--warning">Not reviewed: {legalCase.reason}.</p>
 
-  const { setVersion, model, minConfidence, rows } = legalCase.jev
+  const { setVersion, minConfidence, rows } = legalCase.review
 
   return (
-    <div className="legal-run__jev">
-      <div className="legal-run__jev-head">
-        <span>
-          Jev (Legal) · set v{setVersion} · {model}
-        </span>
+    <div className="legal-run__review">
+      <div className="legal-run__review-head">
+        <span>Legal review · set v{setVersion}</span>
         <CheckBadge legalCase={legalCase} />
       </div>
       <div className="legal-run__table-wrap">
@@ -175,7 +171,7 @@ function JevCheck({ legalCase }) {
           <thead>
             <tr>
               <th>Question</th>
-              <th>Jev’s answer</th>
+              <th>Answer</th>
               <th>Confidence</th>
               <th>Check</th>
             </tr>

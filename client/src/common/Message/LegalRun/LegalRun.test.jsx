@@ -44,7 +44,7 @@ function legalCase(overrides = {}) {
     status: 'checked',
     reason: null,
     warnings: 0,
-    jev: { setVersion: 7, model: 'jev-1.13.0', minConfidence: 0.7, rows: [] },
+    review: { setVersion: 7, minConfidence: 0.7, rows: [] },
     ...overrides,
   }
 }
@@ -56,7 +56,7 @@ const CAREFUL = legalCase({
   customer: '',
   subject: '',
   warnings: 2,
-  jev: { setVersion: 7, model: 'jev-1.13.0', minConfidence: 0.7, rows: ROWS },
+  review: { setVersion: 7, minConfidence: 0.7, rows: ROWS },
 })
 const UNCHECKED = legalCase({
   ticketId: '48240',
@@ -64,7 +64,7 @@ const UNCHECKED = legalCase({
   draft: null,
   status: 'not_checked',
   reason: 'Draft failed (the agent could not finish it)',
-  jev: null,
+  review: null,
 })
 
 afterEach(() => {
@@ -105,7 +105,7 @@ describe('LegalRun', () => {
   it('marks each answer that should make Legal careful, with the confidence that was too low', () => {
     render(<LegalRun cases={[CAREFUL]} />)
 
-    expect(screen.getByText('Jev (Legal) · set v7 · jev-1.13.0')).toBeInTheDocument()
+    expect(screen.getByText('Legal review · set v7')).toBeInTheDocument()
     expect(screen.getByText('0.58 < 0.70')).toBeInTheDocument()
     expect(screen.getByText('no answer')).toBeInTheDocument()
     expect(screen.getAllByText('Careful')).toHaveLength(2)
@@ -117,9 +117,7 @@ describe('LegalRun', () => {
 
     expect(screen.getByText('No data was gathered.')).toBeInTheDocument()
     expect(screen.getByText('No draft: Draft failed (the agent could not finish it).')).toBeInTheDocument()
-    expect(
-      screen.getByText('Jev did not check this case: Draft failed (the agent could not finish it).')
-    ).toBeInTheDocument()
+    expect(screen.getByText('Not reviewed: Draft failed (the agent could not finish it).')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Copy reply' })).toBeDisabled()
   })
 

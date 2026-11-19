@@ -7,7 +7,12 @@ import config from '../config.js'
 import { getCustomInstructions } from '../db/users.js'
 import { toolCallsFromResult } from '../agent/run-items.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
-import { AGENT_CHANNEL_SCHEDULE, EMPTY_ANSWER_ERROR, TOOL_NOT_FOUND_BEHAVIOR } from '../constants.js'
+import {
+  AGENT_CHANNEL_SCHEDULE,
+  EMPTY_ANSWER_ERROR,
+  SUBAGENT_TOOL_PREFIX,
+  TOOL_NOT_FOUND_BEHAVIOR,
+} from '../constants.js'
 
 const WRAP_UP_TURNS = 1
 
@@ -47,8 +52,12 @@ function buildWrapUp(agent, maxTurns, state) {
   }
 }
 
+function isReadOnlyTool(tool) {
+  return !WRITE_TOOL_NAMES.includes(tool.name) && !tool.name.startsWith(SUBAGENT_TOOL_PREFIX)
+}
+
 function asReadOnly(agent, outputType) {
-  return agent.clone({ tools: agent.tools.filter(tool => !WRITE_TOOL_NAMES.includes(tool.name)), outputType })
+  return agent.clone({ tools: agent.tools.filter(isReadOnlyTool), outputType })
 }
 
 export async function runUnattended(task, { session = undefined, conversationId = null } = {}) {

@@ -125,9 +125,9 @@ describe('AssistantMessage', () => {
       dataFacts: [],
       draft: { subject: 'Your refund', body: 'Hello' },
       status: 'not_checked',
-      reason: 'Jev calls are off',
+      reason: 'the review could not run',
       warnings: 0,
-      jev: null,
+      review: null,
     }
 
     render(<AssistantMessage message={{ parts: [{ type: 'legal-run', cases: [legalCase] }] }} isStreaming={false} />)

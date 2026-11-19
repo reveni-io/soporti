@@ -59,12 +59,17 @@ describe('runUnattended', () => {
     })
   })
 
-  it('runs a read-only copy of the agent with the structured output when one is asked for', async () => {
+  it('runs a copy of the agent without write tools or subagents when a structured output is asked for', async () => {
     const readOnly = { name: 'read-only agent' }
     const clone = vi.fn().mockReturnValue(readOnly)
     createAgent.mockResolvedValue({
       name: 'agent',
-      tools: [{ name: 'zendesk_get_ticket' }, { name: 'zendesk_post_internal_note' }, { name: 'post_slack_message' }],
+      tools: [
+        { name: 'zendesk_get_ticket' },
+        { name: 'zendesk_post_internal_note' },
+        { name: 'post_slack_message' },
+        { name: 'ask_billing_expert' },
+      ],
       clone,
     })
     const schema = { parse: vi.fn() }

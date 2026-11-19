@@ -8,6 +8,8 @@ import { LEGAL_SOURCES, readLegalTickets } from './tickets.js'
 
 const MAX_CASES_PER_RUN = 20
 const LEGAL_RUN_PART = 'legal-run'
+const SERVICE_NAME = 'Jev'
+const REVIEW_UNAVAILABLE = 'the review could not run'
 
 const ticketRefsSchema = z.object({
   tickets: z.array(z.object({ source: z.enum(LEGAL_SOURCES), ticketId: z.string() })),
@@ -120,15 +122,22 @@ function describeRun(cases, waiting) {
 
   return (
     [
-      `Found **${count}** to answer. For each one Soporti looked up the data and drafted a reply, and Jev checked the customer's request and the draft.`,
-      "Nothing has been sent. Check each reply, edit it if needed, copy it and send it from its ticket. Jev's warnings are there to help: Legal has the last word on every case.",
+      `Found **${count}** to answer. For each one Soporti looked up the data, drafted a reply and reviewed the customer's request and the draft.`,
+      'Nothing has been sent. Check each reply, edit it if needed, copy it and send it from its ticket. The warnings are there to help: Legal has the last word on every case.',
     ].join('\n\n') + later
   )
 }
 
+function toChatCase({ jev, reason, ...legalCase }) {
+  const chatReason = reason?.includes(SERVICE_NAME) ? REVIEW_UNAVAILABLE : reason
+  const review = jev && { setVersion: jev.setVersion, minConfidence: jev.minConfidence, rows: jev.rows }
+
+  return { ...legalCase, reason: chatReason, review }
+}
+
 function buildMessages(question, cases, waiting) {
   const parts = [{ type: 'text', content: describeRun(cases, waiting) }]
-  if (cases.length > 0) parts.push({ type: LEGAL_RUN_PART, cases })
+  if (cases.length > 0) parts.push({ type: LEGAL_RUN_PART, cases: cases.map(toChatCase) })
 
   return [
     { role: 'user', parts: [{ type: 'text', content: question }] },

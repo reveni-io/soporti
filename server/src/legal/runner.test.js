@@ -147,7 +147,12 @@ describe('runLegalSchedule', () => {
     expect(turn.lastResponseId).toBeNull()
     expect(turn.uiMessages[0]).toEqual({ role: 'user', parts: [{ type: 'text', content: SCHEDULE.question }] })
     expect(turn.uiMessages[1].parts[0].content).toContain('Found **1 customer ticket** to answer.')
-    expect(turn.uiMessages[1].parts[1]).toEqual({ type: 'legal-run', cases: [legalCase] })
+    const { jev, ...chatCase } = legalCase
+    expect(turn.uiMessages[1].parts[1]).toEqual({
+      type: 'legal-run',
+      cases: [{ ...chatCase, review: { setVersion: 7, minConfidence: 0.7, rows: jev.rows } }],
+    })
+    expect(JSON.stringify(turn.uiMessages)).not.toMatch(/jev/i)
   })
 
   it('does not draft the tickets it already drafted for the same customer message', async () => {
@@ -204,6 +209,19 @@ describe('runLegalSchedule', () => {
       jev: null,
       warnings: 0,
     })
+  })
+
+  it('tells the chat that the review could not run without naming the service behind it', async () => {
+    findsTickets([])
+    readLegalTickets.mockResolvedValue([ticket('1')])
+    runJevCheck.mockResolvedValue({ status: 'unavailable', setVersion: 7, reason: 'Jev error (HTTP 502)' })
+    const conversations = store()
+
+    await runLegalSchedule(SCHEDULE, conversations, { logger })
+
+    expect(saveLegalCase.mock.calls[0][0].reason).toBe('Jev error (HTTP 502)')
+    const [chatCase] = conversations.saveTurn.mock.calls[0][1].uiMessages[1].parts[1].cases
+    expect(chatCase).toMatchObject({ status: 'not_checked', reason: 'the review could not run', review: null })
   })
 
   it.each([
