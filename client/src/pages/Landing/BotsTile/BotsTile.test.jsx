@@ -13,6 +13,14 @@ describe('BotsTile', () => {
     expect(screen.getByText('2 urgent out of 14 new tickets')).toBeInTheDocument()
   })
 
+  it('lists the other bots beside the chat of the open one, with the news of one of them', () => {
+    const { container } = render(<BotsTile />)
+
+    expect(container.querySelectorAll('svg.bot-avatar')).toHaveLength(4)
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getAllByText('Ticket Triage')).toHaveLength(1)
+  })
+
   describe('animation (with IntersectionObserver)', () => {
     let observers
 
@@ -56,7 +64,15 @@ describe('BotsTile', () => {
     })
 
     it('creates the routine, runs it and reports, then starts over', async () => {
-      render(<BotsTile />)
+      const { container } = render(<BotsTile />)
+      const openBotFace = () => {
+        const declarations = container.querySelector('svg.bot-avatar').getAttribute('style').split(';')
+        return declarations
+          .map(declaration => declaration.trim())
+          .filter(Boolean)
+          .sort()
+      }
+      const restingFace = openBotFace()
       intersect()
 
       expect(screen.queryByText('Daily ticket sweep')).not.toBeInTheDocument()
@@ -67,10 +83,12 @@ describe('BotsTile', () => {
 
       await advance(2200)
       expect(screen.getByText('Running now')).toBeInTheDocument()
+      expect(openBotFace()).not.toEqual(restingFace)
 
       await advance(2400)
       expect(screen.getByText('2 urgent out of 14 new tickets')).toBeInTheDocument()
       expect(screen.getByText('Weekdays · 17:00')).toBeInTheDocument()
+      expect(openBotFace()).toEqual(restingFace)
 
       await advance(4800)
       expect(screen.queryByText('Daily ticket sweep')).not.toBeInTheDocument()

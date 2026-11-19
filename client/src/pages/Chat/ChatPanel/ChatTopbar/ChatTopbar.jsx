@@ -1,12 +1,12 @@
 import BotAvatar from '../../../../common/BotAvatar/BotAvatar.jsx'
 import Icon from '../../../../common/Icon/Icon.jsx'
-import SharedElement from '../../../../common/SharedElement/SharedElement.jsx'
-import { botAvatarTransitionName, botNameTransitionName } from '../../bot-transition-names.js'
 import SidebarToggles from '../../SidebarToggles/SidebarToggles.jsx'
 import './ChatTopbar.css'
 
 const ACTION_ICON_SIZE = 15
+const BACK_ICON_SIZE = 18
 const BOT_AVATAR_SIZE = 32
+const BACK_LABEL = 'Back to bots'
 const SHARE_ICON_STROKE = 1.5
 const TOUR_LABEL = 'What can I ask?'
 const SHARE_LABEL = 'Share conversation'
@@ -23,15 +23,20 @@ export default function ChatTopbar({
   onShare,
   onOpenRoutines,
   onEditBot,
+  onBackToBots,
 }) {
   return (
     <header className="chat-topbar">
       <div className="chat-topbar__lead">
-        <SidebarToggles
-          isSidebarCollapsed={isSidebarCollapsed}
-          onOpenSidebar={onOpenSidebar}
-          onExpandSidebar={onExpandSidebar}
-        />
+        {bot ? (
+          <BackToBotsButton onClick={onBackToBots} />
+        ) : (
+          <SidebarToggles
+            isSidebarCollapsed={isSidebarCollapsed}
+            onOpenSidebar={onOpenSidebar}
+            onExpandSidebar={onExpandSidebar}
+          />
+        )}
         <div className="chat-topbar__heading">
           {isLoading && <span className="chat-topbar__live" aria-hidden="true" />}
           {bot ? (
@@ -55,18 +60,28 @@ export default function ChatTopbar({
   )
 }
 
+function BackToBotsButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      className="icon-btn chat-topbar__back"
+      onClick={onClick}
+      aria-label={BACK_LABEL}
+      title={BACK_LABEL}
+    >
+      <Icon name="arrow-left" size={BACK_ICON_SIZE} />
+    </button>
+  )
+}
+
 function BotHeading({ bot, isThinking }) {
   return (
     <>
-      <SharedElement name={botAvatarTransitionName(bot.id)}>
-        <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={BOT_AVATAR_SIZE} isThinking={isThinking} />
-      </SharedElement>
+      <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={BOT_AVATAR_SIZE} isThinking={isThinking} />
       <div className="chat-topbar__bot">
-        <SharedElement name={botNameTransitionName(bot.id)}>
-          <h2 key={bot.name} className="chat-topbar__title" title={bot.name}>
-            {bot.name}
-          </h2>
-        </SharedElement>
+        <h2 key={bot.name} className="chat-topbar__title" title={bot.name}>
+          {bot.name}
+        </h2>
         <p className="chat-topbar__description" title={bot.description}>
           {bot.description}
         </p>

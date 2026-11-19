@@ -19,6 +19,7 @@ import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import SchedulesModal from './SchedulesModal/SchedulesModal.jsx'
 import ArtifactsModal from './ArtifactsModal/ArtifactsModal.jsx'
 import BotsPanel from './BotsPanel/BotsPanel.jsx'
+import BotsIntro from './BotsIntro/BotsIntro.jsx'
 import BotNotFound from './BotNotFound/BotNotFound.jsx'
 import BotFormModal from './BotFormModal/BotFormModal.jsx'
 import RoutinesModal from './RoutinesModal/RoutinesModal.jsx'
@@ -81,6 +82,7 @@ export default function Chat({ initialQuestion = '' }) {
     fetchError,
     conversationKey,
     activeConversations,
+    busyBotIds,
     completedRuns,
     sendMessage,
     stopGeneration,
@@ -214,16 +216,28 @@ export default function Chat({ initialQuestion = '' }) {
         onClose={() => setSidebarOpen(false)}
         onCollapse={() => handleSidebarCollapsed(true)}
       />
-      {view.isBotsView && (
+      {!view.isChatView && (
         <ScreenTransition>
           <BotsPanel
             bots={bots.bots}
+            busyBotIds={busyBotIds}
             loading={bots.loading}
             error={bots.error}
+            isBotOpen={view.isBotView}
             onCreate={() => setBotForm(BOT_FORM_CREATE)}
             isSidebarCollapsed={isSidebarCollapsed}
             onOpenSidebar={() => setSidebarOpen(true)}
             onExpandSidebar={() => handleSidebarCollapsed(false)}
+          />
+        </ScreenTransition>
+      )}
+      {view.isBotsView && (
+        <ScreenTransition>
+          <BotsIntro
+            bots={bots.bots}
+            loading={bots.loading}
+            error={bots.error}
+            onCreate={() => setBotForm(BOT_FORM_CREATE)}
           />
         </ScreenTransition>
       )}
@@ -256,6 +270,7 @@ export default function Chat({ initialQuestion = '' }) {
             fetchError={fetchError}
             onOpenRoutines={() => setRoutinesOpen(true)}
             onEditBot={() => setBotForm(BOT_FORM_EDIT)}
+            onBackToBots={view.showBots}
           />
         </ScreenTransition>
       )}

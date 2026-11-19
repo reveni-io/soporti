@@ -16,11 +16,16 @@ const BOT = {
   seed: 'ticket-triage',
   avatarStyle: { shape: 'cloud', hue: 195, tone: 'mid', mood: 'happy' },
 }
+const OTHER_BOTS = [
+  { seed: 'release-notes', avatarStyle: { shape: 'capsule', hue: 270, tone: 'deep', mood: 'neutral' }, unreadCount: 0 },
+  { seed: 'sentry-sweeper', avatarStyle: { shape: 'sun', hue: 40, tone: 'mid', mood: 'wink' }, unreadCount: 1 },
+  { seed: 'merchant-pulse', avatarStyle: { shape: 'round', hue: 140, tone: 'pastel', mood: 'sleepy' }, unreadCount: 0 },
+]
 const REQUEST = 'Every weekday at 17:00, tell me which new tickets are urgent'
 const ROUTINE = { title: 'Daily ticket sweep', schedule: 'Weekdays · 17:00' }
 const REPORT = { summary: '2 urgent out of 14 new tickets', detail: '#4821 · refunds fail since the 15:10 deploy' }
 
-const AVATAR_SIZE = 80
+const LIST_AVATAR_SIZE = 30
 const ICON_SIZE = 12
 
 const playRoutine = frameLoop([
@@ -41,32 +46,44 @@ export default function BotsTile() {
 
   return (
     <div className="lp-bots-tile" ref={ref} aria-hidden="true">
-      <div className="lp-bots-tile__bot">
-        <span className="lp-bots-tile__halo" />
-        <BotAvatar seed={BOT.seed} avatarStyle={BOT.avatarStyle} size={AVATAR_SIZE} isThinking={isRunning} />
-        <span className="lp-bots-tile__name">{BOT.name}</span>
-        <span className="lp-bots-tile__description">{BOT.description}</span>
-      </div>
+      <ul className="lp-bots-tile__list">
+        <li className="lp-bots-tile__item lp-bots-tile__item--active">
+          <BotAvatar seed={BOT.seed} avatarStyle={BOT.avatarStyle} size={LIST_AVATAR_SIZE} isThinking={isRunning} />
+        </li>
+        {OTHER_BOTS.map(bot => (
+          <li key={bot.seed} className="lp-bots-tile__item">
+            <BotAvatar seed={bot.seed} avatarStyle={bot.avatarStyle} size={LIST_AVATAR_SIZE} />
+            {bot.unreadCount > 0 && <span className="lp-bots-tile__badge">{bot.unreadCount}</span>}
+          </li>
+        ))}
+      </ul>
 
-      <div className="lp-bots-tile__feed">
-        <p className="lp-bots-tile__request">{REQUEST}</p>
-        {stage >= STAGE_SCHEDULED && (
-          <div className="lp-bots-tile__card lp-bots-tile__routine">
-            <Icon name="clock" size={ICON_SIZE} />
-            <span className="lp-bots-tile__routine-title">{ROUTINE.title}</span>
-            <span className="lp-bots-tile__routine-when">
-              {isRunning && <span className="lp-spinner" />}
-              {isRunning ? 'Running now' : ROUTINE.schedule}
-            </span>
-          </div>
-        )}
-        {stage === STAGE_REPORTED && (
-          <div className="lp-bots-tile__card lp-bots-tile__report">
-            <span className="lp-bots-tile__unread" />
-            <strong>{REPORT.summary}</strong>
-            <span>{REPORT.detail}</span>
-          </div>
-        )}
+      <div className="lp-bots-tile__chat">
+        <div className="lp-bots-tile__header">
+          <span className="lp-bots-tile__name">{BOT.name}</span>
+          <span className="lp-bots-tile__description">{BOT.description}</span>
+        </div>
+
+        <div className="lp-bots-tile__feed">
+          <p className="lp-bots-tile__request">{REQUEST}</p>
+          {stage >= STAGE_SCHEDULED && (
+            <div className="lp-bots-tile__card lp-bots-tile__routine">
+              <Icon name="clock" size={ICON_SIZE} />
+              <span className="lp-bots-tile__routine-title">{ROUTINE.title}</span>
+              <span className="lp-bots-tile__routine-when">
+                {isRunning && <span className="lp-spinner" />}
+                {isRunning ? 'Running now' : ROUTINE.schedule}
+              </span>
+            </div>
+          )}
+          {stage === STAGE_REPORTED && (
+            <div className="lp-bots-tile__card lp-bots-tile__report">
+              <span className="lp-bots-tile__unread" />
+              <strong>{REPORT.summary}</strong>
+              <span>{REPORT.detail}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
