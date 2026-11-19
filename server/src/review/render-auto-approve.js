@@ -6,7 +6,10 @@ const DECIDED_BY_JEV = 'jev'
 const INFO_ROLE = 'info'
 const CONFIDENCE_DIGITS = 2
 const LIMIT_UNITS = { 'review-effort': ' mins' }
-const GATES_HEADER = ['| Gate | Limit or role | Jev’s answer | Confidence | Check |', '| --- | --- | --- | --- | --- |']
+const GATES_HEADER = [
+  '| Gate | Limit or role | Review fact | Jev’s answer | Confidence | Check |',
+  '| --- | --- | --- | --- | --- | --- |',
+]
 const QUESTIONS_HEADER = ['| Question | Jev’s answer | Confidence | Check |', '| --- | --- | --- | --- |']
 
 function formatConfidence(value) {
@@ -26,9 +29,22 @@ function describeLimit(gate) {
   return `≤ ${gate.limit}${LIMIT_UNITS[ruleIdOf(gate.questionId)] ?? ''}`
 }
 
+function describeGateCheck(gate, minConfidence) {
+  if (gate.role === INFO_ROLE) return '➖ Info'
+  if (gate.factVeto) return '⛔ Veto (review fact)'
+
+  return describeCheck(gate, minConfidence)
+}
+
 function gateRow(gate, minConfidence) {
-  const check = gate.role === INFO_ROLE ? '➖ Info' : describeCheck(gate, minConfidence)
-  const cells = [gate.label, describeLimit(gate), gate.answer ?? 'no answer', formatConfidence(gate.confidence), check]
+  const cells = [
+    gate.label,
+    describeLimit(gate),
+    gate.fact,
+    gate.answer ?? 'no answer',
+    formatConfidence(gate.confidence),
+    describeGateCheck(gate, minConfidence),
+  ]
 
   return `| ${cells.map(tableCell).join(' | ')} |`
 }
@@ -46,7 +62,7 @@ function questionRow(row, minConfidence) {
 
 function describeJevOutcome({ repo, mode, approve, pendingOnly }, reviewerLogin) {
   const name = `\`${repo}\``
-  const held = pendingOnly ? 'the CI gate has not passed yet' : 'Jev vetoed the approval'
+  const held = pendingOnly ? 'the CI gate has not passed yet' : 'a gate or a question vetoed the approval'
   const retry = reviewerLogin ? `: comment \`@${reviewerLogin} review\` to request one` : ''
 
   if (mode === MODE_SHADOW && approve) {
@@ -75,8 +91,8 @@ function describeJevOutcome({ repo, mode, approve, pendingOnly }, reviewerLogin)
   }
 
   return [
-    '⛔ Auto-approve · not approved: Jev vetoed',
-    `${name} is set to \`on\`, but Jev vetoed the approval. Review it as usual.`,
+    '⛔ Auto-approve · not approved',
+    `${name} is set to \`on\`, but a gate or a question vetoed the approval. Review it as usual.`,
   ]
 }
 

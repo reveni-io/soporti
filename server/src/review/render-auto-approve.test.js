@@ -2,13 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { describeJevPass, renderAutoApprove, renderJevAnswers } from './render-auto-approve.js'
 
 const GATES = [
-  { questionId: 'rule:ci', label: 'CI status', role: 'veto', limit: null, answer: 'Passed', confidence: 0.97 },
+  {
+    questionId: 'rule:ci',
+    label: 'CI status',
+    role: 'veto',
+    limit: null,
+    answer: 'Passed',
+    fact: 'Passed',
+    confidence: 0.97,
+  },
   {
     questionId: 'rule:merge-risk',
     label: 'Max merge risk',
     role: 'veto',
     limit: 'Low',
     answer: 'Low',
+    fact: 'Low',
     confidence: 0.9,
   },
   {
@@ -17,10 +26,19 @@ const GATES = [
     role: 'veto',
     limit: 10,
     answer: 'Yes',
+    fact: 'Yes',
     confidence: 0.88,
   },
-  { questionId: 'rule:walkthrough', label: 'Walkthrough', role: 'info', limit: null, answer: null, confidence: 0 },
-].map(gate => ({ flagged: false, unsure: false, ...gate }))
+  {
+    questionId: 'rule:walkthrough',
+    label: 'Walkthrough',
+    role: 'info',
+    limit: null,
+    answer: null,
+    fact: 'No',
+    confidence: 0,
+  },
+].map(gate => ({ flagged: false, unsure: false, factVeto: false, ...gate }))
 const QUESTIONS = [
   {
     questionId: 'q1',
@@ -69,23 +87,28 @@ describe('renderAutoApprove', () => {
     expect(body).toContain('<details open>\n<summary>✅ Auto-approve · approved</summary>')
     expect(body).toContain('`acme/web` is set to `on` and no gate or question vetoed it, so Soporti approved this PR.')
     expect(body).toContain('<summary>Gates (4)</summary>')
-    expect(body).toContain('| CI status | veto | Passed | 0.97 | ✅ OK |')
-    expect(body).toContain('| Max merge risk | ≤ Low | Low | 0.90 | ✅ OK |')
-    expect(body).toContain('| Max review effort | ≤ 10 mins | Yes | 0.88 | ✅ OK |')
-    expect(body).toContain('| Walkthrough | info | no answer | 0.00 | ➖ Info |')
+    expect(body).toContain('| CI status | veto | Passed | Passed | 0.97 | ✅ OK |')
+    expect(body).toContain('| Max merge risk | ≤ Low | Low | Low | 0.90 | ✅ OK |')
+    expect(body).toContain('| Max review effort | ≤ 10 mins | Yes | Yes | 0.88 | ✅ OK |')
+    expect(body).toContain('| Walkthrough | info | No | no answer | 0.00 | ➖ Info |')
   })
 
-  it('shows a veto and an answer Jev was not sure about', () => {
+  it('shows a veto, a review fact that fails its rule and an answer Jev was not sure about', () => {
     const gates = [
-      { ...GATES[0], answer: 'Failed', flagged: true },
+      { ...GATES[0], answer: 'Failed', fact: 'Failed', flagged: true, factVeto: true },
       { ...GATES[1], confidence: 0.5, unsure: true },
+      { ...GATES[2], fact: 'No', factVeto: true },
+      { ...GATES[1], questionId: 'q9', label: 'Spec check', limit: null, answer: 'Yes', fact: 'Yes', flagged: true },
     ]
 
     const body = renderAutoApprove(outcome({ approve: false, gates }))
 
-    expect(body).toContain('⛔ Auto-approve · not approved: Jev vetoed')
-    expect(body).toContain('| CI status | veto | Failed | 0.97 | ⛔ Veto |')
-    expect(body).toContain('| Max merge risk | ≤ Low | Low | 0.50 | ⛔ Veto (not sure: 0.50 < 0.75) |')
+    expect(body).toContain('<summary>⛔ Auto-approve · not approved</summary>')
+    expect(body).toContain('but a gate or a question vetoed the approval. Review it as usual.')
+    expect(body).toContain('| CI status | veto | Failed | Failed | 0.97 | ⛔ Veto (review fact) |')
+    expect(body).toContain('| Max merge risk | ≤ Low | Low | Low | 0.50 | ⛔ Veto (not sure: 0.50 < 0.75) |')
+    expect(body).toContain('| Max review effort | ≤ 10 mins | No | Yes | 0.88 | ⛔ Veto (review fact) |')
+    expect(body).toContain('| Spec check | veto | Yes | Yes | 0.90 | ⛔ Veto |')
   })
 
   it('waits for a pending CI and says how to ask for a new review', () => {
@@ -101,7 +124,9 @@ describe('renderAutoApprove', () => {
     expect(renderAutoApprove(outcome({ mode: 'shadow', approve: false, pendingOnly: true }))).toContain(
       'is in `shadow` mode and the CI gate has not passed yet, so Soporti would not have approved this PR.'
     )
-    expect(renderAutoApprove(outcome({ mode: 'shadow', approve: false }))).toContain('and Jev vetoed the approval')
+    expect(renderAutoApprove(outcome({ mode: 'shadow', approve: false }))).toContain(
+      'and a gate or a question vetoed the approval'
+    )
   })
 
   it('explains a decision taken as today without gates', () => {

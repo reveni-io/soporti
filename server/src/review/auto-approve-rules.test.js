@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildRuleQuestions, collectReviewFacts, ruleIdOf } from './auto-approve-rules.js'
+import { buildRuleQuestions, checkRuleFact, collectReviewFacts, ruleIdOf } from './auto-approve-rules.js'
 
 function review(overrides = {}) {
   return {
@@ -125,6 +125,41 @@ describe('buildRuleQuestions', () => {
     const [question] = buildRuleQuestions([{ id, role: 'veto' }])
 
     expect(question.answers.some(answer => answer.flag)).toBe(true)
+  })
+})
+
+describe('checkRuleFact', () => {
+  const FACTS = {
+    ciStatus: 'passed',
+    blockingFindings: [],
+    specCheck: 'no spec',
+    unresolvedThreads: 0,
+    walkthrough: 'posted',
+    mergeRisk: 'Low',
+    estimatedReviewMinutes: 5,
+    nitpicks: 2,
+    denylistMatches: [],
+  }
+
+  it.each([
+    [{ id: 'ci', role: 'veto' }, {}, 'Passed', false],
+    [{ id: 'ci', role: 'veto' }, { ciStatus: 'unknown' }, 'Unknown', true],
+    [{ id: 'findings', role: 'veto' }, { blockingFindings: ['Refund twice'] }, 'Yes', true],
+    [{ id: 'spec', role: 'veto' }, {}, 'No spec', false],
+    [{ id: 'spec', role: 'veto' }, { specCheck: 'unknown' }, 'Unknown', true],
+    [{ id: 'threads', role: 'veto' }, { unresolvedThreads: 2 }, 'Yes', true],
+    [{ id: 'threads', role: 'veto' }, { unresolvedThreads: 'unknown' }, 'Unknown', true],
+    [{ id: 'walkthrough', role: 'veto' }, { walkthrough: 'missing' }, 'No', true],
+    [{ id: 'merge-risk', role: 'veto', limit: 'Low' }, { mergeRisk: 'Medium' }, 'Medium', true],
+    [{ id: 'merge-risk', role: 'veto', limit: 'Medium' }, { mergeRisk: 'Medium' }, 'Medium', false],
+    [{ id: 'merge-risk', role: 'veto', limit: 'High' }, { mergeRisk: 'Unknown' }, 'Unknown', true],
+    [{ id: 'review-effort', role: 'veto', limit: 10 }, { estimatedReviewMinutes: 15 }, 'No', true],
+    [{ id: 'review-effort', role: 'veto', limit: 10 }, { estimatedReviewMinutes: 'unknown' }, 'Unknown', true],
+    [{ id: 'nitpicks', role: 'veto', limit: 3 }, {}, 'Yes', false],
+    [{ id: 'denylist', role: 'veto' }, { denylistMatches: ['src/payments/fees.js'] }, 'Yes', true],
+    [{ id: 'denylist', role: 'info' }, { denylistMatches: ['src/payments/fees.js'] }, 'Yes', false],
+  ])('checks %j against the review facts', (rule, facts, answer, vetoed) => {
+    expect(checkRuleFact(rule, { ...FACTS, ...facts })).toEqual({ answer, vetoed })
   })
 })
 

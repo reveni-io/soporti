@@ -18,7 +18,7 @@ const RULES = [
   { id: 'walkthrough', role: 'info' },
 ]
 
-function context({ mode = 'on', jev = true, todayEvent = 'COMMENT' } = {}) {
+function context({ mode = 'on', jev = true, todayEvent = 'COMMENT', review = {} } = {}) {
   return {
     repo: { name: 'acme/web', mode, jev, denylist: ['src/payments/**'] },
     todayEvent,
@@ -35,6 +35,7 @@ function context({ mode = 'on', jev = true, todayEvent = 'COMMENT' } = {}) {
         { filename: 'src/payments/fees.js', patch: '+fee' },
         { filename: 'package-lock.json', patch: '+x', generated: true },
       ],
+      ...review,
     },
   }
 }
@@ -43,9 +44,9 @@ function row(questionId, answer, { flagged = false, unsure = false } = {}) {
   return { questionId, question: questionId, answer, confidence: 0.9, flagged, unsure }
 }
 
-function answered(rows) {
+function answered(rows, rules = RULES) {
   runJevCheck.mockImplementation(async ({ buildExtraQuestions }) => {
-    buildExtraQuestions({ rules: RULES })
+    buildExtraQuestions({ rules })
     return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', minConfidence: 0.75, rows }
   })
 }
@@ -111,8 +112,15 @@ describe('decideAutoApprove', () => {
       model: 'jev-1.14.0',
     })
     expect(autoApprove.gates).toEqual([
-      { ...row('rule:ci', 'No checks'), label: 'CI status', role: 'veto', limit: null },
-      { ...row('rule:nitpicks', 'Yes'), label: 'Max nitpicks', role: 'veto', limit: 3 },
+      {
+        ...row('rule:ci', 'No checks'),
+        label: 'CI status',
+        role: 'veto',
+        limit: null,
+        fact: 'No checks',
+        factVeto: false,
+      },
+      { ...row('rule:nitpicks', 'Yes'), label: 'Max nitpicks', role: 'veto', limit: 3, fact: 'Yes', factVeto: false },
     ])
     expect(autoApprove.questions).toEqual([row('q1', 'No')])
 
@@ -160,11 +168,44 @@ describe('decideAutoApprove', () => {
   })
 
   it('says when only a pending CI holds the approval back', async () => {
-    answered([row('rule:ci', 'Pending', { flagged: true }), row('q1', 'No')])
+    answered([row('rule:ci', 'Passed'), row('q1', 'No')])
+    const review = { ciStatus: { checks: [{ name: 'test', state: 'pending' }], incomplete: false } }
 
-    const { autoApprove } = await decideAutoApprove(context(), { logger })
+    const { autoApprove } = await decideAutoApprove(context({ review }), { logger })
 
     expect(autoApprove).toMatchObject({ approve: false, pendingOnly: true })
+  })
+
+  it.each([
+    {
+      name: 'a failed CI',
+      rule: { id: 'ci', role: 'veto' },
+      jevAnswer: 'Passed',
+      review: { ciStatus: { checks: [{ name: 'test', state: 'failed' }], incomplete: false } },
+      fact: 'Failed',
+    },
+    {
+      name: 'a blocking finding',
+      rule: { id: 'findings', role: 'veto' },
+      jevAnswer: 'No',
+      review: { findings: [{ title: 'Refund twice', severity: 'major' }] },
+      fact: 'Yes',
+    },
+    {
+      name: 'a file in the denylist',
+      rule: { id: 'denylist', role: 'veto' },
+      jevAnswer: 'No',
+      review: {},
+      fact: 'Yes',
+    },
+  ])('never approves over $name, whatever Jev answers', async ({ rule, jevAnswer, review, fact }) => {
+    answered([row(`rule:${rule.id}`, jevAnswer), row('q1', 'No')], [rule])
+
+    const { event, autoApprove } = await decideAutoApprove(context({ review }), { logger })
+
+    expect(event).toBe('COMMENT')
+    expect(autoApprove).toMatchObject({ approve: false, pendingOnly: false })
+    expect(autoApprove.gates[0]).toMatchObject({ answer: jevAnswer, fact, factVeto: true })
   })
 
   it('decides as today when Jev is off for the repo', async () => {

@@ -9,9 +9,30 @@ const SPEC_LENS = 'spec'
 const FAILED_PASS = 'failed'
 const UNKNOWN = 'unknown'
 const MERGE_RISKS = ['Low', 'Medium', 'High']
+const UNKNOWN_ANSWER = 'Unknown'
+const POSTED = 'posted'
+const CI_ANSWERS = new Map([
+  ['passed', 'Passed'],
+  ['no checks', 'No checks'],
+  ['pending', 'Pending'],
+  ['failed', 'Failed'],
+])
+const SPEC_ANSWERS = new Map([
+  ['blocking finding', 'Yes'],
+  ['no blocking finding', 'No'],
+  ['no spec', 'No spec'],
+])
 
 function always(question) {
   return () => question
+}
+
+function yesNo(condition) {
+  return condition ? 'Yes' : 'No'
+}
+
+function unlessUnknown(value, answer) {
+  return value === UNKNOWN ? UNKNOWN_ANSWER : answer(value)
 }
 
 const RULE_QUESTIONS = {
@@ -20,54 +41,63 @@ const RULE_QUESTIONS = {
     fact: 'ciStatus',
     answers: ['Passed', 'No checks', 'Pending', 'Failed', 'Unknown'],
     vetoes: ['Pending', 'Failed', 'Unknown'],
+    answer: facts => CI_ANSWERS.get(facts.ciStatus) ?? UNKNOWN_ANSWER,
   }),
   findings: always({
     text: 'Does the review report blocking findings?',
     fact: 'blockingFindings',
     answers: ['Yes', 'No'],
     vetoes: ['Yes'],
+    answer: facts => yesNo(facts.blockingFindings.length > 0),
   }),
   spec: always({
     text: 'Does the spec check report a blocking finding?',
     fact: 'specCheck',
     answers: ['Yes', 'No', 'No spec', 'Unknown'],
     vetoes: ['Yes', 'Unknown'],
+    answer: facts => SPEC_ANSWERS.get(facts.specCheck) ?? UNKNOWN_ANSWER,
   }),
   threads: always({
     text: 'Are there unresolved review threads?',
     fact: 'unresolvedThreads',
     answers: ['Yes', 'No', 'Unknown'],
     vetoes: ['Yes', 'Unknown'],
+    answer: facts => unlessUnknown(facts.unresolvedThreads, threads => yesNo(threads > 0)),
   }),
   walkthrough: always({
     text: 'Did the review post its walkthrough?',
     fact: 'walkthrough',
     answers: ['Yes', 'No'],
     vetoes: ['No'],
+    answer: facts => yesNo(facts.walkthrough === POSTED),
   }),
   'merge-risk': limit => ({
     text: 'What is the merge risk?',
     fact: 'mergeRisk',
     answers: [...MERGE_RISKS, 'Unknown'],
     vetoes: [...MERGE_RISKS.slice(MERGE_RISKS.indexOf(limit) + 1), 'Unknown'],
+    answer: facts => (MERGE_RISKS.includes(facts.mergeRisk) ? facts.mergeRisk : UNKNOWN_ANSWER),
   }),
   'review-effort': limit => ({
     text: `Is the estimated review effort at most ${limit} minutes?`,
     fact: 'estimatedReviewMinutes',
     answers: ['Yes', 'No', 'Unknown'],
     vetoes: ['No', 'Unknown'],
+    answer: facts => unlessUnknown(facts.estimatedReviewMinutes, minutes => yesNo(minutes <= limit)),
   }),
   nitpicks: limit => ({
     text: `Are there at most ${limit} nitpicks?`,
     fact: 'nitpicks',
     answers: ['Yes', 'No'],
     vetoes: ['No'],
+    answer: facts => yesNo(facts.nitpicks <= limit),
   }),
   denylist: always({
     text: 'Does any changed file match the denylist of the repo?',
     fact: 'denylistMatches',
     answers: ['Yes', 'No'],
     vetoes: ['Yes'],
+    answer: facts => yesNo(facts.denylistMatches.length > 0),
   }),
 }
 
@@ -108,7 +138,7 @@ export function collectReviewFacts(review, denylist) {
       .map(finding => finding.title),
     specCheck: describeSpec(findings, passes),
     unresolvedThreads: history ? Math.max(0, history.unresolvedThreads - fixedThreads.length) : UNKNOWN,
-    walkthrough: overview ? 'posted' : 'missing',
+    walkthrough: overview ? POSTED : 'missing',
     mergeRisk: classifyMergeRisk(findings, notReviewed, passes).level,
     estimatedReviewMinutes: overview ? overview.reviewMinutes : UNKNOWN,
     nitpicks: findings.filter(finding => finding.severity === NIT_SEVERITY).length,
@@ -133,6 +163,13 @@ export function buildRuleQuestions(rules) {
       })),
     }
   })
+}
+
+export function checkRuleFact(rule, facts) {
+  const definition = RULE_QUESTIONS[rule.id](rule.limit)
+  const answer = definition.answer(facts)
+
+  return { answer, vetoed: rule.role === VETO_ROLE && definition.vetoes.includes(answer) }
 }
 
 export function ruleIdOf(questionId) {
