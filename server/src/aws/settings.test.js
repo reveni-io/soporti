@@ -4,6 +4,13 @@ const getConfigValue = vi.fn()
 const setConfigValue = vi.fn()
 vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 
+const { encryptSecret } = vi.hoisted(() => ({ encryptSecret: vi.fn() }))
+vi.mock('../auth/secret-cipher.js', async importOriginal => {
+  const actual = await importOriginal()
+  encryptSecret.mockImplementation(actual.encryptSecret)
+  return { ...actual, encryptSecret }
+})
+
 const {
   AWS_ACCESS_KEY_ID_KEY,
   AWS_ENABLED_KEY,
@@ -88,6 +95,28 @@ describe('getAwsAccessKey', () => {
     expect(store.get(AWS_SECRET_ACCESS_KEY_KEY)).toMatch(/^v1:/)
     expect(store.get(AWS_SECRET_ACCESS_KEY_KEY)).not.toContain(SECRET_ACCESS_KEY)
     expect(await getAwsAccessKey()).toEqual({ accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY })
+  })
+
+  it('writes nothing when the secret cannot be encrypted, so the stored pair stays whole', async () => {
+    await setAwsAccessKey({ accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY })
+    setConfigValue.mockClear()
+    encryptSecret.mockImplementationOnce(() => {
+      throw new Error('cipher unavailable')
+    })
+
+    await expect(
+      setAwsAccessKey({ accessKeyId: 'AKIAI44QH8DHBEXAMPLE', secretAccessKey: SECRET_ACCESS_KEY })
+    ).rejects.toThrow('cipher unavailable')
+
+    expect(setConfigValue).not.toHaveBeenCalled()
+    expect(store.get(AWS_ACCESS_KEY_ID_KEY)).toBe(ACCESS_KEY_ID)
+    expect(await getAwsAccessKey()).toEqual({ accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY })
+  })
+
+  it('writes the secret before the key ID', async () => {
+    await setAwsAccessKey({ accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY })
+
+    expect(setConfigValue.mock.calls.map(([key]) => key)).toEqual([AWS_SECRET_ACCESS_KEY_KEY, AWS_ACCESS_KEY_ID_KEY])
   })
 
   it('returns null when either half is missing', async () => {

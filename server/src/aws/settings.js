@@ -15,6 +15,7 @@ const cache = new Map()
 
 async function readTrimmed(key) {
   const stored = await getConfigValue(key)
+
   return typeof stored === 'string' && stored.trim().length > 0 ? stored.trim() : null
 }
 
@@ -75,8 +76,10 @@ export async function getAwsAccessKey() {
 }
 
 export async function setAwsAccessKey({ accessKeyId, secretAccessKey }) {
+  const encryptedSecret = secretAccessKey ? encryptSecret(secretAccessKey) : ''
+
+  await setCachedValue(AWS_SECRET_ACCESS_KEY_KEY, encryptedSecret)
   await setCachedValue(AWS_ACCESS_KEY_ID_KEY, accessKeyId)
-  await setCachedValue(AWS_SECRET_ACCESS_KEY_KEY, secretAccessKey ? encryptSecret(secretAccessKey) : '')
 }
 
 export async function isAwsConfigured() {

@@ -87,7 +87,9 @@ export const getAwsMetricDataTool = tool({
     period: z
       .number()
       .optional()
-      .describe('Seconds per datapoint, a multiple of 60. Picked automatically when left out.'),
+      .describe(
+        'Seconds per datapoint. Picked automatically when left out, and always rounded up to what CloudWatch keeps for the range: 60-second steps, 300 for data older than 15 days, 3600 for data older than 63 days.'
+      ),
   }),
   execute: async input => JSON.stringify(await aws.getMetricData(input)),
 })

@@ -718,6 +718,42 @@ describe('getMetricData', () => {
     expect(commandsNamed('GetMetricData')[1].input.MetricDataQueries[0].MetricStat.Period).toBe(5040)
   })
 
+  it('rounds the period to the 300-second steps CloudWatch keeps for data older than 15 days', async () => {
+    useHandlers({ GetMetricData: () => ({ MetricDataResults: [] }) })
+
+    const twoMonths = await getMetricData({
+      namespace: 'AWS/ECS',
+      metricName: 'CPUUtilization',
+      from: '2026-09-17T12:00:00Z',
+    })
+    const twentyDaysAgo = await getMetricData({
+      namespace: 'AWS/ECS',
+      metricName: 'CPUUtilization',
+      from: '2026-10-30T12:00:00Z',
+      to: '2026-10-30T13:00:00Z',
+      period: 90,
+    })
+
+    expect(twoMonths.periodSeconds).toBe(45600)
+    expect(twoMonths.periodSeconds % 300).toBe(0)
+    expect(twentyDaysAgo.periodSeconds).toBe(300)
+  })
+
+  it('rounds the period to whole hours for data older than 63 days', async () => {
+    useHandlers({ GetMetricData: () => ({ MetricDataResults: [] }) })
+
+    const result = await getMetricData({
+      namespace: 'AWS/ECS',
+      metricName: 'CPUUtilization',
+      from: '2026-08-01T00:00:00Z',
+      to: '2026-08-02T00:00:00Z',
+      period: 600,
+    })
+
+    expect(result.periodSeconds).toBe(3600)
+    expect(commandsNamed('GetMetricData')[0].input.MetricDataQueries[0].MetricStat.Period).toBe(3600)
+  })
+
   it('rejects a missing metric, a bad timestamp and an impossible range before calling AWS', async () => {
     await expect(getMetricData({ namespace: 'AWS/ECS' })).rejects.toThrow(
       'Pass both "namespace" and "metricName" (see aws_list_metrics).'

@@ -35,10 +35,15 @@ const RECENTLY_ACTIVE = 'PT3H'
 const MAX_NAMESPACE_PAGES = 20
 const MAX_METRIC_PAGES = 5
 const MAX_METRICS = 100
+const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_METRIC_WINDOW_MS = 3 * 60 * 60 * 1000
-const MAX_METRIC_WINDOW_MS = 63 * 24 * 60 * 60 * 1000
+const MAX_METRIC_WINDOW_MS = 63 * DAY_MS
 const MAX_DATAPOINTS = 120
 const MIN_PERIOD_SECONDS = 60
+const RETENTION_PERIOD_STEPS = [
+  { olderThanMs: 63 * DAY_MS, seconds: 3600 },
+  { olderThanMs: 15 * DAY_MS, seconds: 300 },
+]
 const MAX_METRIC_DATA_PAGES = 5
 const DEFAULT_STAT = 'Average'
 const ACCESS_DENIED_NAMES = new Set(['AccessDenied', 'AccessDeniedException', 'UnauthorizedOperation'])
@@ -76,6 +81,7 @@ let cachedClients = null
 function awsError(message) {
   const error = new Error(message)
   error.code = AWS_REQUEST_FAILED
+
   return error
 }
 
@@ -117,6 +123,7 @@ function clientSignature({ region, credentials }) {
 async function getClients() {
   const clientConfig = await resolveClientConfig()
   const signature = clientSignature(clientConfig)
+
   if (cachedClients?.signature === signature) return cachedClients
 
   cachedClients = {
@@ -125,6 +132,7 @@ async function getClients() {
     ecs: new ECSClient(clientConfig),
     sts: new STSClient(clientConfig),
   }
+
   return cachedClients
 }
 
@@ -156,6 +164,7 @@ async function collectPages(fetchPage, { maxPages }) {
 function chunk(list, size) {
   const chunks = []
   for (let index = 0; index < list.length; index += size) chunks.push(list.slice(index, index + size))
+
   return chunks
 }
 
@@ -328,10 +337,11 @@ function summarizeService(service) {
 
 async function describeServices(cluster, names) {
   const batches = await Promise.all(
-    chunk(names, DESCRIBE_SERVICES_BATCH).map(batch =>
-      send('ecs', new DescribeServicesCommand({ cluster, services: batch }), 'ecs:DescribeServices')
-    )
+    chunk(names, DESCRIBE_SERVICES_BATCH).map(batch => {
+      return send('ecs', new DescribeServicesCommand({ cluster, services: batch }), 'ecs:DescribeServices')
+    })
   )
+
   return batches.flatMap(response => response.services ?? [])
 }
 
@@ -504,16 +514,24 @@ function resolveMetricWindow(from, to) {
   return { start, end }
 }
 
-function roundUpToMinute(seconds) {
-  return Math.max(MIN_PERIOD_SECONDS, Math.ceil(seconds / MIN_PERIOD_SECONDS) * MIN_PERIOD_SECONDS)
+function periodStep(start) {
+  const age = Date.now() - start.getTime()
+
+  return RETENTION_PERIOD_STEPS.find(step => age > step.olderThanMs)?.seconds ?? MIN_PERIOD_SECONDS
+}
+
+function roundUpToStep(seconds, step) {
+  return Math.max(step, Math.ceil(seconds / step) * step)
 }
 
 function resolvePeriod(period, { start, end }) {
-  const smallestPeriod = roundUpToMinute((end - start) / 1000 / MAX_DATAPOINTS)
+  const step = periodStep(start)
+  const smallestPeriod = roundUpToStep((end - start) / 1000 / MAX_DATAPOINTS, step)
   const requested = Number(period)
+
   if (!Number.isFinite(requested) || requested <= 0) return smallestPeriod
 
-  return Math.max(roundUpToMinute(requested), smallestPeriod)
+  return Math.max(roundUpToStep(requested, step), smallestPeriod)
 }
 
 function summarizeDatapoints(datapoints) {
@@ -531,9 +549,9 @@ function summarizeDatapoints(datapoints) {
 }
 
 function toDatapoints(results) {
-  return results.flatMap(result =>
-    (result.Timestamps ?? []).map((timestamp, index) => ({ at: toIso(timestamp), value: result.Values[index] }))
-  )
+  return results.flatMap(result => {
+    return (result.Timestamps ?? []).map((timestamp, index) => ({ at: toIso(timestamp), value: result.Values[index] }))
+  })
 }
 
 export async function getMetricData({ namespace, metricName, dimensions, stat, from, to, period } = {}) {
