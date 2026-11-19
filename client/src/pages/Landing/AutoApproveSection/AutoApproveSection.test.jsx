@@ -11,11 +11,11 @@ describe('AutoApproveSection', () => {
     expect(screen.getByText(/only trivial PRs are approved/)).toBeInTheDocument()
   })
 
-  it('shows a review where an unsure answer vetoes the approval, without naming the service behind it', () => {
+  it('shows a review where an unsure answer vetoes the approval, without naming the service or a path', () => {
     const { container } = render(<AutoApproveSection />)
 
     expect(container.querySelectorAll('.lp-auto-approve__gate')).toHaveLength(5)
     expect(container.querySelector('.lp-auto-approve__gate--veto')).toHaveTextContent('Personal data in logs?')
-    expect(container).not.toHaveTextContent(/jev/i)
+    expect(container).not.toHaveTextContent(/jev|\/admin/i)
   })
 })
