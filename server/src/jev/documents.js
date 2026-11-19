@@ -326,7 +326,10 @@ export function defaultJevDocument(id) {
 }
 
 export function parseJevDocument(id, data) {
-  return DOCUMENT_PARSERS.get(id)(data)
+  const parse = DOCUMENT_PARSERS.get(id)
+  if (typeof parse !== 'function') return { error: 'Unknown document.' }
+
+  return parse(data)
 }
 
 export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0 } = {}) {
