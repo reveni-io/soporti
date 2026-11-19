@@ -3,7 +3,7 @@ import { recordAutoApproveEvaluation } from '../db/auto-approve-evaluations.js'
 import { getJevDocument } from '../db/jev-documents.js'
 import { runJevCheck } from '../jev/check.js'
 import { GITHUB_RULES } from '../jev/github-project.js'
-import { buildRuleQuestions, collectReviewFacts, ruleIdOf } from './auto-approve-rules.js'
+import { buildRuleQuestions, checkRuleFact, collectReviewFacts, ruleIdOf } from './auto-approve-rules.js'
 
 const APPROVE = 'APPROVE'
 const COMMENT = 'COMMENT'
@@ -26,7 +26,7 @@ export async function loadAutoApproveRepo(repoFullName, { logger = console } = {
   }
 }
 
-function buildJevState({ pullRequest, review, repo }) {
+function buildJevState({ pullRequest, review }, facts) {
   return {
     pullRequest: {
       repository: pullRequest.repoFullName,
@@ -34,7 +34,7 @@ function buildJevState({ pullRequest, review, repo }) {
       title: pullRequest.title,
       description: pullRequest.body,
     },
-    review: collectReviewFacts(review, repo.denylist),
+    review: facts,
     diff: review.files
       .filter(file => !file.generated && typeof file.patch === 'string')
       .map(file => `--- ${file.filename}\n${file.patch}`)
@@ -56,23 +56,31 @@ function asToday(todayEvent, reason, result = null) {
   }
 }
 
-function toGate(row, rulesById) {
+function toGate(row, rulesById, facts) {
   const rule = rulesById.get(ruleIdOf(row.questionId))
+  const fact = checkRuleFact(rule, facts)
 
-  return { ...row, label: RULE_LABELS.get(rule.id), role: rule.role, limit: rule.limit ?? null }
+  return {
+    ...row,
+    label: RULE_LABELS.get(rule.id),
+    role: rule.role,
+    limit: rule.limit ?? null,
+    fact: fact.answer,
+    factVeto: fact.vetoed,
+  }
 }
 
 function isBlocking(row) {
-  return row.flagged || row.unsure
+  return row.flagged || row.unsure || row.factVeto === true
 }
 
 function isPendingCi(row) {
-  return ruleIdOf(row.questionId) === CI_RULE && row.answer === PENDING_ANSWER && !row.unsure
+  return ruleIdOf(row.questionId) === CI_RULE && row.fact === PENDING_ANSWER
 }
 
-function fromJev(result, rules) {
+function fromJev(result, rules, facts) {
   const rulesById = new Map(rules.map(rule => [rule.id, rule]))
-  const gates = result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById))
+  const gates = result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById, facts))
   const questions = result.rows.filter(row => !ruleIdOf(row.questionId))
   const blocking = [...gates.filter(gate => gate.role !== INFO_ROLE), ...questions].filter(isBlocking)
 
@@ -93,9 +101,10 @@ async function askJev(context, logger) {
   let rules = []
 
   try {
+    const facts = collectReviewFacts(context.review, context.repo.denylist)
     const result = await runJevCheck({
       project: JEV_GITHUB_DOCUMENT,
-      state: buildJevState(context),
+      state: buildJevState(context, facts),
       buildExtraQuestions: set => {
         rules = set.rules ?? []
         return buildRuleQuestions(rules)
@@ -103,7 +112,7 @@ async function askJev(context, logger) {
     })
     if (result.status !== JEV_CHECK_ANSWERED) return asToday(context.todayEvent, result.reason, result)
 
-    return fromJev(result, rules)
+    return fromJev(result, rules, facts)
   } catch (err) {
     logger.error(`[review] Could not ask Jev about ${context.pullRequest.repoFullName}:`, err)
     return asToday(context.todayEvent, 'the Jev check failed')
