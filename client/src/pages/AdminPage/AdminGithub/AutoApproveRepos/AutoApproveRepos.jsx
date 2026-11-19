@@ -1,8 +1,7 @@
 import { useState } from 'react'
+import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_SHADOW } from '../../../../constants.js'
 import { useAutoApproveRepos } from '../hooks/useAutoApproveRepos/useAutoApproveRepos.js'
 import RepoOnModal from '../RepoOnModal/RepoOnModal.jsx'
-
-const MODES = ['off', 'shadow', 'on']
 
 function countPatterns(denylist) {
   const count = denylist.filter(pattern => pattern.trim()).length
@@ -12,16 +11,16 @@ function countPatterns(denylist) {
 }
 
 function describeBehavior(repo) {
-  if (repo.mode === 'off') return <span className="admin__muted">Not evaluated</span>
+  if (repo.mode === AUTO_APPROVE_OFF) return <span className="admin__muted">Not evaluated</span>
   if (!repo.jev) return <span className="badge">Decides as today (Jev off)</span>
-  if (repo.mode === 'shadow') return <span className="badge">Logs but does not decide</span>
+  if (repo.mode === AUTO_APPROVE_SHADOW) return <span className="badge">Logs but does not decide</span>
 
   return <span className="badge badge--success">Approves when every gate passes</span>
 }
 
 export default function AutoApproveRepos({ token, state, onLogout }) {
   const repos = useAutoApproveRepos(state, { token, onLogout })
-  const [bulkMode, setBulkMode] = useState('shadow')
+  const [bulkMode, setBulkMode] = useState(AUTO_APPROVE_SHADOW)
   const [newRepo, setNewRepo] = useState('')
   const count = repos.repos.length
 
@@ -62,7 +61,7 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
             value={bulkMode}
             onChange={event => setBulkMode(event.target.value)}
           >
-            {MODES.map(mode => (
+            {AUTO_APPROVE_MODES.map(mode => (
               <option key={mode} value={mode}>
                 {mode}
               </option>
@@ -159,7 +158,7 @@ function ReposTable({ repos }) {
                   value={repo.mode}
                   onChange={event => repos.requestMode([repo.name], event.target.value)}
                 >
-                  {MODES.map(mode => (
+                  {AUTO_APPROVE_MODES.map(mode => (
                     <option key={mode} value={mode} disabled={mode === 'on' && !repos.canGoOn(repo.name)}>
                       {mode}
                     </option>
