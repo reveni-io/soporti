@@ -3,11 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('../db/schedules.js', () => ({ claimDueSchedules: vi.fn(), markScheduleRun: vi.fn() }))
 vi.mock('./runner.js', () => ({ runSchedule: vi.fn() }))
 vi.mock('../bots/routine-runner.js', () => ({ runBotRoutine: vi.fn() }))
+vi.mock('../legal/runner.js', () => ({ runLegalSchedule: vi.fn() }))
 vi.mock('../llm/model.js', () => ({ isConfigured: vi.fn() }))
 
 const { claimDueSchedules, markScheduleRun } = await import('../db/schedules.js')
 const { runSchedule } = await import('./runner.js')
 const { runBotRoutine } = await import('../bots/routine-runner.js')
+const { runLegalSchedule } = await import('../legal/runner.js')
 const { isConfigured } = await import('../llm/model.js')
 const { runPollOnce, startSchedulePoller, stopSchedulePoller } = await import('./poller.js')
 
@@ -71,6 +73,19 @@ describe('runPollOnce', () => {
     expect(runBotRoutine).toHaveBeenCalledTimes(1)
     expect(runBotRoutine).toHaveBeenCalledWith(ROUTINE, STORE)
     expect(markScheduleRun).toHaveBeenNthCalledWith(2, 3, { status: 'ok' })
+  })
+
+  it('hands a query with the Legal review to the Legal runner', async () => {
+    const legal = { ...DAILY, id: 9, legal: true }
+    claimDueSchedules.mockResolvedValue([legal])
+    runLegalSchedule.mockResolvedValue({ conversationId: 'conv_9', cases: 2 })
+
+    expect(await runPollOnce(STORE)).toEqual({ ran: 1 })
+
+    expect(runLegalSchedule).toHaveBeenCalledTimes(1)
+    expect(runLegalSchedule).toHaveBeenCalledWith(legal, STORE)
+    expect(runSchedule).not.toHaveBeenCalled()
+    expect(markScheduleRun).toHaveBeenCalledWith(9, { status: 'ok' })
   })
 
   it('counts a routine that had nothing to report as a successful run', async () => {

@@ -642,3 +642,33 @@ export const autoApproveEvaluations = pgTable(
   },
   table => [index('auto_approve_evaluations_repo_created_idx').on(table.repo, table.createdAt)]
 )
+
+export const legalCases = pgTable(
+  'legal_cases',
+  {
+    id: serial('id').primaryKey(),
+    scheduleId: integer('schedule_id')
+      .notNull()
+      .references(() => schedules.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+    source: text('source').notNull(),
+    ticketId: text('ticket_id').notNull(),
+    messageHash: text('message_hash').notNull(),
+    ticketUrl: text('ticket_url'),
+    customer: text('customer').notNull(),
+    subject: text('subject').notNull(),
+    customerMessage: text('customer_message').notNull(),
+    dataFacts: jsonb('data_facts'),
+    draft: jsonb('draft'),
+    language: text('language'),
+    status: text('status').notNull(),
+    reason: text('reason'),
+    jev: jsonb('jev'),
+    warnings: integer('warnings').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [
+    uniqueIndex('legal_cases_ticket_message_idx').on(table.scheduleId, table.source, table.ticketId, table.messageHash),
+    index('legal_cases_created_idx').on(table.createdAt),
+  ]
+)

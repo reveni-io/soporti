@@ -2,7 +2,7 @@ import { run } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
 import { createAgent } from '../agent/assistant.js'
 import { buildTurnLimitPrompt } from '../agent/system-prompt.js'
-import { buildSourcesFooter, isYoloMode } from '../agent/sources.js'
+import { buildSourcesFooter, isYoloMode, WRITE_TOOL_NAMES } from '../agent/sources.js'
 import config from '../config.js'
 import { getCustomInstructions } from '../db/users.js'
 import { toolCallsFromResult } from '../agent/run-items.js'
@@ -47,12 +47,16 @@ function buildWrapUp(agent, maxTurns, state) {
   }
 }
 
+function asReadOnly(agent, outputType) {
+  return agent.clone({ tools: agent.tools.filter(tool => !WRITE_TOOL_NAMES.includes(tool.name)), outputType })
+}
+
 export async function runUnattended(task, { session = undefined, conversationId = null } = {}) {
-  const { sources, profile, userId, timezone, bot, customInstructions, input, question } = task
+  const { sources, profile, userId, timezone, bot, customInstructions, input, question, readOnlyOutputType } = task
   const nestedToolCalls = []
   const nestedUsage = []
 
-  const agent = await createAgent(sources, profile, {
+  const created = await createAgent(sources, profile, {
     customInstructions: customInstructions ?? '',
     userId,
     onNestedToolCall: call => nestedToolCalls.push(call),
@@ -61,6 +65,7 @@ export async function runUnattended(task, { session = undefined, conversationId 
     timezone,
     bot,
   })
+  const agent = readOnlyOutputType ? asReadOnly(created, readOnlyOutputType) : created
 
   const { maxTurns } = config.schedules
   const state = { wrappedUp: false }

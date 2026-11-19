@@ -4,6 +4,7 @@ import { isConfigured } from '../llm/model.js'
 import { computeNextRun } from './next-run.js'
 import { runSchedule } from './runner.js'
 import { runBotRoutine } from '../bots/routine-runner.js'
+import { runLegalSchedule } from '../legal/runner.js'
 
 const POLL_INTERVAL_MS = 60_000
 const MAX_RUNS_PER_TICK = 5
@@ -23,6 +24,12 @@ async function runDueSchedule(schedule, conversationStore) {
       '✅',
       `Routine ${schedule.id} of bot ${schedule.botId} ${posted ? 'posted its report' : 'had nothing to report'}`
     )
+    return
+  }
+
+  if (schedule.legal) {
+    const { conversationId, cases } = await runLegalSchedule(schedule, conversationStore)
+    log('⚖️', `Schedule ${schedule.id} drafted ${cases} Legal case(s) in conversation ${conversationId}`)
     return
   }
 

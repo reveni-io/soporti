@@ -59,6 +59,24 @@ describe('runUnattended', () => {
     })
   })
 
+  it('runs a read-only copy of the agent with the structured output when one is asked for', async () => {
+    const readOnly = { name: 'read-only agent' }
+    const clone = vi.fn().mockReturnValue(readOnly)
+    createAgent.mockResolvedValue({
+      name: 'agent',
+      tools: [{ name: 'zendesk_get_ticket' }, { name: 'zendesk_post_internal_note' }, { name: 'post_slack_message' }],
+      clone,
+    })
+    const schema = { parse: vi.fn() }
+    run.mockResolvedValue({ finalOutput: { tickets: [] }, newItems: [] })
+
+    const { result } = await runUnattended({ ...TASK, readOnlyOutputType: schema })
+
+    expect(clone).toHaveBeenCalledWith({ tools: [{ name: 'zendesk_get_ticket' }], outputType: schema })
+    expect(run.mock.calls[0][0]).toBe(readOnly)
+    expect(result.finalOutput).toEqual({ tickets: [] })
+  })
+
   it('returns the bare answer apart from the text with the consulted sources', async () => {
     const outcome = await runUnattended(TASK)
 
