@@ -5,29 +5,40 @@ vi.mock('drizzle-orm', async importOriginal => ({
   and: (...preds) => ({ op: 'and', preds }),
   eq: (col, val) => ({ op: 'eq', col, val }),
   inArray: (col, val) => ({ op: 'inArray', col, val }),
+  desc: col => ({ op: 'desc', col }),
 }))
 
 let queue = []
 let calls = []
 
-function makeChain(op) {
-  const call = { op, steps: {} }
+const SUBQUERY = { repo: 'latest.repo', wouldApprove: 'latest.would_approve', firstAt: 'latest.first_at' }
+
+function makeChain(op, on = null) {
+  const call = { op, on, steps: {} }
   calls.push(call)
-  const record = name => value => {
-    call.steps[name] = value
-    return chain
-  }
+  const record =
+    name =>
+    (...values) => {
+      call.steps[name] = values.length > 1 ? values : values[0]
+      return chain
+    }
   const chain = {
     from: record('from'),
     where: record('where'),
     groupBy: record('groupBy'),
+    orderBy: record('orderBy'),
     values: record('values'),
+    as: () => SUBQUERY,
     then: (resolve, reject) => Promise.resolve(queue.shift() ?? []).then(resolve, reject),
   }
   return chain
 }
 
-const db = { select: () => makeChain('select'), insert: () => makeChain('insert') }
+const db = {
+  select: () => makeChain('select'),
+  selectDistinctOn: on => makeChain('selectDistinctOn', on),
+  insert: () => makeChain('insert'),
+}
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { autoApproveEvaluations } = await import('./schema.js')
@@ -56,18 +67,26 @@ describe('recordAutoApproveEvaluation', () => {
 })
 
 describe('getShadowStats', () => {
-  it('groups the shadow evaluations of the given repos', async () => {
+  it('counts each PR of the given repos once, by its latest shadow evaluation', async () => {
     const rows = [{ repo: 'acme/web', evaluated: 3, wouldApprove: 1, since: new Date() }]
     queue.push(rows)
 
     expect(await getShadowStats(['acme/web'])).toEqual(rows)
-    expect(calls[0].steps.where).toEqual({
+    const [latest, stats] = calls
+    expect(latest.on).toEqual([autoApproveEvaluations.repo, autoApproveEvaluations.prNumber])
+    expect(latest.steps.where).toEqual({
       op: 'and',
       preds: [
         { op: 'eq', col: autoApproveEvaluations.mode, val: 'shadow' },
         { op: 'inArray', col: autoApproveEvaluations.repo, val: ['acme/web'] },
       ],
     })
-    expect(calls[0].steps.groupBy).toBe(autoApproveEvaluations.repo)
+    expect(latest.steps.orderBy).toEqual([
+      autoApproveEvaluations.repo,
+      autoApproveEvaluations.prNumber,
+      { op: 'desc', col: autoApproveEvaluations.createdAt },
+    ])
+    expect(stats.steps.from).toBe(SUBQUERY)
+    expect(stats.steps.groupBy).toBe(SUBQUERY.repo)
   })
 })

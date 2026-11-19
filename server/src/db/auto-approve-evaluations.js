@@ -1,4 +1,4 @@
-import { and, countDistinct, eq, inArray, min, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { AUTO_APPROVE_SHADOW } from '../constants.js'
 import { getDb } from './index.js'
 import { autoApproveEvaluations } from './schema.js'
@@ -9,15 +9,24 @@ export async function recordAutoApproveEvaluation({ repo, prNumber, headSha, mod
 
 export async function getShadowStats(repos) {
   const table = autoApproveEvaluations
-
-  return getDb()
-    .select({
+  const latest = getDb()
+    .selectDistinctOn([table.repo, table.prNumber], {
       repo: table.repo,
-      evaluated: countDistinct(table.prNumber),
-      wouldApprove: sql`count(distinct ${table.prNumber}) filter (where ${table.wouldApprove})`.mapWith(Number),
-      since: min(table.createdAt),
+      wouldApprove: table.wouldApprove,
+      firstAt: sql`min(${table.createdAt}) over (partition by ${table.repo}, ${table.prNumber})`.as('first_at'),
     })
     .from(table)
     .where(and(eq(table.mode, AUTO_APPROVE_SHADOW), inArray(table.repo, repos)))
-    .groupBy(table.repo)
+    .orderBy(table.repo, table.prNumber, desc(table.createdAt))
+    .as('latest')
+
+  return getDb()
+    .select({
+      repo: latest.repo,
+      evaluated: count(),
+      wouldApprove: sql`count(*) filter (where ${latest.wouldApprove})`.mapWith(Number),
+      since: sql`min(${latest.firstAt})`.mapWith(table.createdAt),
+    })
+    .from(latest)
+    .groupBy(latest.repo)
 }
