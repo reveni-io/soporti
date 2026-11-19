@@ -137,7 +137,7 @@ export function buildRepoTools(allowedRepos = null) {
           .string()
           .default('')
           .describe(
-            'Optional filter. A file-name glob ("*.js", "*.test.*") matches at any depth; a leading directory ("apps/orders/**/*.py", "src/api/") limits the search to it. Empty for no filter.'
+            'Optional filter. A file-name glob ("*.js", "*.test.*") matches at any depth; a leading directory ("apps/orders/**/*.py", "src/api/") limits the search to it. When that directory or file does not exist, the whole repository is searched instead and `missingPath` names it, so read the real location from the matches. Empty for no filter.'
           ),
         caseInsensitive: z.boolean().default(false).describe('If true, match case-insensitively.'),
         regex: z
