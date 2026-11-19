@@ -27,7 +27,7 @@ describe('BotsPanel', () => {
     render(<BotsPanel bots={[]} loading error={null} onCreate={vi.fn()} />, { wrapper: MemoryRouter })
 
     expect(screen.getByText('Loading…')).toBeInTheDocument()
-    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Bots' })).not.toBeInTheDocument()
   })
 
   it('shows why the bots could not be loaded', () => {
@@ -38,7 +38,7 @@ describe('BotsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to load your bots')
   })
 
-  it('keeps showing the bots when a later refresh fails', () => {
+  it('keeps listing the bots when a later refresh fails', () => {
     render(<BotsPanel bots={[TRIAGER]} loading={false} error="Failed to load your bots" onCreate={vi.fn()} />, {
       wrapper: MemoryRouter,
     })
@@ -47,28 +47,35 @@ describe('BotsPanel', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('explains what a bot is when there are none and offers to create one', async () => {
-    const onCreate = vi.fn()
-    const user = userEvent.setup()
-    render(<BotsPanel bots={[]} loading={false} error={null} onCreate={onCreate} />, { wrapper: MemoryRouter })
+  it('says there are no bots yet', () => {
+    render(<BotsPanel bots={[]} loading={false} error={null} onCreate={vi.fn()} />, { wrapper: MemoryRouter })
 
-    expect(screen.getByRole('heading', { name: 'Your own assistants' })).toBeInTheDocument()
-    expect(screen.getByText(/private assistant with a job you describe/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Create a bot' }))
-
-    expect(onCreate).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('No bots yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it('lists each bot as a card linking to its chat', () => {
+  it('lists every bot with a link to its chat', () => {
     render(<BotsPanel bots={[TRIAGER, RELEASES]} loading={false} error={null} onCreate={vi.fn()} />, {
       wrapper: MemoryRouter,
     })
 
-    const triager = screen.getByRole('link', { name: /ticket triager/i })
-    expect(triager).toHaveAttribute('href', '/bots/3')
-    expect(triager).toHaveTextContent('Reviews the new Zendesk tickets every morning.')
-    expect(screen.getByRole('link', { name: /release notes/i })).toHaveAttribute('href', '/bots/4')
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(2)
+    expect(links[0]).toHaveAttribute('href', '/bots/3')
+    expect(links[0]).toHaveTextContent('Ticket triager')
+    expect(links[0]).toHaveTextContent('Reviews the new Zendesk tickets every morning.')
+    expect(links[1]).toHaveAttribute('href', '/bots/4')
+  })
+
+  it('marks the open bot and keeps the others listed', () => {
+    render(
+      <MemoryRouter initialEntries={['/bots/4']}>
+        <BotsPanel bots={[TRIAGER, RELEASES]} loading={false} error={null} onCreate={vi.fn()} isBotOpen />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('link', { name: /release notes/i })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: /ticket triager/i })).not.toHaveAttribute('aria-current')
   })
 
   it('draws each bot with its own animated avatar style', () => {
@@ -92,6 +99,18 @@ describe('BotsPanel', () => {
     expect(screen.getAllByText(/^\d+$/)).toHaveLength(1)
   })
 
+  it('shows which bots are answering with a thinking face', () => {
+    render(<BotsPanel bots={[TRIAGER, RELEASES]} busyBotIds={[4]} loading={false} error={null} onCreate={vi.fn()} />, {
+      wrapper: MemoryRouter,
+    })
+
+    const busy = screen.getByRole('link', { name: /release notes/i })
+    expect(busy).toHaveTextContent('Thinking…')
+    expect(busy).not.toHaveTextContent('Writes the release notes from the merged PRs.')
+    expect(busy.querySelector('svg.bot-avatar > g')).toHaveClass('mo-expr')
+    expect(screen.getByRole('link', { name: /ticket triager/i })).not.toHaveTextContent('Thinking…')
+  })
+
   it('creates a bot from the header', async () => {
     const onCreate = vi.fn()
     const user = userEvent.setup()
@@ -112,5 +131,25 @@ describe('BotsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Open sidebar' }))
 
     expect(onOpenSidebar).toHaveBeenCalledTimes(1)
+  })
+
+  it('expands the collapsed sidebar from the header', async () => {
+    const onExpandSidebar = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <BotsPanel
+        bots={[]}
+        loading={false}
+        error={null}
+        onCreate={vi.fn()}
+        isSidebarCollapsed
+        onExpandSidebar={onExpandSidebar}
+      />,
+      { wrapper: MemoryRouter }
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Expand sidebar' }))
+
+    expect(onExpandSidebar).toHaveBeenCalledTimes(1)
   })
 })

@@ -70,6 +70,12 @@ const ICON_SHAPES = {
       <polyline points="12 5 19 12 12 19" />
     </>
   ),
+  'arrow-left': (
+    <>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </>
+  ),
   share: (
     <>
       <path d="M6 10L10 6M10 6H6.5M10 6V9.5" />

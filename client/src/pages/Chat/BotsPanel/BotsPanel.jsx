@@ -1,49 +1,55 @@
-import { Link, generatePath } from 'react-router-dom'
+import { NavLink, generatePath } from 'react-router-dom'
 import BotAvatar from '../../../common/BotAvatar/BotAvatar.jsx'
 import Icon from '../../../common/Icon/Icon.jsx'
 import SharedElement from '../../../common/SharedElement/SharedElement.jsx'
 import { ROUTES } from '../../../router/constants.js'
-import { botAvatarTransitionName, botNameTransitionName } from '../bot-transition-names.js'
 import SidebarToggles from '../SidebarToggles/SidebarToggles.jsx'
 import './BotsPanel.css'
 
-const CARD_AVATAR_SIZE = 44
-const EMPTY_AVATAR_SEED = 'soporti-bots'
-const EMPTY_AVATAR_SIZE = 72
+const ROW_AVATAR_SIZE = 36
 const NEW_BOT_ICON_SIZE = 14
+const SELECTION_TRANSITION_NAME = 'bots-panel-selection'
+const THINKING_TEXT = 'Thinking…'
+const NO_BUSY_BOTS = []
+
+function rowClassName({ isActive }) {
+  return isActive ? 'bots-panel__row bots-panel__row--active' : 'bots-panel__row'
+}
 
 export default function BotsPanel({
   bots,
+  busyBotIds = NO_BUSY_BOTS,
   loading,
   error,
+  isBotOpen = false,
   onCreate,
   isSidebarCollapsed,
   onOpenSidebar,
   onExpandSidebar,
 }) {
-  return (
-    <section className="bots-panel">
-      <div className="bots-panel__content">
-        <header className="bots-panel__header">
-          <SidebarToggles
-            isSidebarCollapsed={isSidebarCollapsed}
-            onOpenSidebar={onOpenSidebar}
-            onExpandSidebar={onExpandSidebar}
-          />
-          <h2 className="bots-panel__title">Bots</h2>
-          <button type="button" className="btn btn--primary btn--sm bots-panel__new" onClick={onCreate}>
-            <Icon name="plus" size={NEW_BOT_ICON_SIZE} />
-            New bot
-          </button>
-        </header>
+  const className = isBotOpen ? 'bots-panel bots-panel--bot-open' : 'bots-panel'
 
-        <BotGrid bots={bots} loading={loading} error={error} onCreate={onCreate} />
-      </div>
+  return (
+    <section className={className}>
+      <header className="bots-panel__header">
+        <SidebarToggles
+          isSidebarCollapsed={isSidebarCollapsed}
+          onOpenSidebar={onOpenSidebar}
+          onExpandSidebar={onExpandSidebar}
+        />
+        <h2 className="bots-panel__title">Bots</h2>
+        <button type="button" className="btn btn--primary btn--sm bots-panel__new" onClick={onCreate}>
+          <Icon name="plus" size={NEW_BOT_ICON_SIZE} />
+          New bot
+        </button>
+      </header>
+
+      <BotList bots={bots} busyBotIds={busyBotIds} loading={loading} error={error} />
     </section>
   )
 }
 
-function BotGrid({ bots, loading, error, onCreate }) {
+function BotList({ bots, busyBotIds, loading, error }) {
   if (loading) return <p className="bots-panel__status">Loading…</p>
   if (error && bots.length === 0) {
     return (
@@ -52,53 +58,53 @@ function BotGrid({ bots, loading, error, onCreate }) {
       </p>
     )
   }
-  if (bots.length === 0) return <BotsEmptyState onCreate={onCreate} />
+  if (bots.length === 0) return <p className="bots-panel__status">No bots yet.</p>
 
   return (
-    <ul className="bots-panel__grid">
-      {bots.map(bot => (
-        <BotCard key={bot.id} bot={bot} />
-      ))}
-    </ul>
+    <nav className="bots-panel__list" aria-label="Bots">
+      <ul className="bots-panel__items">
+        {bots.map(bot => (
+          <li key={bot.id}>
+            <NavLink className={rowClassName} to={generatePath(ROUTES.BOT, { botId: String(bot.id) })}>
+              {({ isActive }) => (
+                <BotRowContent bot={bot} isActive={isActive} isThinking={busyBotIds.includes(bot.id)} />
+              )}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }
 
-function BotCard({ bot }) {
+function BotRowContent({ bot, isActive, isThinking }) {
   return (
-    <li className="bots-panel__item">
-      <Link className="card bots-panel__card" to={generatePath(ROUTES.BOT, { botId: String(bot.id) })}>
-        <SharedElement name={botAvatarTransitionName(bot.id)}>
-          <BotAvatar seed={bot.avatarSeed} avatarStyle={bot.avatarStyle} size={CARD_AVATAR_SIZE} />
+    <>
+      {isActive && (
+        <SharedElement name={SELECTION_TRANSITION_NAME}>
+          <span className="bots-panel__selection" aria-hidden="true" />
         </SharedElement>
-        <div className="bots-panel__card-body">
-          <SharedElement name={botNameTransitionName(bot.id)}>
-            <span className="bots-panel__name">{bot.name}</span>
-          </SharedElement>
-          <p className="bots-panel__description">{bot.description}</p>
-        </div>
-        {bot.unreadCount > 0 && (
-          <span className="badge badge--success bots-panel__unread" aria-label={`${bot.unreadCount} new`}>
-            {bot.unreadCount}
-          </span>
+      )}
+      <BotAvatar
+        seed={bot.avatarSeed}
+        avatarStyle={bot.avatarStyle}
+        size={ROW_AVATAR_SIZE}
+        className="bots-panel__avatar"
+        isThinking={isThinking}
+      />
+      <span className="bots-panel__text">
+        <span className="bots-panel__name">{bot.name}</span>
+        {isThinking ? (
+          <span className="bots-panel__description bots-panel__description--thinking">{THINKING_TEXT}</span>
+        ) : (
+          <span className="bots-panel__description">{bot.description}</span>
         )}
-      </Link>
-    </li>
-  )
-}
-
-function BotsEmptyState({ onCreate }) {
-  return (
-    <div className="bots-panel__empty">
-      <BotAvatar seed={EMPTY_AVATAR_SEED} size={EMPTY_AVATAR_SIZE} />
-      <h3 className="bots-panel__empty-title">Your own assistants</h3>
-      <p className="bots-panel__empty-text">
-        A bot is a private assistant with a job you describe. It works with every connected tool, keeps one ongoing chat
-        with you, and can run routines on its own, like reviewing the new tickets every weekday at 17:00 and telling you
-        what it found.
-      </p>
-      <button type="button" className="btn btn--primary" onClick={onCreate}>
-        Create a bot
-      </button>
-    </div>
+      </span>
+      {bot.unreadCount > 0 && (
+        <span className="badge badge--success bots-panel__unread" aria-label={`${bot.unreadCount} new`}>
+          {bot.unreadCount}
+        </span>
+      )}
+    </>
   )
 }

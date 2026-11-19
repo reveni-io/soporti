@@ -41,6 +41,10 @@
   min-width: 0;
 }
 
+.icon-btn.chat-topbar__back {
+  display: none;
+}
+
 .chat-topbar__heading {
   display: flex;
   align-items: center;
@@ -231,6 +235,10 @@
 @media (max-width: 768px) {
   .chat-topbar {
     padding: 0 var(--sp3);
+  }
+
+  .icon-btn.chat-topbar__back {
+    display: inline-flex;
   }
 
   .chat-topbar__description {

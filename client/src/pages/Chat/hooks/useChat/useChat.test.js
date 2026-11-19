@@ -854,6 +854,38 @@ describe('useChat', () => {
       expect(result.current.isLoading).toBe(true)
     })
 
+    it('lists the bots that are still answering while another bot is shown', async () => {
+      const stream = createManualStream()
+      global.fetch = vi.fn().mockImplementation(url => {
+        if (String(url).includes('/api/bots/')) return Promise.resolve(botMessagesResponse())
+        return Promise.resolve(stream.response)
+      })
+
+      const { result, rerender } = renderHook(({ botId }) => useChat('token', vi.fn(), undefined, botId), {
+        initialProps: { botId: 5 },
+      })
+      await act(async () => {
+        await result.current.openBot(5)
+      })
+
+      expect(result.current.busyBotIds).toEqual([])
+
+      act(() => {
+        result.current.sendMessage('review the queue', { selectedSources: ['yolo'], profile: 'support' })
+      })
+      await waitFor(() => expect(result.current.busyBotIds).toEqual([5]))
+
+      rerender({ botId: 6 })
+
+      expect(result.current.isLoading).toBe(false)
+      expect(result.current.busyBotIds).toEqual([5])
+
+      stream.push({ type: 'done' })
+      stream.close()
+
+      await waitFor(() => expect(result.current.busyBotIds).toEqual([]))
+    })
+
     it('leaves a streaming bot chat as it is when the bot is opened again', async () => {
       const stream = createManualStream()
       global.fetch = vi.fn().mockImplementation(url => {
