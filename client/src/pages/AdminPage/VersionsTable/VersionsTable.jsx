@@ -22,10 +22,10 @@ export default function VersionsTable({ token, project, state, onLogout, withCal
 
   function toCells(entry) {
     const cells = [
-      <>
+      <span className="admin__nowrap">
         v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
-      </>,
-      formatDateTime(entry.at),
+      </span>,
+      <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
       entry.author,
       entry.change,
     ]
