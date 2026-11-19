@@ -574,3 +574,40 @@ export const analyticsCards = pgTable(
     ]
   }
 )
+
+export const jevDocuments = pgTable('jev_documents', {
+  id: text('id').primaryKey(),
+  rev: integer('rev').notNull(),
+  data: jsonb('data').notNull(),
+  setVersion: integer('set_version').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const jevSetVersions = pgTable(
+  'jev_set_versions',
+  {
+    id: serial('id').primaryKey(),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => jevDocuments.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    set: jsonb('set').notNull(),
+    authorEmail: text('author_email').notNull(),
+    change: text('change').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [uniqueIndex('jev_set_versions_document_version_idx').on(table.documentId, table.version)]
+)
+
+export const jevHistory = pgTable(
+  'jev_history',
+  {
+    id: serial('id').primaryKey(),
+    documentId: text('document_id').notNull(),
+    rev: integer('rev'),
+    authorEmail: text('author_email').notNull(),
+    change: text('change').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('jev_history_document_created_idx').on(table.documentId, table.createdAt)]
+)
