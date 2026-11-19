@@ -1,4 +1,11 @@
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import {
+  DEFAULT_GITHUB_RULES,
+  describeGithubChanges,
+  findGithubSaveError,
+  parseGithubRepos,
+  parseGithubRules,
+} from './github-project.js'
 
 const QUESTION_CHOICE = 'choice'
 const QUESTION_NOUL = 'noul'
@@ -17,6 +24,7 @@ const MAX_LABEL_CHARS = 200
 const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
+const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
 
 const DEFAULT_SET = {
   description: '',
@@ -29,7 +37,10 @@ const DEFAULT_SET = {
 
 const DEFAULT_DOCUMENTS = {
   [JEV_SETTINGS_DOCUMENT]: { enabled: false },
-  [JEV_GITHUB_DOCUMENT]: { set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS } },
+  [JEV_GITHUB_DOCUMENT]: {
+    set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
+    repos: [],
+  },
   [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET },
 }
 
@@ -216,6 +227,7 @@ const GITHUB_SET_PARSERS = [
         error: 'Max characters sent to Jev must be a positive whole number.',
       }),
   ],
+  ['rules', parseGithubRules],
 ]
 
 function parseJevSettings(data) {
@@ -231,9 +243,19 @@ function parseProject(data, setParsers) {
   return { value: { set: set.value } }
 }
 
+function parseGithubProject(data) {
+  const project = parseProject(data, GITHUB_SET_PARSERS)
+  if (project.error) return project
+
+  const repos = parseGithubRepos(data.repos)
+  if (repos.error) return repos
+
+  return { value: { ...project.value, repos: repos.value } }
+}
+
 const DOCUMENT_PARSERS = {
   [JEV_SETTINGS_DOCUMENT]: parseJevSettings,
-  [JEV_GITHUB_DOCUMENT]: data => parseProject(data, GITHUB_SET_PARSERS),
+  [JEV_GITHUB_DOCUMENT]: parseGithubProject,
   [JEV_LEGAL_DOCUMENT]: data => parseProject(data, SET_PARSERS),
 }
 
@@ -261,15 +283,16 @@ function describeSetChanges(previous, next) {
 
   if (previous.description !== next.description) changes.push('Set description')
   if (!isSameValue(previous.questions, next.questions)) changes.push('Questions')
-  for (const [field, label] of SCALAR_CHANGES) {
-    if (previous[field] !== next[field])
-      changes.push(`${label} ${showValue(previous[field])} → ${showValue(next[field])}`)
-  }
 
-  return changes
+  const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(
+    ([field, label]) => `${label} ${showValue(previous[field])} → ${showValue(next[field])}`
+  )
+
+  return [...changes, ...scalars]
 }
 
 function describeChanges(previous, next) {
+  if (next.repos) return [...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
   if (next.set) return describeSetChanges(previous.set, next.set)
 
   return previous.enabled === next.enabled ? [] : [`Jev calls ${next.enabled ? 'on' : 'off'}`]
@@ -278,9 +301,11 @@ function describeChanges(previous, next) {
 function versionedSet(data) {
   if (!data.set) return null
 
-  const { model, minConfidence, questions } = data.set
+  return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
+}
 
-  return { model, minConfidence, questions }
+function findSaveError(previous, next) {
+  return next.repos ? findGithubSaveError(previous, next) : null
 }
 
 export function isJevDocument(id) {
@@ -295,13 +320,16 @@ export function parseJevDocument(id, data) {
   return DOCUMENT_PARSERS[id](data)
 }
 
-export function planJevSave(current, next) {
+export function planJevSave(current, next, { restoredFrom = null } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
 
+  const error = findSaveError(current.data, next)
+  if (error) return { error }
+
   const snapshot = versionedSet(next)
   const bumpsSet = snapshot !== null && !isSameValue(versionedSet(current.data), snapshot)
-  const summary = current.rev === 0 ? ['Created', ...changes] : changes
+  const prefix = [current.rev === 0 && 'Created', restoredFrom && `Restored v${restoredFrom}`].filter(Boolean)
 
-  return { data: next, change: summary.join('; '), set: bumpsSet ? snapshot : null }
+  return { data: next, change: [...prefix, ...changes].join('; '), set: bumpsSet ? snapshot : null }
 }

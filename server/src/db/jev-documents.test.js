@@ -47,7 +47,7 @@ const db = {
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { jevDocuments, jevHistory, jevSetVersions } = await import('./schema.js')
-const { addJevHistoryEntry, getJevDocument, getLatestJevSave, listJevHistory, saveJevDocument } =
+const { addJevHistoryEntry, getJevDocument, getLatestJevSave, listJevHistory, listJevSetVersions, saveJevDocument } =
   await import('./jev-documents.js')
 
 const DEFAULTS = { set: { questions: [] } }
@@ -181,5 +181,32 @@ describe('listJevHistory', () => {
     expect(await listJevHistory('jev', 2)).toEqual({ entries, total: 7, page: 2, pageSize: 5 })
     expect(calls[0].steps.limit).toBe(5)
     expect(calls[0].steps.offset).toBe(5)
+  })
+})
+
+describe('saveJevDocument validation', () => {
+  it('returns the plan error without writing', async () => {
+    queue.push([], [CURRENT])
+
+    const result = await saveJevDocument('legal', {
+      expectedRev: 3,
+      author: 'ana@example.com',
+      defaults: DEFAULTS,
+      plan: () => ({ error: 'Shadow first.' }),
+    })
+
+    expect(result).toEqual({ conflict: false, error: 'Shadow first.', document: CURRENT })
+    expect(calls).toHaveLength(2)
+  })
+})
+
+describe('listJevSetVersions', () => {
+  it('returns one page of versions, newest first, with the total', async () => {
+    const entries = [{ version: 3, at: new Date(), author: 'ana@example.com', change: 'Questions', set: {} }]
+    queue.push(entries, [{ total: 3 }])
+
+    expect(await listJevSetVersions('github', 1)).toEqual({ entries, total: 3, page: 1, pageSize: 5 })
+    expect(calls[0].steps.where).toEqual({ op: 'eq', col: jevSetVersions.documentId, val: 'github' })
+    expect(calls[0].steps.offset).toBe(0)
   })
 })

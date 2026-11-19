@@ -53,6 +53,13 @@ export async function getAuthenticatedLogin() {
   return data.login
 }
 
+export async function getRepository(repoFullName) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.repos.get({ owner, repo })
+  return { fullName: data.full_name }
+}
+
 export async function getPullRequest(repoFullName, prNumber) {
   const octokit = await getOctokit()
   const { owner, repo } = parseRepo(repoFullName)

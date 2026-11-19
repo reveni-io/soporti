@@ -20,6 +20,7 @@ const mockGraphql = vi.fn()
 const mockCompareCommitsWithBasehead = vi.fn()
 const mockListForRef = vi.fn()
 const mockGetCombinedStatusForRef = vi.fn()
+const mockReposGet = vi.fn()
 
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
@@ -28,6 +29,7 @@ vi.mock('@octokit/rest', () => ({
         listForAuthenticatedUser: mockListForAuthenticatedUser,
         compareCommitsWithBasehead: mockCompareCommitsWithBasehead,
         getCombinedStatusForRef: mockGetCombinedStatusForRef,
+        get: mockReposGet,
       }
       this.checks = { listForRef: mockListForRef }
       this.graphql = mockGraphql
@@ -636,5 +638,15 @@ describe('createReviewCommentReply', () => {
       comment_id: 200,
       body: 'La HU dice X.',
     })
+  })
+})
+
+describe('getRepository', () => {
+  it('returns the full name of a repo the token can read', async () => {
+    mockReposGet.mockResolvedValue({ data: { full_name: 'acme/docs', private: true } })
+    const { getRepository } = await import('./client.js')
+
+    expect(await getRepository('acme/docs')).toEqual({ fullName: 'acme/docs' })
+    expect(mockReposGet).toHaveBeenCalledWith({ owner: 'acme', repo: 'docs' })
   })
 })
