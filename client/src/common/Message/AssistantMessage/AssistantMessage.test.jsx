@@ -115,6 +115,26 @@ describe('AssistantMessage', () => {
     expect(container.querySelector('.message__error').textContent).toBe('Something broke.')
   })
 
+  it('renders the cases of a Legal run', () => {
+    const legalCase = {
+      source: 'zendesk',
+      ticketId: '48213',
+      customer: 'customer-a@example.com',
+      subject: 'Refund',
+      customerMessage: 'Where is my refund?',
+      dataFacts: [],
+      draft: { subject: 'Your refund', body: 'Hello' },
+      status: 'not_checked',
+      reason: 'Jev calls are off',
+      warnings: 0,
+      jev: null,
+    }
+
+    render(<AssistantMessage message={{ parts: [{ type: 'legal-run', cases: [legalCase] }] }} isStreaming={false} />)
+
+    expect(screen.getByText('Where is my refund?')).toBeInTheDocument()
+  })
+
   it('ignores an unknown part type', () => {
     const { container } = render(
       <AssistantMessage message={{ parts: [{ type: 'future_thing', content: 'x' }] }} isStreaming={false} />
