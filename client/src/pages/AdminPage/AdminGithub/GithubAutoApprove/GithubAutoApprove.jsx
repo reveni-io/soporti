@@ -1,4 +1,4 @@
-import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
+import { AUTO_APPROVE_OFF, JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
 import { getJevConfig } from '../../../../services/services.js'
 import { useAuthedConfig } from '../../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
@@ -9,8 +9,6 @@ import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
 import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
 import ReviewRules from '../ReviewRules/ReviewRules.jsx'
-
-const AUTO_APPROVE_OFF = 'off'
 
 function describeSetUsers(repos) {
   const users = repos.filter(repo => repo.mode !== AUTO_APPROVE_OFF).map(repo => repo.name)

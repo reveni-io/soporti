@@ -1,9 +1,8 @@
 import { useState } from 'react'
+import { AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW } from '../../../../../constants.js'
 import { checkGithubAutoApproveRepo, isUnauthorized } from '../../../../../services/services.js'
 
-const MODE_ON = 'on'
-const MODE_OFF = 'off'
-const SHADOW_MODES = ['shadow', MODE_ON]
+const SHADOW_MODES = [AUTO_APPROVE_SHADOW, AUTO_APPROVE_ON]
 const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 
 function describeShadowFirst(blocked, othersCanGoOn) {
@@ -41,19 +40,19 @@ export function useAutoApproveRepos(state, { token, onLogout }) {
 
   function requestMode(names, mode) {
     setMessage(null)
-    if (mode !== MODE_ON) {
+    if (mode !== AUTO_APPROVE_ON) {
       setModes(names, mode)
       return
     }
 
     const blocked = names.filter(name => !canGoOn(name))
-    const toOn = names.filter(name => canGoOn(name) && repos.find(repo => repo.name === name)?.mode !== MODE_ON)
+    const toOn = names.filter(name => canGoOn(name) && repos.find(repo => repo.name === name)?.mode !== AUTO_APPROVE_ON)
     if (blocked.length > 0) setMessage(describeShadowFirst(blocked, toOn.length > 0))
     if (toOn.length > 0) setConfirming(toOn)
   }
 
   function confirmOn() {
-    setModes(confirming, MODE_ON)
+    setModes(confirming, AUTO_APPROVE_ON)
     setConfirming(null)
   }
 
@@ -85,7 +84,7 @@ export function useAutoApproveRepos(state, { token, onLogout }) {
     setAdding(true)
     try {
       const { fullName } = await checkGithubAutoApproveRepo(token, name)
-      updateRepos(current => [...current, { name: fullName, mode: MODE_OFF, jev: true, denylist: [] }])
+      updateRepos(current => [...current, { name: fullName, mode: AUTO_APPROVE_OFF, jev: true, denylist: [] }])
       return true
     } catch (err) {
       if (isUnauthorized(err)) {

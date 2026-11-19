@@ -35,6 +35,7 @@ export const AUTO_APPROVE_OFF = 'off'
 export const AUTO_APPROVE_SHADOW = 'shadow'
 export const AUTO_APPROVE_ON = 'on'
 export const AUTO_APPROVE_MODES = [AUTO_APPROVE_OFF, AUTO_APPROVE_SHADOW, AUTO_APPROVE_ON]
+export const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

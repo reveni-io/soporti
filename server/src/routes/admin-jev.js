@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince } from '../db/jev-calls.js'
 import {
@@ -19,7 +19,6 @@ import { getJevApiKey, getJevModelCatalog, setJevApiKey, setJevModelCatalog } fr
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
-const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
 const MAX_STATS_REPOS = 100
 const DAY_MS = 24 * 60 * 60 * 1000

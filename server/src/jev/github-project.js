@@ -1,7 +1,12 @@
-import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW } from '../constants.js'
+import {
+  AUTO_APPROVE_MODES,
+  AUTO_APPROVE_OFF,
+  AUTO_APPROVE_ON,
+  AUTO_APPROVE_SHADOW,
+  REPO_NAME_RE,
+} from '../constants.js'
 
 const RULE_ROLES = ['veto', 'info']
-const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 const MAX_REPOS = 100
 const MAX_DENYLIST_PATTERNS = 100
 const MAX_PATTERN_CHARS = 200
