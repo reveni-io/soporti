@@ -76,7 +76,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         <label className="question-set__label">
           Model
           <select
-            className="input"
+            className="input input--select"
             value={set.model}
             onChange={event => updateSet('model', event.target.value)}
             disabled={!canPickModel}
@@ -88,7 +88,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
                 </option>
               ))
             ) : (
-              <option value={set.model}>{set.model || 'No model'} (catalog not loaded)</option>
+              <option value={set.model}>{set.model || 'No model'}</option>
             )}
           </select>
         </label>

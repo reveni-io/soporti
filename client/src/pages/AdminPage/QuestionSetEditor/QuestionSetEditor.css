@@ -7,7 +7,8 @@
 
 .question-set__fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end;
   gap: var(--sp3);
 }
 

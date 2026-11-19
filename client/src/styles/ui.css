@@ -151,6 +151,21 @@
   color: var(--text-muted);
 }
 
+.input--select {
+  padding-right: var(--sp6);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-repeat: no-repeat;
+  background-position:
+    right var(--sp3) center,
+    right var(--sp2) center;
+  background-size: var(--sp1) var(--sp1);
+  text-overflow: ellipsis;
+  appearance: none;
+  cursor: pointer;
+}
+
 .textarea {
   width: 100%;
   padding: var(--sp3);

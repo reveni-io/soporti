@@ -57,7 +57,11 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
         </span>
         <label className="admin__muted">
           Set mode to{' '}
-          <select className="input" value={bulkMode} onChange={event => setBulkMode(event.target.value)}>
+          <select
+            className="input input--select admin__select--compact"
+            value={bulkMode}
+            onChange={event => setBulkMode(event.target.value)}
+          >
             {MODES.map(mode => (
               <option key={mode} value={mode}>
                 {mode}
@@ -150,14 +154,14 @@ function ReposTable({ repos }) {
               </td>
               <td>
                 <select
-                  className="input"
+                  className="input input--select admin__select--compact"
                   aria-label={`Mode of ${repo.name}`}
                   value={repo.mode}
                   onChange={event => repos.requestMode([repo.name], event.target.value)}
                 >
                   {MODES.map(mode => (
                     <option key={mode} value={mode} disabled={mode === 'on' && !repos.canGoOn(repo.name)}>
-                      {mode === 'on' && !repos.canGoOn(repo.name) ? 'on (shadow first)' : mode}
+                      {mode}
                     </option>
                   ))}
                 </select>

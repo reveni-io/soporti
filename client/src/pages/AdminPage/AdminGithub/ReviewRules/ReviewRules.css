@@ -4,3 +4,9 @@
   gap: var(--sp2);
   font-size: var(--fs-base);
 }
+
+.review-rules__name {
+  display: block;
+  margin-bottom: var(--sp1);
+  font-weight: 600;
+}

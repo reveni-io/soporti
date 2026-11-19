@@ -197,6 +197,13 @@
   min-width: 90px;
 }
 
+.admin__select--compact,
+.admin__form--row .admin__select--compact {
+  flex: none;
+  width: 8rem;
+  min-width: 0;
+}
+
 .admin__switch {
   display: flex;
   align-items: flex-start;

@@ -90,7 +90,7 @@ describe('QuestionSetEditor', () => {
     )
 
     expect(screen.getByRole('combobox', { name: 'Model' })).toBeDisabled()
-    expect(screen.getByRole('option', { name: 'jev-1.14.0 (catalog not loaded)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'jev-1.14.0' })).toBeInTheDocument()
     expect(screen.getByText(/which has no key saved/)).toBeInTheDocument()
   })
 

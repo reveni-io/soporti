@@ -58,7 +58,11 @@ export default function QuestionForm({ project, title, question, onSave, onCance
 
       <label className="question-form__label">
         Type
-        <select className="input" value={form.type} onChange={event => update('type', event.target.value)}>
+        <select
+          className="input input--select"
+          value={form.type}
+          onChange={event => update('type', event.target.value)}
+        >
           {TYPE_OPTIONS.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
