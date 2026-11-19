@@ -500,6 +500,40 @@ describe('searchCode', () => {
   })
 
   it.each([
+    { pathGlob: 'apps/deliveries/utils.py', code: 'ENOENT', missingPath: 'apps/deliveries/utils.py', include: null },
+    { pathGlob: 'apps/eligibility/*.py', code: 'ENOENT', missingPath: 'apps/eligibility', include: '--include=*.py' },
+    { pathGlob: 'src/a.js/b.js', code: 'ENOTDIR', missingPath: 'src/a.js/b.js', include: null },
+  ])(
+    'searches the whole repository when $pathGlob does not exist ($code)',
+    async ({ pathGlob, code, missingPath, include }) => {
+      let capturedArgs
+      realpath.mockImplementation(async path => {
+        if (path.endsWith(`/${missingPath}`)) throw Object.assign(new Error(`${code}: ${path}`), { code })
+        return path
+      })
+      execFile.mockImplementation((cmd, args, opts, cb) => {
+        capturedArgs = args
+        cb(null, { stdout: '/tmp/repos/owner--repo/apps/accounts/tax.py:8:def get_tax():', stderr: '' })
+      })
+
+      const result = await searchCode('owner/repo', 'def get_tax', { pathGlob })
+
+      expect(capturedArgs.at(-1)).toBe('/tmp/repos/owner--repo')
+      expect(capturedArgs.find(arg => arg.startsWith('--include=')) ?? null).toBe(include)
+      expect(result.missingPath).toBe(missingPath)
+      expect(result.items).toEqual([{ path: 'apps/accounts/tax.py', line: 8, snippet: 'def get_tax():' }])
+    }
+  )
+
+  it('reports no missing path when the scoped directory exists', async () => {
+    execFile.mockImplementation((cmd, args, opts, cb) => cb(null, { stdout: '', stderr: '' }))
+
+    const result = await searchCode('owner/repo', 'def', { pathGlob: 'apps/**/*.py' })
+
+    expect(result.missingPath).toBeNull()
+  })
+
+  it.each([
     { regex: true, stderr: 'grep: Unmatched ( or \\(', detail: 'grep: Unmatched ( or \\(', hint: true },
     {
       regex: false,

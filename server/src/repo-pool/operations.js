@@ -26,6 +26,7 @@ const EXCLUDE_DIRS = ['.git', 'node_modules']
 const GLOB_CHARS_RE = /[*?[{]/
 const BRACE_GROUP_RE = /\{([^{}]*)\}/
 const MAX_INCLUDE_CHARS = 128
+const MISSING_PATH_CODES = ['ENOENT', 'ENOTDIR']
 
 function excludeDirArgs() {
   return EXCLUDE_DIRS.map(d => `--exclude-dir=${d}`)
@@ -221,10 +222,18 @@ function splitPathGlob(pathGlob) {
   return { root: segments.slice(0, firstGlob).join('/'), include: last === '**' ? '' : last }
 }
 
-async function resolveSearchRoot(localPath, root) {
-  if (!root) return localPath
+async function resolveSearchScope(localPath, root) {
+  if (!root) return { searchRoot: localPath, missingPath: null }
 
-  return resolveInsideClone(localPath, sanitizePath(root))
+  const safeRoot = sanitizePath(root)
+
+  try {
+    return { searchRoot: await resolveInsideClone(localPath, safeRoot), missingPath: null }
+  } catch (err) {
+    if (!MISSING_PATH_CODES.includes(err.cause?.code)) throw err
+
+    return { searchRoot: localPath, missingPath: safeRoot }
+  }
 }
 
 function expandBraceGroup(include) {
@@ -301,7 +310,7 @@ export async function searchCodeAt(
   const safeQuery = query.trim().slice(0, 256)
   const cap = clampInt(maxResults, 1, MAX_SEARCH_RESULTS, MAX_SEARCH_RESULTS)
   const { root, include } = splitPathGlob(pathGlob)
-  const searchRoot = await resolveSearchRoot(localPath, root)
+  const { searchRoot, missingPath } = await resolveSearchScope(localPath, root)
   const args = buildGrepArgs(searchRoot, safeQuery, { include, caseInsensitive, regex })
   const { stdout, partial } = await runGrep(args, { localPath, regex })
 
@@ -319,6 +328,7 @@ export async function searchCodeAt(
     totalCount: lines.length,
     items,
     truncated: partial || lines.length > items.length,
+    missingPath,
   }
 }
 
