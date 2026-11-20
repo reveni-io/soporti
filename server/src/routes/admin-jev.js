@@ -240,8 +240,9 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current =>
-        planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries, keyConfigured }),
+      plan: current => {
+        return planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries, keyConfigured })
+      },
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
