@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_SHADOW } from '../../../../constants.js'
+import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW } from '../../../../constants.js'
 import { useAutoApproveRepos } from '../hooks/useAutoApproveRepos/useAutoApproveRepos.js'
 import RepoOnModal from '../RepoOnModal/RepoOnModal.jsx'
 
@@ -159,7 +159,7 @@ function ReposTable({ repos }) {
                   onChange={event => repos.requestMode([repo.name], event.target.value)}
                 >
                   {AUTO_APPROVE_MODES.map(mode => (
-                    <option key={mode} value={mode} disabled={mode === 'on' && !repos.canGoOn(repo.name)}>
+                    <option key={mode} value={mode} disabled={mode === AUTO_APPROVE_ON && !repos.canGoOn(repo.name)}>
                       {mode}
                     </option>
                   ))}

@@ -1,8 +1,8 @@
+import { MS_PER_SECOND } from '../constants.js'
 import { getJevApiKey } from './settings.js'
 
 const BASE_URL = 'https://api.typesafe.ai/v1'
 const MODELS_TIMEOUT_MS = 15_000
-const MS_PER_SECOND = 1000
 const UNAUTHORIZED = 401
 const REQUEST_TIMEOUT = 408
 const TOO_MANY_REQUESTS = 429

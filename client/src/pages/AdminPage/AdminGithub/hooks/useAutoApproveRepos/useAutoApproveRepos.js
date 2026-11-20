@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW } from '../../../../../constants.js'
+import { AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW, REPO_NAME_RE } from '../../../../../constants.js'
 import { checkGithubAutoApproveRepo, isUnauthorized } from '../../../../../services/services.js'
 
 const SHADOW_MODES = [AUTO_APPROVE_SHADOW, AUTO_APPROVE_ON]
-const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
 
 function describeShadowFirst(blocked, othersCanGoOn) {
   const one = blocked.length === 1
