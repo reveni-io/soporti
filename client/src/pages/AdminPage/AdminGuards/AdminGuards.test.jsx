@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import AdminGuards from './AdminGuards.jsx'
@@ -136,6 +136,25 @@ describe('AdminGuards', () => {
 
     expect(await screen.findByRole('dialog', { name: 'Payments guard' })).toBeInTheDocument()
     expect(screen.getByTestId('search')).toHaveTextContent('?guard=guard-0a1b2c3d')
+  })
+
+  it('deletes a created guard after a confirmation and shows the list again', async () => {
+    const payments = { ...LEGAL, id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
+    mockApi({
+      [`GET ${BASE}/guards`]: [okResponse({ guards: [LEGAL, payments] }), okResponse({ guards: [LEGAL] })],
+      [`DELETE ${BASE}/guards/guard-0a1b2c3d`]: [{ ok: true, status: 204, json: async () => null }],
+    })
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <AdminGuards token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    await user.click(await screen.findByRole('button', { name: 'Delete Payments' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+
+    await waitFor(() => expect(screen.queryByText('Payments')).not.toBeInTheDocument())
   })
 
   it('shows why the guards could not load', async () => {

@@ -4,13 +4,8 @@ const getConfigValue = vi.fn()
 const setConfigValue = vi.fn()
 vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 
-const {
-  getJevApiKey,
-  isConfigured,
-  setJevApiKey,
-  JEV_API_KEY_KEY,
-  _resetJevSettingsCacheForTests,
-} = await import('./settings.js')
+const { getJevApiKey, isConfigured, setJevApiKey, JEV_API_KEY_KEY, _resetJevSettingsCacheForTests } =
+  await import('./settings.js')
 
 beforeEach(() => {
   getConfigValue.mockReset()

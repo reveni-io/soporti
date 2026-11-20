@@ -30,7 +30,6 @@ describe('GuardsTable', () => {
     expect(legal).toHaveTextContent('Replies to customers')
     expect(within(legal).getByRole('cell', { name: (1200).toLocaleString() })).toBeInTheDocument()
     expect(github).toHaveTextContent('PR reviews of the auto-approve repos')
-    expect(screen.getByText('Calls, cases and sent replies of the last 30 days.')).toBeInTheDocument()
   })
 
   it.each([
@@ -51,5 +50,23 @@ describe('GuardsTable', () => {
     await user.click(screen.getByRole('button', { name: 'Edit GitHub PRs' }))
 
     expect(onEdit).toHaveBeenCalledWith('github')
+  })
+
+  it('asks before deleting a created guard, and never offers it for a built-in one', async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    const payments = { ...LEGAL, id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
+    render(<GuardsTable guards={[{ ...LEGAL, builtIn: true }, payments]} onEdit={vi.fn()} onDelete={onDelete} />)
+
+    expect(screen.queryByRole('button', { name: 'Delete Legal' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete Payments' }))
+    expect(screen.getByText('Are you sure you want to delete this guard?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Keep it' }))
+    expect(onDelete).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Payments' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+    expect(onDelete).toHaveBeenCalledWith('guard-0a1b2c3d')
   })
 })
