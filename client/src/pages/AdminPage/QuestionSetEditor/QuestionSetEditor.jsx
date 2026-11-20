@@ -121,7 +121,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         </p>
       )}
       <p className="admin__muted">
-        Each guard configures Jev on its own. The models come from the list saved in the Jev connection below
+        Each guard configures Jev on its own. The models come from the list saved in the Jev section above
         {catalog.keyConfigured ? '' : ', which has no key saved: the model cannot be changed until it does'}. A daily
         limit of <code>0</code> means no limit.
       </p>

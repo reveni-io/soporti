@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { tool } from '@openai/agents'
+import { GUARD_RESULT_CASE, GUARD_RESULT_CHECK } from '../constants.js'
 import { checkContent, checkTicketReply } from '../guards/check.js'
 import { LEGAL_SOURCES } from '../legal/tickets.js'
 
@@ -50,7 +51,7 @@ async function checkTicket(guard, { ticket, userId, cases }) {
   })
   if (!result) return TICKET_UNREADABLE
 
-  if (cases) cases.onChecked({ kind: 'case', case: result })
+  if (cases) cases.onChecked({ kind: GUARD_RESULT_CASE, case: result })
 
   return `${describeResult(result)}\n\n${cases ? CASE_SHOWN : WEB_ONLY}`
 }
@@ -60,7 +61,7 @@ async function check(guard, input, context) {
   if (!input.content?.trim()) return NOTHING_TO_CHECK
 
   const result = await checkContent(guard, input.content)
-  context.cases?.onChecked({ kind: 'check', check: result })
+  context.cases?.onChecked({ kind: GUARD_RESULT_CHECK, check: result })
 
   return describeResult(result)
 }

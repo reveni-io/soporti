@@ -1,5 +1,6 @@
 import {
   GUARD_CHECK_PART,
+  GUARD_RESULT_CASE,
   JEV_CHECK_ANSWERED,
   LEGAL_CASE_CHECKED,
   LEGAL_CASE_NOT_CHECKED,
@@ -91,7 +92,7 @@ export async function checkTicketReply(guard, { userId, ticket: ref, reply, case
 }
 
 export function toGuardPart(result) {
-  if (result.kind === 'case') return { type: LEGAL_RUN_PART, cases: [result.case] }
+  if (result.kind === GUARD_RESULT_CASE) return { type: LEGAL_RUN_PART, cases: [result.case] }
 
   return { type: GUARD_CHECK_PART, ...result.check }
 }
