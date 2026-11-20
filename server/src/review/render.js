@@ -113,7 +113,17 @@ export function renderReviewBody({
   return redactSecrets(fitSections(sections))
 }
 
-export function renderWalkthrough({ event, autoApprove, output, passes, coverage, context, ciStatus, reviewerLogin }) {
+export function renderWalkthrough({
+  event,
+  autoApprove,
+  output,
+  passes,
+  coverage,
+  context,
+  ciStatus,
+  reviewerLogin,
+  reviewers = null,
+}) {
   const { overview, findings } = output
   const sections = [
     `${REVIEW_WALKTHROUGH_MARKER}\n## 📝 Walkthrough`,
@@ -124,6 +134,7 @@ export function renderWalkthrough({ event, autoApprove, output, passes, coverage
     ]
       .filter(Boolean)
       .join('\n'),
+    renderReviewerSuggestions(reviewers),
     overview && renderChanges(overview.changes),
     overview && renderDiagram(overview.diagram),
     renderChecks({ findings, passes, ciStatus }),
@@ -503,6 +514,15 @@ function listCheckNames(checks) {
   const names = checks.slice(0, MAX_CI_NAMES).map(check => singleLine(check.name))
 
   return checks.length > MAX_CI_NAMES ? `${names.join(', ')}, …` : names.join(', ')
+}
+
+function renderReviewerSuggestions(reviewers) {
+  const lines = [
+    reviewers?.expert && `👥 @${reviewers.expert} could be a good reviewer.`,
+    reviewers?.learner && `🌱 @${reviewers.learner} could review it to learn this part of the code.`,
+  ].filter(Boolean)
+
+  return lines.length > 0 ? lines.join('\n') : null
 }
 
 function renderWalkthroughFooter(headSha, reviewerLogin) {

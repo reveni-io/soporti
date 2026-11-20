@@ -291,6 +291,28 @@ of the reads it allows.
 To limit it to some clusters, replace the cluster wildcard with their names
 (`cluster/prod-cluster`, `service/prod-cluster/*`, `task/prod-cluster/*`).
 
+### Several accounts, through assumed roles
+
+To read more than one account (one per environment, say), give each account a
+role with the policy above and list it under **Accounts** in `/admin` → AWS
+with a short name (`prod`, `dev`). The assistant picks the account by that name
+and says which one each answer comes from; with a single row it is used without
+asking.
+
+Soporti assumes each account's role with its own identity, so that role's trust
+policy must allow it, and Soporti's identity needs `sts:AssumeRole` on it. When
+the account roles trust one central role instead, set that one as **Role to
+assume**: Soporti assumes it first and the account roles from it. With a role to
+assume and no accounts, Soporti reads the account that role belongs to.
+
+```
+Soporti's identity ──sts:AssumeRole──▶ role to assume ──sts:AssumeRole──▶ <account role>
+```
+
+The sessions are refreshed on their own before they expire, and **Test
+connection** shows the identity each account is read with, or why the role could
+not be assumed.
+
 ## Video rendering
 
 The server renders videos itself, inside its own container: there is no

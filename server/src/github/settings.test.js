@@ -11,9 +11,12 @@ const {
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
+  getReviewerSuggestionsEnabled,
+  setReviewerSuggestionsEnabled,
   GITHUB_TOKEN_KEY,
   GITHUB_WEBHOOK_SECRET_KEY,
   REPO_CATALOG_KEY,
+  REVIEWER_SUGGESTIONS_KEY,
   _resetSettingsCacheForTests,
 } = await import('./settings.js')
 
@@ -103,5 +106,28 @@ describe('repo catalog', () => {
 
     expect(await getRepoCatalog()).toBe('new text')
     expect(setConfigValue).toHaveBeenCalledWith(REPO_CATALOG_KEY, 'new text')
+  })
+})
+
+describe('getReviewerSuggestionsEnabled', () => {
+  it('is off unless true is stored', async () => {
+    getConfigValue.mockResolvedValue(null)
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
+    expect(getConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY)
+
+    _resetSettingsCacheForTests()
+    getConfigValue.mockResolvedValue('yes')
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
+  })
+
+  it('reads the new value after saving', async () => {
+    getConfigValue.mockResolvedValue(false)
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
+
+    getConfigValue.mockResolvedValue(true)
+    await setReviewerSuggestionsEnabled(true)
+
+    expect(setConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY, true)
+    expect(await getReviewerSuggestionsEnabled()).toBe(true)
   })
 })

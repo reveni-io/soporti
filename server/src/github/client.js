@@ -32,6 +32,18 @@ const RESOLVE_REVIEW_THREAD_MUTATION = `mutation ($threadId: ID!) {
   }
 }`
 
+const PATH_HISTORY_LIMIT = 20
+const PUSH_PERMISSIONS = new Set(['admin', 'write'])
+
+const ORGANIZATION_MEMBERS_QUERY = `query ($org: String!, $cursor: String) {
+  organization(login: $org) {
+    membersWithRole(first: 100, after: $cursor) {
+      nodes { login createdAt }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`
+
 let octokitInstance = null
 let octokitInstanceToken = null
 
@@ -247,6 +259,75 @@ export async function createReviewCommentReaction(repoFullName, commentId, conte
     content,
   })
   return data
+}
+
+export async function listPathAuthors(repoFullName, ref, paths) {
+  if (paths.length === 0) return []
+
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const definitions = paths.map((_, index) => `$p${index}: String!`).join(', ')
+  const fields = paths
+    .map((_, index) => {
+      return `f${index}: history(first: ${PATH_HISTORY_LIMIT}, path: $p${index}) { nodes { author { user { login } } } }`
+    })
+    .join('\n')
+  const query = `query ($owner: String!, $repo: String!, $ref: String!, ${definitions}) {
+  repository(owner: $owner, name: $repo) { object(expression: $ref) { ... on Commit { ${fields} } } }
+}`
+  const variables = Object.fromEntries(paths.map((path, index) => [`p${index}`, path]))
+  const data = await octokit.graphql(query, { owner, repo, ref, ...variables })
+  const commit = data.repository?.object ?? {}
+
+  return paths.map((path, index) => ({
+    path,
+    authors: (commit[`f${index}`]?.nodes ?? []).map(node => node.author?.user?.login).filter(Boolean),
+  }))
+}
+
+export async function countReviewsSince(owner, logins, since) {
+  if (logins.length === 0) return new Map()
+
+  const octokit = await getOctokit()
+  const definitions = logins.map((_, index) => `$q${index}: String!`).join(', ')
+  const fields = logins.map((_, index) => `r${index}: search(query: $q${index}, type: ISSUE, first: 1) { issueCount }`)
+  const variables = Object.fromEntries(
+    logins.map((login, index) => [
+      `q${index}`,
+      `is:pr user:${owner} reviewed-by:${login} -author:${login} updated:>=${since}`,
+    ])
+  )
+  const data = await octokit.graphql(`query (${definitions}) {\n${fields.join('\n')}\n}`, variables)
+
+  return new Map(logins.map((login, index) => [login, data[`r${index}`]?.issueCount ?? 0]))
+}
+
+export async function listOrganizationMembers(org) {
+  const octokit = await getOctokit()
+  const members = []
+  let cursor = null
+
+  do {
+    const data = await octokit.graphql(ORGANIZATION_MEMBERS_QUERY, { org, cursor })
+    const page = data.organization?.membersWithRole
+    members.push(...(page?.nodes ?? []).map(({ login, createdAt }) => ({ login, createdAt })))
+    cursor = page?.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null
+  } while (cursor)
+
+  return members
+}
+
+export async function canPushToRepository(repoFullName, login) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+
+  try {
+    const { data } = await octokit.repos.getCollaboratorPermissionLevel({ owner, repo, username: login })
+    return PUSH_PERMISSIONS.has(data.permission)
+  } catch (err) {
+    if (err.status === 404) return false
+    throw err
+  }
 }
 
 async function paginate(fetchPage) {
