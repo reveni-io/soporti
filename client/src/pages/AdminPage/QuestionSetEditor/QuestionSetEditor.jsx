@@ -37,6 +37,10 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
     state.updateDraft(draft => ({ ...draft, set: { ...draft.set, [field]: value } }))
   }
 
+  function handleSetFieldChange(event) {
+    updateSet(event.target.name, event.target.value)
+  }
+
   function handleSaveQuestion(question) {
     const questions =
       editing === NEW_QUESTION
@@ -65,11 +69,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
     <>
       <label className="question-set__label">
         Set description
-        <input
-          className="input"
-          value={set.description}
-          onChange={event => updateSet('description', event.target.value)}
-        />
+        <input className="input" name="description" value={set.description} onChange={handleSetFieldChange} />
       </label>
 
       <div key={`${state.document.rev}-${state.restoredFrom}`} className="question-set__fields">
@@ -77,8 +77,9 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
           Model
           <select
             className="input input--select"
+            name="model"
             value={set.model}
-            onChange={event => updateSet('model', event.target.value)}
+            onChange={handleSetFieldChange}
             disabled={!canPickModel}
           >
             {canPickModel ? (

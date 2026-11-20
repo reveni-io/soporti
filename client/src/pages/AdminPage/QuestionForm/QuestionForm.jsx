@@ -25,6 +25,22 @@ export default function QuestionForm({ project, title, question, onSave, onCance
     )
   }
 
+  function handleFieldChange(event) {
+    update(event.target.name, event.target.value)
+  }
+
+  function handleAnswerChange(index, event) {
+    updateAnswer(index, event.target.name, event.target.value)
+  }
+
+  function handleAnswerFlagChange(index, event) {
+    updateAnswer(index, 'flag', event.target.checked)
+  }
+
+  function handleAddAnswer() {
+    update('answers', [...form.answers, blankAnswer()])
+  }
+
   function handleRemoveAnswer(index) {
     update(
       'answers',
@@ -50,19 +66,16 @@ export default function QuestionForm({ project, title, question, onSave, onCance
         Question
         <input
           className="input"
+          name="text"
           value={form.text}
-          onChange={event => update('text', event.target.value)}
+          onChange={handleFieldChange}
           placeholder="e.g. Does the change alter how money is refunded?"
         />
       </label>
 
       <label className="question-form__label">
         Type
-        <select
-          className="input input--select"
-          value={form.type}
-          onChange={event => update('type', event.target.value)}
-        >
+        <select className="input input--select" name="type" value={form.type} onChange={handleFieldChange}>
           {TYPE_OPTIONS.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -76,19 +89,15 @@ export default function QuestionForm({ project, title, question, onSave, onCance
         <textarea
           className="textarea"
           rows={2}
+          name="instructions"
           value={form.instructions}
-          onChange={event => update('instructions', event.target.value)}
+          onChange={handleFieldChange}
         />
       </label>
 
       <label className="question-form__label">
         Criteria
-        <textarea
-          className="textarea"
-          rows={2}
-          value={form.criteria}
-          onChange={event => update('criteria', event.target.value)}
-        />
+        <textarea className="textarea" rows={2} name="criteria" value={form.criteria} onChange={handleFieldChange} />
       </label>
 
       {form.type === QUESTION_CHOICE ? (
@@ -100,22 +109,20 @@ export default function QuestionForm({ project, title, question, onSave, onCance
                 className="input"
                 aria-label={`Answer ${index + 1}`}
                 placeholder="Answer"
+                name="label"
                 value={answer.label}
-                onChange={event => updateAnswer(index, 'label', event.target.value)}
+                onChange={event => handleAnswerChange(index, event)}
               />
               <input
                 className="input"
                 aria-label={`Criteria of answer ${index + 1}`}
                 placeholder="When Jev gives this answer"
+                name="criteria"
                 value={answer.criteria}
-                onChange={event => updateAnswer(index, 'criteria', event.target.value)}
+                onChange={event => handleAnswerChange(index, event)}
               />
               <label className="question-form__check">
-                <input
-                  type="checkbox"
-                  checked={answer.flag}
-                  onChange={event => updateAnswer(index, 'flag', event.target.checked)}
-                />
+                <input type="checkbox" checked={answer.flag} onChange={event => handleAnswerFlagChange(index, event)} />
                 {labels.flag}
               </label>
               <button className="btn btn--secondary btn--sm" type="button" onClick={() => handleRemoveAnswer(index)}>
@@ -124,11 +131,7 @@ export default function QuestionForm({ project, title, question, onSave, onCance
             </div>
           ))}
           <div>
-            <button
-              className="btn btn--secondary btn--sm"
-              type="button"
-              onClick={() => update('answers', [...form.answers, blankAnswer()])}
-            >
+            <button className="btn btn--secondary btn--sm" type="button" onClick={handleAddAnswer}>
               Add answer
             </button>
           </div>
@@ -146,8 +149,9 @@ export default function QuestionForm({ project, title, question, onSave, onCance
               className="input"
               inputMode="numeric"
               placeholder="e.g. 60"
+              name="flagAt"
               value={form.flagAt}
-              onChange={event => update('flagAt', event.target.value)}
+              onChange={handleFieldChange}
             />
           </label>
         </>
