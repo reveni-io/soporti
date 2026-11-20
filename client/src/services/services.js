@@ -372,15 +372,6 @@ export function getLegalCases(token, ids) {
   return request(`/api/legal/cases?ids=${ids.join(',')}`, { token, errorMessage: 'Failed to load the cases' })
 }
 
-export function sendLegalReply(token, caseId, { text, warningsRead }) {
-  return request(`/api/legal/cases/${caseId}/replies`, {
-    method: 'POST',
-    token,
-    body: { text, warningsRead },
-    errorMessage: 'Failed to send the reply',
-  })
-}
-
 export function getLegalConversation(token, caseId) {
   return request(`/api/legal/cases/${caseId}/conversation`, {
     token,

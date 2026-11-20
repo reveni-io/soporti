@@ -464,7 +464,7 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
       userId,
       conversationId,
       onArtifactPublished: turn.queueArtifact,
-      guardCases: { conversationId, onChecked: turn.queueGuardResult },
+      guardCases: { conversationId, onChecked: turn.queueGuardResult, sendable: true },
       onNestedToolCall: turn.startToolCall,
       onNestedToolResult: turn.finishToolCall,
       onNestedUsage: usage => turn.nestedUsage.push(usage),

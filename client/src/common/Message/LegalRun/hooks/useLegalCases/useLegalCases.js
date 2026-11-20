@@ -29,14 +29,5 @@ export function useLegalCases(token, ids, onLogout) {
     }
   }, [token, key, onLogout])
 
-  function addReply(id, reply) {
-    setCases(current => {
-      const legalCase = current.get(id)
-      if (!legalCase) return current
-
-      return new Map(current).set(id, { ...legalCase, replies: [...legalCase.replies, reply] })
-    })
-  }
-
-  return { cases, error, addReply }
+  return { cases, error }
 }

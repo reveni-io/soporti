@@ -74,7 +74,7 @@ export default function AdminGuards({ token, onLogout }) {
         <ToggleField
           enabled={catalog.sendingEnabled}
           label="Allow sending replies from Soporti"
-          hint="When on, a reply to a Zendesk or HubSpot ticket checked by a guard can be sent from its case in the chat, by the person who sends it, after a confirmation."
+          hint="When on, Soporti sends a reply to a Zendesk or HubSpot ticket checked by a guard when the person in the web chat asks it to, as that person."
           onSave={saveSending}
           onLogout={onLogout}
         />
