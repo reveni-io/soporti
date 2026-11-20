@@ -117,6 +117,7 @@ async function keepPushers(repoFullName, logins) {
 
 function leastLoaded(logins, candidates, load) {
   const eligible = logins.filter(login => candidates.has(login))
+
   if (eligible.length === 0) return null
 
   return eligible.reduce((best, login) => (load.get(login) < load.get(best) ? login : best))
