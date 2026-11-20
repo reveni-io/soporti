@@ -29,6 +29,18 @@ export default function ReviewRules({ state }) {
     updateRules(current => current.map(rule => (rule.id === id ? { ...rule, ...changes } : rule)))
   }
 
+  function handleRoleChange(id, role) {
+    updateRule(id, { role })
+  }
+
+  function handleRemoveRule(id) {
+    updateRules(current => current.filter(rule => rule.id !== id))
+  }
+
+  function handleAddRule() {
+    updateRules(current => [...current, newRule(ruleToAdd)])
+  }
+
   function handleLimitChange(definition, value) {
     const limit = definition.limits.find(option => String(option) === value)
     updateRule(definition.id, { limit })
@@ -73,7 +85,7 @@ export default function ReviewRules({ state }) {
                       className="input input--select admin__select--compact"
                       aria-label={`Role of ${definition.label}`}
                       value={rule.role}
-                      onChange={event => updateRule(rule.id, { role: event.target.value })}
+                      onChange={event => handleRoleChange(rule.id, event.target.value)}
                     >
                       {RULE_ROLES.map(role => (
                         <option key={role.value} value={role.value}>
@@ -105,7 +117,7 @@ export default function ReviewRules({ state }) {
                       className="btn btn--secondary btn--sm"
                       type="button"
                       aria-label={`Remove ${definition.label}`}
-                      onClick={() => updateRules(current => current.filter(other => other.id !== rule.id))}
+                      onClick={() => handleRemoveRule(rule.id)}
                     >
                       Remove
                     </button>
@@ -130,11 +142,7 @@ export default function ReviewRules({ state }) {
               </option>
             ))}
           </select>
-          <button
-            className="btn btn--secondary"
-            type="button"
-            onClick={() => updateRules(current => [...current, newRule(ruleToAdd)])}
-          >
+          <button className="btn btn--secondary" type="button" onClick={handleAddRule}>
             Add rule
           </button>
         </div>
