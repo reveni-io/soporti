@@ -21,21 +21,6 @@ function mockApi(routes) {
   })
 }
 
-function renderConversation(overrides = {}) {
-  const props = {
-    token: 'tok',
-    legalCase: LEGAL_CASE,
-    label: 'Zendesk ticket 48213',
-    send: { allowed: true, reason: null },
-    needsCare: false,
-    onSent: vi.fn(),
-    onLogout: vi.fn(),
-    ...overrides,
-  }
-  render(<TicketConversation {...props} />)
-  return props
-}
-
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -44,7 +29,17 @@ describe('TicketConversation', () => {
   it('shows the customer and agent messages once asked', async () => {
     mockApi({ 'GET /api/legal/cases/41/conversation': [respond(200, { messages: [CUSTOMER, AGENT] })] })
     const user = userEvent.setup()
-    renderConversation()
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare={false}
+        onSent={vi.fn()}
+        onLogout={vi.fn()}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 
@@ -52,6 +47,30 @@ describe('TicketConversation', () => {
     expect(screen.getByText(/^Customer · /)).toBeInTheDocument()
     expect(screen.getByText(/^Agent · /)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+  })
+
+  it('warns when a long ticket was cut short', async () => {
+    mockApi({
+      'GET /api/legal/cases/41/conversation': [
+        respond(200, { messages: [CUSTOMER], notice: 'This ticket is long: only its first messages are shown here.' }),
+      ],
+    })
+    const user = userEvent.setup()
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare={false}
+        onSent={vi.fn()}
+        onLogout={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
+
+    expect(await screen.findByText('This ticket is long: only its first messages are shown here.')).toBeInTheDocument()
   })
 
   it('says when the ticket has no public messages, and why it could not be read', async () => {
@@ -62,7 +81,17 @@ describe('TicketConversation', () => {
       ],
     })
     const user = userEvent.setup()
-    renderConversation()
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare={false}
+        onSent={vi.fn()}
+        onLogout={vi.fn()}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
     expect(await screen.findByText('Could not read the Zendesk ticket.')).toBeInTheDocument()
@@ -82,7 +111,18 @@ describe('TicketConversation', () => {
       ],
     })
     const user = userEvent.setup()
-    const { onSent } = renderConversation()
+    const onSent = vi.fn()
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare={false}
+        onSent={onSent}
+        onLogout={vi.fn()}
+      />
+    )
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
     const box = await screen.findByRole('textbox')
 
@@ -106,7 +146,17 @@ describe('TicketConversation', () => {
       ],
     })
     const user = userEvent.setup()
-    renderConversation({ needsCare: true })
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare
+        onSent={vi.fn()}
+        onLogout={vi.fn()}
+      />
+    )
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
     await user.type(await screen.findByRole('textbox'), 'Hi')
     await user.click(screen.getByRole('button', { name: 'Send' }))
@@ -119,7 +169,17 @@ describe('TicketConversation', () => {
   it('offers no reply box when sending is not allowed', async () => {
     mockApi({ 'GET /api/legal/cases/41/conversation': [respond(200, { messages: [CUSTOMER] })] })
     const user = userEvent.setup()
-    renderConversation({ send: { allowed: false, reason: 'Sending from Soporti is off.' } })
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: false, reason: 'Sending from Soporti is off.' }}
+        needsCare={false}
+        onSent={vi.fn()}
+        onLogout={vi.fn()}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 
@@ -130,7 +190,18 @@ describe('TicketConversation', () => {
   it('logs out when the session expired', async () => {
     mockApi({ 'GET /api/legal/cases/41/conversation': [respond(401, { error: 'Session expired' })] })
     const user = userEvent.setup()
-    const { onLogout } = renderConversation()
+    const onLogout = vi.fn()
+    render(
+      <TicketConversation
+        token="tok"
+        legalCase={LEGAL_CASE}
+        label="Zendesk ticket 48213"
+        send={{ allowed: true, reason: null }}
+        needsCare={false}
+        onSent={vi.fn()}
+        onLogout={onLogout}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 
