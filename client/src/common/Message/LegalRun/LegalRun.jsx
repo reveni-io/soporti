@@ -166,6 +166,7 @@ function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
         </button>
         <span className="legal-run__muted">{describeSending({ legalCase, state, copyStatus })}</span>
       </div>
+      {sender.warning && <p className="alert alert--warning">{sender.warning}</p>}
 
       {sender.confirming && (
         <SendConfirm

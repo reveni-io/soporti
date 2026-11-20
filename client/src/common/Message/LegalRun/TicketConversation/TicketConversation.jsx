@@ -112,6 +112,7 @@ function FollowUpReply({ token, legalCase, label, needsCare, onSent, onLogout })
           onChange={handleReplyChange}
         />
       </label>
+      {sender.warning && <p className="alert alert--warning">{sender.warning}</p>}
       <ReplyAction
         sender={sender}
         recipient={legalCase.customer}

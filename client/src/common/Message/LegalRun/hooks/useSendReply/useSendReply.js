@@ -5,6 +5,7 @@ export function useSendReply(token, caseId, onSent, onLogout) {
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
+  const [warning, setWarning] = useState(null)
 
   function start() {
     setError(null)
@@ -19,8 +20,9 @@ export function useSendReply(token, caseId, onSent, onLogout) {
     setSending(true)
     setError(null)
     try {
-      const { reply } = await sendLegalReply(token, caseId, { text, warningsRead })
+      const { reply, warning: sentWarning } = await sendLegalReply(token, caseId, { text, warningsRead })
       setConfirming(false)
+      setWarning(sentWarning ?? null)
       onSent(reply)
     } catch (err) {
       if (isUnauthorized(err)) {
@@ -33,5 +35,5 @@ export function useSendReply(token, caseId, onSent, onLogout) {
     }
   }
 
-  return { confirming, sending, error, start, cancel, send }
+  return { confirming, sending, error, warning, start, cancel, send }
 }

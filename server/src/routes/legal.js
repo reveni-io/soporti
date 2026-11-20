@@ -116,7 +116,10 @@ router.post('/cases/:id/replies', async (req, res) => {
 
     const externalId = await sendLegalReply(legalCase, { userId: req.user.id, text: value.text })
     const reply = await recordReply({ legalCase, user: req.user, text: value.text, externalId })
-    if (!reply) return res.status(500).json({ error: SENT_NOT_RECORDED })
+    if (!reply) {
+      const unrecorded = { id: null, sentBy: req.user.email, text: value.text, sentAt: new Date().toISOString() }
+      return res.status(201).json({ reply: unrecorded, warning: SENT_NOT_RECORDED })
+    }
 
     res.status(201).json({ reply: toReply(reply) })
   } catch (err) {

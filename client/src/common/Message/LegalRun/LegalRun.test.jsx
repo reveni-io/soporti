@@ -226,6 +226,29 @@ describe('sending from Soporti', () => {
     expect(bodyOf('POST', '/api/legal/cases/41/replies').warningsRead).toBe(true)
   })
 
+  it('shows a reply that went out but was not recorded as sent, so it is not offered again', async () => {
+    const warning = 'The reply was sent, but Soporti could not record it. Check the ticket before sending it again.'
+    mockLegalApi({
+      routes: {
+        'POST /api/legal/cases/41/replies': [
+          respond(201, { reply: { id: null, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT }, warning }),
+        ],
+      },
+    })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+
+    expect(await screen.findByText(warning)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sent' })).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: 'Send reply' })).not.toBeInTheDocument()
+  })
+
   it('shows why the reply cannot be sent, and why a send failed', async () => {
     mockLegalApi({ send: { allowed: false, reason: 'Sending from Soporti is off.' } })
 

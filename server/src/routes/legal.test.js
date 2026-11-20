@@ -184,15 +184,16 @@ describe('POST /cases/:id/replies', () => {
     expect(saveLegalReply).not.toHaveBeenCalled()
   })
 
-  it('says the reply went out when only recording it failed', async () => {
+  it('returns the sent reply with a warning when only recording it failed, so it is not sent twice', async () => {
     getOwnedLegalCase.mockResolvedValue(CHECKED)
     sendLegalReply.mockResolvedValue('777')
     saveLegalReply.mockRejectedValue(new Error('db down'))
 
     const res = await request(app).post('/cases/41/replies').send({ text: 'Hello' })
 
-    expect(res.status).toBe(500)
-    expect(res.body.error).toMatch(/^The reply was sent, but Soporti could not record it/)
+    expect(res.status).toBe(201)
+    expect(res.body.reply).toEqual({ id: null, sentBy: 'ana@example.com', text: 'Hello', sentAt: expect.any(String) })
+    expect(res.body.warning).toMatch(/^The reply was sent, but Soporti could not record it/)
   })
 
   it('hides an unexpected error', async () => {
