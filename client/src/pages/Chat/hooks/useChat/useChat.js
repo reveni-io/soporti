@@ -232,6 +232,10 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
           break
         }
 
+        case 'part':
+          updateChat(key, chat => withLastAssistant(chat, withPart(event.part)))
+          break
+
         case 'feedback_id':
           updateChat(key, chat => withLastAssistant(chat, message => ({ ...message, feedbackId: event.feedbackId })))
           break

@@ -3,13 +3,13 @@ import { formatTime } from './format-time.js'
 import { useCopyReply } from './hooks/useCopyReply/useCopyReply.js'
 import { useLegalCases } from './hooks/useLegalCases/useLegalCases.js'
 import { useSendReply } from './hooks/useSendReply/useSendReply.js'
+import GuardReview from '../GuardReview/GuardReview.jsx'
 import SendConfirm from './SendConfirm/SendConfirm.jsx'
 import TicketConversation from './TicketConversation/TicketConversation.jsx'
 import './LegalRun.css'
 
 const CHECKED = 'checked'
 const SOURCE_LABELS = { zendesk: 'Zendesk', hubspot: 'HubSpot' }
-const CONFIDENCE_DIGITS = 2
 const OLD_RUN = 'This run is older than sending from Soporti: copy the reply and send it from the ticket.'
 
 function ticketLabel({ source, ticketId }) {
@@ -45,39 +45,14 @@ export default function LegalRun({ cases, token = null, onLogout }) {
 
   return (
     <div className="legal-run">
-      <div className="legal-run__table-wrap">
-        <table className="legal-run__table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Ticket</th>
-              <th>Customer</th>
-              <th>Legal review</th>
-              <th>Next step</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cases.map((legalCase, index) => (
-              <tr key={`${legalCase.source}-${legalCase.ticketId}`}>
-                <td>{index + 1}</td>
-                <td>{ticketLabel(legalCase)}</td>
-                <td>{legalCase.customer || 'unknown'}</td>
-                <td>
-                  <CheckBadge legalCase={legalCase} />
-                </td>
-                <td>{nextStep(legalCase, status.cases.get(legalCase.id))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {cases.length > 1 && <RunSummary cases={cases} status={status} />}
 
       {status.error && <p className="alert alert--error">{status.error}</p>}
 
       {cases.map((legalCase, index) => (
         <LegalCase
           key={`${legalCase.source}-${legalCase.ticketId}`}
-          number={index + 1}
+          number={cases.length > 1 ? index + 1 : null}
           legalCase={legalCase}
           state={status.cases.get(legalCase.id)}
           token={token}
@@ -85,6 +60,37 @@ export default function LegalRun({ cases, token = null, onLogout }) {
           onLogout={onLogout}
         />
       ))}
+    </div>
+  )
+}
+
+function RunSummary({ cases, status }) {
+  return (
+    <div className="legal-run__table-wrap">
+      <table className="legal-run__table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ticket</th>
+            <th>Customer</th>
+            <th>Review</th>
+            <th>Next step</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cases.map((legalCase, index) => (
+            <tr key={`${legalCase.source}-${legalCase.ticketId}`}>
+              <td>{index + 1}</td>
+              <td>{ticketLabel(legalCase)}</td>
+              <td>{legalCase.customer || 'unknown'}</td>
+              <td>
+                <CheckBadge legalCase={legalCase} />
+              </td>
+              <td>{nextStep(legalCase, status.cases.get(legalCase.id))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -122,7 +128,7 @@ function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
   return (
     <section className="legal-run__case">
       <h3 className="legal-run__title">
-        {number}.{' '}
+        {number && `${number}. `}
         {legalCase.ticketUrl ? (
           <a href={legalCase.ticketUrl} target="_blank" rel="noreferrer">
             {label}
@@ -150,7 +156,12 @@ function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
       />
       <p className="legal-run__muted">Edit the reply if needed, then send it from here or copy it to the ticket.</p>
 
-      <ReviewCheck legalCase={legalCase} />
+      <GuardReview
+        guard={legalCase.guard ?? 'Legal'}
+        review={legalCase.review}
+        warnings={legalCase.warnings}
+        reason={legalCase.reason}
+      />
 
       <div className="legal-run__actions">
         <button
@@ -227,51 +238,5 @@ function DraftReply({ legalCase, label, reply, locked, textareaRef, onChange }) 
         onChange={event => onChange(event.target.value)}
       />
     </label>
-  )
-}
-
-function ReviewCheck({ legalCase }) {
-  if (!legalCase.review) return <p className="alert alert--warning">Not reviewed: {legalCase.reason}.</p>
-
-  const { setVersion, minConfidence, rows } = legalCase.review
-
-  return (
-    <div className="legal-run__review">
-      <div className="legal-run__review-head">
-        <span>Legal review · set v{setVersion}</span>
-        <CheckBadge legalCase={legalCase} />
-      </div>
-      <div className="legal-run__table-wrap">
-        <table className="legal-run__table">
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Confidence</th>
-              <th>Check</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(row => (
-              <tr key={row.questionId}>
-                <td>{row.question}</td>
-                <td>{row.answer ?? 'no answer'}</td>
-                <td className={row.unsure ? 'legal-run__low' : ''}>
-                  {row.confidence.toFixed(CONFIDENCE_DIGITS)}
-                  {row.unsure && ` < ${minConfidence.toFixed(CONFIDENCE_DIGITS)}`}
-                </td>
-                <td>
-                  {row.flagged || row.unsure ? (
-                    <span className="badge badge--warning">Careful</span>
-                  ) : (
-                    <span className="badge">OK</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
   )
 }
