@@ -208,6 +208,15 @@ describe('planJevSave', () => {
     })
     expect(planJevSave({ rev: 2, data: { enabled: true } }, { enabled: false }).change).toBe('Jev calls off')
   })
+
+  it('turns the Jev calls on only with an API key, and always lets them be turned off', () => {
+    expect(planJevSave({ rev: 1, data: { enabled: false } }, { enabled: true }, { keyConfigured: false })).toEqual({
+      error: 'Save the API key before turning Jev calls on.',
+    })
+    expect(planJevSave({ rev: 2, data: { enabled: true } }, { enabled: false }, { keyConfigured: false }).change).toBe(
+      'Jev calls off'
+    )
+  })
 })
 
 describe('planJevSave for the GitHub project', () => {

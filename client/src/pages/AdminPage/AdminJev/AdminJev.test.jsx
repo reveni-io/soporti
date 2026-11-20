@@ -143,6 +143,7 @@ describe('AdminJev', () => {
     const saved = { ...UNSAVED, rev: 1, data: { enabled: true }, savedAt: SAVED_AT, savedBy: 'ana@example.com' }
     const entry = { at: SAVED_AT, author: 'ana@example.com', change: 'Created; Jev calls on', rev: 1 }
     mockApi({
+      [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [], scannedAt: null })],
       [`PUT ${BASE}/documents/jev`]: [okResponse(saved)],
       [`GET ${BASE}/documents/jev/history?page=1`]: [
         okResponse(NO_HISTORY),
@@ -165,11 +166,29 @@ describe('AdminJev', () => {
     expect(JSON.parse(options.body)).toEqual({ rev: 0, data: { enabled: true }, restoredFrom: null })
   })
 
+  it('keeps the Jev calls off until an API key is saved', async () => {
+    mockApi({})
+
+    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
+    expect(screen.getByText('Save the API key above before turning Jev calls on.')).toBeInTheDocument()
+  })
+
+  it('still lets the Jev calls be turned off when the key was removed', async () => {
+    mockApi({ [`GET ${BASE}/documents/jev`]: [okResponse({ ...UNSAVED, rev: 1, data: { enabled: true } })] })
+
+    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeEnabled()
+  })
+
   it('offers to reload the latest version after a conflict', async () => {
     const conflict =
       'luis@example.com saved version 1 while you were editing version 0. Nothing was saved. Reload the latest version and apply your changes again.'
     const latest = { ...UNSAVED, rev: 1, data: { enabled: true }, savedAt: SAVED_AT, savedBy: 'luis@example.com' }
     mockApi({
+      [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [], scannedAt: null })],
       [`GET ${BASE}/documents/jev`]: [okResponse(UNSAVED), okResponse(latest)],
       [`PUT ${BASE}/documents/jev`]: [errorResponse(409, conflict)],
     })

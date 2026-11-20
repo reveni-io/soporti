@@ -228,7 +228,10 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const inUseQueries = id === JEV_LEGAL_DOCUMENT ? await countLegalSchedules() : 0
+    const [inUseQueries, keyConfigured] = await Promise.all([
+      id === JEV_LEGAL_DOCUMENT ? countLegalSchedules() : 0,
+      isConfigured(),
+    ])
     const {
       conflict,
       error: saveError,
@@ -237,7 +240,8 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries }),
+      plan: current =>
+        planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries, keyConfigured }),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 

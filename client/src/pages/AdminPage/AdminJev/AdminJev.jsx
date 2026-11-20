@@ -86,13 +86,19 @@ export default function AdminJev({ token, onLogout }) {
 
       <AdminSection title="Jev calls">
         <label className="admin__switch">
-          <input type="checkbox" checked={settings.draft.enabled} onChange={handleCallsChange} />
+          <input
+            type="checkbox"
+            checked={settings.draft.enabled}
+            onChange={handleCallsChange}
+            disabled={!config.keyConfigured && !settings.draft.enabled}
+          />
           <span className="admin__switch-slider" aria-hidden="true" />
           <span className="admin__switch-label">
             Allow Jev calls
             <span className="admin__muted">When off, Soporti does not call Jev from any project.</span>
           </span>
         </label>
+        {!config.keyConfigured && <p className="admin__muted">Save the API key above before turning Jev calls on.</p>}
         <p className="note">
           Turning it off stops the calls of ALL projects, Legal included. It does not change the auto-approve mode of
           the GitHub repos.

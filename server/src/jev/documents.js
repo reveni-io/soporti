@@ -56,6 +56,8 @@ const SCALAR_CHANGES = [
   ['maxCharacters', 'Max characters'],
 ]
 
+const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
+
 function parseText(value, { label, max, required = false }) {
   if (value === undefined || value === null) return required ? { error: `${label} is required.` } : { value: '' }
   if (typeof value !== 'string') return { error: `${label} must be text.` }
@@ -314,9 +316,10 @@ function describeQueriesInUse(count) {
   return `Cannot delete the set: ${queries} Legal review on. They must turn it off first.`
 }
 
-function findSaveError(previous, next, inUseQueries) {
+function findSaveError(previous, next, { inUseQueries, keyConfigured }) {
   if (next.repos) return findGithubSaveError(previous, next)
   if (next.set && next.set.questions.length === 0 && inUseQueries > 0) return describeQueriesInUse(inUseQueries)
+  if (next.enabled === true && previous.enabled !== true && !keyConfigured) return NO_KEY_CALLS_MESSAGE
 
   return null
 }
@@ -336,11 +339,11 @@ export function parseJevDocument(id, data) {
   return parse(data)
 }
 
-export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0 } = {}) {
+export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0, keyConfigured = true } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
 
-  const error = findSaveError(current.data, next, inUseQueries)
+  const error = findSaveError(current.data, next, { inUseQueries, keyConfigured })
   if (error) return { error }
 
   const snapshot = versionedSet(next)

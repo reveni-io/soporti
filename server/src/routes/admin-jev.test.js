@@ -334,6 +334,28 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     })
   })
 
+  it('turns the Jev calls on only once an API key is saved', async () => {
+    saveJevDocument.mockResolvedValue({ error: 'Save the API key before turning Jev calls on.' })
+
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/jev')
+      .send({ rev: 1, data: { enabled: true } })
+
+    expect(res.status).toBe(422)
+    expect(res.body).toEqual({ error: 'Save the API key before turning Jev calls on.' })
+    expect(saveJevDocument.mock.calls[0][1].plan({ rev: 1, data: { enabled: false } })).toEqual({
+      error: 'Save the API key before turning Jev calls on.',
+    })
+
+    stored[JEV_API_KEY_KEY] = 'jev-secret'
+    _resetJevSettingsCacheForTests()
+    await request(app)
+      .put('/api/admin/config/jev/documents/jev')
+      .send({ rev: 1, data: { enabled: true } })
+
+    expect(saveJevDocument.mock.calls[1][1].plan({ rev: 1, data: { enabled: false } }).change).toBe('Jev calls on')
+  })
+
   it('returns 409 with who saved the newer version', async () => {
     saveJevDocument.mockResolvedValue({ conflict: true, document: { id: 'jev', rev: 6, data: {}, setVersion: 0 } })
     getLatestJevSave.mockResolvedValue({ at: SAVED_AT, author: 'luis@example.com', change: 'Jev calls off', rev: 6 })
