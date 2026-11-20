@@ -1,5 +1,5 @@
 function describeUse(guard) {
-  if (guard.questions === 0 || !guard.model) return 'Not in the chat until it has questions and a model'
+  if (guard.questions === 0) return 'Not in the chat until it has questions'
 
   return guard.description || 'No description'
 }

@@ -20,10 +20,7 @@ vi.mock('../legal/replies.js', async importOriginal => ({
   sendLegalReply,
 }))
 
-const isGuardSendingEnabled = vi.fn()
-vi.mock('../jev/settings.js', () => ({ isGuardSendingEnabled }))
-
-const { GUARD_SEND_OFF, LegalReplyError } = await import('../legal/replies.js')
+const { LegalReplyError } = await import('../legal/replies.js')
 const { default: legalRouter } = await import('./legal.js')
 
 const CHECKED = { id: 41, guardId: 'legal', source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
@@ -36,7 +33,6 @@ let app
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  isGuardSendingEnabled.mockResolvedValue(true)
   findSendBlocker.mockResolvedValue(null)
   app = express()
   app.use(express.json())
@@ -66,20 +62,6 @@ describe('GET /cases', () => {
       },
       { id: 42, replies: [], send: { allowed: false, reason: 'No HubSpot reply' } },
     ])
-  })
-
-  it('says sending is off for every case while it is off, without asking their sources', async () => {
-    isGuardSendingEnabled.mockResolvedValue(false)
-    findOwnedLegalCases.mockResolvedValue([CHECKED, { ...CAREFUL, id: 43 }])
-    listLegalReplies.mockResolvedValue([])
-
-    const res = await request(app).get('/cases?ids=41,43')
-
-    expect(res.body.cases.map(legalCase => legalCase.send)).toEqual([
-      { allowed: false, reason: GUARD_SEND_OFF },
-      { allowed: false, reason: GUARD_SEND_OFF },
-    ])
-    expect(findSendBlocker).not.toHaveBeenCalled()
   })
 
   it.each(['', 'abc', Array.from({ length: 51 }, (_, index) => index + 1).join(',')])(
@@ -139,16 +121,12 @@ describe('POST /cases/:id/replies', () => {
     expect(confirmed.status).toBe(201)
   })
 
-  it('does not send when sending is off or the user cannot send from that source', async () => {
+  it('does not send when the user cannot send from that source', async () => {
     getOwnedLegalCase.mockResolvedValue(CHECKED)
-    isGuardSendingEnabled.mockResolvedValueOnce(false)
-
-    const off = await request(app).post('/cases/41/replies').send({ text: 'Hello' })
     findSendBlocker.mockResolvedValueOnce('Connect Zendesk')
+
     const blocked = await request(app).post('/cases/41/replies').send({ text: 'Hello' })
 
-    expect(off.status).toBe(403)
-    expect(off.body).toEqual({ error: GUARD_SEND_OFF })
     expect(blocked.status).toBe(403)
     expect(blocked.body).toEqual({ error: 'Connect Zendesk' })
     expect(sendLegalReply).not.toHaveBeenCalled()

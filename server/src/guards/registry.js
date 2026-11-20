@@ -1,7 +1,7 @@
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT } from '../constants.js'
 import { listJevDocuments } from '../db/jev-documents.js'
 import { isGuardId } from '../jev/documents.js'
-import { areJevCallsEnabled, isConfigured } from '../jev/settings.js'
+import { isConfigured } from '../jev/settings.js'
 
 const LEGACY_NAMES = new Map([
   [JEV_LEGAL_DOCUMENT, 'Legal'],
@@ -14,7 +14,6 @@ function toGuard({ id, data, setVersion }) {
     name: data.name || LEGACY_NAMES.get(id) || id,
     description: data.set.description,
     questions: data.set.questions.length,
-    model: data.set.model,
     setVersion,
   }
 }
@@ -39,8 +38,8 @@ export function findGuardByName(guards, name, { exceptId = null } = {}) {
 }
 
 export async function listUsableGuards() {
-  const [keyConfigured, enabled, guards] = await Promise.all([isConfigured(), areJevCallsEnabled(), listGuards()])
-  if (!keyConfigured || !enabled) return []
+  const [keyConfigured, guards] = await Promise.all([isConfigured(), listGuards()])
+  if (!keyConfigured) return []
 
-  return guards.filter(guard => guard.questions > 0 && guard.model)
+  return guards.filter(guard => guard.questions > 0)
 }

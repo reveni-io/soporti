@@ -48,16 +48,8 @@ const db = {
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { jevDocuments, jevHistory, jevSetVersions } = await import('./schema.js')
-const {
-  addJevHistoryEntry,
-  deleteJevDocument,
-  getJevDocument,
-  getLatestJevSave,
-  listJevDocuments,
-  listJevHistory,
-  listJevSetVersions,
-  saveJevDocument,
-} = await import('./jev-documents.js')
+const { deleteJevDocument, getJevDocument, getLatestJevSave, listJevDocuments, listJevSetVersions, saveJevDocument } =
+  await import('./jev-documents.js')
 
 const DEFAULTS = { set: { questions: [] } }
 const CURRENT = { id: 'legal', rev: 3, data: { set: { questions: ['old'] } }, setVersion: 2 }
@@ -184,30 +176,6 @@ describe('saveJevDocument', () => {
     expect(calls.filter(call => call.table === jevSetVersions)).toHaveLength(0)
     expect(calls[2].steps.values.change).toBe('Timeout 30 → 60')
     expect(calls[3].steps.set.setVersion).toBe(2)
-  })
-})
-
-describe('addJevHistoryEntry', () => {
-  it('stores an entry outside the versions', async () => {
-    await addJevHistoryEntry('jev', { author: 'ana@example.com', change: 'API key saved' })
-
-    expect(calls[0].steps.values).toEqual({
-      documentId: 'jev',
-      rev: null,
-      authorEmail: 'ana@example.com',
-      change: 'API key saved',
-    })
-  })
-})
-
-describe('listJevHistory', () => {
-  it('returns one page of five entries with the total', async () => {
-    const entries = [{ at: new Date(), author: 'ana@example.com', change: 'Jev calls on', rev: 2 }]
-    queue.push(entries, [{ total: 7 }])
-
-    expect(await listJevHistory('jev', 2)).toEqual({ entries, total: 7, page: 2, pageSize: 5 })
-    expect(calls[0].steps.limit).toBe(5)
-    expect(calls[0].steps.offset).toBe(5)
   })
 })
 

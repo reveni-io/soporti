@@ -17,7 +17,6 @@ const NOUL = { id: 'q2', type: 'noul', text: 'Merging this change is risky', fla
 function legalSet(overrides = {}) {
   return {
     description: 'Customer reply guardrail',
-    model: 'jev-latest',
     minConfidence: 0.75,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -45,7 +44,6 @@ describe('defaultJevDocument', () => {
     expect(defaultJevDocument('jev')).toBeNull()
     expect(defaultJevDocument('legal').set).toEqual({
       description: '',
-      model: '',
       minConfidence: null,
       timeoutSeconds: 30,
       dailyLimit: 0,
@@ -87,10 +85,10 @@ describe('parseJevDocument', () => {
     ])
   })
 
-  it('accepts an empty model and a noul question without a threshold', () => {
-    const { value } = parseLegal({ model: '', questions: [{ ...NOUL, flagAt: null }] })
+  it('drops the model a guard used to pick, and accepts a noul question without a threshold', () => {
+    const { value } = parseLegal({ model: 'jev-1.2.0', questions: [{ ...NOUL, flagAt: null }] })
 
-    expect(value.set.model).toBe('')
+    expect(value.set).not.toHaveProperty('model')
     expect(value.set.questions[0].flagAt).toBeNull()
   })
 
@@ -119,7 +117,6 @@ describe('parseJevDocument', () => {
     [{ minConfidence: 1.5 }, 'Min confidence must be a number between 0 and 1.'],
     [{ timeoutSeconds: 0 }, 'Timeout must be a whole number of seconds.'],
     [{ dailyLimit: -1 }, 'Daily limit must be a whole number. Use 0 for no limit.'],
-    [{ model: 'jev latest' }, 'That does not look like a Jev model name.'],
     [{ description: 7 }, 'The set description must be text.'],
     [{ description: 'd'.repeat(501) }, 'The set description is too long (max 500 characters).'],
     [{ questions: 'none' }, 'Questions must be a list.'],
@@ -154,20 +151,18 @@ describe('planJevSave', () => {
   it('describes the first save and starts the set versions', () => {
     const plan = planJevSave({ rev: 0, data: defaultJevDocument('legal') }, saved)
 
-    expect(plan.change).toBe(
-      'Created; Set description; Questions; Model (empty) → jev-latest; Min confidence (empty) → 0.75'
-    )
-    expect(plan.set).toEqual({ model: 'jev-latest', minConfidence: 0.75, questions: saved.set.questions })
+    expect(plan.change).toBe('Created; Set description; Questions; Min confidence (empty) → 0.75')
+    expect(plan.set).toEqual({ minConfidence: 0.75, questions: saved.set.questions })
     expect(plan.data).toBe(saved)
   })
 
-  it('bumps the set version when a question, the model or the min confidence change', () => {
+  it('bumps the set version when a question or the min confidence change', () => {
     const questions = [{ ...CHOICE, text: 'Reworded' }, NOUL]
 
     expect(planJevSave({ rev: 3, data: saved }, { set: legalSet({ questions }) })).toEqual({
       data: { set: legalSet({ questions }) },
       change: 'Questions',
-      set: { model: 'jev-latest', minConfidence: 0.75, questions },
+      set: { minConfidence: 0.75, questions },
     })
     expect(planJevSave({ rev: 3, data: saved }, { set: legalSet({ minConfidence: 0.8 }) }).set).not.toBeNull()
   })

@@ -4,15 +4,13 @@ const listJevDocuments = vi.fn()
 vi.mock('../db/jev-documents.js', () => ({ listJevDocuments }))
 
 const isConfigured = vi.fn()
-const areJevCallsEnabled = vi.fn()
-vi.mock('../jev/settings.js', () => ({ isConfigured, areJevCallsEnabled }))
+vi.mock('../jev/settings.js', () => ({ isConfigured }))
 
 const { findGuardByName, listUsableGuards, listGuards } = await import('./registry.js')
 
 function set(overrides = {}) {
   return {
     description: '',
-    model: 'jev-latest',
     minConfidence: 0.7,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -40,7 +38,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   listJevDocuments.mockResolvedValue([PAYMENTS, LEGAL, GITHUB, ANALYTICS, { id: 'jev', rev: 1, data: {} }])
   isConfigured.mockResolvedValue(true)
-  areJevCallsEnabled.mockResolvedValue(true)
 })
 
 describe('listGuards', () => {
@@ -54,10 +51,10 @@ describe('listGuards', () => {
     ])
 
     expect(await listGuards()).toEqual([
-      { id: 'guard-1a2b3c4d', name: 'Analytics', description: '', questions: 1, model: 'jev-latest', setVersion: 1 },
-      { id: 'github', name: 'GitHub PRs', description: '', questions: 1, model: 'jev-latest', setVersion: 1 },
-      { id: 'legal', name: 'Legal', description: 'Customer replies', questions: 1, model: 'jev-latest', setVersion: 3 },
-      { id: 'guard-0a1b2c3d', name: 'Payments', description: '', questions: 0, model: 'jev-latest', setVersion: 0 },
+      { id: 'guard-1a2b3c4d', name: 'Analytics', description: '', questions: 1, setVersion: 1 },
+      { id: 'github', name: 'GitHub PRs', description: '', questions: 1, setVersion: 1 },
+      { id: 'legal', name: 'Legal', description: 'Customer replies', questions: 1, setVersion: 3 },
+      { id: 'guard-0a1b2c3d', name: 'Payments', description: '', questions: 0, setVersion: 0 },
     ])
   })
 
@@ -78,14 +75,11 @@ describe('findGuardByName', () => {
 })
 
 describe('listUsableGuards', () => {
-  it('offers every guard with questions and a model', async () => {
+  it('offers every guard with questions', async () => {
     expect((await listUsableGuards()).map(guard => guard.name)).toEqual(['Analytics', 'GitHub PRs', 'Legal'])
   })
 
-  it('offers none while the Jev calls are off or there is no key', async () => {
-    areJevCallsEnabled.mockResolvedValueOnce(false)
-    expect(await listUsableGuards()).toEqual([])
-
+  it('offers none while there is no key', async () => {
     isConfigured.mockResolvedValueOnce(false)
     expect(await listUsableGuards()).toEqual([])
   })
