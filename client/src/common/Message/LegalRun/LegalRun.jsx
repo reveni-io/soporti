@@ -12,6 +12,14 @@ const CHECKED = 'checked'
 const SOURCE_LABELS = { zendesk: 'Zendesk', hubspot: 'HubSpot' }
 const OLD_RUN = 'This run is older than sending from Soporti: copy the reply and send it from the ticket.'
 
+function caseReviews(legalCase) {
+  if (legalCase.reviews) return legalCase.reviews
+
+  const { review, warnings, reason } = legalCase
+
+  return [{ guard: legalCase.guard ?? 'Legal', review, warnings, reason }]
+}
+
 function ticketLabel({ source, ticketId }) {
   return `${SOURCE_LABELS[source] ?? source} ticket ${ticketId}`
 }
@@ -156,12 +164,9 @@ function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
       />
       <p className="legal-run__muted">Edit the reply if needed, then send it from here or copy it to the ticket.</p>
 
-      <GuardReview
-        guard={legalCase.guard ?? 'Legal'}
-        review={legalCase.review}
-        warnings={legalCase.warnings}
-        reason={legalCase.reason}
-      />
+      {caseReviews(legalCase).map(({ guard, review, warnings, reason }) => (
+        <GuardReview key={guard} guard={guard} review={review} warnings={warnings} reason={reason} />
+      ))}
 
       <div className="legal-run__actions">
         <button

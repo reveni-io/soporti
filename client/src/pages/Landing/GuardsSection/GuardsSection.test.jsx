@@ -11,7 +11,7 @@ describe('GuardsSection', () => {
     expect(screen.getByText(/Jev, TypeSafe’s question-answering model/)).toBeInTheDocument()
     expect(screen.getByText('A guard for each job')).toBeInTheDocument()
     expect(screen.getByText('Not sure means careful')).toBeInTheDocument()
-    expect(screen.getByText('Wherever you ask')).toBeInTheDocument()
+    expect(screen.getByText('Used where they apply')).toBeInTheDocument()
     expect(container.textContent).not.toMatch(/\/admin/)
   })
 

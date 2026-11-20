@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { Router } from 'express'
-import { JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { GUARD_IDS_SEPARATOR, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
 import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
@@ -276,8 +276,12 @@ router.post('/models/scan', async (_req, res) => {
   }
 })
 
+function belongsTo(row, guardId) {
+  return row.project === guardId || (row.guardId?.split(GUARD_IDS_SEPARATOR) ?? []).includes(guardId)
+}
+
 function countOf(rows, guardId, field) {
-  return rows.find(row => row.guardId === guardId || row.project === guardId)?.[field] ?? 0
+  return rows.filter(row => belongsTo(row, guardId)).reduce((total, row) => total + row[field], 0)
 }
 
 async function listGuardsWithUsage() {

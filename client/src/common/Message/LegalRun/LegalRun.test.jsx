@@ -113,6 +113,22 @@ describe('LegalRun', () => {
     expect(screen.getByRole('button', { name: 'Copy reply' })).toHaveClass('btn--secondary')
   })
 
+  it('shows the review of every guard that checked the reply', () => {
+    const reviewed = legalCase({
+      guard: 'Legal + Legal Review',
+      warnings: 2,
+      reviews: [
+        { guard: 'Legal', warnings: 2, reason: null, review: { setVersion: 7, minConfidence: 0.7, rows: ROWS } },
+        { guard: 'Legal Review', warnings: 0, reason: 'the review could not run', review: null },
+      ],
+    })
+
+    render(<LegalRun cases={[reviewed]} />)
+
+    expect(screen.getByText('Legal guard · set v7')).toBeInTheDocument()
+    expect(screen.getByText('Not reviewed: the review could not run.')).toBeInTheDocument()
+  })
+
   it('explains a case without a draft or a check', () => {
     render(<LegalRun cases={[UNCHECKED]} />)
 

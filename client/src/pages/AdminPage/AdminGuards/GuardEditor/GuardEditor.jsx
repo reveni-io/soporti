@@ -114,9 +114,9 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         </p>
       ) : (
         <p className="admin__muted">
-          Ask for it in any chat, in Slack or over MCP, and in a scheduled query, by its name: for example “pass the
-          reply through the {guard.name} guard”. A guard never blocks anything: it warns, and a person has the last
-          word.
+          The assistant uses this guard on its own when what it is about to deliver matches “When to use it”, and when a
+          chat, Slack, MCP, a scheduled query or a bot names it, for example “apply the {guard.name} guard”. A guard
+          never blocks anything: it warns, and a person has the last word.
         </p>
       )}
 

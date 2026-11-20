@@ -36,15 +36,20 @@ function askGuard(options = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   checkContent.mockResolvedValue({ guard: 'Legal', warnings: 2, review: { rows: ROWS } })
-  checkTicketReply.mockResolvedValue({ id: 41, guard: 'Legal', warnings: 0, review: { rows: [ROWS[2]] } })
+  checkTicketReply.mockResolvedValue({
+    id: 41,
+    guard: 'Legal',
+    reviews: [{ guard: 'Legal', warnings: 0, review: { rows: [ROWS[2]] } }],
+  })
 })
 
 describe('ask_guard', () => {
-  it('lists the guards and when to use them, and asks to be used only on request', () => {
+  it('lists the guards and what they are for, and asks to use every guard that applies on its own', () => {
     const { name, description } = askGuard()
 
     expect(name).toBe('ask_guard')
-    expect(description).toContain('Call it only when the user asks')
+    expect(description).toContain('Use the guards on your own')
+    expect(description).toContain('every guard that applies, and only those, in one call')
     expect(description).toContain('- "Legal": Replies to customers\n- "Refunds"')
   })
 
@@ -52,7 +57,7 @@ describe('ask_guard', () => {
     const onChecked = vi.fn()
 
     const answer = await askGuard({ guardCases: { conversationId: 'conv-1', onChecked } }).execute({
-      guard: ' legal ',
+      guards: [' legal '],
       content: 'Can we refund in 2 days?',
       ticket: null,
     })
@@ -69,10 +74,19 @@ describe('ask_guard', () => {
     expect(onChecked).toHaveBeenCalledWith({ kind: 'check', check: expect.objectContaining({ guard: 'Legal' }) })
   })
 
+  it('passes content through every guard named, once each', async () => {
+    checkContent.mockImplementation(async guard => ({ guard: guard.name, warnings: 0, review: { rows: [] } }))
+
+    const answer = await askGuard().execute({ guards: ['Legal', 'refunds', 'LEGAL'], content: 'x', ticket: null })
+
+    expect(checkContent.mock.calls.map(([guard]) => guard.name)).toEqual(['Legal', 'Refunds'])
+    expect(answer).toBe('The Legal guard found no warnings.\n\nThe Refunds guard found no warnings.')
+  })
+
   it('says when the guard could not check it', async () => {
     checkContent.mockResolvedValue({ guard: 'Legal', warnings: 0, review: null, reason: 'the review could not run' })
 
-    expect(await askGuard().execute({ guard: 'Legal', content: 'Anything', ticket: null })).toBe(
+    expect(await askGuard().execute({ guards: ['Legal'], content: 'Anything', ticket: null })).toBe(
       'The Legal guard could not check it: the review could not run.'
     )
   })
@@ -81,9 +95,9 @@ describe('ask_guard', () => {
     const onChecked = vi.fn()
     const guardCases = { conversationId: 'conv-1', onChecked }
 
-    const answer = await askGuard({ guardCases }).execute({ guard: 'Legal', content: null, ticket: TICKET })
+    const answer = await askGuard({ guardCases }).execute({ guards: ['Legal'], content: null, ticket: TICKET })
 
-    expect(checkTicketReply).toHaveBeenCalledWith(GUARDS[0], {
+    expect(checkTicketReply).toHaveBeenCalledWith([GUARDS[0]], {
       userId: 3,
       ticket: { source: 'zendesk', ticketId: '48213' },
       reply: {
@@ -100,7 +114,7 @@ describe('ask_guard', () => {
   })
 
   it('points to the web chat to send a reply checked from Slack or MCP', async () => {
-    const answer = await askGuard().execute({ guard: 'Legal', content: null, ticket: TICKET })
+    const answer = await askGuard().execute({ guards: ['Legal'], content: null, ticket: TICKET })
 
     expect(answer).toMatch(/Sending is only possible from the Soporti web chat/)
   })
@@ -108,14 +122,14 @@ describe('ask_guard', () => {
   it('says when the ticket cannot be read', async () => {
     checkTicketReply.mockResolvedValue(null)
 
-    expect(await askGuard().execute({ guard: 'Legal', content: null, ticket: TICKET })).toMatch(
+    expect(await askGuard().execute({ guards: ['Legal'], content: null, ticket: TICKET })).toMatch(
       /^Could not read that ticket/
     )
   })
 
   it('needs something to check and a guard that exists', async () => {
-    expect(await askGuard().execute({ guard: 'Legal', content: '  ', ticket: null })).toMatch(/^Pass `content`/)
-    expect(await askGuard().execute({ guard: 'Payments', content: 'x', ticket: null })).toBe(
+    expect(await askGuard().execute({ guards: ['Legal'], content: '  ', ticket: null })).toMatch(/^Pass `content`/)
+    expect(await askGuard().execute({ guards: ['Legal', 'Payments'], content: 'x', ticket: null })).toBe(
       'There is no guard called "Payments". Guards: Legal, Refunds.'
     )
     expect(checkContent).not.toHaveBeenCalled()

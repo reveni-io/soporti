@@ -549,11 +549,14 @@ describe('GET /api/admin/config/jev/documents/:id/history', () => {
 })
 
 describe('GET /api/admin/config/jev/guards', () => {
-  it('lists every guard with its calls, cases and sent replies of the last 30 days', async () => {
+  it('lists every guard with its calls, cases and sent replies of the last 30 days, shared cases included', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
     countJevCallsByProjectSince.mockResolvedValue([{ project: 'legal', calls: 41 }])
-    countCasesByGuardSince.mockResolvedValue([{ guardId: 'legal', cases: 9 }])
+    countCasesByGuardSince.mockResolvedValue([
+      { guardId: 'legal', cases: 9 },
+      { guardId: 'github,legal', cases: 2 },
+    ])
     countSentRepliesByGuardSince.mockResolvedValue([{ guardId: 'legal', replies: 4 }])
 
     const res = await request(app).get('/api/admin/config/jev/guards')
@@ -561,8 +564,8 @@ describe('GET /api/admin/config/jev/guards', () => {
     vi.useRealTimers()
     expect(res.status).toBe(200)
     expect(res.body.guards).toEqual([
-      { ...LEGAL_GUARD, usage: { calls: 41, cases: 9, sentReplies: 4 } },
-      { ...GITHUB_GUARD, usage: { calls: 0, cases: 0, sentReplies: 0 } },
+      { ...LEGAL_GUARD, usage: { calls: 41, cases: 11, sentReplies: 4 } },
+      { ...GITHUB_GUARD, usage: { calls: 0, cases: 2, sentReplies: 0 } },
     ])
     expect(countJevCallsByProjectSince).toHaveBeenCalledWith(new Date('2026-10-20T12:00:00.000Z'))
   })

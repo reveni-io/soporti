@@ -22,8 +22,8 @@ const POINTS = [
   },
   {
     icon: 'zap',
-    title: 'Wherever you ask',
-    text: 'Name a guard in the chat, in Slack, over MCP or in a scheduled query. It only warns: a person decides, and a reply goes out only when someone sends it.',
+    title: 'Used where they apply',
+    text: 'Soporti picks the guards whose description fits what it is about to deliver, or the ones you name in the chat, Slack, MCP, a scheduled query or a bot. They only warn: a person decides, and a reply goes out only when someone sends it.',
   },
 ]
 
