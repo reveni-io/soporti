@@ -1,0 +1,39 @@
+.repo-search {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+}
+
+.repo-search .input {
+  width: 100%;
+}
+
+.repo-search__list {
+  position: absolute;
+  top: calc(100% + var(--sp1));
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: var(--sp1) 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  z-index: 10;
+}
+
+.repo-search__option {
+  padding: var(--sp2) var(--sp3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.repo-search__option:hover,
+.repo-search__option--active {
+  background: var(--bg-subtle);
+}
