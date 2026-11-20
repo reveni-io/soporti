@@ -9,8 +9,19 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function mockGet({ tokenConfigured = false, webhookSecretConfigured = false, repoCatalog = '' } = {}) {
-  return { ok: true, status: 200, json: async () => ({ tokenConfigured, webhookSecretConfigured, repoCatalog }) }
+const SUGGESTIONS_OFF = { enabled: false, newcomers: [] }
+
+function mockGet({
+  tokenConfigured = false,
+  webhookSecretConfigured = false,
+  repoCatalog = '',
+  reviewerSuggestions = SUGGESTIONS_OFF,
+} = {}) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ tokenConfigured, webhookSecretConfigured, repoCatalog, reviewerSuggestions }),
+  }
 }
 
 describe('AdminGithub', () => {
@@ -21,6 +32,29 @@ describe('AdminGithub', () => {
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByDisplayValue(/org\/api/)).toBeInTheDocument()
+  })
+
+  it('keeps the saved reviewer suggestions in the page', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet())
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ reviewerSuggestions: { enabled: true, newcomers: ['ana'] } }),
+      })
+    const user = userEvent.setup()
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    await user.click(await screen.findByRole('checkbox', { name: /suggest reviewers/i }))
+    await user.type(screen.getByRole('textbox', { name: 'People new to the code' }), '@ana')
+    await user.click(screen.getByRole('button', { name: 'Save suggestions' }))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).toBeChecked()
+    expect(screen.getByRole('textbox', { name: 'People new to the code' })).toHaveValue('ana')
+    expect(screen.getByRole('button', { name: 'Save suggestions' })).toBeDisabled()
   })
 
   it('lists the token permissions PR reviews need to read the CI status', async () => {

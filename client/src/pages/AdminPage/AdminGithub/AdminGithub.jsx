@@ -11,6 +11,7 @@ import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
 import GithubAutoApprove from './GithubAutoApprove/GithubAutoApprove.jsx'
+import GithubReviewerSuggestions from './GithubReviewerSuggestions/GithubReviewerSuggestions.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
 
@@ -39,6 +40,10 @@ export default function AdminGithub({ token, onLogout }) {
   async function saveWebhookSecret(value) {
     const data = await saveGithubWebhookSecret(token, value)
     patchConfig({ webhookSecretConfigured: data.webhookSecretConfigured })
+  }
+
+  function handleReviewerSuggestionsSaved(reviewerSuggestions) {
+    patchConfig({ reviewerSuggestions })
   }
 
   function handleCatalogSave() {
@@ -160,6 +165,13 @@ export default function AdminGithub({ token, onLogout }) {
           {!catalogError && catalogSavedAt && !catalogDirty && <span className="admin__saved">Saved</span>}
         </div>
       </AdminSection>
+
+      <GithubReviewerSuggestions
+        settings={config.reviewerSuggestions}
+        token={token}
+        onLogout={onLogout}
+        onSaved={handleReviewerSuggestionsSaved}
+      />
 
       <GithubAutoApprove token={token} onLogout={onLogout} />
     </>
