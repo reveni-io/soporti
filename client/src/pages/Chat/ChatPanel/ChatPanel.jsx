@@ -8,6 +8,7 @@ import { useAttachments } from '../hooks/useAttachments/useAttachments.js'
 import { useAutoScroll } from '../hooks/useAutoScroll/useAutoScroll.js'
 import { useComposer } from '../hooks/useComposer/useComposer.js'
 import { useMessageRail } from '../hooks/useMessageRail/useMessageRail.js'
+import { useSharedContent } from '../hooks/useSharedContent/useSharedContent.js'
 import ChatComposer from './ChatComposer/ChatComposer.jsx'
 import ChatEmptyState from './ChatEmptyState/ChatEmptyState.jsx'
 import ChatTopbar from './ChatTopbar/ChatTopbar.jsx'
@@ -41,6 +42,8 @@ export default function ChatPanel({
   onOpenRoutines,
   onEditBot,
   onBackToBots,
+  isShared = false,
+  onSharedContentRead,
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -65,11 +68,17 @@ export default function ChatPanel({
     initialInput: initialQuestion,
     conversationKey,
   })
+  useSharedContent({ isShared, onShare: handleSharedContent, onRead: onSharedContentRead })
 
   function handleSend(text, invokedSkills) {
     pinToBottom()
     onSend(text, invokedSkills, attachments)
     clearAttachments()
+  }
+
+  function handleSharedContent({ text, files }) {
+    fill(text)
+    addFiles(files)
   }
 
   function closeTour() {

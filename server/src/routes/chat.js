@@ -12,6 +12,7 @@ import { getCustomInstructions } from '../db/users.js'
 import { getSkillsByIds } from '../db/skills.js'
 import { getBot } from '../db/bots.js'
 import { withConversationLock } from '../sessions/conversation-lock.js'
+import { isTurnStopped, releaseTurn, stopTurn, trackTurn } from '../sessions/turn-stops.js'
 import { isConfigured } from '../llm/model.js'
 import { extractUsage, formatUsage, sumUsage } from '../llm/usage.js'
 import { UNKNOWN_TOOL, toolCallFromRawItem, toolNames } from '../agent/run-items.js'
@@ -20,6 +21,7 @@ import { carriesImage, isValidAttachmentName } from '../documents/attachments.js
 import { buildAgentInput } from '../agent/agent-input.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
 import { toGuardPart } from '../guards/check.js'
+import { botTarget, conversationTarget, notifyUser } from '../push/notify.js'
 import {
   AGENT_CHANNEL_WEB,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -46,6 +48,7 @@ function log(icon, ...args) {
 const SAFE_INPUT_FIELDS = ['repo', 'path', 'query']
 const MAX_BOT_ID = 999_999_999
 const INTERNAL_ERROR_EVENT = { type: 'error', message: 'An internal error occurred.' }
+const ANSWER_READY_TITLE = 'Your answer is ready'
 
 const TOOL_START = '  →'
 const TOOL_DONE = '  ✓'
@@ -143,6 +146,13 @@ function parseSkillIds(skillIds) {
     .slice(0, MAX_SKILLS_PER_REQUEST)
 }
 
+function parseRequestId(value) {
+  if (value === undefined || value === null) return { value: null }
+  if (typeof value !== 'string' || !UUID_RE.test(value)) return { error: 'Invalid request ID.' }
+
+  return { value }
+}
+
 function parseChatRequest(body) {
   const { sessionId, message, selectedSources, selectedRepos, profile, skillIds, attachments, timezone, botId } = body
 
@@ -159,8 +169,12 @@ function parseChatRequest(body) {
   const parsedBotId = parseBotId(botId)
   if (parsedBotId.error) return parsedBotId
 
+  const parsedRequestId = parseRequestId(body.requestId)
+  if (parsedRequestId.error) return parsedRequestId
+
   return {
     value: {
+      requestId: parsedRequestId.value,
       sessionId,
       message: parsedMessage.value,
       sources: parseSources(selectedSources, selectedRepos),
@@ -193,6 +207,40 @@ function describeAttachment(attachment) {
   if (carriesImage(attachment)) return `${attachment.name} (image)`
 
   return `${attachment.name} (${attachment.text.length} chars${attachment.truncated ? ', truncated' : ''})`
+}
+
+function collectText(parts) {
+  return parts
+    .filter(p => p.type === 'text')
+    .map(p => p.content)
+    .join('')
+}
+
+function lastText(parts) {
+  const last = parts.findLast(p => p.type === 'text' && p.content.trim().length > 0)
+
+  return last?.content ?? ''
+}
+
+function watchClientDisconnect(res) {
+  let disconnected = false
+  res.on('close', () => {
+    if (!res.writableEnded) disconnected = true
+  })
+
+  return () => disconnected
+}
+
+function describeAnswerNotification({ bot, conversationId }) {
+  if (bot) return { title: bot.name, ...botTarget(bot.id) }
+
+  return { title: ANSWER_READY_TITLE, ...conversationTarget(conversationId) }
+}
+
+function notifyIfClientLeft(turnContext, answer) {
+  if (!turnContext.hasClientLeft() || isTurnStopped(turnContext.turnKey)) return
+
+  notifyUser(turnContext.userId, { ...describeAnswerNotification(turnContext), body: answer })
 }
 
 function appendText(parts, text) {
@@ -485,13 +533,11 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
     const totalMs = Date.now() - agentStart
     log('✅', `Done in ${totalMs}ms`)
 
+    const answer = lastText(turn.parts)
     const footer = isYoloMode(request.sources) ? buildSourcesFooter(turn.toolCalls) : null
     if (footer) turn.sendText(footer)
 
-    const finalText = turn.parts
-      .filter(p => p.type === 'text')
-      .map(p => p.content)
-      .join('')
+    const finalText = collectText(turn.parts)
     if (await isKnowledgeBaseConfigured()) {
       const feedbackId = storePendingFeedback(request.message, finalText)
       sendEvent(res, { type: 'feedback_id', feedbackId })
@@ -506,6 +552,7 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
         { role: 'assistant', parts: turn.parts },
       ],
     })
+    notifyIfClientLeft(turnContext, answer)
 
     await recordAgentRun({
       channel: AGENT_CHANNEL_WEB,
@@ -554,59 +601,79 @@ function openEventStream(res, conversationId) {
   sendEvent(res, { type: 'session_id', sessionId: conversationId })
 }
 
+async function answerChat(conversationStore, { req, res, parsedRequest, turnKey }) {
+  const hasClientLeft = watchClientDisconnect(res)
+  const userId = req.user.id
+  const prerequisites = await loadPrerequisites(parsedRequest, userId)
+  if (prerequisites.error) return res.status(prerequisites.status).json({ error: prerequisites.error })
+
+  const requested = await loadRequestedBot(parsedRequest.botId, userId)
+  if (requested.error) return res.status(requested.status).json({ error: requested.error })
+
+  const { bot } = requested
+  const request = applyBot(parsedRequest, bot)
+  const resolved = await resolveConversation(conversationStore, request, { bot, userId })
+  const { conversationId } = resolved
+
+  openEventStream(res, conversationId)
+
+  const context = await loadTurnContext(conversationStore, request, {
+    conversationId,
+    isNewConversation: resolved.isNewConversation,
+    userId,
+  })
+
+  logIncomingMessage(request, { conversationId, ...context })
+
+  const agentInput = buildAgentInput(
+    buildUserTurn(request.message, {
+      similarCases: context.similarCases,
+      commands: context.newSkills.map(s => s.name),
+      attachments: request.attachments,
+    }),
+    prerequisites.images
+  )
+
+  const turnContext = {
+    res,
+    conversationStore,
+    request,
+    bot,
+    userId,
+    conversationId,
+    agentInput,
+    turn: createTurnStream(res),
+    context,
+    hasClientLeft,
+    turnKey,
+  }
+  await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
+    return runChatTurn(turnContext, conversation)
+  })
+
+  sendEvent(res, { type: 'done' })
+  res.end()
+}
+
 export default function chatRoute(conversationStore) {
   router.post('/', async (req, res) => {
     const { error, value: parsedRequest } = parseChatRequest(req.body)
     if (error) return res.status(400).json({ error })
 
-    const userId = req.user.id
-    const prerequisites = await loadPrerequisites(parsedRequest, userId)
-    if (prerequisites.error) return res.status(prerequisites.status).json({ error: prerequisites.error })
-
-    const requested = await loadRequestedBot(parsedRequest.botId, userId)
-    if (requested.error) return res.status(requested.status).json({ error: requested.error })
-
-    const { bot } = requested
-    const request = applyBot(parsedRequest, bot)
-    const resolved = await resolveConversation(conversationStore, request, { bot, userId })
-    const { conversationId } = resolved
-
-    openEventStream(res, conversationId)
-
-    const context = await loadTurnContext(conversationStore, request, {
-      conversationId,
-      isNewConversation: resolved.isNewConversation,
-      userId,
-    })
-
-    logIncomingMessage(request, { conversationId, ...context })
-
-    const agentInput = buildAgentInput(
-      buildUserTurn(request.message, {
-        similarCases: context.similarCases,
-        commands: context.newSkills.map(s => s.name),
-        attachments: request.attachments,
-      }),
-      prerequisites.images
-    )
-
-    const turnContext = {
-      res,
-      conversationStore,
-      request,
-      bot,
-      userId,
-      conversationId,
-      agentInput,
-      turn: createTurnStream(res),
-      context,
+    const turnKey = trackTurn(parsedRequest.requestId, req.user.id)
+    try {
+      await answerChat(conversationStore, { req, res, parsedRequest, turnKey })
+    } finally {
+      releaseTurn(turnKey)
     }
-    await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
-      return runChatTurn(turnContext, conversation)
-    })
+  })
 
-    sendEvent(res, { type: 'done' })
-    res.end()
+  router.post('/stop', (req, res) => {
+    const parsed = parseRequestId(req.body?.requestId)
+    if (parsed.error || !parsed.value) return res.status(400).json({ error: 'Invalid request ID.' })
+
+    stopTurn(parsed.value, req.user.id)
+    res.status(204).end()
   })
 
   return router

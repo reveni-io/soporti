@@ -41,6 +41,12 @@ export default [
     },
   },
   {
+    files: ['src/sw.js'],
+    languageOptions: {
+      globals: globals.serviceworker,
+    },
+  },
+  {
     files: ['**/*.test.{js,jsx}'],
     languageOptions: {
       globals: globals.node,

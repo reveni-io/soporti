@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -83,8 +83,12 @@ vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
     onOpenRoutines,
     onEditBot,
     onBackToBots,
+    isShared,
+    onSharedContentRead,
   }) => (
     <div data-testid="chat" data-sidebar-collapsed={isSidebarCollapsed}>
+      <span data-testid="chat-shared">{String(isShared)}</span>
+      <button onClick={onSharedContentRead}>Shared Content Read</button>
       <span data-testid="chat-bot">{bot?.name}</span>
       <button onClick={onOpenRoutines}>Open Routines</button>
       <button onClick={onEditBot}>Edit Bot</button>
@@ -1083,6 +1087,115 @@ describe('Chat', () => {
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/bots$/))
       expect(await screen.findByRole('heading', { name: 'Your own assistants' })).toBeInTheDocument()
       expect(screen.queryByRole('dialog', { name: 'Edit bot' })).not.toBeInTheDocument()
+    })
+
+    it('badges the app icon with the messages the bots left unread', async () => {
+      serveBots([
+        { ...TRIAGER, unreadCount: 2 },
+        { ...RELEASES, unreadCount: 3 },
+      ])
+      const setAppBadge = vi.fn().mockResolvedValue()
+      Object.defineProperty(navigator, 'setAppBadge', { value: setAppBadge, configurable: true })
+      Object.defineProperty(navigator, 'clearAppBadge', { value: vi.fn().mockResolvedValue(), configurable: true })
+      onTestFinished(() => {
+        delete navigator.setAppBadge
+        delete navigator.clearAppBadge
+      })
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+
+      render(<Chat />, { wrapper: MemoryRouter })
+
+      await waitFor(() => expect(setAppBadge).toHaveBeenCalledWith(5))
+    })
+  })
+
+  describe('links', () => {
+    const CONVERSATION_ID = '0b6f5c1e-8f4a-4d2b-9c3e-2a1b0c9d8e7f'
+    const SIGNED_IN = {
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    }
+
+    function chatState() {
+      return {
+        messages: [],
+        isLoading: false,
+        sendMessage: vi.fn(),
+        stopGeneration: vi.fn(),
+        newChat: vi.fn(),
+        loadConversation: vi.fn().mockResolvedValue(),
+        activeConversations: [],
+        busyBotIds: [],
+        completedRuns: 0,
+        sessionId: null,
+      }
+    }
+
+    function LocationProbe() {
+      const location = useLocation()
+      return <span data-testid="location">{`${location.pathname}${location.search}`}</span>
+    }
+
+    beforeEach(() => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ bots: [] }) })
+    })
+
+    it('opens the conversation a notification links to and drops the link', async () => {
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+
+      render(
+        <MemoryRouter initialEntries={[`/chat?conversation=${CONVERSATION_ID}`]}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+
+      expect(state.loadConversation).toHaveBeenCalledTimes(1)
+      expect(state.loadConversation).toHaveBeenCalledWith(CONVERSATION_ID)
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/chat$/))
+    })
+
+    it('keeps a linked conversation until the user signs in', () => {
+      const state = chatState()
+      useAuth.mockReturnValue({ ...SIGNED_IN, token: null, isAuthenticated: false })
+      useChat.mockReturnValue(state)
+
+      render(
+        <MemoryRouter initialEntries={[`/chat?conversation=${CONVERSATION_ID}`]}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+
+      expect(screen.getByTestId('login')).toBeInTheDocument()
+      expect(state.loadConversation).not.toHaveBeenCalled()
+      expect(screen.getByTestId('location')).toHaveTextContent(`/chat?conversation=${CONVERSATION_ID}`)
+    })
+
+    it('hands a share to the chat panel and drops the link once it was read', async () => {
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/chat?shared=1']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      expect(screen.getByTestId('chat-shared')).toHaveTextContent('true')
+
+      await user.click(screen.getByText('Shared Content Read'))
+
+      expect(screen.getByTestId('chat-shared')).toHaveTextContent('false')
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/chat$/)
     })
   })
 })

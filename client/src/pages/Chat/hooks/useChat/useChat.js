@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { BROWSER_TIMEZONE } from '../../../../constants.js'
-import { getBotMessages, getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
+import { createRequestId } from './request-id.js'
+import { getBotMessages, getConversation, isUnauthorized, stopChat, streamChat } from '../../../../services/services.js'
+import { createAnswer, notifyAnswerReady, trackAnswer } from './answer-notification.js'
 
 const FIRST_CHAT_KEY = 'chat-1'
 const BOT_CHAT_PREFIX = 'bot-'
@@ -143,8 +145,9 @@ function toBusyBotIds(chats) {
     .map(chat => chat.botId)
 }
 
-function chatRequestBody(chat, text, { selectedSources, profile, skills, attachments }) {
+function chatRequestBody(chat, text, { selectedSources, profile, skills, attachments, requestId }) {
   const body = {
+    requestId,
     sessionId: chat.sessionId,
     message: text,
     selectedSources,
@@ -169,6 +172,7 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
   const onAuthErrorRef = useRef(onAuthError)
   const nextKeyRef = useRef(2)
   const abortControllers = useRef(new Map())
+  const requestIds = useRef(new Map())
   botIdRef.current = botId
   chatsRef.current = chats
   onAuthErrorRef.current = onAuthError
@@ -266,13 +270,20 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
       abortControllers.current.set(key, abortController)
 
       try {
+        const requestId = createRequestId()
+        requestIds.current.set(key, requestId)
         const response = await streamChat(
           token,
-          chatRequestBody(chat, text, { selectedSources, profile, skills, attachments }),
+          chatRequestBody(chat, text, { selectedSources, profile, skills, attachments, requestId }),
           abortController.signal
         )
 
-        await readEvents(response, event => applyEvent(key, event))
+        const answer = createAnswer({ sessionId: chat.sessionId, botId: chat.botId })
+        await readEvents(response, event => {
+          trackAnswer(answer, event)
+          applyEvent(key, event)
+        })
+        notifyAnswerReady(answer)
       } catch (err) {
         if (err.name === 'AbortError') return
         if (isUnauthorized(err)) {
@@ -283,6 +294,7 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
       } finally {
         updateChat(key, current => ({ ...current, isLoading: false }))
         abortControllers.current.delete(key)
+        requestIds.current.delete(key)
         setCompletedRuns(runs => runs + 1)
       }
     },
@@ -296,7 +308,14 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
 
     abortController.abort()
     updateChat(key, chat => ({ ...chat, isLoading: false }))
-  }, [currentKey, updateChat])
+
+    const requestId = requestIds.current.get(key)
+    if (!requestId) return
+
+    stopChat(token, requestId).catch(err => {
+      if (isUnauthorized(err)) onAuthErrorRef.current?.()
+    })
+  }, [currentKey, token, updateChat])
 
   const newChat = useCallback(() => {
     openChat(emptyChat())

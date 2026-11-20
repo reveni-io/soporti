@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useOverlayDismiss } from '../../../hooks/useOverlayDismiss/useOverlayDismiss.js'
 import ApiKeysTab from './ApiKeysTab/ApiKeysTab.jsx'
+import AppTab from './AppTab/AppTab.jsx'
 import ConnectionsTab from './ConnectionsTab/ConnectionsTab.jsx'
 import CustomInstructionsTab from './CustomInstructionsTab/CustomInstructionsTab.jsx'
 import SkillsTab from './SkillsTab/SkillsTab.jsx'
@@ -11,9 +12,18 @@ const TABS = [
   { id: 'skills', label: 'Skills' },
   { id: 'connections', label: 'Connections' },
   { id: 'api-keys', label: 'API keys' },
+  { id: 'app', label: 'App' },
 ]
 
-export default function SettingsModal({ token, onClose, onLogout, skills, selectedSources, onConnectionsChange }) {
+export default function SettingsModal({
+  token,
+  onClose,
+  onLogout,
+  skills,
+  selectedSources,
+  onConnectionsChange,
+  push,
+}) {
   const [activeTab, setActiveTab] = useState('instructions')
   const overlayProps = useOverlayDismiss(onClose)
 
@@ -48,6 +58,7 @@ export default function SettingsModal({ token, onClose, onLogout, skills, select
           <ConnectionsTab token={token} onLogout={onLogout} onConnectionsChange={onConnectionsChange} />
         )}
         {activeTab === 'api-keys' && <ApiKeysTab token={token} onLogout={onLogout} selectedSources={selectedSources} />}
+        {activeTab === 'app' && <AppTab push={push} />}
 
         <div className="modal__actions">
           <button className="btn btn--secondary" onClick={onClose}>

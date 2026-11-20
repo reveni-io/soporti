@@ -97,6 +97,28 @@
   color: rgba(var(--green-inverse-rgb), 0.64);
 }
 
+.lp-bento-card--landscape .lp-bento-card__title {
+  text-wrap: balance;
+}
+
+@media (min-width: 961px) {
+  .lp-bento-card--landscape {
+    grid-column: 1 / -1;
+    flex-direction: row-reverse;
+  }
+
+  .lp-bento-card--landscape .lp-bento-card__visual {
+    flex: 3 1 0;
+    height: 26rem;
+  }
+
+  .lp-bento-card--landscape .lp-bento-card__copy {
+    flex: 2 1 0;
+    justify-content: center;
+    padding: var(--sp8);
+  }
+}
+
 @media (max-width: 960px) {
   .lp-bento-card--wide {
     grid-column: 1 / -1;

@@ -6,7 +6,7 @@
     },
     "server": {},
     "client": {
-      "entry": ["src/landing.jsx"]
+      "entry": ["src/landing.jsx", "src/sw.js"]
     }
   }
 }

@@ -11,6 +11,7 @@ vi.mock('../knowledge/client.js', () => ({ searchSimilarCases: vi.fn() }))
 vi.mock('../db/users.js', () => ({ getCustomInstructions: vi.fn() }))
 vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
 vi.mock('../db/legal-cases.js', () => ({ deleteLegalCases: vi.fn() }))
+vi.mock('../push/notify.js', async importOriginal => ({ ...(await importOriginal()), notifyUser: vi.fn() }))
 
 const { run } = await import('@openai/agents')
 const { resolveModelForAgent } = await import('../llm/model.js')
@@ -19,6 +20,7 @@ const { searchSimilarCases } = await import('../knowledge/client.js')
 const { getCustomInstructions } = await import('../db/users.js')
 const { recordAgentRun } = await import('../db/agent-runs.js')
 const { deleteLegalCases } = await import('../db/legal-cases.js')
+const { notifyUser } = await import('../push/notify.js')
 const { runSchedule } = await import('./runner.js')
 
 const SCHEDULE = {
@@ -47,6 +49,7 @@ beforeEach(() => {
   searchSimilarCases.mockResolvedValue([])
   getCustomInstructions.mockResolvedValue('Be brief.')
   run.mockResolvedValue({ finalOutput: 'Two payments failed.', lastResponseId: 'resp_1', newItems: [] })
+  notifyUser.mockResolvedValue(1)
 })
 
 describe('runSchedule', () => {
@@ -65,6 +68,29 @@ describe('runSchedule', () => {
         { role: 'assistant', parts: [{ type: 'text', content: 'Two payments failed.' }] },
       ],
     })
+  })
+
+  it('notifies the owner with the answer, without its sources footer, and a link to the conversation', async () => {
+    run.mockResolvedValue({
+      finalOutput: 'Two payments failed.',
+      newItems: [{ type: 'tool_call_item', rawItem: { name: 'search_notion_pages', arguments: '{}' } }],
+    })
+
+    await runSchedule(SCHEDULE, makeStore())
+
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser).toHaveBeenCalledWith(7, {
+      title: 'Scheduled question',
+      body: 'Two payments failed.',
+      url: `/chat?conversation=${CONVERSATION_ID}`,
+      tag: `conversation-${CONVERSATION_ID}`,
+    })
+  })
+
+  it('titles the notification with the schedule title when it has one', async () => {
+    await runSchedule({ ...SCHEDULE, title: 'Daily payments check' }, makeStore())
+
+    expect(notifyUser.mock.calls[0][1].title).toBe('Daily payments check')
   })
 
   it('keeps the guard results of the run after the answer', async () => {
@@ -209,6 +235,7 @@ describe('runSchedule', () => {
     await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('model unavailable')
 
     expect(store.deleteWeb).toHaveBeenCalledWith(CONVERSATION_ID, 7)
+    expect(notifyUser).not.toHaveBeenCalled()
   })
 
   it('deletes the guard cases the failed run saved, so a retry does not leave them behind', async () => {

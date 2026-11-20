@@ -4,8 +4,12 @@ import { BrowserRouter } from 'react-router-dom'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AuthProvider } from './context/AuthContext.jsx'
 import Router from './router/Router.jsx'
+import { registerServiceWorker } from './pwa/service-worker.js'
+import { captureInstallPrompt } from './pwa/install-prompt.js'
 import './index.css'
 import './styles/ui.css'
+
+captureInstallPrompt()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -18,3 +22,5 @@ createRoot(document.getElementById('root')).render(
     </GoogleOAuthProvider>
   </StrictMode>
 )
+
+registerServiceWorker()

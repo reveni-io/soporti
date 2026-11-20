@@ -1,1 +1,0 @@
-DROP TABLE "auto_approve_evaluations" CASCADE;

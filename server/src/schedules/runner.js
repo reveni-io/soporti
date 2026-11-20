@@ -2,11 +2,13 @@ import { buildUserTurn } from '../agent/user-turn.js'
 import { deleteLegalCases } from '../db/legal-cases.js'
 import { toGuardPart } from '../guards/check.js'
 import { searchSimilarCases } from '../knowledge/client.js'
+import { conversationTarget, notifyUser } from '../push/notify.js'
 import { loadCustomInstructions, runUnattended } from './unattended-run.js'
 
-export async function runSchedule(schedule, conversationStore) {
+const DEFAULT_NOTIFICATION_TITLE = 'Scheduled question'
+
+async function answerSchedule(schedule, conversationStore, { conversationId, session }) {
   const sources = Array.isArray(schedule.sources) ? schedule.sources : []
-  const { conversationId, session } = await conversationStore.createScheduled(schedule.userId, schedule.id)
   const guardParts = []
   const guardCases = { conversationId, onChecked: result => guardParts.push(toGuardPart(result)) }
 
@@ -16,7 +18,7 @@ export async function runSchedule(schedule, conversationStore) {
       loadCustomInstructions(schedule.userId),
     ])
 
-    const { result, text, wrappedUp } = await runUnattended(
+    const { result, answer, text, wrappedUp } = await runUnattended(
       {
         sources,
         profile: schedule.profile,
@@ -38,11 +40,24 @@ export async function runSchedule(schedule, conversationStore) {
       ],
     })
 
-    return { conversationId }
+    return answer
   } catch (err) {
     await discardRun(conversationStore, { conversationId, userId: schedule.userId })
     throw err
   }
+}
+
+export async function runSchedule(schedule, conversationStore) {
+  const conversation = await conversationStore.createScheduled(schedule.userId, schedule.id)
+  const answer = await answerSchedule(schedule, conversationStore, conversation)
+
+  await notifyUser(schedule.userId, {
+    title: schedule.title || DEFAULT_NOTIFICATION_TITLE,
+    body: answer,
+    ...conversationTarget(conversation.conversationId),
+  })
+
+  return { conversationId: conversation.conversationId }
 }
 
 async function discardRun(conversationStore, { conversationId, userId }) {
