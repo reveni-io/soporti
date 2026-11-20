@@ -5,6 +5,7 @@ import AgentSteps from '../../AgentSteps/AgentSteps.jsx'
 import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
 import Citations from '../../Citations/Citations.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
+import GuardReview from '../GuardReview/GuardReview.jsx'
 import LegalRun from '../LegalRun/LegalRun.jsx'
 import { useCitations } from '../../../hooks/useCitations/useCitations.js'
 import { groupParts } from './group-parts.js'
@@ -12,7 +13,7 @@ import { groupParts } from './group-parts.js'
 const PART_SEPARATOR = '\n\n'
 const ROUTINE_ICON_SIZE = 12
 
-export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
+export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact, onLogout }) {
   const groups = groupParts(message.parts)
   const routine = message.parts.find(part => part.type === 'routine')
   const answer = answerMarkdown(message.parts)
@@ -33,6 +34,7 @@ export default function AssistantMessage({ message, isStreaming, token, onOpenAr
             isActive={isStreaming && index === groups.length - 1}
             token={token}
             onOpenArtifact={onOpenArtifact}
+            onLogout={onLogout}
             citations={citations}
             onSelectCitation={select}
           />
@@ -62,7 +64,7 @@ function answerMarkdown(parts) {
     .join(PART_SEPARATOR)
 }
 
-function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citations, onSelectCitation }) {
+function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, onLogout, citations, onSelectCitation }) {
   if (part.type === 'text') {
     return (
       <MarkdownContent
@@ -86,8 +88,12 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citat
     return <AgentSteps steps={part.steps} active={isActive} />
   }
 
+  if (part.type === 'guard-check') {
+    return <GuardReview guard={part.guard} review={part.review} warnings={part.warnings} reason={part.reason} />
+  }
+
   if (part.type === 'legal-run') {
-    return <LegalRun cases={part.cases} />
+    return <LegalRun cases={part.cases} token={token} onLogout={onLogout} />
   }
 
   if (part.type === 'error') {

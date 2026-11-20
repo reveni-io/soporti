@@ -6,7 +6,7 @@ import { THEME } from '../../constants.js'
 import AnswersSection from './AnswersSection/AnswersSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
 import BentoSection from './BentoSection/BentoSection.jsx'
-import DecisionsSection from './DecisionsSection/DecisionsSection.jsx'
+import GuardsSection from './GuardsSection/GuardsSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
 import LandingCta from './LandingCta/LandingCta.jsx'
 import LandingFooter from './LandingFooter/LandingFooter.jsx'
@@ -45,7 +45,7 @@ export default function Landing({ hideCta = false }) {
         <BentoSection />
         <IntegrationsSection />
         <AutomationsSection />
-        <DecisionsSection />
+        <GuardsSection />
         <McpSection />
         <SecuritySection />
         <LandingCta cta={visibleCta} />

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { getJevVersions } from '../../../services/services.js'
 import { useJevPage } from '../hooks/useJevPage/useJevPage.js'
-import { JEV_PROJECT_LABELS } from '../jev-projects.js'
+import { projectLabels } from '../jev-projects.js'
 import PaginatedTable from '../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../dates.js'
 
@@ -64,8 +64,8 @@ export default function VersionsTable({ token, project, state, onLogout, withCal
         </p>
       )}
       <p className="admin__muted">
-        Restore loads the {JEV_PROJECT_LABELS[project].versioned} of that version into the editor. Saving publishes them
-        as a new version, so no version is overwritten.
+        Restore loads the {projectLabels(project).versioned} of that version into the editor. Saving publishes them as a
+        new version, so no version is overwritten.
       </p>
     </>
   )

@@ -1,0 +1,55 @@
+.ticket-conversation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp2);
+}
+
+.ticket-conversation > .legal-run__email,
+.ticket-conversation > .ticket-conversation__messages {
+  align-self: stretch;
+}
+
+.ticket-conversation__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: var(--sp2);
+  font-weight: 600;
+}
+
+.ticket-conversation__messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticket-conversation__message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  max-width: 85%;
+  padding: var(--sp2) var(--sp3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.ticket-conversation__message--customer {
+  align-self: flex-start;
+  background: var(--bg-subtle);
+}
+
+.ticket-conversation__message--agent {
+  align-self: flex-end;
+  border-color: var(--success-border);
+  background: var(--success-bg);
+}
+
+.ticket-conversation__text {
+  margin: 0;
+  white-space: pre-wrap;
+}

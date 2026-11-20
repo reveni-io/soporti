@@ -60,7 +60,7 @@ function asReadOnly(agent, outputType) {
   return agent.clone({ tools: agent.tools.filter(isReadOnlyTool), outputType })
 }
 
-export async function runUnattended(task, { session = undefined, conversationId = null } = {}) {
+export async function runUnattended(task, { session = undefined, conversationId = null, guardCases = null } = {}) {
   const { sources, profile, userId, timezone, bot, customInstructions, input, question, readOnlyOutputType } = task
   const nestedToolCalls = []
   const nestedUsage = []
@@ -73,6 +73,7 @@ export async function runUnattended(task, { session = undefined, conversationId 
     unattended: true,
     timezone,
     bot,
+    guardCases,
   })
   const agent = readOnlyOutputType ? asReadOnly(created, readOnlyOutputType) : created
 

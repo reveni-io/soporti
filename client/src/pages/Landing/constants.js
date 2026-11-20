@@ -7,7 +7,7 @@ export const SECTION_IDS = {
   PRODUCT: 'product',
   INTEGRATIONS: 'integrations',
   AUTOMATIONS: 'automations',
-  DECISIONS: 'decisions',
+  GUARDS: 'guards',
   MCP: 'mcp',
   SECURITY: 'security',
 }

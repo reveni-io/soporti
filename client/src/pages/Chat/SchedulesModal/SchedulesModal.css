@@ -77,11 +77,3 @@
   gap: var(--sp2);
   flex-shrink: 0;
 }
-
-.schedules-modal__legal {
-  display: flex;
-  align-items: center;
-  gap: var(--sp2);
-  font-size: var(--fs-sm);
-  color: var(--text-secondary);
-}

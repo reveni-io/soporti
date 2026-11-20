@@ -1,0 +1,17 @@
+.send-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--fs-md);
+}
+
+.send-confirm__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: var(--fs-sm);
+}

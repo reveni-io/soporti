@@ -48,8 +48,8 @@ const AUTOMATIONS = [
   {
     id: 'legal',
     icon: <Icon name="shield" size={ICON_SIZE} />,
-    title: 'Drafts replies for Legal',
-    text: 'A scheduled query reads the customer tickets in Zendesk and HubSpot, drafts each reply from your data and flags what needs a second look. Nothing is sent: Legal has the last word.',
+    title: 'Drafts replies, checked by a guard',
+    text: 'Ask for replies to the customer tickets in Zendesk and HubSpot, in the chat or in a scheduled query, and pass them through a guard. Each case shows what needs a second look, and nothing goes out until a person sends it, from Soporti or from the ticket.',
     Demo: LegalRepliesDemo,
   },
 ]
@@ -67,7 +67,7 @@ export default function AutomationsSection() {
             It keeps working <em>when nobody is asking</em>.
           </>
         }
-        lead="The same brain that answers in the chat reviews your pull requests and approves the safe ones, replies in Slack threads, runs your questions on a schedule and drafts the replies Legal has to send."
+        lead="The same brain that answers in the chat reviews your pull requests and approves the safe ones, replies in Slack threads, runs your questions on a schedule and drafts customer replies your guards check."
       />
 
       <div className="lp-automations lp-rise" style={staggerStyle(3)} ref={cycle.ref} {...cycle.hoverProps}>

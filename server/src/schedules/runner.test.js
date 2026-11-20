@@ -10,6 +10,7 @@ vi.mock('../agent/assistant.js', () => ({ createAgent: vi.fn() }))
 vi.mock('../knowledge/client.js', () => ({ searchSimilarCases: vi.fn() }))
 vi.mock('../db/users.js', () => ({ getCustomInstructions: vi.fn() }))
 vi.mock('../db/agent-runs.js', () => ({ recordAgentRun: vi.fn() }))
+vi.mock('../db/legal-cases.js', () => ({ deleteLegalCases: vi.fn() }))
 
 const { run } = await import('@openai/agents')
 const { resolveModelForAgent } = await import('../llm/model.js')
@@ -17,6 +18,7 @@ const { createAgent } = await import('../agent/assistant.js')
 const { searchSimilarCases } = await import('../knowledge/client.js')
 const { getCustomInstructions } = await import('../db/users.js')
 const { recordAgentRun } = await import('../db/agent-runs.js')
+const { deleteLegalCases } = await import('../db/legal-cases.js')
 const { runSchedule } = await import('./runner.js')
 
 const SCHEDULE = {
@@ -65,6 +67,24 @@ describe('runSchedule', () => {
     })
   })
 
+  it('keeps the guard results of the run after the answer', async () => {
+    const legalCase = { id: 41, guard: 'Legal', source: 'zendesk', ticketId: '48213' }
+    createAgent.mockImplementationOnce(async (_sources, _profile, { guardCases }) => {
+      expect(guardCases.conversationId).toBe(CONVERSATION_ID)
+      guardCases.onChecked({ kind: 'case', case: legalCase })
+      return { name: 'agent', clone: vi.fn() }
+    })
+    const store = makeStore()
+
+    await runSchedule(SCHEDULE, store)
+
+    const [, { uiMessages }] = store.saveTurn.mock.calls[0]
+    expect(uiMessages[1].parts).toEqual([
+      { type: 'text', content: 'Two payments failed.' },
+      { type: 'legal-run', cases: [legalCase] },
+    ])
+  })
+
   it('builds the agent with the sources, profile and custom instructions of the schedule', async () => {
     const store = makeStore()
 
@@ -75,6 +95,7 @@ describe('runSchedule', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       unattended: true,
       timezone: 'Europe/Madrid',
     })
@@ -147,6 +168,7 @@ describe('runSchedule', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       unattended: true,
       timezone: 'Europe/Madrid',
     })
@@ -187,6 +209,27 @@ describe('runSchedule', () => {
     await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('model unavailable')
 
     expect(store.deleteWeb).toHaveBeenCalledWith(CONVERSATION_ID, 7)
+  })
+
+  it('deletes the guard cases the failed run saved, so a retry does not leave them behind', async () => {
+    const store = makeStore()
+    store.saveTurn.mockRejectedValue(new Error('db down'))
+
+    await expect(runSchedule(SCHEDULE, store)).rejects.toThrow('db down')
+
+    expect(deleteLegalCases).toHaveBeenCalledWith(CONVERSATION_ID)
+    expect(store.deleteWeb).toHaveBeenCalledWith(CONVERSATION_ID, 7)
+  })
+
+  it('reports the original failure when the cases cannot be deleted', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    deleteLegalCases.mockRejectedValueOnce(new Error('cases locked'))
+    run.mockRejectedValue(new Error('model unavailable'))
+
+    await expect(runSchedule(SCHEDULE, makeStore())).rejects.toThrow('model unavailable')
+
+    expect(spy).toHaveBeenCalledWith('[schedules] Failed to clean up a failed run:', 'cases locked')
+    spy.mockRestore()
   })
 
   it('records the run with its usage and the tools it called', async () => {

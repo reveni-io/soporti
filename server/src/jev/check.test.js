@@ -35,10 +35,7 @@ const SET = {
 const STATE = { customerMessage: 'Where is my refund?' }
 
 function mockDocuments({ enabled = true, set = SET } = {}) {
-  getJevDocument.mockImplementation(async id => {
-    if (id === 'jev') return { id, rev: 1, data: { enabled }, setVersion: 0 }
-    return set ? { id, rev: 3, data: { set }, setVersion: 7 } : null
-  })
+  getJevDocument.mockImplementation(async id => (set ? { id, rev: 3, data: { enabled, set }, setVersion: 7 } : null))
 }
 
 beforeEach(() => {
@@ -142,9 +139,10 @@ describe('runJevCheck', () => {
   })
 
   it.each([
-    ['the calls are off', () => mockDocuments({ enabled: false }), 'Jev calls are off'],
+    ['the calls of the guard are off', () => mockDocuments({ enabled: false }), 'Jev calls are off for this guard'],
     ['no key is saved', () => isConfigured.mockResolvedValue(false), 'No API key saved'],
-    ['the project was never saved', () => mockDocuments({ set: null }), 'No questions in the set'],
+    ['the guard was never saved', () => mockDocuments({ set: null }), 'Jev calls are off for this guard'],
+    ['the guard has no questions', () => mockDocuments({ set: { ...SET, questions: [] } }), 'No questions in the set'],
     ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
   ])('does not call Jev when %s', async (_case, arrange, reason) => {
     arrange()

@@ -1,0 +1,46 @@
+.guard-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.guard-review__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.guard-review__wrap {
+  overflow-x: auto;
+}
+
+.guard-review__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+}
+
+.guard-review__table th,
+.guard-review__table td {
+  padding: var(--sp2) var(--sp3);
+  text-align: left;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.guard-review__table th {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.guard-review__low {
+  color: var(--warning-text);
+  font-weight: 600;
+}
