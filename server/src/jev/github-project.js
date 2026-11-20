@@ -153,8 +153,9 @@ export function findGithubSaveError(previous, next) {
     return `Shadow first: ${notInShadow.join(', ')} must be saved in shadow before it can be set to on.`
   }
 
+  const hadQuestions = (previous.set?.questions?.length ?? 0) > 0
   const users = next.repos.filter(repo => repo.mode !== AUTO_APPROVE_OFF).map(repo => repo.name)
-  if (next.set.questions.length === 0 && users.length > 0) {
+  if (hadQuestions && next.set.questions.length === 0 && users.length > 0) {
     return `Cannot delete the set: ${users.length} auto-approve repo${users.length === 1 ? '' : 's'} (${users.join(', ')}) use it. Set them to off and save first.`
   }
 
