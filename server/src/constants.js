@@ -31,6 +31,9 @@ export const JEV_GITHUB_DOCUMENT = 'github'
 export const JEV_LEGAL_DOCUMENT = 'legal'
 export const JEV_CHECK_ANSWERED = 'answered'
 export const JEV_CHECK_UNAVAILABLE = 'unavailable'
+export const JEV_QUESTION_CHOICE = 'choice'
+export const JEV_QUESTION_NOUL = 'noul'
+export const MS_PER_SECOND = 1000
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

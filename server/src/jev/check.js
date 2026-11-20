@@ -1,4 +1,4 @@
-import { JEV_CHECK_ANSWERED, JEV_CHECK_UNAVAILABLE, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { JEV_CHECK_ANSWERED, JEV_CHECK_UNAVAILABLE, JEV_SETTINGS_DOCUMENT, MS_PER_SECOND } from '../constants.js'
 import { countJevCallsSince, recordJevCall } from '../db/jev-calls.js'
 import { getJevDocument } from '../db/jev-documents.js'
 import { askQuestions, JevApiError } from './client.js'
@@ -6,8 +6,6 @@ import { defaultJevDocument } from './documents.js'
 import { buildJevQuestions, readJevAnswers } from './questions.js'
 import { getJevApiKey } from './settings.js'
 
-const MS_PER_SECOND = 1000
-const CALL_ANSWERED = 'answered'
 const CALL_FAILED = 'failed'
 
 async function loadProject(project) {
@@ -70,7 +68,7 @@ async function callJev(project, loaded, state) {
       questions: buildJevQuestions(set.questions),
       timeoutMs: set.timeoutSeconds * MS_PER_SECOND,
     })
-    await recordJevCall({ ...call, answeredModel: response.model, status: CALL_ANSWERED })
+    await recordJevCall({ ...call, answeredModel: response.model, status: JEV_CHECK_ANSWERED })
 
     return {
       status: JEV_CHECK_ANSWERED,

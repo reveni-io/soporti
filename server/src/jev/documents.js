@@ -1,7 +1,11 @@
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import {
+  JEV_GITHUB_DOCUMENT,
+  JEV_LEGAL_DOCUMENT,
+  JEV_QUESTION_CHOICE,
+  JEV_QUESTION_NOUL,
+  JEV_SETTINGS_DOCUMENT,
+} from '../constants.js'
 
-const QUESTION_CHOICE = 'choice'
-const QUESTION_NOUL = 'noul'
 const DEFAULT_TIMEOUT_SECONDS = 30
 const DEFAULT_DAILY_LIMIT = 0
 const DEFAULT_MAX_CHARACTERS = 100_000
@@ -144,8 +148,8 @@ function parseNoulDetails({ flagAt }) {
 }
 
 const QUESTION_DETAIL_PARSERS = new Map([
-  [QUESTION_CHOICE, parseChoiceDetails],
-  [QUESTION_NOUL, parseNoulDetails],
+  [JEV_QUESTION_CHOICE, parseChoiceDetails],
+  [JEV_QUESTION_NOUL, parseNoulDetails],
 ])
 
 function parseQuestion(question) {
@@ -180,43 +184,40 @@ function parseQuestions(value) {
   return { value: questions }
 }
 
+function parseTimeoutSeconds(value) {
+  return parseWholeNumber(value, {
+    min: 1,
+    max: MAX_TIMEOUT_SECONDS,
+    error: 'Timeout must be a whole number of seconds.',
+  })
+}
+
+function parseDailyLimit(value) {
+  return parseWholeNumber(value, {
+    min: 0,
+    max: Number.MAX_SAFE_INTEGER,
+    error: 'Daily limit must be a whole number. Use 0 for no limit.',
+  })
+}
+
+function parseMaxCharacters(value) {
+  return parseWholeNumber(value, {
+    min: 1,
+    max: Number.MAX_SAFE_INTEGER,
+    error: 'Max characters sent to Jev must be a positive whole number.',
+  })
+}
+
 const SET_PARSERS = [
   ['description', value => parseText(value, { label: 'The set description', max: MAX_DESCRIPTION_CHARS })],
   ['model', parseModel],
   ['minConfidence', parseMinConfidence],
-  [
-    'timeoutSeconds',
-    value =>
-      parseWholeNumber(value, {
-        min: 1,
-        max: MAX_TIMEOUT_SECONDS,
-        error: 'Timeout must be a whole number of seconds.',
-      }),
-  ],
-  [
-    'dailyLimit',
-    value =>
-      parseWholeNumber(value, {
-        min: 0,
-        max: Number.MAX_SAFE_INTEGER,
-        error: 'Daily limit must be a whole number. Use 0 for no limit.',
-      }),
-  ],
+  ['timeoutSeconds', parseTimeoutSeconds],
+  ['dailyLimit', parseDailyLimit],
   ['questions', parseQuestions],
 ]
 
-const GITHUB_SET_PARSERS = [
-  ...SET_PARSERS,
-  [
-    'maxCharacters',
-    value =>
-      parseWholeNumber(value, {
-        min: 1,
-        max: Number.MAX_SAFE_INTEGER,
-        error: 'Max characters sent to Jev must be a positive whole number.',
-      }),
-  ],
-]
+const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters]]
 
 function parseJevSettings(data) {
   if (typeof data?.enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
