@@ -7,11 +7,9 @@ describe('GuardsSection', () => {
     const { container } = render(<GuardsSection />)
 
     expect(container.querySelector('section')).toHaveAttribute('id', 'guards')
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Soporti makes better decisions with guards.' })
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Soporti is more secure with guards.' })).toBeInTheDocument()
     expect(screen.getByText(/Jev, TypeSafe’s question-answering model/)).toBeInTheDocument()
-    expect(screen.getByText('One guard for each job')).toBeInTheDocument()
+    expect(screen.getByText('A guard for each job')).toBeInTheDocument()
     expect(screen.getByText('Not sure means careful')).toBeInTheDocument()
     expect(screen.getByText('Wherever you ask')).toBeInTheDocument()
     expect(container.textContent).not.toMatch(/\/admin/)

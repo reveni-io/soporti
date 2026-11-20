@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { defaultJevDocument, isCustomGuard, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
+import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
 
 const CHOICE = {
   id: 'q1',
@@ -282,51 +282,5 @@ describe('planJevSave for the GitHub project', () => {
     const plan = planJevSave({ rev: 5, data: github() }, github({ questions: [CHOICE] }), { restoredFrom: 2 })
 
     expect(plan.change).toBe('Restored v2; Questions')
-  })
-})
-
-describe('custom guards', () => {
-  const GUARD_ID = 'guard-0a1b2c3d'
-
-  it('are Jev documents with a guard id', () => {
-    expect(isCustomGuard(GUARD_ID)).toBe(true)
-    expect(isJevDocument(GUARD_ID)).toBe(true)
-    expect(isCustomGuard('guard-XYZ')).toBe(false)
-    expect(isCustomGuard('legal')).toBe(false)
-    expect(isJevDocument('guard-0a1b2c3d4')).toBe(false)
-  })
-
-  it('start without a name, questions or sending', () => {
-    expect(defaultJevDocument(GUARD_ID)).toEqual({
-      name: '',
-      set: expect.objectContaining({ questions: [], model: '' }),
-      allowSend: false,
-    })
-  })
-
-  it('need a name of up to 60 characters', () => {
-    expect(parseJevDocument(GUARD_ID, { name: '  ', set: legalSet() }).error).toBe('The guard name is required.')
-    expect(parseJevDocument(GUARD_ID, { name: 'x'.repeat(61), set: legalSet() }).error).toBe(
-      'The guard name is too long (max 60 characters).'
-    )
-  })
-
-  it('keep their name, set and sending switch', () => {
-    const parsed = parseJevDocument(GUARD_ID, { name: ' Payments ', set: legalSet(), allowSend: true })
-
-    expect(parsed.value.name).toBe('Payments')
-    expect(parsed.value.allowSend).toBe(true)
-    expect(parsed.value.set.questions).toHaveLength(2)
-  })
-
-  it('describe a rename in the history', () => {
-    const before = parseJevDocument(GUARD_ID, { name: 'Payments', set: legalSet() }).value
-    const after = { ...before, name: 'Refunds' }
-
-    expect(planJevSave({ rev: 2, data: before }, after)).toEqual({
-      data: after,
-      change: 'Name Payments → Refunds',
-      set: null,
-    })
   })
 })

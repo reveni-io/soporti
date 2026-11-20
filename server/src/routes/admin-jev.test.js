@@ -39,9 +39,7 @@ const countSentRepliesByGuardSince = vi.fn()
 vi.mock('../db/legal-cases.js', () => ({ countCasesByGuardSince, countSentRepliesByGuardSince }))
 
 const listGuards = vi.fn()
-const createGuard = vi.fn()
-const deleteGuard = vi.fn()
-vi.mock('../guards/registry.js', () => ({ listGuards, createGuard, deleteGuard }))
+vi.mock('../guards/registry.js', () => ({ listGuards }))
 
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
@@ -68,10 +66,9 @@ const LEGAL_SET = {
   questions: [{ id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }],
 }
 
-const LEGAL_GUARD = { id: 'legal', name: 'Legal', builtIn: true, questions: 1, model: 'jev-latest', setVersion: 3 }
-const GITHUB_GUARD = { id: 'github', name: 'GitHub PRs', builtIn: true, questions: 0, model: '', setVersion: 0 }
-const PAYMENTS_GUARD = { id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false, questions: 2, model: 'jev-latest' }
-const GUARDS = [LEGAL_GUARD, GITHUB_GUARD, PAYMENTS_GUARD]
+const LEGAL_GUARD = { id: 'legal', name: 'Legal', questions: 1, model: 'jev-latest', setVersion: 3 }
+const GITHUB_GUARD = { id: 'github', name: 'GitHub PRs', questions: 0, model: '', setVersion: 0 }
+const GUARDS = [LEGAL_GUARD, GITHUB_GUARD]
 
 let stored = {}
 
@@ -431,7 +428,6 @@ describe('GET /api/admin/config/jev/guards', () => {
     expect(res.body.guards).toEqual([
       { ...LEGAL_GUARD, usage: { calls: 41, cases: 9, sentReplies: 4 } },
       { ...GITHUB_GUARD, usage: { calls: 0, cases: 0, sentReplies: 0 } },
-      { ...PAYMENTS_GUARD, usage: { calls: 0, cases: 0, sentReplies: 0 } },
     ])
     expect(countJevCallsByProjectSince).toHaveBeenCalledWith(new Date('2026-10-20T12:00:00.000Z'))
   })
@@ -443,83 +439,6 @@ describe('GET /api/admin/config/jev/guards', () => {
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the guards.' })
-  })
-})
-
-describe('POST /api/admin/config/jev/guards', () => {
-  it('creates a guard with its name', async () => {
-    const created = { id: 'guard-9f8e7d6c', name: 'Refunds', builtIn: false }
-    createGuard.mockResolvedValue(created)
-
-    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: ' Refunds ' })
-
-    expect(res.status).toBe(201)
-    expect(res.body).toEqual({ guard: created })
-    expect(createGuard).toHaveBeenCalledWith('Refunds', 'ana@example.com')
-  })
-
-  it('needs a name', async () => {
-    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: '' })
-
-    expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'The guard name is required.' })
-  })
-
-  it('refuses a name another guard has', async () => {
-    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: 'legal' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'There is already a guard called Legal.' })
-    expect(createGuard).not.toHaveBeenCalled()
-  })
-
-  it('caps the guards of your own at 20', async () => {
-    const own = Array.from({ length: 20 }, (_, index) => ({ id: `guard-${index}`, name: `G${index}`, builtIn: false }))
-    listGuards.mockResolvedValue([LEGAL_GUARD, ...own])
-
-    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: 'One more' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'There can be at most 20 guards of your own.' })
-  })
-
-  it('returns 500 when the guard cannot be created', async () => {
-    createGuard.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: 'Refunds' })
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to create the guard.' })
-  })
-})
-
-describe('DELETE /api/admin/config/jev/guards/:guardId', () => {
-  it('deletes a guard of your own', async () => {
-    deleteGuard.mockResolvedValue(true)
-
-    const res = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
-
-    expect(res.status).toBe(204)
-    expect(deleteGuard).toHaveBeenCalledWith('guard-0a1b2c3d')
-  })
-
-  it('never deletes a built-in guard, and says when the guard is gone', async () => {
-    const builtIn = await request(app).delete('/api/admin/config/jev/guards/legal')
-    deleteGuard.mockResolvedValue(false)
-    const gone = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
-
-    expect(builtIn.status).toBe(404)
-    expect(gone.status).toBe(404)
-    expect(deleteGuard).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns 500 when the guard cannot be deleted', async () => {
-    deleteGuard.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to delete the guard.' })
   })
 })
 
@@ -661,26 +580,10 @@ describe('GET /api/admin/config/jev/github/shadow-stats', () => {
 })
 
 describe('Guards in the Jev admin routes', () => {
-  it('refuses to rename a guard to the name of another one', async () => {
-    const res = await request(app)
-      .put('/api/admin/config/jev/documents/guard-0a1b2c3d')
-      .send({ rev: 2, data: { name: 'Legal', set: LEGAL_SET } })
+  it('has no document for other guards', async () => {
+    const res = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
 
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'There is already a guard called Legal.' })
-    expect(saveJevDocument).not.toHaveBeenCalled()
-  })
-
-  it('saves a guard of your own under its id', async () => {
-    const document = { id: 'guard-0a1b2c3d', rev: 3, data: { name: 'Payments', set: LEGAL_SET }, setVersion: 2 }
-    saveJevDocument.mockResolvedValue({ conflict: false, document })
-
-    const res = await request(app)
-      .put('/api/admin/config/jev/documents/guard-0a1b2c3d')
-      .send({ rev: 2, data: { name: 'Payments', set: LEGAL_SET } })
-
-    expect(res.status).toBe(200)
-    expect(saveJevDocument).toHaveBeenCalledWith('guard-0a1b2c3d', expect.objectContaining({ expectedRev: 2 }))
+    expect(res.status).toBe(404)
   })
 
   it('adds the calls of each version of a guard', async () => {

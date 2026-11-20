@@ -12,7 +12,6 @@ const SAVED_AT = '2026-11-19T10:00:00.000Z'
 const NO_KEY = { keyConfigured: false, models: [], scannedAt: null }
 const WITH_KEY = { keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT }
 const UNSAVED = { id: 'jev', rev: 0, data: { enabled: false }, setVersion: 0, savedAt: null, savedBy: null }
-const NO_HISTORY = { entries: [], total: 0, page: 1, pageSize: 5 }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -25,7 +24,6 @@ function errorResponse(status, error) {
 function mockApi(routes) {
   const handlers = {
     [`GET ${BASE}/documents/jev`]: [okResponse(UNSAVED)],
-    [`GET ${BASE}/documents/jev/history?page=1`]: [okResponse(NO_HISTORY)],
     ...routes,
   }
   global.fetch = vi.fn(async (url, options = {}) => {
@@ -39,18 +37,28 @@ function requestsTo(method, path) {
   return global.fetch.mock.calls.filter(([url, options = {}]) => url === path && (options.method ?? 'GET') === method)
 }
 
-function Harness({ initial }) {
+function Harness({ initial, onChanged }) {
   const [config, setConfig] = useState(initial)
 
   function handleConfigChange(patch) {
     setConfig(current => ({ ...current, ...patch }))
   }
 
-  return <JevConnection token="tok" onLogout={vi.fn()} config={config} onConfigChange={handleConfigChange} />
+  return (
+    <JevConnection
+      token="tok"
+      onLogout={vi.fn()}
+      config={config}
+      onConfigChange={handleConfigChange}
+      onChanged={onChanged}
+    />
+  )
 }
 
 function renderConnection(config = NO_KEY) {
-  render(<Harness initial={config} />)
+  const onChanged = vi.fn()
+  render(<Harness initial={config} onChanged={onChanged} />)
+  return { onChanged }
 }
 
 beforeEach(() => {
@@ -68,7 +76,6 @@ describe('JevConnection', () => {
     expect(screen.getByText('No models saved yet.')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
     expect(screen.getByText('Save the API key above before turning Jev calls on.')).toBeInTheDocument()
-    expect(await screen.findByText('No changes yet.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
@@ -103,7 +110,7 @@ describe('JevConnection', () => {
     })
     const user = userEvent.setup()
 
-    renderConnection()
+    const { onChanged } = renderConnection()
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText(failure)).toBeInTheDocument()
@@ -115,7 +122,7 @@ describe('JevConnection', () => {
     expect(screen.queryByText(failure)).not.toBeInTheDocument()
     const [[, options]] = requestsTo('PUT', `${BASE}/api-key`)
     expect(JSON.parse(options.body)).toEqual({ apiKey: 'jev-secret' })
-    expect(requestsTo('GET', `${BASE}/documents/jev/history?page=1`)).toHaveLength(2)
+    expect(onChanged).toHaveBeenCalledTimes(1)
   })
 
   it('saves the scanned models and says how many are new', async () => {
@@ -150,24 +157,17 @@ describe('JevConnection', () => {
     expect(await screen.findByText('Could not scan the Jev models: Jev error (HTTP 529).')).toBeInTheDocument()
   })
 
-  it('saves the Jev calls switch and refreshes the history', async () => {
+  it('saves the Jev calls switch and says the settings changed', async () => {
     const saved = { ...UNSAVED, rev: 1, data: { enabled: true }, savedAt: SAVED_AT, savedBy: 'ana@example.com' }
-    const entry = { at: SAVED_AT, author: 'ana@example.com', change: 'Created; Jev calls on', rev: 1 }
-    mockApi({
-      [`PUT ${BASE}/documents/jev`]: [okResponse(saved)],
-      [`GET ${BASE}/documents/jev/history?page=1`]: [
-        okResponse(NO_HISTORY),
-        okResponse({ entries: [entry], total: 1, page: 1, pageSize: 5 }),
-      ],
-    })
+    mockApi({ [`PUT ${BASE}/documents/jev`]: [okResponse(saved)] })
     const user = userEvent.setup()
 
-    renderConnection(WITH_KEY)
+    const { onChanged } = renderConnection(WITH_KEY)
     await user.click(await screen.findByRole('checkbox', { name: /Allow Jev calls/ }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('Created; Jev calls on')).toBeInTheDocument()
-    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(onChanged).toHaveBeenCalledTimes(1)
     const [[, options]] = requestsTo('PUT', `${BASE}/documents/jev`)
     expect(JSON.parse(options.body)).toEqual({ rev: 0, data: { enabled: true }, restoredFrom: null })
   })

@@ -4,7 +4,6 @@ import { saveJevApiKey, scanJevModels, testJevConnection } from '../../../../ser
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
-import JevHistory from '../../JevHistory/JevHistory.jsx'
 import SecretField from '../../SecretField/SecretField.jsx'
 import StatusRow from '../../StatusRow/StatusRow.jsx'
 import { formatDateTime } from '../../dates.js'
@@ -26,7 +25,7 @@ function describeCatalog({ models, scannedAt }, newModels) {
   return `${describeNewModels(newModels)}${countLabel(models.length, 'model')} saved · last scan ${formatDateTime(scannedAt)}`
 }
 
-export default function JevConnection({ token, onLogout, config, onConfigChange }) {
+export default function JevConnection({ token, onLogout, config, onConfigChange, onChanged }) {
   const settings = useJevDocument(token, JEV_SETTINGS_DOCUMENT, onLogout)
   const [keyRevision, setKeyRevision] = useState(0)
 
@@ -34,6 +33,12 @@ export default function JevConnection({ token, onLogout, config, onConfigChange 
     const data = await saveJevApiKey(token, value)
     onConfigChange({ keyConfigured: data.keyConfigured })
     setKeyRevision(revision => revision + 1)
+    onChanged()
+  }
+
+  async function saveSettings() {
+    await settings.save()
+    onChanged()
   }
 
   function handleCallsChange(event) {
@@ -43,81 +48,67 @@ export default function JevConnection({ token, onLogout, config, onConfigChange 
 
   if (settings.loadError) {
     return (
-      <AdminSection title="Jev connection">
+      <AdminSection title="Jev">
         <p className="alert alert--error">{settings.loadError}</p>
       </AdminSection>
     )
   }
   if (!settings.document) {
     return (
-      <AdminSection title="Jev connection">
+      <AdminSection title="Jev">
         <p className="admin__muted">Loading...</p>
       </AdminSection>
     )
   }
 
   return (
-    <>
-      <AdminSection title="Jev connection">
-        <p className="admin__muted">
-          Every guard asks Jev its questions and gets each answer with a confidence. This section holds what all the
-          guards share: the API key, the saved models and the switch for every call.
-        </p>
+    <AdminSection title="Jev">
+      <p className="admin__muted">
+        Every guard asks Jev, TypeSafe’s question-answering model, its questions and gets each answer with a confidence.
+        The API key and the switch for every call are shared by all the guards.
+      </p>
 
-        <StatusRow configured={config.keyConfigured} />
+      <StatusRow configured={config.keyConfigured} />
 
-        <SecretField
-          placeholder="Jev API key"
-          configuredPlaceholder="Paste a new key to replace it"
-          configured={config.keyConfigured}
-          onSave={saveApiKey}
-          onLogout={onLogout}
-          saveLabel="Save key"
+      <SecretField
+        placeholder="Jev API key"
+        configuredPlaceholder="Paste a new key to replace it"
+        configured={config.keyConfigured}
+        onSave={saveApiKey}
+        onLogout={onLogout}
+        saveLabel="Save key"
+      />
+      <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
+
+      <label className="admin__switch">
+        <input
+          type="checkbox"
+          checked={settings.draft.enabled}
+          onChange={handleCallsChange}
+          disabled={!config.keyConfigured && !settings.draft.enabled}
         />
+        <span className="admin__switch-slider" aria-hidden="true" />
+        <span className="admin__switch-label">
+          Allow Jev calls
+          <span className="admin__muted">When off, no guard calls Jev.</span>
+        </span>
+      </label>
+      {!config.keyConfigured && <p className="admin__muted">Save the API key above before turning Jev calls on.</p>}
+      <SettingsSave state={{ ...settings, save: saveSettings }} />
 
-        <p className="note">One key for every guard. Rotating or removing it affects all of them.</p>
-        <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
+      <p className="note">
+        Turning it off stops the calls of every guard. It does not change the auto-approve mode of the GitHub repos.
+      </p>
 
-        <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
-        <ModelScan
-          key={`scan-${keyRevision}`}
-          token={token}
-          onLogout={onLogout}
-          config={config}
-          onScanned={onConfigChange}
-        />
-      </AdminSection>
-
-      <AdminSection title="Jev calls">
-        <label className="admin__switch">
-          <input
-            type="checkbox"
-            checked={settings.draft.enabled}
-            onChange={handleCallsChange}
-            disabled={!config.keyConfigured && !settings.draft.enabled}
-          />
-          <span className="admin__switch-slider" aria-hidden="true" />
-          <span className="admin__switch-label">
-            Allow Jev calls
-            <span className="admin__muted">When off, no guard calls Jev.</span>
-          </span>
-        </label>
-        {!config.keyConfigured && <p className="admin__muted">Save the API key above before turning Jev calls on.</p>}
-        <p className="note">
-          Turning it off stops the calls of ALL guards. It does not change the auto-approve mode of the GitHub repos.
-        </p>
-        <SettingsSave state={settings} />
-      </AdminSection>
-
-      <AdminSection title="Connection history">
-        <JevHistory
-          key={`${settings.document.rev}-${keyRevision}`}
-          token={token}
-          documentId={JEV_SETTINGS_DOCUMENT}
-          onLogout={onLogout}
-        />
-      </AdminSection>
-    </>
+      <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
+      <ModelScan
+        key={`scan-${keyRevision}`}
+        token={token}
+        onLogout={onLogout}
+        config={config}
+        onScanned={onConfigChange}
+      />
+    </AdminSection>
   )
 }
 

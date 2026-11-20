@@ -1,18 +1,20 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { JEV_LEGAL_DOCUMENT } from '../../../constants.js'
+import { JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
 import { getGuards, getJevConfig } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
+import JevHistory from '../JevHistory/JevHistory.jsx'
 import GuardEditor from './GuardEditor/GuardEditor.jsx'
 import GuardsTable from './GuardsTable/GuardsTable.jsx'
 import JevConnection from './JevConnection/JevConnection.jsx'
-import NewGuardForm from './NewGuardForm/NewGuardForm.jsx'
 
 const GUARD_PARAM = 'guard'
 
 export default function AdminGuards({ token, onLogout }) {
   const [params, setParams] = useSearchParams()
+  const [settingsRevision, setSettingsRevision] = useState(0)
   const { config: catalog, error: catalogError, patchConfig } = useAuthedConfig(getJevConfig, token, onLogout)
   const { config: list, error: listError, reload } = useAuthedConfig(getGuards, token, onLogout)
 
@@ -26,26 +28,27 @@ export default function AdminGuards({ token, onLogout }) {
     setParams({ [GUARD_PARAM]: id })
   }
 
-  function handleCreated(guard) {
-    reload()
-    select(guard.id)
-  }
-
-  function handleDeleted() {
-    reload()
-    select(JEV_LEGAL_DOCUMENT)
+  function handleSettingsChanged() {
+    setSettingsRevision(revision => revision + 1)
   }
 
   return (
     <>
+      <JevConnection
+        token={token}
+        onLogout={onLogout}
+        config={catalog}
+        onConfigChange={patchConfig}
+        onChanged={handleSettingsChanged}
+      />
+
       <AdminSection title="Guards">
         <p className="admin__muted">
           A guard is a set of questions Jev answers about something Soporti or a person wants checked: a reply to a
-          customer, an answer, a PR. Each answer comes with a confidence, and the answers you mark raise a warning.
+          customer or a pull request. Each answer comes with a confidence, and the answers you mark raise a warning.
           Guards warn: they never send, approve or block anything on their own.
         </p>
         <GuardsTable guards={list.guards} selectedId={selected.id} onSelect={select} />
-        <NewGuardForm token={token} onLogout={onLogout} onCreated={handleCreated} />
       </AdminSection>
 
       <GuardEditor
@@ -55,10 +58,11 @@ export default function AdminGuards({ token, onLogout }) {
         catalog={catalog}
         onLogout={onLogout}
         onSaved={reload}
-        onDeleted={handleDeleted}
       />
 
-      <JevConnection token={token} onLogout={onLogout} config={catalog} onConfigChange={patchConfig} />
+      <AdminSection title="Jev history">
+        <JevHistory key={settingsRevision} token={token} documentId={JEV_SETTINGS_DOCUMENT} onLogout={onLogout} />
+      </AdminSection>
     </>
   )
 }

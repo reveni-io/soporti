@@ -14,15 +14,8 @@ import {
 import { getRepository } from '../github/client.js'
 import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
-import {
-  defaultJevDocument,
-  isCustomGuard,
-  isJevDocument,
-  parseGuardName,
-  parseJevDocument,
-  planJevSave,
-} from '../jev/documents.js'
-import { createGuard, deleteGuard, listGuards } from '../guards/registry.js'
+import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
+import { listGuards } from '../guards/registry.js'
 import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
 
 const MAX_API_KEY_LENGTH = 300
@@ -36,7 +29,6 @@ const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again
 const NO_MODELS_MESSAGE = 'Jev returned no models'
 const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-const MAX_GUARDS = 20
 
 const router = Router()
 
@@ -228,51 +220,12 @@ async function listGuardsWithUsage() {
   }))
 }
 
-function findNameClash(guards, name, id = null) {
-  const wanted = name.toLowerCase()
-  const clash = guards.find(guard => guard.id !== id && guard.name.toLowerCase() === wanted)
-
-  return clash ? `There is already a guard called ${clash.name}.` : null
-}
-
 router.get('/guards', async (_req, res) => {
   try {
     res.json({ guards: await listGuardsWithUsage() })
   } catch (err) {
     console.error('Failed to load the guards:', err)
     res.status(500).json({ error: 'Failed to load the guards.' })
-  }
-})
-
-router.post('/guards', async (req, res) => {
-  const name = parseGuardName(req.body?.name)
-  if (name.error) return res.status(400).json({ error: name.error })
-
-  try {
-    const guards = await listGuards()
-    const clash = findNameClash(guards, name.value)
-    if (clash) return res.status(422).json({ error: clash })
-    if (guards.filter(guard => !guard.builtIn).length >= MAX_GUARDS) {
-      return res.status(422).json({ error: `There can be at most ${MAX_GUARDS} guards of your own.` })
-    }
-
-    res.status(201).json({ guard: await createGuard(name.value, req.user.email) })
-  } catch (err) {
-    console.error('Failed to create a guard:', err)
-    res.status(500).json({ error: 'Failed to create the guard.' })
-  }
-})
-
-router.delete('/guards/:guardId', async (req, res) => {
-  if (!isCustomGuard(req.params.guardId)) return res.status(404).json({ error: 'Guard not found.' })
-
-  try {
-    if (!(await deleteGuard(req.params.guardId))) return res.status(404).json({ error: 'Guard not found.' })
-
-    res.status(204).end()
-  } catch (err) {
-    console.error('Failed to delete a guard:', err)
-    res.status(500).json({ error: 'Failed to delete the guard.' })
   }
 })
 
@@ -294,11 +247,6 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    if (isCustomGuard(id)) {
-      const clash = findNameClash(await listGuards(), value.data.name, id)
-      if (clash) return res.status(422).json({ error: clash })
-    }
-
     const {
       conflict,
       error: saveError,

@@ -12,8 +12,8 @@ const FIRST_POINT_INDEX = 3
 const POINTS = [
   {
     icon: 'check',
-    title: 'One guard for each job',
-    text: 'Legal replies, refunds, pull requests: each guard keeps its own questions and the answers that should warn. Every change is versioned, so you know which questions checked what.',
+    title: 'A guard for each job',
+    text: 'Replies to customers and pull request approvals each have their own guard: the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
   },
   {
     icon: 'shield',
@@ -69,10 +69,10 @@ export default function GuardsSection() {
             eyebrow="Guards"
             title={
               <>
-                Soporti makes <em>better decisions</em> with guards.
+                Soporti is <em>more secure</em> with guards.
               </>
             }
-            lead="A guard is a set of questions you write. Ask Soporti to pass a reply, an answer or a pull request through one, and Jev, TypeSafe’s question-answering model, answers each question with how sure it is."
+            lead="Before a reply reaches a customer or a pull request is approved, Soporti can pass it through a guard: Jev, TypeSafe’s question-answering model, answers the questions you wrote, each with how sure it is."
           />
           <ul className="lp-guards__points">
             {POINTS.map((point, index) => (

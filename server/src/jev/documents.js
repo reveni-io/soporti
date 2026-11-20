@@ -26,8 +26,6 @@ const MAX_QUESTION_CHARS = 500
 const MAX_GUIDANCE_CHARS = 4_000
 const MAX_LABEL_CHARS = 200
 const MAX_ID_CHARS = 64
-const MAX_GUARD_NAME_CHARS = 60
-const CUSTOM_GUARD_RE = /^guard-[a-f0-9]{8}$/
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
 const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
@@ -255,20 +253,6 @@ function parseLegalProject(data) {
   return { value: { ...project.value, allowSend } }
 }
 
-export function parseGuardName(value) {
-  return parseText(value, { label: 'The guard name', max: MAX_GUARD_NAME_CHARS, required: true })
-}
-
-function parseCustomGuard(data) {
-  const name = parseGuardName(data?.name)
-  if (name.error) return name
-
-  const guard = parseLegalProject(data)
-  if (guard.error) return guard
-
-  return { value: { name: name.value, ...guard.value } }
-}
-
 function parseGithubProject(data) {
   const project = parseProject(data, GITHUB_SET_PARSERS)
   if (project.error) return project
@@ -327,21 +311,9 @@ function describeSendingChange(previous, next) {
   return [`Sending from Soporti ${next.allowSend ? 'on' : 'off'}`]
 }
 
-function describeNameChange(previous, next) {
-  if (!('name' in next) || previous.name === next.name) return []
-
-  return [describeScalarChange('Name', previous.name, next.name)]
-}
-
 function describeChanges(previous, next) {
   if (next.repos) return [...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
-  if (next.set) {
-    return [
-      ...describeNameChange(previous, next),
-      ...describeSetChanges(previous.set, next.set),
-      ...describeSendingChange(previous, next),
-    ]
-  }
+  if (next.set) return [...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
 
   return previous.enabled === next.enabled ? [] : [`Jev calls ${next.enabled ? 'on' : 'off'}`]
 }
@@ -356,23 +328,15 @@ function findSaveError(previous, next) {
   return next.repos ? findGithubSaveError(previous, next) : null
 }
 
-export function isCustomGuard(id) {
-  return typeof id === 'string' && CUSTOM_GUARD_RE.test(id)
-}
-
 export function isJevDocument(id) {
-  return DOCUMENT_PARSERS.has(id) || isCustomGuard(id)
+  return DOCUMENT_PARSERS.has(id)
 }
 
 export function defaultJevDocument(id) {
-  if (isCustomGuard(id)) return { name: '', set: structuredClone(DEFAULT_SET), allowSend: false }
-
   return structuredClone(DEFAULT_DOCUMENTS[id])
 }
 
 export function parseJevDocument(id, data) {
-  if (isCustomGuard(id)) return parseCustomGuard(data)
-
   const parse = DOCUMENT_PARSERS.get(id)
   if (typeof parse !== 'function') return { error: 'Unknown document.' }
 

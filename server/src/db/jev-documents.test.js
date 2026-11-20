@@ -41,23 +41,14 @@ const db = {
   select: () => makeChain('select'),
   insert: table => makeChain('insert', table),
   update: table => makeChain('update', table),
-  delete: table => makeChain('delete', table),
   transaction: callback => callback(db),
 }
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { jevDocuments, jevHistory, jevSetVersions } = await import('./schema.js')
-const {
-  addJevHistoryEntry,
-  deleteJevDocument,
-  getJevDocument,
-  listJevDocuments,
-  getLatestJevSave,
-  listJevHistory,
-  listJevSetVersions,
-  saveJevDocument,
-} = await import('./jev-documents.js')
+const { addJevHistoryEntry, getJevDocument, getLatestJevSave, listJevHistory, listJevSetVersions, saveJevDocument } =
+  await import('./jev-documents.js')
 
 const DEFAULTS = { set: { questions: [] } }
 const CURRENT = { id: 'legal', rev: 3, data: { set: { questions: ['old'] } }, setVersion: 2 }
@@ -74,26 +65,6 @@ describe('getJevDocument', () => {
     expect(await getJevDocument('legal')).toEqual(CURRENT)
     expect(await getJevDocument('github')).toBeNull()
     expect(calls[0].steps.where).toEqual({ op: 'eq', col: jevDocuments.id, val: 'legal' })
-  })
-})
-
-describe('listJevDocuments', () => {
-  it('returns every stored document', async () => {
-    queue.push([CURRENT])
-
-    expect(await listJevDocuments()).toEqual([CURRENT])
-    expect(calls[0].steps.from).toBe(jevDocuments)
-  })
-})
-
-describe('deleteJevDocument', () => {
-  it('deletes the document and says whether it existed', async () => {
-    queue.push([{ id: 'guard-0a1b2c3d' }], [])
-
-    expect(await deleteJevDocument('guard-0a1b2c3d')).toBe(true)
-    expect(await deleteJevDocument('guard-gone0000')).toBe(false)
-    expect(calls[0].table).toBe(jevDocuments)
-    expect(calls[0].steps.where).toEqual({ op: 'eq', col: jevDocuments.id, val: 'guard-0a1b2c3d' })
   })
 })
 

@@ -616,23 +616,6 @@ export function getGuards(token) {
   return request('/api/admin/config/jev/guards', { token, errorMessage: 'Failed to load the guards' })
 }
 
-export function createGuard(token, name) {
-  return request('/api/admin/config/jev/guards', {
-    method: 'POST',
-    token,
-    body: { name },
-    errorMessage: 'Failed to create the guard',
-  })
-}
-
-export function deleteGuard(token, id) {
-  return request(`/api/admin/config/jev/guards/${id}`, {
-    method: 'DELETE',
-    token,
-    errorMessage: 'Failed to delete the guard',
-  })
-}
-
 export function getJevDocument(token, id) {
   return request(`/api/admin/config/jev/documents/${id}`, { token, errorMessage: 'Failed to load the settings' })
 }

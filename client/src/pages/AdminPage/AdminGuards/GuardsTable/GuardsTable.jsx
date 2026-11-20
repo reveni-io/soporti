@@ -27,7 +27,7 @@ export default function GuardsTable({ guards, selectedId, onSelect }) {
             {guards.map(guard => (
               <tr key={guard.id}>
                 <td className="admin__nowrap">
-                  <strong>{guard.name}</strong> {guard.builtIn && <span className="badge">built-in</span>}
+                  <strong>{guard.name}</strong>
                 </td>
                 <td>{describeUse(guard)}</td>
                 <td>{guard.questions}</td>
