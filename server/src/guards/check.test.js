@@ -41,11 +41,11 @@ beforeEach(() => {
 
 describe('checkContent', () => {
   it('asks the guard about the content and counts its warnings', async () => {
-    const result = await checkContent(GUARD, 'Can we promise a refund in 2 days?')
+    const result = await checkContent(GUARD, { request: 'Use the Legal guards', content: 'A refund in 2 days' })
 
     expect(runJevCheck).toHaveBeenCalledWith({
       project: 'legal',
-      state: { content: 'Can we promise a refund in 2 days?' },
+      state: { request: 'Use the Legal guards', content: 'A refund in 2 days' },
     })
     expect(result).toEqual({
       guard: 'Legal',
@@ -59,7 +59,7 @@ describe('checkContent', () => {
   it('says the review could not run without naming the service', async () => {
     runJevCheck.mockResolvedValue({ status: 'unavailable', setVersion: 7, reason: 'Jev calls are off' })
 
-    expect(await checkContent(GUARD, 'Anything')).toEqual({
+    expect(await checkContent(GUARD, { request: 'Check it', content: 'Anything' })).toEqual({
       guard: 'Legal',
       status: 'not_checked',
       reason: 'the review could not run',
@@ -73,6 +73,7 @@ describe('checkTicketReply', () => {
   it('reads the customer message, checks the reply and saves the case in the conversation', async () => {
     const result = await checkTicketReply([GUARD], {
       userId: 3,
+      request: 'Answer ticket 48213 and use the Legal guards',
       ticket: { source: 'zendesk', ticketId: '48213' },
       reply: REPLY,
       cases: { conversationId: 'conv-1' },
@@ -82,6 +83,7 @@ describe('checkTicketReply', () => {
     expect(runJevCheck).toHaveBeenCalledWith({
       project: 'legal',
       state: {
+        request: 'Answer ticket 48213 and use the Legal guards',
         ticket: { source: 'zendesk', subject: 'Refund', customer: 'customer-a@example.com' },
         customerMessage: 'Where is my refund?',
         dataFacts: REPLY.dataFacts,

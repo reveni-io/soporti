@@ -37,8 +37,8 @@ function toReview(jev) {
   return jev && { setVersion: jev.setVersion, minConfidence: jev.minConfidence, rows: jev.rows }
 }
 
-export async function checkContent(guard, content) {
-  const outcome = describeCheck(await runJevCheck({ project: guard.id, state: { content } }))
+export async function checkContent(guard, { request, content }) {
+  const outcome = describeCheck(await runJevCheck({ project: guard.id, state: { request, content } }))
 
   return {
     guard: guard.name,
@@ -70,11 +70,12 @@ function toShownReview({ guard, status, reason, warnings, jev }) {
   return { guard: guard.name, status, reason: chatReason(reason), warnings, review: toReview(jev) }
 }
 
-export async function checkTicketReply(guards, { userId, ticket: ref, reply, cases = null }) {
+export async function checkTicketReply(guards, { userId, request, ticket: ref, reply, cases = null }) {
   const [ticket] = await readLegalTickets(userId, [ref])
   if (!ticket) return null
 
   const state = {
+    request,
     ticket: { source: ticket.source, subject: ticket.subject, customer: ticket.customer },
     customerMessage: ticket.customerMessage,
     dataFacts: reply.dataFacts,
