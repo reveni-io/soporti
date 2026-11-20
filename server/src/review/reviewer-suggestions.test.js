@@ -7,10 +7,8 @@ const listPullRequestReviews = vi.fn()
 const listPathAuthors = vi.fn()
 const canPushToRepository = vi.fn()
 const countReviewsSince = vi.fn()
-const listOrganizationMembers = vi.fn()
 const findFirstPullRequestDates = vi.fn()
 vi.mock('../github/client.js', () => ({
-  listOrganizationMembers,
   findFirstPullRequestDates,
   listPullRequestReviews,
   listPathAuthors,
@@ -23,12 +21,23 @@ const { suggestReviewers } = await import('./reviewer-suggestions.js')
 const logger = { error: vi.fn(), warn: vi.fn() }
 const NOW = new Date('2026-11-20T10:00:00Z')
 
-function members(...entries) {
-  const firstPullRequests = new Map(entries)
-  listOrganizationMembers.mockResolvedValue(entries.map(([login]) => login))
-  findFirstPullRequestDates.mockImplementation(
-    async (_org, logins) => new Map(logins.map(login => [login, firstPullRequests.get(login) ?? null]))
-  )
+const VETERAN = '2023-01-10T09:00:00Z'
+const FILE_HISTORY = [
+  { path: 'src/a.js', authors: ['ana', 'ana', 'luis'] },
+  { path: 'src/b.js', authors: ['ana', 'luis', 'marta'] },
+]
+
+function firstPullRequests(...entries) {
+  const dates = new Map(entries)
+  findFirstPullRequestDates.mockImplementation(async (_org, logins) => {
+    return new Map(logins.map(login => [login, dates.has(login) ? dates.get(login) : VETERAN]))
+  })
+}
+
+function folderAuthors(...logins) {
+  listPathAuthors.mockImplementation(async (_repo, _ref, paths, options) => {
+    return options ? paths.map(path => ({ path, authors: logins })) : FILE_HISTORY
+  })
 }
 
 const TRIGGER = {
@@ -65,12 +74,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
   getReviewerSuggestionsEnabled.mockResolvedValue(true)
-  members(['veterana', '2023-01-10T09:00:00Z'])
+  firstPullRequests()
+  folderAuthors()
   listPullRequestReviews.mockResolvedValue([])
-  listPathAuthors.mockResolvedValue([
-    { path: 'src/a.js', authors: ['ana', 'ana', 'luis'] },
-    { path: 'src/b.js', authors: ['ana', 'luis', 'marta'] },
-  ])
   canPushToRepository.mockResolvedValue(true)
   loads({})
 })
@@ -151,7 +157,7 @@ describe('suggestReviewers', () => {
     expect(
       await suggestReviewers(buildContext({ pr: { requested_reviewers: [{ login: 'luis' }] } }), { logger })
     ).toBeNull()
-    expect(listPathAuthors).not.toHaveBeenCalled()
+    expect(listPathAuthors).not.toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'])
   })
 
   it('still suggests an expert when only the author, Soporti or a bot reviewed', async () => {
@@ -167,17 +173,16 @@ describe('suggestReviewers', () => {
 
   it('suggests no expert when Soporti approved the PR', async () => {
     expect(await suggestReviewers(buildContext({ approved: true }), { logger })).toBeNull()
-    expect(listPathAuthors).not.toHaveBeenCalled()
+    expect(listPathAuthors).not.toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'])
   })
 
-  it('suggests, among the members whose first PR in the org is less than 180 days old, the one with fewer recent reviews', async () => {
-    members(
+  it('suggests, among the people who committed lately in the folders of the PR, the newest one with fewer recent reviews', async () => {
+    folderAuthors('nueva', 'nuevo', 'antigua', 'sin-prs', 'author', 'dependabot[bot]')
+    firstPullRequests(
       ['nueva', '2026-10-01T09:00:00Z'],
       ['nuevo', '2026-05-25T10:00:00Z'],
       ['antigua', '2026-05-24T09:00:00Z'],
-      ['sin-prs', null],
-      ['author', '2026-11-01T09:00:00Z'],
-      ['dependabot[bot]', null]
+      ['sin-prs', null]
     )
     loads({ nueva: 3, nuevo: 1, 'sin-prs': 2 })
 
@@ -185,21 +190,43 @@ describe('suggestReviewers', () => {
       expert: 'ana',
       learner: 'nuevo',
     })
-    expect(listOrganizationMembers).toHaveBeenCalledWith('acme-io')
+    expect(listPathAuthors).toHaveBeenCalledWith('acme-io/app', 'main', ['src'], { limit: 50 })
     expect(findFirstPullRequestDates).toHaveBeenCalledWith('acme-io', ['nueva', 'nuevo', 'antigua', 'sin-prs'])
     expect(countReviewsSince.mock.calls[0][1]).not.toContain('antigua')
   })
 
-  it('suggests a member who has not opened a PR yet, even when the PR already has a reviewer', async () => {
-    members(['nueva', null])
+  it('reads each folder once and asks about 50 people at most', async () => {
+    folderAuthors(...Array.from({ length: 60 }, (_, index) => `dev${index}`))
+    const files = [
+      { filename: 'apps/integrations/shopify/a.py', changes: 9 },
+      { filename: 'apps/integrations/shopify/b.py', changes: 8 },
+      { filename: 'apps/returns/c.py', changes: 7 },
+    ]
+
+    await suggestReviewers(buildContext({ files }), { logger })
+
+    expect(listPathAuthors.mock.calls[1][2]).toEqual(['apps/integrations/shopify', 'apps/returns'])
+    expect(findFirstPullRequestDates.mock.calls[0][1]).toHaveLength(50)
+  })
+
+  it('looks for no newcomer when the PR only changes files at the root of the repo', async () => {
+    await suggestReviewers(buildContext({ files: [{ filename: 'README.md', changes: 3 }] }), { logger })
+
+    expect(listPathAuthors).toHaveBeenCalledTimes(1)
+    expect(findFirstPullRequestDates).not.toHaveBeenCalled()
+  })
+
+  it('suggests someone who works in the folders but has not opened a PR yet, even when the PR already has a reviewer', async () => {
+    folderAuthors('nueva')
+    firstPullRequests(['nueva', null])
     listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
 
     expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva' })
   })
 
   it('does not suggest the expert again as the newcomer', async () => {
-    members(['ana', '2026-11-01T09:00:00Z'])
     listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana'] }])
+    firstPullRequests(['ana', '2026-11-01T09:00:00Z'])
 
     expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
   })
@@ -211,18 +238,19 @@ describe('suggestReviewers', () => {
     ['complex change', { risk: 'Low', effort: 4 }],
     ['no overview', { risk: 'Low', effort: undefined }],
   ])('looks for no newcomer on a %s', async (_label, overrides) => {
-    members(['nueva', '2026-11-01T09:00:00Z'])
+    folderAuthors('nueva')
+    firstPullRequests(['nueva', '2026-11-01T09:00:00Z'])
 
     expect((await suggestReviewers(buildContext(overrides), { logger })).learner).toBeNull()
-    expect(listOrganizationMembers).not.toHaveBeenCalled()
+    expect(findFirstPullRequestDates).not.toHaveBeenCalled()
   })
 
-  it('still suggests the expert when the members cannot be listed', async () => {
-    listOrganizationMembers.mockRejectedValue(new Error('Resource not accessible by personal access token'))
+  it('still suggests the expert when the newcomers cannot be looked up', async () => {
+    findFirstPullRequestDates.mockRejectedValue(new Error('secondary rate limit'))
 
     expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
     expect(logger.warn).toHaveBeenCalledWith(
-      '[review] Could not list the members of acme-io to find newcomers: Resource not accessible by personal access token'
+      '[review] Could not look for newcomers in acme-io/app: secondary rate limit'
     )
   })
 

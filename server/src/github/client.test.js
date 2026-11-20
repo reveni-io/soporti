@@ -88,7 +88,6 @@ const {
   listPathAuthors,
   countReviewsSince,
   canPushToRepository,
-  listOrganizationMembers,
   findFirstPullRequestDates,
 } = await import('./client.js')
 
@@ -682,6 +681,14 @@ describe('listPathAuthors', () => {
     expect(variables).toEqual({ owner: 'acme-io', repo: 'app', ref: 'main', p0: 'src/a.js', p1: 'src/new.js' })
   })
 
+  it('reads more commits per path when asked', async () => {
+    mockGraphql.mockResolvedValue({ repository: { object: { f0: { nodes: [] } } } })
+
+    await listPathAuthors('acme-io/app', 'main', ['apps/returns'], { limit: 50 })
+
+    expect(mockGraphql.mock.calls[0][0]).toContain('f0: history(first: 50, path: $p0)')
+  })
+
   it('returns no authors when the ref is missing', async () => {
     mockGraphql.mockResolvedValue({ repository: { object: null } })
 
@@ -741,36 +748,6 @@ describe('canPushToRepository', () => {
     mockGetCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }))
 
     await expect(canPushToRepository('acme-io/app', 'ana')).rejects.toThrow('Forbidden')
-  })
-})
-
-describe('listOrganizationMembers', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('reads every page of members', async () => {
-    mockGraphql
-      .mockResolvedValueOnce({
-        organization: {
-          membersWithRole: { nodes: [{ login: 'ana' }], pageInfo: { hasNextPage: true, endCursor: 'c1' } },
-        },
-      })
-      .mockResolvedValueOnce({
-        organization: {
-          membersWithRole: { nodes: [{ login: 'luis' }], pageInfo: { hasNextPage: false, endCursor: 'c2' } },
-        },
-      })
-
-    expect(await listOrganizationMembers('acme-io')).toEqual(['ana', 'luis'])
-    expect(mockGraphql.mock.calls.map(([, variables]) => variables)).toEqual([
-      { org: 'acme-io', cursor: null },
-      { org: 'acme-io', cursor: 'c1' },
-    ])
-  })
-
-  it('returns no members when the owner is not an organization', async () => {
-    mockGraphql.mockResolvedValue({ organization: null })
-
-    expect(await listOrganizationMembers('someone')).toEqual([])
   })
 })
 

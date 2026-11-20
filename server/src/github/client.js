@@ -36,15 +36,6 @@ const PATH_HISTORY_LIMIT = 20
 const PUSH_PERMISSIONS = new Set(['admin', 'write'])
 const FIRST_PULL_REQUEST_BATCH = 50
 
-const ORGANIZATION_MEMBERS_QUERY = `query ($org: String!, $cursor: String) {
-  organization(login: $org) {
-    membersWithRole(first: 100, after: $cursor) {
-      nodes { login }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}`
-
 let octokitInstance = null
 let octokitInstanceToken = null
 
@@ -262,7 +253,7 @@ export async function createReviewCommentReaction(repoFullName, commentId, conte
   return data
 }
 
-export async function listPathAuthors(repoFullName, ref, paths) {
+export async function listPathAuthors(repoFullName, ref, paths, { limit = PATH_HISTORY_LIMIT } = {}) {
   if (paths.length === 0) return []
 
   const octokit = await getOctokit()
@@ -270,7 +261,7 @@ export async function listPathAuthors(repoFullName, ref, paths) {
   const definitions = paths.map((_, index) => `$p${index}: String!`).join(', ')
   const fields = paths
     .map((_, index) => {
-      return `f${index}: history(first: ${PATH_HISTORY_LIMIT}, path: $p${index}) { nodes { author { user { login } } } }`
+      return `f${index}: history(first: ${limit}, path: $p${index}) { nodes { author { user { login } } } }`
     })
     .join('\n')
   const query = `query ($owner: String!, $repo: String!, $ref: String!, ${definitions}) {
@@ -301,21 +292,6 @@ export async function countReviewsSince(owner, logins, since) {
   const data = await octokit.graphql(`query (${definitions}) {\n${fields.join('\n')}\n}`, variables)
 
   return new Map(logins.map((login, index) => [login, data[`r${index}`]?.issueCount ?? 0]))
-}
-
-export async function listOrganizationMembers(org) {
-  const octokit = await getOctokit()
-  const members = []
-  let cursor = null
-
-  do {
-    const data = await octokit.graphql(ORGANIZATION_MEMBERS_QUERY, { org, cursor })
-    const page = data.organization?.membersWithRole
-    members.push(...(page?.nodes ?? []).map(({ login }) => login))
-    cursor = page?.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null
-  } while (cursor)
-
-  return members
 }
 
 async function readFirstPullRequestDates(octokit, org, logins) {

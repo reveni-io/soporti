@@ -41,7 +41,7 @@ describe('AdminGithub', () => {
 
     render(<AdminGithub token="tok" onLogout={vi.fn()} />)
 
-    expect(await screen.findByText(/whose first pull request there is less/)).toBeInTheDocument()
+    expect(await screen.findByText(/committed lately in their folders/)).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: /suggest reviewers/i }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
