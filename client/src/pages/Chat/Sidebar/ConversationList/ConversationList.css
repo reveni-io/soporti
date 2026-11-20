@@ -1,6 +1,6 @@
 .conversation-list {
-  flex: none;
-  max-height: 30%;
+  flex: 0 1 auto;
+  max-height: 45%;
 }
 
 .conversation-list__items {

@@ -12,6 +12,14 @@ describe('ProfileToggle', () => {
     expect(screen.getByText('Detailed code, architecture, and file paths')).toBeInTheDocument()
   })
 
+  it('groups the profiles under an accessible label with an icon each', () => {
+    render(<ProfileToggle selectedProfile="support" onSelectProfile={vi.fn()} />)
+
+    const group = screen.getByRole('group', { name: /answer profile/i })
+    expect(group.querySelector('[data-icon="headset"]')).toBeInTheDocument()
+    expect(group.querySelector('[data-icon="code"]')).toBeInTheDocument()
+  })
+
   it('shows the support hint for the support profile', () => {
     render(<ProfileToggle selectedProfile="support" onSelectProfile={vi.fn()} />)
 
