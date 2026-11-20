@@ -1,7 +1,9 @@
 import { Router } from 'express'
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { countLegalRuns, listUncheckedLegalRuns } from '../db/legal-cases.js'
+import { countLegalSchedules } from '../db/schedules.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
-import { countJevCallsByProjectSince } from '../db/jev-calls.js'
+import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
 import {
   addJevHistoryEntry,
   getJevDocument,
@@ -226,6 +228,7 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
+    const inUseQueries = id === JEV_LEGAL_DOCUMENT ? await countLegalSchedules() : 0
     const {
       conflict,
       error: saveError,
@@ -234,7 +237,7 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom }),
+      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries }),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
@@ -264,7 +267,17 @@ function pageHandler(list, label) {
 
 router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history'))
 
-router.get('/documents/:id/versions', pageHandler(listJevSetVersions, 'versions'))
+async function listVersionsWithCalls(id, page) {
+  const versions = await listJevSetVersions(id, page)
+  if (id !== JEV_LEGAL_DOCUMENT) return versions
+
+  const calls = await countJevCallsBySetVersion(id)
+  const callsOf = version => calls.find(row => row.setVersion === version)?.calls ?? 0
+
+  return { ...versions, entries: versions.entries.map(entry => ({ ...entry, calls: callsOf(entry.version) })) }
+}
+
+router.get('/documents/:id/versions', pageHandler(listVersionsWithCalls, 'versions'))
 
 router.post('/github/repos/check', async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
@@ -296,6 +309,23 @@ router.get('/github/shadow-stats', async (req, res) => {
   } catch (err) {
     console.error('Failed to load the shadow results:', err)
     res.status(500).json({ error: 'Failed to load the shadow results.' })
+  }
+})
+
+router.get('/legal/usage', async (req, res) => {
+  const { error, value: page } = parsePage(req.query.page)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    const [queriesOn, runs, unchecked] = await Promise.all([
+      countLegalSchedules(),
+      countLegalRuns(),
+      listUncheckedLegalRuns(page),
+    ])
+    res.json({ queriesOn, checkedRuns: runs.checked, uncheckedRuns: runs.notChecked, unchecked })
+  } catch (err) {
+    console.error('Failed to load the Legal usage:', err)
+    res.status(500).json({ error: 'Failed to load the Legal usage.' })
   }
 })
 

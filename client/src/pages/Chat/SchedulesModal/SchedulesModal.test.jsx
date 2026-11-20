@@ -18,12 +18,20 @@ const DAILY = {
   lastRunAt: '2026-07-27T07:00:00.000Z',
   lastStatus: 'ok',
   lastError: null,
+  legal: false,
 }
 
 function mockFetch(schedules, { deleteResponse } = {}) {
   let current = schedules
 
   return vi.fn().mockImplementation((url, options = {}) => {
+    if (options.method === 'PATCH') {
+      const legal = JSON.parse(options.body).legal
+      current = current.map(schedule =>
+        url.includes(`/api/schedules/${schedule.id}/`) ? { ...schedule, legal } : schedule
+      )
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedule: DAILY }) })
+    }
     if (options.method === 'PUT') {
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ schedule: DAILY }) })
     }
@@ -41,6 +49,24 @@ beforeEach(() => {
 })
 
 describe('SchedulesModal', () => {
+  it('turns the Legal review of a query on from its row', async () => {
+    global.fetch = mockFetch([DAILY])
+    const user = userEvent.setup()
+
+    render(
+      <SchedulesModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} selectedSources={[]} selectedProfile="tech" />
+    )
+    const toggle = await screen.findByRole('switch', { name: 'Legal review' })
+    expect(screen.getByText(/Anyone can turn on Legal review in their own queries/)).toBeInTheDocument()
+
+    await user.click(toggle)
+
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Legal review' })).toBeChecked())
+    const patch = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PATCH')
+    expect(patch[0]).toContain('/api/schedules/1/legal')
+    expect(JSON.parse(patch[1].body)).toEqual({ legal: true })
+  })
+
   it('lists every schedule with its cadence and its runs', async () => {
     global.fetch = mockFetch([DAILY])
 

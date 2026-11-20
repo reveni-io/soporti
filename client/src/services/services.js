@@ -368,6 +368,15 @@ export function updateSchedule(token, id, schedule) {
   })
 }
 
+export function setScheduleLegal(token, id, legal) {
+  return request(`/api/schedules/${id}/legal`, {
+    method: 'PATCH',
+    token,
+    body: { legal },
+    errorMessage: 'Failed to change the Legal review',
+  })
+}
+
 export function deleteSchedule(token, id) {
   return request(`/api/schedules/${id}`, {
     method: 'DELETE',
@@ -629,6 +638,13 @@ export function getGithubShadowStats(token, repos) {
   return request(`/api/admin/config/jev/github/shadow-stats?repos=${encodeURIComponent(repos.join(','))}`, {
     token,
     errorMessage: 'Failed to load the shadow results',
+  })
+}
+
+export function getLegalUsage(token, page) {
+  return request(`/api/admin/config/jev/legal/usage?page=${page}`, {
+    token,
+    errorMessage: 'Failed to load the Legal usage',
   })
 }
 

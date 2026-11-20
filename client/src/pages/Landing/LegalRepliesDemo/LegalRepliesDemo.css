@@ -1,0 +1,100 @@
+.lp-legal-demo .lp-preview-window {
+  height: 28rem;
+}
+
+.lp-legal-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding: var(--sp5);
+}
+
+.lp-legal-demo__query {
+  padding: var(--sp2) var(--sp3);
+  border-radius: var(--radius-md);
+  background: var(--bg-cool);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.lp-legal-demo__finding {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.lp-legal-demo__cases {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  list-style: none;
+  animation: lp-pop-in var(--motion-slow) var(--ease-spring);
+}
+
+.lp-legal-demo__case {
+  display: grid;
+  grid-template-columns: auto 7.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp3);
+  font-size: var(--fs-sm);
+}
+
+.lp-legal-demo__case + .lp-legal-demo__case {
+  border-top: 1px solid var(--border-default);
+}
+
+.lp-legal-demo__ticket {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lp-legal-demo__topic {
+  overflow: hidden;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lp-legal-demo__status {
+  padding: var(--sp1) var(--sp2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lp-legal-demo__status--running {
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.lp-legal-demo__status--ok {
+  background: var(--success-low);
+  color: var(--text-primary);
+}
+
+.lp-legal-demo__status--careful {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.lp-legal-demo__footer {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  animation: lp-pop-in var(--motion-slow) var(--ease-spring);
+}
+
+@media (max-width: 640px) {
+  .lp-legal-demo__case {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .lp-legal-demo__topic {
+    display: none;
+  }
+}

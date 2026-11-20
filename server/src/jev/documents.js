@@ -308,8 +308,17 @@ function versionedSet(data) {
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
 }
 
-function findSaveError(previous, next) {
-  return next.repos ? findGithubSaveError(previous, next) : null
+function describeQueriesInUse(count) {
+  const queries = count === 1 ? '1 scheduled query has' : `${count} scheduled queries have`
+
+  return `Cannot delete the set: ${queries} Legal review on. They must turn it off first.`
+}
+
+function findSaveError(previous, next, inUseQueries) {
+  if (next.repos) return findGithubSaveError(previous, next)
+  if (next.set && next.set.questions.length === 0 && inUseQueries > 0) return describeQueriesInUse(inUseQueries)
+
+  return null
 }
 
 export function isJevDocument(id) {
@@ -327,11 +336,11 @@ export function parseJevDocument(id, data) {
   return parse(data)
 }
 
-export function planJevSave(current, next, { restoredFrom = null } = {}) {
+export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0 } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
 
-  const error = findSaveError(current.data, next)
+  const error = findSaveError(current.data, next, inUseQueries)
   if (error) return { error }
 
   const snapshot = versionedSet(next)

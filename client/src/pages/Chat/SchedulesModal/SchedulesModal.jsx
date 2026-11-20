@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SCHEDULE_STATUS_ERROR } from '../../../constants.js'
 import { useOverlayDismiss } from '../../../hooks/useOverlayDismiss/useOverlayDismiss.js'
-import { deleteSchedule, isUnauthorized } from '../../../services/services.js'
+import { deleteSchedule, isUnauthorized, setScheduleLegal } from '../../../services/services.js'
 import { useSchedules } from '../hooks/useSchedules/useSchedules.js'
 import ScheduleForm from './ScheduleForm/ScheduleForm.jsx'
 import { describeSchedule, formatRunTime } from './describe-schedule.js'
@@ -9,27 +9,37 @@ import './SchedulesModal.css'
 
 export default function SchedulesModal({ token, onClose, onLogout, selectedSources, selectedProfile }) {
   const { schedules, loading, error: loadError, reload } = useSchedules(token, onLogout)
-  const [deleteError, setDeleteError] = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const overlayProps = useOverlayDismiss(onClose)
 
-  const error = deleteError ?? loadError
+  const error = actionError ?? loadError
   const editingSchedule = schedules.find(schedule => schedule.id === editingId) ?? null
 
-  async function handleDelete(id) {
+  async function runAction(perform) {
     try {
-      await deleteSchedule(token, id)
-      setPendingDeleteId(null)
-      setDeleteError(null)
+      await perform()
+      setActionError(null)
       await reload()
     } catch (err) {
       if (isUnauthorized(err)) {
         onLogout?.()
         return
       }
-      setDeleteError(err.message)
+      setActionError(err.message)
     }
+  }
+
+  function handleDelete(id) {
+    runAction(async () => {
+      await deleteSchedule(token, id)
+      setPendingDeleteId(null)
+    })
+  }
+
+  function handleLegalChange(id, legal) {
+    runAction(() => setScheduleLegal(token, id, legal))
   }
 
   async function handleSaved() {
@@ -51,6 +61,10 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
           A scheduled query runs on its own and saves the answer as a new conversation, marked with a clock in the
           sidebar. You can keep chatting in it like in any other conversation.
         </p>
+        <p className="note">
+          Anyone can turn on Legal review in their own queries. It belongs to each query: turning it on in one does not
+          change the others.
+        </p>
 
         {loading && <p className="schedules-modal__status">Loading…</p>}
         {error && <span className="schedules-modal__error">{error}</span>}
@@ -68,6 +82,7 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
               onAskDelete={() => setPendingDeleteId(schedule.id)}
               onCancelDelete={() => setPendingDeleteId(null)}
               onDelete={() => handleDelete(schedule.id)}
+              onLegalChange={legal => handleLegalChange(schedule.id, legal)}
             />
           ))}
         </ul>
@@ -93,7 +108,7 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
   )
 }
 
-function ScheduleRow({ schedule, isConfirming, onEdit, onAskDelete, onCancelDelete, onDelete }) {
+function ScheduleRow({ schedule, isConfirming, onEdit, onAskDelete, onCancelDelete, onDelete, onLegalChange }) {
   const lastRun = formatRunTime(schedule.lastRunAt)
 
   return (
@@ -110,6 +125,15 @@ function ScheduleRow({ schedule, isConfirming, onEdit, onAskDelete, onCancelDele
         {schedule.lastStatus === SCHEDULE_STATUS_ERROR && (
           <span className="schedules-modal__error">Last run failed: {schedule.lastError}</span>
         )}
+        <label className="schedules-modal__legal">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={schedule.legal}
+            onChange={event => onLegalChange(event.target.checked)}
+          />
+          Legal review
+        </label>
       </div>
 
       <div className="schedules-modal__item-actions">

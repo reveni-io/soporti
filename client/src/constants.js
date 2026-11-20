@@ -58,6 +58,7 @@ export const SUBAGENT_TOOL_PREFIX = 'ask_'
 
 export const JEV_SETTINGS_DOCUMENT = 'jev'
 export const JEV_GITHUB_DOCUMENT = 'github'
+export const JEV_LEGAL_DOCUMENT = 'legal'
 
 export const AUTO_APPROVE_OFF = 'off'
 export const AUTO_APPROVE_SHADOW = 'shadow'

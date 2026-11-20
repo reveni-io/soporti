@@ -1,0 +1,1 @@
+ALTER TABLE "schedules" ADD COLUMN "legal" boolean DEFAULT false NOT NULL;

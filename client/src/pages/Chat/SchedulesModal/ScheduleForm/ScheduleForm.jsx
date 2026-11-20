@@ -49,6 +49,7 @@ export default function ScheduleForm({
   const [monthDay, setMonthDay] = useState(schedule?.monthDay ?? DEFAULT_MONTH_DAY)
   const [sources, setSources] = useState(schedule?.sources ?? selectedSources)
   const [profile, setProfile] = useState(schedule?.profile ?? selectedProfile)
+  const [legal, setLegal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -81,8 +82,9 @@ export default function ScheduleForm({
     setError(null)
     try {
       if (isEditing) await updateSchedule(token, schedule.id, input)
-      else await createSchedule(token, input)
+      else await createSchedule(token, { ...input, legal })
       setQuestion('')
+      setLegal(false)
       await onSaved()
     } catch (err) {
       if (isUnauthorized(err)) {
@@ -215,6 +217,24 @@ export default function ScheduleForm({
           </button>
         )}
       </div>
+
+      {!isEditing && (
+        <>
+          <label className="schedule-form__label schedule-form__label--inline">
+            <input
+              type="checkbox"
+              checked={legal}
+              onChange={event => setLegal(event.target.checked)}
+              disabled={saving}
+            />
+            Legal review
+          </label>
+          <span className="schedule-form__hint">
+            If checked, Soporti checks every run: the customer’s request and its reply, and warns Legal about anything
+            odd. There is no sampling. A query without the check is never reviewed.
+          </span>
+        </>
+      )}
 
       {error && <span className="schedule-form__error">{error}</span>}
 

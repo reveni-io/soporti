@@ -191,6 +191,15 @@ describe('planJevSave', () => {
     expect(planJevSave({ rev: 3, data: reordered }, parseLegal().value)).toBeNull()
   })
 
+  it('refuses to empty the Legal set while a scheduled query uses it, and lets it go when none does', () => {
+    const empty = { set: legalSet({ questions: [] }) }
+
+    expect(planJevSave({ rev: 3, data: saved }, empty, { inUseQueries: 1 })).toEqual({
+      error: 'Cannot delete the set: 1 scheduled query has Legal review on. They must turn it off first.',
+    })
+    expect(planJevSave({ rev: 3, data: saved }, empty).change).toBe('Questions')
+  })
+
   it('describes the Jev calls switch', () => {
     expect(planJevSave({ rev: 1, data: { enabled: false } }, { enabled: true })).toEqual({
       data: { enabled: true },

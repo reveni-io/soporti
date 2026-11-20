@@ -11,7 +11,9 @@ export function useAuthedConfig(fetchConfig, token, onLogout) {
     async function load() {
       try {
         const data = await fetchConfig(token)
-        if (active) setConfig(data)
+        if (!active) return
+        setConfig(data)
+        setError(null)
       } catch (err) {
         if (isUnauthorized(err)) {
           onLogout?.()

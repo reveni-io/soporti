@@ -6,8 +6,30 @@ import PaginatedTable from '../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../dates.js'
 
 const HEADERS = ['Version', 'Date', 'Author', 'Change', '']
+const HEADERS_WITH_CALLS = ['Version', 'Date', 'Author', 'Change', 'Calls', '']
 
-export default function VersionsTable({ token, project, state, onLogout }) {
+function toCells(entry, { currentVersion, withCalls, onRestore }) {
+  const cells = [
+    <span className="admin__nowrap">
+      v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
+    </span>,
+    <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
+    entry.author,
+    entry.change,
+  ]
+  if (withCalls) cells.push((entry.calls ?? 0).toLocaleString())
+  cells.push(
+    entry.version !== currentVersion && (
+      <button className="btn btn--secondary btn--sm" type="button" onClick={() => onRestore(entry)}>
+        Restore
+      </button>
+    )
+  )
+
+  return cells
+}
+
+export default function VersionsTable({ token, project, state, onLogout, withCalls = false }) {
   const [request, setRequest] = useState({ page: 1 })
   const { result, error } = useJevPage(getJevVersions, { token, documentId: project, request }, onLogout)
   const currentVersion = state.document.setVersion
@@ -21,26 +43,14 @@ export default function VersionsTable({ token, project, state, onLogout }) {
 
   const rows = result.entries.map(entry => ({
     key: entry.version,
-    cells: [
-      <span className="admin__nowrap">
-        v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
-      </span>,
-      <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
-      entry.author,
-      entry.change,
-      entry.version !== currentVersion && (
-        <button className="btn btn--secondary btn--sm" type="button" onClick={() => handleRestore(entry)}>
-          Restore
-        </button>
-      ),
-    ],
+    cells: toCells(entry, { currentVersion, withCalls, onRestore: handleRestore }),
   }))
 
   return (
     <>
       {error && <p className="alert alert--error">{error}</p>}
       <PaginatedTable
-        headers={HEADERS}
+        headers={withCalls ? HEADERS_WITH_CALLS : HEADERS}
         rows={rows}
         page={result.page}
         pageSize={result.pageSize}

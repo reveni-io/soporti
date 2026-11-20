@@ -7,13 +7,22 @@ import {
   SCHEDULE_FREQUENCIES,
   SCHEDULE_QUESTION_MAX_LENGTH,
 } from '../constants.js'
-import { countSchedules, createSchedule, deleteSchedule, listSchedules, updateSchedule } from '../db/schedules.js'
+import {
+  countSchedules,
+  createSchedule,
+  deleteSchedule,
+  listSchedules,
+  setScheduleLegal,
+  updateSchedule,
+} from '../db/schedules.js'
 import { computeNextRun, isValidTimezone } from '../schedules/next-run.js'
 import { parseScheduleTiming } from '../schedules/timing.js'
 
 const router = Router()
 
 const ID_RE = /^\d{1,9}$/
+
+const LEGAL_FLAG_ERROR = '"legal" must be true or false.'
 
 function parseScheduleInput(body) {
   const { question, sources, profile, frequency, timezone } = body ?? {}
@@ -44,6 +53,16 @@ function parseScheduleInput(body) {
   return { value: { question: question.trim(), sources, profile, frequency, ...timing.value, timezone } }
 }
 
+function parseLegalFlag(value) {
+  return typeof value === 'boolean' ? { value } : { error: LEGAL_FLAG_ERROR }
+}
+
+function parseLegal(value) {
+  if (value === undefined) return { value: false }
+
+  return parseLegalFlag(value)
+}
+
 router.get('/', async (req, res) => {
   try {
     res.json({ schedules: await listSchedules(req.user.id) })
@@ -57,12 +76,19 @@ router.post('/', async (req, res) => {
   const { error, value } = parseScheduleInput(req.body)
   if (error) return res.status(400).json({ error })
 
+  const legal = parseLegal(req.body.legal)
+  if (legal.error) return res.status(400).json({ error: legal.error })
+
   try {
     if ((await countSchedules(req.user.id)) >= MAX_SCHEDULES_PER_USER) {
       return res.status(422).json({ error: `You can only have ${MAX_SCHEDULES_PER_USER} scheduled queries.` })
     }
 
-    const schedule = await createSchedule(req.user.id, { ...value, nextRunAt: computeNextRun(value) })
+    const schedule = await createSchedule(req.user.id, {
+      ...value,
+      legal: legal.value,
+      nextRunAt: computeNextRun(value),
+    })
     res.status(201).json({ schedule })
   } catch (err) {
     console.error('Failed to create a schedule:', err)
@@ -86,6 +112,21 @@ router.put('/:id', async (req, res) => {
   } catch (err) {
     console.error('Failed to update a schedule:', err)
     res.status(500).json({ error: 'Failed to update the scheduled query.' })
+  }
+})
+
+router.patch('/:id/legal', async (req, res) => {
+  if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid schedule ID.' })
+  const legal = parseLegalFlag(req.body?.legal)
+  if (legal.error) return res.status(400).json({ error: legal.error })
+
+  try {
+    const schedule = await setScheduleLegal(Number(req.params.id), req.user.id, legal.value)
+    if (!schedule) return res.status(404).json({ error: 'Scheduled query not found.' })
+    res.json({ schedule })
+  } catch (err) {
+    console.error('Failed to change the Legal review of a schedule:', err)
+    res.status(500).json({ error: 'Failed to change the Legal review of the scheduled query.' })
   }
 })
 

@@ -59,7 +59,32 @@ describe('ScheduleForm', () => {
       hour: 7,
       minute: 15,
       timezone: BROWSER_TIMEZONE,
+      legal: false,
     })
+  })
+
+  it('creates a query with the Legal review when it is checked', async () => {
+    const user = userEvent.setup()
+    render(
+      <ScheduleForm
+        token="tok"
+        onLogout={vi.fn()}
+        selectedSources={['zendesk']}
+        selectedProfile="support"
+        onSaved={vi.fn()}
+      />
+    )
+
+    const check = screen.getByRole('checkbox', { name: 'Legal review' })
+    expect(check).not.toBeChecked()
+    expect(screen.getByText(/There is no sampling\. A query without the check is never reviewed\./)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/question/i), 'Draft replies to the tickets Legal received yesterday')
+    await user.click(check)
+    await user.click(screen.getByRole('button', { name: /create schedule/i }))
+
+    await waitFor(() => expect(lastBody().legal).toBe(true))
+    expect(check).not.toBeChecked()
   })
 
   it('sends the weekday of a weekly schedule', async () => {
@@ -222,6 +247,7 @@ describe('ScheduleForm', () => {
     expect(screen.getByLabelText('minute')).toHaveValue('30')
     expect(screen.getByText('Uses reveni-io/soporti · tech profile · America/New_York')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
+    expect(screen.queryByRole('checkbox', { name: 'Legal review' })).not.toBeInTheDocument()
   })
 
   it('saves the edited schedule in place with its stored sources, profile and time zone', async () => {
