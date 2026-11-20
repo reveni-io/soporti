@@ -77,4 +77,5 @@ Deploy accordingly:
 - Google sign-in is off by default on fresh installs. If you enable it, configure the allowed-domains list — an empty list allows **any** verified Google account.
 - Create users only for people who should see everything the agent can see: there is no per-user data ACL inside the app.
 - Keep the app database (`DATABASE_URL`) and the agent's query database separate, with separate credentials.
+- Give the IAM role or user behind the AWS integration only the read actions `/admin` → AWS lists (see `docs/deployment.md`): the IAM policy is what AWS enforces, whatever the tools would ask for.
 - Create the HubSpot Service Key with only the scopes `/admin` → HubSpot lists for the levels you chose: the key's scopes are what HubSpot itself enforces, whatever the levels say.

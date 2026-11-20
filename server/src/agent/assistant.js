@@ -23,6 +23,7 @@ import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
+import { isAwsConfigured } from '../aws/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { isGmailConfigured, isGoogleCalendarConfigured } from '../google-workspace/settings.js'
 import { getFigmaCommentsEnabled, isFigmaConfigured } from '../figma/settings.js'
@@ -74,6 +75,7 @@ export async function createAgent(
     postgresConfigured,
     shopifyConfigured,
     betterstackConfigured,
+    awsConfigured,
     granolaConfigured,
     gmailConfigured,
     calendarConfigured,
@@ -96,6 +98,7 @@ export async function createAgent(
     isPostgresConfigured(),
     shopify.isConfigured(),
     isBetterstackConfigured(),
+    isAwsConfigured(),
     isGranolaConfigured(userId),
     isGmailConfigured(userId),
     isGoogleCalendarConfigured(userId),
@@ -119,6 +122,7 @@ export async function createAgent(
     postgresConfigured,
     shopifyConfigured,
     betterstackConfigured,
+    awsConfigured,
     granolaConfigured,
     gmailConfigured,
     calendarConfigured,

@@ -1,41 +1,43 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import McpSection from './McpSection.jsx'
+import { MCP_COMMAND } from '../constants.js'
 
 describe('McpSection', () => {
-  it('renders a light card per capability, each with its bullets', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('explains that other agents can ask Soporti over MCP', () => {
     const { container } = render(<McpSection />)
 
-    expect(container.querySelectorAll('.lp-feat--light')).toHaveLength(3)
-    expect(container.querySelectorAll('.lp-feat__list')).toHaveLength(3)
+    expect(container.querySelector('section')).toHaveAttribute('id', 'mcp')
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Your other agents can ask Soporti too.' })
+    ).toBeInTheDocument()
     expect(screen.getByText('Five tools, one endpoint')).toBeInTheDocument()
     expect(screen.getByText('Built for long questions')).toBeInTheDocument()
     expect(screen.getByText('Sign in, or bring a key')).toBeInTheDocument()
-    expect(screen.getByText(/follow_up: keep the thread/i)).toBeInTheDocument()
-    expect(screen.getByText(/get_answer collects it/i)).toBeInTheDocument()
-    expect(screen.getByText(/refresh tokens rotate/i)).toBeInTheDocument()
+    expect(screen.getByText(/hands back a run id/i)).toBeInTheDocument()
   })
 
-  it('offers the keyless OAuth command as the first install route', () => {
-    render(<McpSection />)
-
-    expect(screen.getByText('Connect with no key at all')).toBeInTheDocument()
-    expect(
-      screen.getByText('claude mcp add --transport http soporti https://soporti.your.co/api/mcp')
-    ).toBeInTheDocument()
-  })
-
-  it('still shows the command that registers soporti with an api key', () => {
-    render(<McpSection />)
-
-    expect(screen.getByText(/Bearer sop_/)).toBeInTheDocument()
-  })
-
-  it('offers the two install routes and no longer advertises a plugin marketplace', () => {
+  it('shows the keyless install command next to the terminal that runs it', () => {
     const { container } = render(<McpSection />)
 
-    expect(container.querySelectorAll('.lp-mcp__route')).toHaveLength(2)
-    expect(screen.queryByText(/\/plugin marketplace add/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/\/soporti:setup/)).not.toBeInTheDocument()
+    expect(container.querySelector('.lp-mcp__command')).toHaveTextContent(MCP_COMMAND)
+    expect(container.querySelector('.lp-terminal')).toBeInTheDocument()
+  })
+
+  it('copies the install command', async () => {
+    const writeText = vi.fn().mockResolvedValue()
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    render(<McpSection />)
+
+    await user.click(screen.getByRole('button', { name: 'Copy the install command' }))
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    expect(writeText).toHaveBeenCalledWith(MCP_COMMAND)
   })
 })

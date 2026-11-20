@@ -270,6 +270,39 @@ describe('AdminPage', () => {
     expect(screen.queryByTestId('admin-users')).not.toBeInTheDocument()
   })
 
+  it('marks only the open section in the nav, and moves the marker along when switching', async () => {
+    mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
+    mockStatus(true)
+    const user = userEvent.setup()
+
+    renderPage()
+    await screen.findByTestId('admin-stats')
+
+    expect(screen.getByRole('link', { name: 'Stats' }).querySelector('.admin__nav-indicator')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Users' }).querySelector('.admin__nav-indicator')).toBeNull()
+
+    await user.click(screen.getByRole('link', { name: 'Users' }))
+
+    expect(await screen.findByTestId('admin-users')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Users' }).querySelector('.admin__nav-indicator')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Stats' }).querySelector('.admin__nav-indicator')).toBeNull()
+  })
+
+  it('switches the panel to the dark theme from the header', async () => {
+    mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
+    mockStatus(true)
+    const user = userEvent.setup()
+
+    renderPage()
+    await screen.findByTestId('admin-stats')
+    await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }))
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.clear()
+  })
+
   it('switches sections through the nav', async () => {
     mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
     mockStatus(true)

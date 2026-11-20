@@ -113,7 +113,7 @@
 
 .chart-card__action:hover {
   color: var(--text-primary);
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .chart-card__action:focus-visible {

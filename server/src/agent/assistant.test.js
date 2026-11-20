@@ -71,6 +71,7 @@ vi.mock('../notion/settings.js', () => ({ isNotionConfigured: vi.fn(async () => 
 vi.mock('../helpjuice/settings.js', () => ({ isHelpjuiceConfigured: vi.fn(async () => false) }))
 vi.mock('../postgres/settings.js', () => ({ isPostgresConfigured: vi.fn(async () => false) }))
 vi.mock('../betterstack/settings.js', () => ({ isBetterstackConfigured: vi.fn(async () => false) }))
+vi.mock('../aws/settings.js', () => ({ isAwsConfigured: vi.fn(async () => false) }))
 vi.mock('../shopify/client.js', () => ({ isConfigured: vi.fn(async () => false) }))
 vi.mock('../granola/settings.js', () => ({ isGranolaConfigured: vi.fn(async () => false) }))
 vi.mock('../google-workspace/settings.js', () => ({

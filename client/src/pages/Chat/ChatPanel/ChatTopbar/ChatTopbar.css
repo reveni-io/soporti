@@ -41,6 +41,10 @@
   min-width: 0;
 }
 
+.icon-btn.chat-topbar__back {
+  display: none;
+}
+
 .chat-topbar__heading {
   display: flex;
   align-items: center;
@@ -65,7 +69,7 @@
   width: var(--sp2);
   height: var(--sp2);
   border-radius: var(--radius-pill);
-  background-color: var(--green-chart);
+  background-color: var(--accent-strong);
   animation:
     chat-topbar-pop var(--motion-base) var(--ease-spring) both,
     chat-topbar-live 1.6s ease-out infinite;
@@ -173,7 +177,7 @@
 }
 
 .chat-topbar__tour:hover .chat-topbar__tour-icon {
-  color: var(--green-chart);
+  color: var(--accent-strong);
   transform: rotate(-14deg) scale(1.1);
 }
 
@@ -231,6 +235,10 @@
 @media (max-width: 768px) {
   .chat-topbar {
     padding: 0 var(--sp3);
+  }
+
+  .icon-btn.chat-topbar__back {
+    display: inline-flex;
   }
 
   .chat-topbar__description {

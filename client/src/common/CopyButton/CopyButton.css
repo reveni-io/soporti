@@ -23,7 +23,7 @@
 }
 
 .copy-button--surface:hover {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }

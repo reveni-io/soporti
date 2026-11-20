@@ -8,6 +8,7 @@ const googleDriveIsConfigured = vi.fn()
 const shortcutIsConfigured = vi.fn()
 const sentryIsConfigured = vi.fn()
 const betterstackIsConfigured = vi.fn()
+const awsIsConfigured = vi.fn()
 const granolaIsConfigured = vi.fn()
 const gmailIsConfigured = vi.fn()
 const googleCalendarIsConfigured = vi.fn()
@@ -25,6 +26,7 @@ vi.mock('../google-drive/client.js', () => ({ isConfigured: (...args) => googleD
 vi.mock('../shortcut/client.js', () => ({ isConfigured: (...args) => shortcutIsConfigured(...args) }))
 vi.mock('../sentry/client.js', () => ({ isConfigured: (...args) => sentryIsConfigured(...args) }))
 vi.mock('../betterstack/client.js', () => ({ isConfigured: (...args) => betterstackIsConfigured(...args) }))
+vi.mock('../aws/client.js', () => ({ isConfigured: (...args) => awsIsConfigured(...args) }))
 vi.mock('../granola/client.js', () => ({ isConfigured: (...args) => granolaIsConfigured(...args) }))
 vi.mock('../gmail/client.js', () => ({ isConfigured: (...args) => gmailIsConfigured(...args) }))
 vi.mock('../google-calendar/client.js', () => ({ isConfigured: (...args) => googleCalendarIsConfigured(...args) }))
@@ -45,6 +47,7 @@ function configureAll(value) {
   shortcutIsConfigured.mockResolvedValue(value)
   sentryIsConfigured.mockResolvedValue(value)
   betterstackIsConfigured.mockResolvedValue(value)
+  awsIsConfigured.mockResolvedValue(value)
   granolaIsConfigured.mockResolvedValue(value)
   gmailIsConfigured.mockResolvedValue(value)
   googleCalendarIsConfigured.mockResolvedValue(value)
@@ -76,6 +79,7 @@ describe('listConfiguredIntegrations', () => {
       'gmail',
       'google-calendar',
       'betterstack',
+      'aws',
       'figma',
       'zendesk',
       'sendcloud',
@@ -86,6 +90,12 @@ describe('listConfiguredIntegrations', () => {
       id: 'betterstack',
       name: 'Better Stack',
       description: 'Search and query application logs',
+      selectable: true,
+    })
+    expect(integrations.find(integration => integration.id === 'aws')).toEqual({
+      id: 'aws',
+      name: 'AWS',
+      description: 'Check CloudWatch alarms, ECS services and metrics (read-only)',
       selectable: true,
     })
   })
@@ -110,6 +120,7 @@ describe('listConfiguredIntegrations', () => {
       gmail: true,
       'google-calendar': true,
       betterstack: true,
+      aws: true,
       figma: true,
       zendesk: true,
       sendcloud: true,

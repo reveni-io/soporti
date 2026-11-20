@@ -1,0 +1,108 @@
+.lp-slack-demo .lp-preview-window {
+  height: 28rem;
+}
+
+.lp-slack-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp5);
+  padding: var(--sp5);
+}
+
+.lp-slack-demo__message {
+  display: flex;
+  gap: var(--sp3);
+}
+
+.lp-slack-demo__message--reply {
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-slack-demo__avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--orange-300);
+  font-weight: 600;
+  color: var(--green-deep);
+}
+
+.lp-slack-demo__avatar--bot {
+  background: var(--green-deep);
+  font-family: var(--font-heading);
+  color: var(--green-bright);
+}
+
+.lp-slack-demo__content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp1);
+  font-size: var(--fs-base);
+}
+
+.lp-slack-demo__meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.lp-slack-demo__meta strong {
+  font-size: var(--fs-base);
+  color: var(--text-primary);
+}
+
+.lp-slack-demo__app {
+  padding: 0 var(--sp1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-cool);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+}
+
+.lp-slack-demo__mention {
+  padding: 0 var(--sp1);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--green-chart-rgb), 0.14);
+  color: var(--green-chart);
+}
+
+.lp-slack-demo__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  margin-top: var(--sp1);
+  padding: var(--sp2) var(--sp3);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--green-chart);
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+
+.lp-slack-demo__step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  min-width: 0;
+  font-size: var(--fs-sm);
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-slack-demo__details {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.lp-slack-demo__answer {
+  margin-top: var(--sp2);
+  line-height: 1.55;
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}

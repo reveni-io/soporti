@@ -65,8 +65,8 @@
 
 .avatar-studio__swatch--selected,
 .avatar-studio__swatch--selected:hover {
-  border-color: var(--green-chart);
-  background-color: var(--success-low);
+  border-color: var(--accent-strong);
+  background-color: var(--success-bg);
 }
 
 .avatar-studio__swatch:has(:focus-visible) {
@@ -86,7 +86,7 @@
   width: var(--sp5);
   height: var(--sp5);
   border-radius: var(--radius-pill);
-  box-shadow: inset 0 0 0 1px rgba(var(--green-deep-rgb), 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--ink-rgb), 0.08);
 }
 
 @media (max-width: 768px) {

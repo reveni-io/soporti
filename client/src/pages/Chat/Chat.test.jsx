@@ -82,11 +82,13 @@ vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
     bot,
     onOpenRoutines,
     onEditBot,
+    onBackToBots,
   }) => (
     <div data-testid="chat" data-sidebar-collapsed={isSidebarCollapsed}>
       <span data-testid="chat-bot">{bot?.name}</span>
       <button onClick={onOpenRoutines}>Open Routines</button>
       <button onClick={onEditBot}>Edit Bot</button>
+      <button onClick={onBackToBots}>Back To Bots</button>
       <span data-testid="msg-count">{messages.length}</span>
       <span data-testid="initial-question">{initialQuestion}</span>
       <button onClick={() => onSend('hello')}>Send</button>
@@ -750,6 +752,14 @@ describe('Chat', () => {
       avatarSeed: 'seed-3',
       unreadCount: 0,
     }
+    const RELEASES = {
+      id: 4,
+      name: 'Release notes',
+      description: 'Writes the release notes.',
+      profile: 'support',
+      avatarSeed: 'seed-4',
+      unreadCount: 0,
+    }
 
     function respond(body, status = 200) {
       return { ok: status < 400, status, json: async () => body }
@@ -766,6 +776,7 @@ describe('Chat', () => {
         openBot: vi.fn().mockResolvedValue(),
         refreshBot: vi.fn().mockResolvedValue(),
         activeConversations: [],
+        busyBotIds: [],
         completedRuns: 0,
         sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002',
         ...overrides,
@@ -795,7 +806,7 @@ describe('Chat', () => {
       return <span data-testid="location">{useLocation().pathname}</span>
     }
 
-    it('shows the bots instead of a chat at /bots', async () => {
+    it('lists the bots and asks to pick one at /bots', async () => {
       serveBots([TRIAGER])
       useAuth.mockReturnValue(SIGNED_IN)
       useChat.mockReturnValue(chatState())
@@ -807,6 +818,7 @@ describe('Chat', () => {
       )
 
       expect(await screen.findByRole('link', { name: /ticket triager/i })).toHaveAttribute('href', '/bots/3')
+      expect(screen.getByRole('heading', { name: 'Pick a bot' })).toBeInTheDocument()
       expect(screen.queryByTestId('chat')).not.toBeInTheDocument()
     })
 
@@ -822,7 +834,8 @@ describe('Chat', () => {
         </MemoryRouter>
       )
 
-      expect(await screen.findByText('Ticket triager')).toBeInTheDocument()
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
+      expect(screen.getByRole('link', { name: /ticket triager/i })).toHaveAttribute('aria-current', 'page')
       expect(useChat.mock.lastCall[3]).toBe(3)
       expect(state.openBot).toHaveBeenCalledWith(3)
       await waitFor(() =>
@@ -845,6 +858,7 @@ describe('Chat', () => {
       )
 
       expect(await screen.findByRole('heading', { name: 'Bot not found.' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /ticket triager/i })).not.toHaveAttribute('aria-current')
       expect(screen.queryByTestId('chat')).not.toBeInTheDocument()
     })
 
@@ -860,7 +874,7 @@ describe('Chat', () => {
           <Chat />
         </MemoryRouter>
       )
-      await screen.findByText('Ticket triager')
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
       await user.click(screen.getByText('Send'))
 
       expect(state.sendMessage).toHaveBeenCalledTimes(1)
@@ -870,6 +884,65 @@ describe('Chat', () => {
         skills: [],
         attachments: [],
       })
+    })
+
+    it('switches to another bot from the list while the chat stays beside it', async () => {
+      serveBots([TRIAGER, RELEASES])
+      const state = chatState()
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(state)
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
+      await user.click(screen.getByRole('link', { name: /release notes/i }))
+
+      expect(screen.getByTestId('location')).toHaveTextContent('/bots/4')
+      expect(screen.getByTestId('chat-bot')).toHaveTextContent('Release notes')
+      expect(screen.getByRole('link', { name: /release notes/i })).toHaveAttribute('aria-current', 'page')
+      expect(screen.getByRole('link', { name: /ticket triager/i })).toBeInTheDocument()
+      expect(useChat.mock.lastCall[3]).toBe(4)
+      expect(state.openBot).toHaveBeenLastCalledWith(4)
+    })
+
+    it('shows in the list which bots are still answering', async () => {
+      serveBots([TRIAGER, RELEASES])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState({ busyBotIds: [3] }))
+
+      render(
+        <MemoryRouter initialEntries={['/bots/4']}>
+          <Chat />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByRole('link', { name: /ticket triager/i })).toHaveTextContent('Thinking…')
+      expect(screen.getByRole('link', { name: /release notes/i })).not.toHaveTextContent('Thinking…')
+    })
+
+    it('goes back to the list from the chat of a bot', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+      const user = userEvent.setup()
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
+      await user.click(screen.getByText('Back To Bots'))
+
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/bots$/)
+      expect(screen.getByRole('heading', { name: 'Pick a bot' })).toBeInTheDocument()
+      expect(screen.queryByTestId('chat')).not.toBeInTheDocument()
     })
 
     it('marks the bots link while a bot has something new', async () => {
@@ -895,7 +968,7 @@ describe('Chat', () => {
           <LocationProbe />
         </MemoryRouter>
       )
-      await screen.findByText('Ticket triager')
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
       await user.click(screen.getByText('New Chat'))
 
       expect(state.newChat).toHaveBeenCalledTimes(1)
@@ -954,7 +1027,7 @@ describe('Chat', () => {
           <Chat />
         </MemoryRouter>
       )
-      await screen.findByText('Ticket triager')
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
       await user.click(screen.getByText('Open Routines'))
 
       expect(screen.getByRole('dialog', { name: 'Routines' })).toBeInTheDocument()
@@ -976,7 +1049,7 @@ describe('Chat', () => {
           <Chat />
         </MemoryRouter>
       )
-      await screen.findByText('Ticket triager')
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
       await user.click(screen.getByText('Edit Bot'))
 
       expect(screen.getByRole('dialog', { name: 'Edit bot' })).toBeInTheDocument()
@@ -1002,7 +1075,7 @@ describe('Chat', () => {
           <LocationProbe />
         </MemoryRouter>
       )
-      await screen.findByText('Ticket triager')
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
       await user.click(screen.getByText('Edit Bot'))
       await user.click(screen.getByRole('button', { name: 'Delete bot' }))
       await user.click(screen.getByRole('button', { name: 'Yes, delete' }))

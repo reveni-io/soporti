@@ -2,7 +2,7 @@
   margin: var(--sp2) 0;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   overflow: hidden;
   transition:
     border-color 0.24s ease,
@@ -11,7 +11,7 @@
 
 .agent-steps--running {
   border-color: rgba(var(--green-bright-rgb), 0.6);
-  background-color: var(--green-inverse);
+  background-color: var(--bg-accent-subtle);
 }
 
 .agent-steps__header {
@@ -55,7 +55,7 @@
 }
 
 .agent-steps__icon-check {
-  stroke: var(--green-chart);
+  stroke: var(--accent-strong);
 }
 
 .agent-steps--running .agent-steps__icon-list {
@@ -164,7 +164,7 @@
 
 .agent-steps__status-arc {
   fill: none;
-  stroke: var(--green-chart);
+  stroke: var(--accent-strong);
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-dasharray: 15 42;
@@ -180,7 +180,7 @@
 
 .agent-steps__status-check {
   fill: none;
-  stroke: var(--green-chart);
+  stroke: var(--accent-strong);
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;

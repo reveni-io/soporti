@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import Section from './Section.jsx'
 
 describe('Section', () => {
-  it('renders its children inside a revealable inner wrapper', () => {
+  it('renders its children inside the stage that reveals them on scroll', () => {
     const { container } = render(
       <Section>
         <p>Body</p>
@@ -11,18 +11,18 @@ describe('Section', () => {
     )
 
     expect(screen.getByText('Body')).toBeInTheDocument()
-    expect(container.querySelector('.lp-reveal')).toBeInTheDocument()
+    expect(container.querySelector('.lp-stage')).toContainElement(screen.getByText('Body'))
   })
 
   it('applies the id and the extra class name it is given', () => {
     const { container } = render(
-      <Section id="ask" className="lp-section--white">
+      <Section id="mcp" className="lp-section--mcp">
         <p>Body</p>
       </Section>
     )
 
     const section = container.querySelector('section')
-    expect(section).toHaveAttribute('id', 'ask')
-    expect(section).toHaveClass('lp-section', 'lp-section--white')
+    expect(section).toHaveAttribute('id', 'mcp')
+    expect(section).toHaveClass('lp-section', 'lp-section--mcp')
   })
 })

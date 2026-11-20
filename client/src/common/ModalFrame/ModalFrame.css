@@ -17,7 +17,7 @@
 }
 
 .modal-frame__close:hover {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .modal-frame__close:focus-visible {

@@ -35,7 +35,7 @@ export default function SharedArtifact({ shareId }) {
 
   return (
     <div className="shared-artifact">
-      <GridPattern variant="light" />
+      <GridPattern variant="surface" />
 
       <header className="shared-artifact__header">
         <span className="shared-artifact__brand">Soporti</span>

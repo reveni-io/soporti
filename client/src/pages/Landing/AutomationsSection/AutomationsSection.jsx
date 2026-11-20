@@ -1,87 +1,107 @@
-import FeatureCard from '../FeatureCard/FeatureCard.jsx'
+import Icon from '../../../common/Icon/Icon.jsx'
+import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
+import PrReviewDemo from '../PrReviewDemo/PrReviewDemo.jsx'
+import ScheduleDemo from '../ScheduleDemo/ScheduleDemo.jsx'
 import Section from '../Section/Section.jsx'
+import SectionHeading from '../SectionHeading/SectionHeading.jsx'
+import SlackThreadDemo from '../SlackThreadDemo/SlackThreadDemo.jsx'
+import { SECTION_IDS } from '../constants.js'
+import { useAutoCycle } from '../hooks/useAutoCycle/useAutoCycle.js'
+import { staggerStyle } from '../stagger.js'
+import './AutomationsSection.css'
+
+const CYCLE_MS = 10000
+const ICON_SIZE = 18
+const PANEL_ID = 'lp-automations-panel'
 
 const AUTOMATIONS = [
   {
-    icon: '💬',
-    title: 'Slack teammate',
-    description: 'Mention Soporti in Slack and it answers in the thread — same tools, same guardrails.',
-    bullets: [
-      'Auto-diagnoses new support tickets on its own',
-      'Reads screenshots attached to a ticket (vision)',
-      'Writes its findings back onto the ticket',
-      'Posts to a channel when you ask, from any conversation — wherever the bot has been invited',
-    ],
+    id: 'reviews',
+    icon: <IntegrationIcon id="github" size={ICON_SIZE} />,
+    title: 'Reviews every pull request',
+    text: 'Request a review, add a label or comment “@soporti review”. Agents hunt bugs, security holes and broken standards in parallel, and a verifier tries to refute every finding before it is posted.',
+    Demo: PrReviewDemo,
   },
   {
-    icon: '⏰',
-    title: 'Scheduled queries',
-    description:
-      'Save a question with a cadence and Soporti asks itself on time — hourly, daily, weekly or monthly, in your own time zone.',
-    bullets: [
-      'Runs with the sources and profile you picked',
-      'Every run lands as its own conversation you can continue',
-      'Edit the question, cadence or sources anytime without losing its history',
-      'Relative periods like “errors in the last hour” are measured from when each run starts, in its time zone',
-      'Ask for the answer in Slack — “every morning at 9, summarize the new Sentry issues in #support” — and each run posts it there',
-      'The answer is waiting before you think to ask',
-    ],
+    id: 'slack',
+    icon: <IntegrationIcon id="slack" size={ICON_SIZE} />,
+    title: 'Answers in Slack threads',
+    text: 'Mention it in any channel and the reply is a live card: every source it opens shows up as a step, and the answer writes itself in underneath.',
+    Demo: SlackThreadDemo,
   },
   {
-    icon: '🔍',
-    title: 'Automated PR reviews',
-    description:
-      'Request a review, add a label or just comment “@soporti review” on the PR — a team of Soporti agents reviews the code with your changes actually applied, each one hunting a different kind of problem.',
-    bullets: [
-      'Specialized passes in parallel: correctness, security, standards (cites your REVIEW.md, CLAUDE.md & ADRs) and spec vs. the linked Shortcut stories',
-      'Starts with the whole diff, your standards and the stories already loaded, so nothing goes unread; lockfiles never block an approval',
-      'Big PRs split the correctness pass across up to four agents, so no file gets skimmed',
-      'A verifier tries to refute every actionable finding against the code before it is posted, and folds duplicates into one comment',
-      'A pass that runs long never loses its work: at the turn limit it hands in what it already verified',
-      'One walkthrough per PR, updated in place: merge risk, review effort, changes and checks',
-      'Inline comments with severity badges, why each one was flagged, one-click suggestions and a prompt for your AI agent',
-      'Nits stay collapsed in the review; it can approve trivial PRs and never blocks',
-      'Reads the head commit’s CI: ties a broken test to the line that broke it, never repeats the linter',
-      'Re-reviews focus on new pushes, say what got fixed and never repeat resolved findings',
-      'When a push fixes something it flagged, the re-review marks that comment “Addressed in commit …” and resolves the thread, without pinging anyone',
-      'Keep the label on and every push gets re-reviewed — a burst of commits waits for the last one',
-      'The review command is for your team only; any other @-mention gets a reply right in the PR thread',
-    ],
-  },
-  {
-    icon: '🌱',
-    title: 'Learns from feedback',
-    description: 'A 👍 on a good answer saves it as a solved case, and future questions reuse it automatically.',
-    bullets: [
-      'Answers get grounded in past resolutions',
-      'Semantic search over the knowledge base',
-      'Gets more accurate the more the team uses it',
-    ],
+    id: 'schedule',
+    icon: <Icon name="clock" size={ICON_SIZE} />,
+    title: 'Runs on a schedule',
+    text: 'Save a question with a cadence, hourly to monthly in your own time zone. Each run lands as a conversation you can continue, or as a post in the channel you named.',
+    Demo: ScheduleDemo,
   },
 ]
 
 export default function AutomationsSection() {
+  const cycle = useAutoCycle({ count: AUTOMATIONS.length, intervalMs: CYCLE_MS })
+  const { id, Demo } = AUTOMATIONS[cycle.active]
+
   return (
-    <Section id="automations" className="lp-section--warm">
-      <div className="lp-section__head">
-        <span className="lp-eyebrow">Beyond the chat</span>
-        <h2 className="lp-h2">Soporti shows up where the work happens.</h2>
-        <p className="lp-lead">
-          The same brain that answers in chat also works autonomously on a schedule, in Slack and on GitHub.
-        </p>
-      </div>
-      <div className="lp-feat__grid lp-feat__grid--2col">
-        {AUTOMATIONS.map(automation => (
-          <FeatureCard
-            key={automation.title}
-            icon={automation.icon}
-            title={automation.title}
-            description={automation.description}
-            bullets={automation.bullets}
-            light
-          />
-        ))}
+    <Section id={SECTION_IDS.AUTOMATIONS}>
+      <SectionHeading
+        eyebrow="Beyond the chat"
+        title={
+          <>
+            It keeps working <em>when nobody is asking</em>.
+          </>
+        }
+        lead="The same brain that answers in the chat reviews your pull requests, replies in Slack threads and runs your questions on a schedule."
+      />
+
+      <div className="lp-automations lp-rise" style={staggerStyle(3)} ref={cycle.ref} {...cycle.hoverProps}>
+        <div className="lp-automations__list" role="tablist" aria-label="Automations" aria-orientation="vertical">
+          {AUTOMATIONS.map((automation, index) => (
+            <AutomationTab
+              key={automation.id}
+              automation={automation}
+              isActive={index === cycle.active}
+              progressKey={cycle.progressKey}
+              onSelect={() => cycle.select(index)}
+            />
+          ))}
+        </div>
+
+        <div
+          key={id}
+          className="lp-automations__stage"
+          role="tabpanel"
+          id={PANEL_ID}
+          aria-labelledby={`lp-automations-tab-${id}`}
+        >
+          <Demo />
+        </div>
       </div>
     </Section>
+  )
+}
+
+function AutomationTab({ automation, isActive, progressKey, onSelect }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={`lp-automations-tab-${automation.id}`}
+      className={`lp-automations__tab lp-focusable${isActive ? ' lp-automations__tab--active' : ''}`}
+      aria-selected={isActive}
+      aria-controls={PANEL_ID}
+      onClick={onSelect}
+    >
+      <span className="lp-automations__icon">{automation.icon}</span>
+      <span className="lp-automations__copy">
+        <span className="lp-automations__title">{automation.title}</span>
+        <span className="lp-automations__text">
+          <span>{automation.text}</span>
+        </span>
+      </span>
+      {isActive && progressKey && (
+        <span key={progressKey} className="lp-progress-bar" style={{ animationDuration: `${CYCLE_MS}ms` }} />
+      )}
+    </button>
   )
 }

@@ -1,0 +1,115 @@
+.lp-bento-card {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.09);
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(180deg, rgba(var(--green-inverse-rgb), 0.05), rgba(var(--green-inverse-rgb), 0.015));
+}
+
+.lp-bento-card--wide {
+  grid-column: span 2;
+}
+
+.lp-bento-card::before,
+.lp-bento-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-slow) ease;
+}
+
+.lp-bento-card::before {
+  z-index: 3;
+  padding: 1px;
+  background: radial-gradient(
+    26rem circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(var(--green-bright-rgb), 0.6),
+    transparent 45%
+  );
+  mask:
+    linear-gradient(var(--green-deep) 0 0) content-box,
+    linear-gradient(var(--green-deep) 0 0);
+  mask-composite: exclude;
+}
+
+.lp-bento-card::after {
+  z-index: -1;
+  background: radial-gradient(
+    34rem circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(var(--green-bright-rgb), 0.08),
+    transparent 42%
+  );
+}
+
+.lp-bento:hover .lp-bento-card::before,
+.lp-bento:hover .lp-bento-card::after {
+  opacity: 1;
+}
+
+.lp-bento-card__visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 23rem;
+  padding: var(--sp6);
+  overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, rgba(var(--green-bright-rgb), 0.09), transparent 70%);
+}
+
+.lp-bento-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp8) var(--sp8);
+}
+
+.lp-bento-card__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--green-bright);
+}
+
+.lp-bento-card__title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-3xl);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--green-inverse);
+}
+
+.lp-bento-card__text {
+  max-width: 34rem;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.64);
+}
+
+@media (max-width: 960px) {
+  .lp-bento-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .lp-bento-card__visual {
+    height: 21rem;
+    padding: var(--sp4);
+  }
+
+  .lp-bento-card__copy {
+    padding: var(--sp4) var(--sp5) var(--sp6);
+  }
+}

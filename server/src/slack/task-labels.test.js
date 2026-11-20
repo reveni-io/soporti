@@ -22,6 +22,18 @@ describe('describeToolCall', () => {
     })
   })
 
+  it('labels the AWS tools with what they look at', () => {
+    expect(describeToolCall('aws_get_ecs_service', JSON.stringify({ service: 'prod-backend' }))).toEqual({
+      title: 'Inspecting ECS service',
+      details: 'prod-backend',
+    })
+    expect(describeToolCall('aws_list_alarms', '{}')).toEqual({ title: 'Checking AWS alarms' })
+    expect(describeToolCall('aws_get_metric_data', JSON.stringify({ metricName: 'CPUUtilization' }))).toEqual({
+      title: 'Reading CloudWatch metric',
+      details: 'CPUUtilization',
+    })
+  })
+
   it('labels the Sendcloud tools with the number they look up', () => {
     expect(describeToolCall('sendcloud_get_tracking', JSON.stringify({ trackingNumber: 'JVGL0612345' }))).toEqual({
       title: 'Tracking Sendcloud parcel',

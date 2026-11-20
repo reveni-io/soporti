@@ -43,7 +43,7 @@
   align-items: center;
   gap: var(--sp3);
   padding: var(--sp3) var(--sp4);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border-bottom: 1px solid var(--border-default);
 }
 
