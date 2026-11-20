@@ -1,4 +1,3 @@
-import { AUTO_APPROVE_SHADOW } from '../constants.js'
 import { renderDetails, tableCell } from './markdown.js'
 
 const CONFIDENCE_DIGITS = 2
@@ -46,27 +45,16 @@ function describeWhyNot({ reason, checks }) {
 }
 
 function describeOutcome(autoApprove) {
-  const { repo, mode, approve, checks } = autoApprove
-  const name = `\`${repo}\``
-  const clean = approve && `${listGuards(checks.map(check => check.guard))} raised no warning`
-
-  if (mode === AUTO_APPROVE_SHADOW) {
-    return approve
-      ? [
-          '👁️ Auto-approve · shadow: would approve',
-          `${name} is in \`shadow\` mode and ${clean}, so Soporti would have approved this PR. Nothing was approved: review it as usual.`,
-        ]
-      : [
-          '👁️ Auto-approve · shadow: would not approve',
-          `${name} is in \`shadow\` mode and ${describeWhyNot(autoApprove)}, so Soporti would not have approved this PR. Review it as usual.`,
-        ]
-  }
+  const { approve, checks } = autoApprove
 
   return approve
-    ? ['✅ Auto-approve · approved', `${name} is set to \`on\` and ${clean}, so Soporti approved this PR.`]
+    ? [
+        '✅ Guards · no warnings',
+        `REVIEW.md names ${listGuards(checks.map(check => check.guard))}, and none raised a warning.`,
+      ]
     : [
-        '⛔ Auto-approve · not approved',
-        `${name} is set to \`on\`, but ${describeWhyNot(autoApprove)}. Review it as usual.`,
+        '⛔ Guards · not approved',
+        `Soporti did not approve this PR because ${describeWhyNot(autoApprove)}. Review it as usual.`,
       ]
 }
 

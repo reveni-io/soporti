@@ -11,10 +11,7 @@ function check(guard, rows = [row('Is it risky?')]) {
 
 function autoApprove(overrides = {}) {
   return {
-    repo: 'acme/web',
-    mode: 'on',
     approve: true,
-    decidedBy: 'jev',
     reason: null,
     checks: [check('GitHub Review PR'), check('Payments')],
     ...overrides,
@@ -22,12 +19,12 @@ function autoApprove(overrides = {}) {
 }
 
 describe('renderAutoApprove', () => {
-  it('says the PR was approved because every guard named raised no warning', () => {
+  it('says every guard REVIEW.md names raised no warning', () => {
     const text = renderAutoApprove(autoApprove())
 
-    expect(text).toContain('✅ Auto-approve · approved')
+    expect(text).toContain('✅ Guards · no warnings')
     expect(text).toContain(
-      '`acme/web` is set to `on` and the **GitHub Review PR** and **Payments** guards raised no warning, so Soporti approved this PR.'
+      'REVIEW.md names the **GitHub Review PR** and **Payments** guards, and none raised a warning.'
     )
   })
 
@@ -39,28 +36,19 @@ describe('renderAutoApprove', () => {
       })
     )
 
-    expect(text).toContain('⛔ Auto-approve · not approved')
-    expect(text).toContain('but the **Payments** guard raised a warning. Review it as usual.')
-  })
-
-  it('gives the reason when no guard could decide', () => {
-    const text = renderAutoApprove(autoApprove({ approve: false, reason: 'the repo has no REVIEW.md', checks: [] }))
-
-    expect(text).toContain('but the repo has no REVIEW.md. Review it as usual.')
-  })
-
-  it('tells what shadow mode would have done', () => {
-    expect(renderAutoApprove(autoApprove({ mode: 'shadow' }))).toContain(
-      '`acme/web` is in `shadow` mode and the **GitHub Review PR** and **Payments** guards raised no warning, so Soporti would have approved this PR.'
+    expect(text).toContain('⛔ Guards · not approved')
+    expect(text).toContain(
+      'Soporti did not approve this PR because the **Payments** guard raised a warning. Review it as usual.'
     )
-    expect(
-      renderAutoApprove(
-        autoApprove({ mode: 'shadow', approve: false, reason: 'its REVIEW.md names no guard', checks: [] })
-      )
-    ).toContain('`acme/web` is in `shadow` mode and its REVIEW.md names no guard, so Soporti would not have approved')
   })
 
-  it('renders nothing without an evaluation', () => {
+  it('gives the reason when the guards could not run', () => {
+    const text = renderAutoApprove(autoApprove({ approve: false, reason: 'the guards could not run', checks: [] }))
+
+    expect(text).toContain('Soporti did not approve this PR because the guards could not run. Review it as usual.')
+  })
+
+  it('renders nothing when no guard ran', () => {
     expect(renderAutoApprove(null)).toBeNull()
   })
 })

@@ -23,7 +23,7 @@ import { classifyMergeRisk, renderInlineComment, renderReviewBody, renderWalkthr
 import { suggestReviewers } from './reviewer-suggestions.js'
 import { upsertWalkthrough } from './walkthrough.js'
 import { resolveFixedThreads, selectFixedThreads } from './fixed-threads.js'
-import { decideAutoApprove, loadAutoApproveRepo } from './auto-approve.js'
+import { decideAutoApprove } from './auto-approve.js'
 import { shortSha } from '../github/sanitize.js'
 import {
   PR_HEAD_PLACEHOLDER,
@@ -54,7 +54,6 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     const current = refreshTrigger(trigger, pr)
     reviewedSha = current.headSha
-    const autoApproveRepo = await loadAutoApproveRepo(repoFullName, { logger })
     if (headSha !== PR_HEAD_PLACEHOLDER && current.headSha !== headSha) {
       logger.log(
         `[review] Head moved ${shortSha(headSha)} → ${shortSha(current.headSha)} on ${dedupeKey}; reviewing the current head`
@@ -131,7 +130,6 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const fixedThreads = selectFixedThreads(team.overview, history)
     const { event, autoApprove } = await decideAutoApprove(
       {
-        repo: autoApproveRepo,
         standards,
         todayEvent: resolveEvent(team, notReviewed),
         pullRequest: { repoFullName, prNumber, headSha: reviewedSha, title: current.title, body: current.body },

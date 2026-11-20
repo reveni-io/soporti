@@ -28,7 +28,7 @@ const AUTOMATIONS = [
     id: 'approve',
     icon: <Icon name="check" size={ICON_SIZE} />,
     title: 'Approves the safe pull requests',
-    text: 'Pick your repos from the ones your GitHub token can read and start each in shadow: every review says whether it would have approved. Turn it on, and a pull request is approved only when the guards its REVIEW.md names raise no warning.',
+    text: 'Name guards in a repo’s REVIEW.md and every pull request goes through them: Soporti approves the safe ones only when the guards raise no warning.',
     Demo: AutoApproveDemo,
   },
   {

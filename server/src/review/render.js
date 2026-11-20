@@ -93,7 +93,7 @@ export function renderReviewBody({
   const inlineTitle = isInlineInBody ? 'Actionable comments' : 'Inline comments'
 
   const sections = [
-    renderHeader(event, findings, autoApprove),
+    renderHeader(event, findings),
     renderPartialNote(coverage.notReviewed, passes),
     renderAutoApprove(autoApprove),
     renderJevAnswers(autoApprove),
@@ -206,8 +206,8 @@ function lineRange({ startLine, line }) {
   return { start: Number.isInteger(startLine) && startLine < line ? startLine : line, end: line }
 }
 
-function renderHeader(event, { inline, outside }, autoApprove) {
-  if (event === 'APPROVE' && !autoApprove) return '✅ **Approved**: trivial change, safe to merge'
+function renderHeader(event, { inline, outside }) {
+  if (event === 'APPROVE') return '✅ **Approved**: trivial change, safe to merge'
 
   const actionable = [...inline, ...outside]
   const rollup = REVIEW_SEVERITIES.map(severity => [severity, actionable.filter(f => f.severity === severity).length])

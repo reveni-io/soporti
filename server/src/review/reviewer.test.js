@@ -58,13 +58,10 @@ vi.mock('./spec.js', () => ({
   loadSpec: mockLoadSpec,
 }))
 
-const mockLoadAutoApproveRepo = vi.fn()
 const mockDecideAutoApprove = vi.fn()
 vi.mock('./auto-approve.js', () => ({
-  loadAutoApproveRepo: mockLoadAutoApproveRepo,
   decideAutoApprove: mockDecideAutoApprove,
 }))
-mockLoadAutoApproveRepo.mockResolvedValue(null)
 mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
 
 const mockSuggestReviewers = vi.fn(async () => null)
@@ -321,8 +318,7 @@ describe('runReview', () => {
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
   })
 
-  it('lets the auto-approve settings of the repo decide the event, with the mode read at the start', async () => {
-    const repo = { name: 'acme-io/app', mode: 'on' }
+  it('lets the guards REVIEW.md names decide the event, with the standards of the repo', async () => {
     const check = {
       guard: 'GitHub Review PR',
       answered: true,
@@ -331,25 +327,15 @@ describe('runReview', () => {
       minConfidence: 0.75,
       rows: [],
     }
-    const autoApprove = {
-      repo: 'acme-io/app',
-      mode: 'on',
-      approve: true,
-      decidedBy: 'jev',
-      reason: null,
-      checks: [check],
-    }
-    mockLoadAutoApproveRepo.mockResolvedValueOnce(repo)
+    const autoApprove = { approve: true, reason: null, checks: [check] }
     mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
     setupHappyPath({ verdict: 'comment', findings: [] })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockLoadAutoApproveRepo).toHaveBeenCalledWith('acme-io/app', { logger: silentLogger })
     expect(mockDecideAutoApprove).toHaveBeenCalledTimes(1)
     const [context] = mockDecideAutoApprove.mock.calls[0]
     expect(context).toMatchObject({
-      repo,
       todayEvent: 'COMMENT',
       pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
       review: { findings: [], notReviewed: [], fixedThreads: [] },
@@ -358,8 +344,7 @@ describe('runReview', () => {
     expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
     const posted = mockCreatePullRequestReview.mock.calls[0][2]
     expect(posted.event).toBe('APPROVE')
-    expect(posted.body).toContain('✅ Auto-approve · approved')
-    expect(posted.body).toContain('**Actionable comments posted: 0**')
+    expect(posted.body).toContain('✅ Guards · no warnings')
     expect(posted.body).toMatch(/\*\*Passes:\*\* .*, guards \(GitHub Review PR\)/)
   })
 

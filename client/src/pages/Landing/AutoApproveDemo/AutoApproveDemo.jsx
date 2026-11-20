@@ -50,7 +50,7 @@ export default function AutoApproveDemo() {
           <div className="lp-approve-demo__head">
             <IntegrationIcon id="github" size={LOGO_SIZE} />
             <span className="lp-approve-demo__title">{PR.title}</span>
-            <span className="chip chip--pill lp-approve-demo__mode">{PR.repo} · on</span>
+            <span className="chip chip--pill lp-approve-demo__mode">{PR.repo} · REVIEW.md</span>
           </div>
 
           <ul className="lp-approve-demo__checks">
@@ -65,7 +65,7 @@ export default function AutoApproveDemo() {
 
           {isApproved && (
             <div className="lp-approve-demo__verdict">
-              <strong>✅ Auto-approve · approved</strong>
+              <strong>✅ Guards · no warnings</strong>
               <span>The guards its REVIEW.md names raised no warning, so Soporti approved the pull request.</span>
             </div>
           )}

@@ -56,14 +56,6 @@ export const SUBAGENT_NAME_RE = new RegExp(`^[a-z][a-z0-9_]{1,${SUBAGENT_NAME_MA
 export const MAX_SUBAGENT_DESCRIPTION_LENGTH = 1000
 export const SUBAGENT_TOOL_PREFIX = 'ask_'
 
-export const AUTO_APPROVE_DOCUMENT = 'auto-approve'
-
-export const AUTO_APPROVE_OFF = 'off'
-export const AUTO_APPROVE_SHADOW = 'shadow'
-export const AUTO_APPROVE_ON = 'on'
-export const AUTO_APPROVE_MODES = [AUTO_APPROVE_OFF, AUTO_APPROVE_SHADOW, AUTO_APPROVE_ON]
-export const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
-
 export const SCHEDULE_HOURLY = 'hourly'
 export const SCHEDULE_DAILY = 'daily'
 export const SCHEDULE_WEEKLY = 'weekly'

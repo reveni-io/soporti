@@ -1,11 +1,4 @@
-import {
-  AUTO_APPROVE_DOCUMENT,
-  JEV_GITHUB_DOCUMENT,
-  JEV_LEGAL_DOCUMENT,
-  JEV_QUESTION_CHOICE,
-  JEV_QUESTION_NOUL,
-} from '../constants.js'
-import { describeGithubChanges, findGithubSaveError, parseGithubRepos } from './github-project.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_QUESTION_CHOICE, JEV_QUESTION_NOUL } from '../constants.js'
 
 const DEFAULT_TIMEOUT_SECONDS = 30
 const DEFAULT_DAILY_LIMIT = 0
@@ -217,13 +210,6 @@ function parseGuard(data, { nameRequired }) {
   return { value: name.value === undefined ? { set: set.value } : { name: name.value, set: set.value } }
 }
 
-function parseAutoApprove(data) {
-  const repos = parseGithubRepos(data?.repos ?? [])
-  if (repos.error) return repos
-
-  return { value: { repos: repos.value } }
-}
-
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
   if (value === null || typeof value !== 'object') return value
@@ -264,8 +250,6 @@ function describeNameChange(previous, next) {
 }
 
 function describeChanges(previous, next) {
-  if (next.repos) return describeGithubChanges(previous, next)
-
   return [...describeNameChange(previous, next), ...describeSetChanges(previous.set, next.set)]
 }
 
@@ -273,10 +257,6 @@ function versionedSet(data) {
   if (!data.set) return null
 
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
-}
-
-function findSaveError(previous, next) {
-  return next.repos ? findGithubSaveError(previous, next) : null
 }
 
 export function isCustomGuardId(id) {
@@ -288,18 +268,16 @@ export function isGuardId(id) {
 }
 
 export function isJevDocument(id) {
-  return id === AUTO_APPROVE_DOCUMENT || isGuardId(id)
+  return isGuardId(id)
 }
 
 export function defaultJevDocument(id) {
-  if (id === AUTO_APPROVE_DOCUMENT) return { repos: [] }
   if (isCustomGuardId(id)) return structuredClone({ name: '', set: DEFAULT_SET })
 
   return LEGACY_GUARD_IDS.has(id) ? structuredClone({ set: DEFAULT_SET }) : null
 }
 
 export function parseJevDocument(id, data) {
-  if (id === AUTO_APPROVE_DOCUMENT) return parseAutoApprove(data)
   if (!isGuardId(id)) return { error: 'Unknown document.' }
 
   return parseGuard(data, { nameRequired: isCustomGuardId(id) })
@@ -308,9 +286,6 @@ export function parseJevDocument(id, data) {
 export function planJevSave(current, next, { restoredFrom = null } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
-
-  const error = findSaveError(current.data, next)
-  if (error) return { error }
 
   const snapshot = versionedSet(next)
   const bumpsSet = snapshot !== null && !isSameValue(versionedSet(current.data), snapshot)

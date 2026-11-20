@@ -22,12 +22,6 @@ vi.mock('../db/jev-documents.js', () => ({
   listJevSetVersions,
 }))
 
-const getRepository = vi.fn()
-vi.mock('../github/client.js', () => ({ getRepository }))
-
-const getShadowStats = vi.fn()
-vi.mock('../db/auto-approve-evaluations.js', () => ({ getShadowStats }))
-
 const countJevCallsByProjectSince = vi.fn()
 const countJevCallsBySetVersion = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince, countJevCallsBySetVersion }))
@@ -40,7 +34,6 @@ const listGuards = vi.fn()
 vi.mock('../guards/registry.js', async importOriginal => ({ ...(await importOriginal()), listGuards }))
 
 const { JEV_API_KEY_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
-const { GITHUB_TOKEN_KEY, _resetSettingsCacheForTests } = await import('../github/settings.js')
 const { default: adminJevRouter } = await import('./admin-jev.js')
 
 const app = express()
@@ -70,7 +63,6 @@ let stored = {}
 beforeEach(() => {
   vi.clearAllMocks()
   _resetJevSettingsCacheForTests()
-  _resetSettingsCacheForTests()
   stored = {}
   getConfigValue.mockImplementation(async key => stored[key] ?? null)
   setConfigValue.mockImplementation(async (key, value) => {
@@ -464,14 +456,14 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
   })
 
   it('returns 422 with the reason when the save breaks a rule', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, error: 'Shadow first: acme/web must be saved in shadow.' })
+    saveJevDocument.mockResolvedValue({ conflict: false, error: 'The name is required.' })
 
     const res = await request(app)
       .put('/api/admin/config/jev/documents/legal')
       .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Shadow first: acme/web must be saved in shadow.' })
+    expect(res.body).toEqual({ error: 'The name is required.' })
   })
 })
 
@@ -486,94 +478,6 @@ describe('GET /api/admin/config/jev/documents/:id/versions', () => {
     expect(res.status).toBe(200)
     expect(res.body.entries).toEqual([{ ...versions.entries[0], calls: 0 }])
     expect(listJevSetVersions).toHaveBeenCalledWith('github', 1)
-  })
-})
-
-describe('POST /api/admin/config/jev/github/repos/check', () => {
-  it('confirms a repo the GitHub token can read', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockResolvedValue({ fullName: 'acme/docs' })
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: ' acme/docs ' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ fullName: 'acme/docs' })
-    expect(getRepository).toHaveBeenCalledWith('acme/docs')
-  })
-
-  it('rejects a name that is not org/repo', async () => {
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'docs' })
-
-    expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'Use the org/repo format, e.g. acme/docs.' })
-  })
-
-  it('asks for the GitHub token first', async () => {
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/docs' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Save the GitHub token first.' })
-    expect(getRepository).not.toHaveBeenCalled()
-  })
-
-  it('explains a repo the token cannot read', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }))
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/secret' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({
-      error: 'The CI token cannot read acme/secret. Give the token read access to the repo, or check the name.',
-    })
-  })
-
-  it('returns 500 for other GitHub errors', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 502 }))
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/docs' })
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to check the repo.' })
-  })
-})
-
-describe('GET /api/admin/config/jev/github/shadow-stats', () => {
-  it('reports the PRs evaluated in shadow, how many would be approved and the days of data', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
-    getShadowStats.mockResolvedValue([
-      { repo: 'acme/web', evaluated: 96, wouldApprove: 40, since: '2026-11-05T13:00:00.000Z' },
-    ])
-
-    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web,acme/docs')
-
-    vi.useRealTimers()
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({
-      repos: [
-        { repo: 'acme/web', evaluated: 96, wouldApprove: 40, days: 14 },
-        { repo: 'acme/docs', evaluated: 0, wouldApprove: 0, days: 0 },
-      ],
-    })
-    expect(getShadowStats).toHaveBeenCalledWith(['acme/web', 'acme/docs'])
-  })
-
-  it.each(['', '?repos=', '?repos=acme'])('rejects %s', async query => {
-    const res = await request(app).get(`/api/admin/config/jev/github/shadow-stats${query}`)
-
-    expect(res.status).toBe(400)
-    expect(getShadowStats).not.toHaveBeenCalled()
-  })
-
-  it('returns 500 when the results cannot be read', async () => {
-    getShadowStats.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web')
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to load the shadow results.' })
   })
 })
 

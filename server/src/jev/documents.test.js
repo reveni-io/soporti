@@ -49,7 +49,7 @@ describe('defaultJevDocument', () => {
       questions: [],
     })
     expect(defaultJevDocument('github')).toEqual(defaultJevDocument('legal'))
-    expect(defaultJevDocument('auto-approve')).toEqual({ repos: [] })
+    expect(defaultJevDocument('auto-approve')).toBeNull()
   })
 
   it('returns a fresh copy every time', () => {
@@ -95,11 +95,7 @@ describe('parseJevDocument', () => {
     expect(parseJevDocument('jev', { enabled: true })).toEqual({ error: 'Unknown document.' })
   })
 
-  it('parses the auto-approve repos, and the GitHub guard like any other guard', () => {
-    expect(parseJevDocument('auto-approve', { repos: [{ name: 'acme/web', mode: 'shadow' }] }).value).toEqual({
-      repos: [{ name: 'acme/web', mode: 'shadow' }],
-    })
-    expect(parseJevDocument('auto-approve', { repos: 'none' })).toEqual({ error: 'Repos must be a list.' })
+  it('parses the GitHub guard like any other guard, without the repos and rules it used to keep', () => {
     expect(parseJevDocument('github', { set: legalSet({ rules: [{ id: 'ci' }] }), repos: [] }).value).toEqual({
       set: parseLegal().value.set,
     })
@@ -216,31 +212,7 @@ describe('created guards', () => {
   })
 })
 
-describe('planJevSave for the auto-approve repos', () => {
-  const shadow = { name: 'acme/web', mode: 'shadow' }
-
-  it('describes the repo changes without a set version', () => {
-    const plan = planJevSave(
-      { rev: 2, data: { repos: [shadow] } },
-      {
-        repos: [
-          { ...shadow, mode: 'on' },
-          { name: 'acme/docs', mode: 'off' },
-        ],
-      }
-    )
-
-    expect(plan).toMatchObject({ change: 'acme/web shadow → on; Added acme/docs (off)', set: null })
-  })
-
-  it('refuses to turn on a repo that was not saved in shadow', () => {
-    const repo = { name: 'acme/web', mode: 'off' }
-
-    expect(planJevSave({ rev: 2, data: { repos: [repo] } }, { repos: [{ ...repo, mode: 'on' }] })).toEqual({
-      error: 'Shadow first: acme/web must be saved in shadow before it can be set to on.',
-    })
-  })
-
+describe('planJevSave for a restored version', () => {
   it('records a restored version of a guard', () => {
     const plan = planJevSave(
       { rev: 5, data: { set: legalSet() } },

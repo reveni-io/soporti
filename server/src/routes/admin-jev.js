@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { Router } from 'express'
-import { GUARD_IDS_SEPARATOR, REPO_NAME_RE } from '../constants.js'
+import { GUARD_IDS_SEPARATOR } from '../constants.js'
 import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
-import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
 import {
   deleteJevDocument,
@@ -11,8 +10,6 @@ import {
   listJevSetVersions,
   saveJevDocument,
 } from '../db/jev-documents.js'
-import { getRepository } from '../github/client.js'
-import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import {
   defaultJevDocument,
@@ -30,9 +27,6 @@ const CUSTOM_GUARD_ID_BYTES = 4
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
-const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
-const MAX_STATS_REPOS = 100
-const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
@@ -86,24 +80,6 @@ function parsePage(value) {
   if (typeof value !== 'string' || !PAGE_RE.test(value)) return { error: '"page" must be a positive whole number.' }
 
   return { value: Number(value) }
-}
-
-function parseRepoList(value) {
-  const repos = typeof value === 'string' ? value.split(',').map(name => name.trim()) : []
-  if (repos.length === 0 || repos.length > MAX_STATS_REPOS || !repos.every(name => REPO_NAME_RE.test(name))) {
-    return { error: '"repos" must be a comma-separated list of org/repo names.' }
-  }
-
-  return { value: repos }
-}
-
-function toShadowStats(repo, rows) {
-  const row = rows.find(stats => stats.repo === repo)
-  if (!row) return { repo, evaluated: 0, wouldApprove: 0, days: 0 }
-
-  const days = Math.max(1, Math.ceil((Date.now() - new Date(row.since).getTime()) / DAY_MS))
-
-  return { repo, evaluated: row.evaluated, wouldApprove: row.wouldApprove, days }
 }
 
 function toPayload(id, document, latestSave) {
@@ -326,38 +302,5 @@ async function listVersionsWithCalls(id, page) {
 }
 
 router.get('/documents/:id/versions', pageHandler(listVersionsWithCalls, 'versions'))
-
-router.post('/github/repos/check', async (req, res) => {
-  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
-  if (!REPO_NAME_RE.test(name)) return res.status(400).json({ error: 'Use the org/repo format, e.g. acme/docs.' })
-
-  try {
-    if (!(await getGithubToken())) return res.status(422).json({ error: 'Save the GitHub token first.' })
-
-    res.json(await getRepository(name))
-  } catch (err) {
-    if (!UNREADABLE_REPO_STATUSES.has(err.status)) {
-      console.error('Failed to check the GitHub repo:', err)
-      return res.status(500).json({ error: 'Failed to check the repo.' })
-    }
-
-    res.status(422).json({
-      error: `The CI token cannot read ${name}. Give the token read access to the repo, or check the name.`,
-    })
-  }
-})
-
-router.get('/github/shadow-stats', async (req, res) => {
-  const { error, value: repos } = parseRepoList(req.query.repos)
-  if (error) return res.status(400).json({ error })
-
-  try {
-    const rows = await getShadowStats(repos)
-    res.json({ repos: repos.map(repo => toShadowStats(repo, rows)) })
-  } catch (err) {
-    console.error('Failed to load the shadow results:', err)
-    res.status(500).json({ error: 'Failed to load the shadow results.' })
-  }
-})
 
 export default router

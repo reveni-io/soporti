@@ -213,7 +213,7 @@ describe('renderReviewBody', () => {
     expect(body.split('\n')[0]).toBe('✅ **Approved**: trivial change, safe to merge')
   })
 
-  it('keeps the comments line and adds the auto-approve block when auto-approve approved the PR', () => {
+  it('says an approved PR is safe to merge and adds the block of the guards REVIEW.md names', () => {
     const check = {
       guard: 'GitHub Review PR',
       answered: true,
@@ -222,12 +222,12 @@ describe('renderReviewBody', () => {
       minConfidence: 0.75,
       rows: [],
     }
-    const autoApprove = { repo: 'acme/web', mode: 'on', approve: true, decidedBy: 'jev', reason: null, checks: [check] }
+    const autoApprove = { approve: true, reason: null, checks: [check] }
 
     const body = renderReviewBody(review({ event: 'APPROVE', autoApprove }))
 
-    expect(body.split('\n')[0]).toBe('**Actionable comments posted: 0**')
-    expect(body).toContain('✅ Auto-approve · approved')
+    expect(body.split('\n')[0]).toBe('✅ **Approved**: trivial change, safe to merge')
+    expect(body).toContain('✅ Guards · no warnings')
     expect(body).toContain(', guards (GitHub Review PR)')
   })
 
