@@ -51,6 +51,7 @@ describe('GithubAutoApprove', () => {
     expect(screen.getByText('GitHub review project')).toBeInTheDocument()
     expect(screen.queryByText('Rules')).not.toBeInTheDocument()
     expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
+    expect(await screen.findByText(/Save the Jev API key in Admin → Guards/)).toBeInTheDocument()
   })
 
   it('shows why the project could not load', async () => {

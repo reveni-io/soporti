@@ -41,6 +41,7 @@ async function findBlocker(project, { enabled, keyConfigured, set }, { stateChar
   if (!keyConfigured) return 'No API key saved'
   if (questionCount === 0) return 'No questions in the set'
   if (!set.model) return 'No model selected'
+  if (set.minConfidence === null) return 'No min confidence set'
   if (set.maxCharacters && stateChars > set.maxCharacters) {
     return `Too large for Jev (${describeSize(stateChars)} characters, max ${describeSize(set.maxCharacters)})`
   }
