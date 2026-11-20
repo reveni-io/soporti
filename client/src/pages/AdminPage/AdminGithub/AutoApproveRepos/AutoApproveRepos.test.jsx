@@ -128,12 +128,12 @@ describe('AutoApproveRepos', () => {
     const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={state} keyConfigured onLogout={vi.fn()} />)
-    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/API')
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/API')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: true, denylist: [] })
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ name: 'acme/API' })
-    expect(screen.getByRole('textbox', { name: 'Repository to add' })).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: 'Repository to add' })).toHaveValue('')
   })
 
   it('locks asking Jev about a repo, and adds repos with Jev off, until an API key is saved', async () => {
@@ -149,7 +149,7 @@ describe('AutoApproveRepos', () => {
       screen.getByText('Save the Jev API key in Admin → Guards before asking Jev about a repo.')
     ).toBeInTheDocument()
 
-    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/api')
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/api')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: false, denylist: [] })
@@ -164,6 +164,16 @@ describe('AutoApproveRepos', () => {
     expect(screen.queryByText(/Save the Jev API key/)).not.toBeInTheDocument()
   })
 
+  it('suggests the repos the GitHub token can read that are not in the list yet', () => {
+    const readableRepos = [{ fullName: 'acme/web' }, { fullName: 'acme/api' }, { fullName: 'Acme/Docs' }]
+
+    render(<AutoApproveRepos token="tok" state={reposState()} readableRepos={readableRepos} onLogout={vi.fn()} />)
+
+    const input = screen.getByRole('combobox', { name: 'Repository to add' })
+    const options = document.getElementById(input.getAttribute('list')).querySelectorAll('option')
+    expect([...options].map(option => option.value)).toEqual(['acme/api'])
+  })
+
   it.each([
     ['acme', 'Use the org/repo format, e.g. acme/docs.'],
     ['ACME/web', 'ACME/web is already in the list.'],
@@ -172,7 +182,7 @@ describe('AutoApproveRepos', () => {
     const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={reposState()} onLogout={vi.fn()} />)
-    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), name)
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), name)
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(screen.getByText(error)).toBeInTheDocument()
@@ -185,7 +195,7 @@ describe('AutoApproveRepos', () => {
     const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={reposState()} onLogout={vi.fn()} />)
-    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/secret')
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/secret')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(await screen.findByText(error)).toBeInTheDocument()
@@ -197,7 +207,7 @@ describe('AutoApproveRepos', () => {
     const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={reposState()} onLogout={onLogout} />)
-    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/api')
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/api')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(onLogout).toHaveBeenCalledTimes(1)

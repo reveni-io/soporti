@@ -28,7 +28,7 @@ const AUTOMATIONS = [
     id: 'approve',
     icon: <Icon name="check" size={ICON_SIZE} />,
     title: 'Approves the safe pull requests',
-    text: 'Start a repo in shadow and every review says whether it would have approved. Turn it on, and a pull request is approved only when none of your rules or questions vetoes it.',
+    text: 'Pick your repos from the ones your GitHub token can read and start each in shadow: every review says whether it would have approved. Turn it on, and a pull request is approved only when none of your rules or questions vetoes it.',
     Demo: AutoApproveDemo,
   },
   {

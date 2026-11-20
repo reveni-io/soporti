@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
 import { ROUTES } from '../../../../router/constants.js'
 import { useAuthedConfig } from '../../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import { useRepos } from '../../../../hooks/useRepos/useRepos.js'
 import { getJevConfig } from '../../../../services/services.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
@@ -11,6 +12,7 @@ import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
 export default function GithubAutoApprove({ token, onLogout }) {
   const project = useJevDocument(token, JEV_GITHUB_DOCUMENT, onLogout)
   const { config: catalog } = useAuthedConfig(getJevConfig, token, onLogout)
+  const { repos: readableRepos } = useRepos(token, onLogout)
 
   if (project.loadError) {
     return (
@@ -40,6 +42,7 @@ export default function GithubAutoApprove({ token, onLogout }) {
           token={token}
           state={project}
           keyConfigured={catalog?.keyConfigured === true}
+          readableRepos={readableRepos}
           onLogout={onLogout}
         />
       </AdminSection>

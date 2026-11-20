@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import GithubAutoApprove from './GithubAutoApprove.jsx'
 
@@ -27,6 +27,7 @@ function mockApi(repos, overrides = {}, set = SET) {
     [`${BASE}/documents/github`]: okResponse(document),
     [`${BASE}/documents/github/versions?page=1`]: okResponse(page),
     [`${BASE}/documents/github/history?page=1`]: okResponse(page),
+    '/api/repos': okResponse({ repos: [{ fullName: 'acme/api' }] }),
     ...overrides,
   }
   global.fetch = vi.fn(async url => responses[url])
@@ -52,6 +53,7 @@ describe('GithubAutoApprove', () => {
     expect(screen.queryByText('Rules')).not.toBeInTheDocument()
     expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
     expect(await screen.findByText(/Save the Jev API key in Admin → Guards/)).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector('option[value="acme/api"]')).toBeInTheDocument())
   })
 
   it('shows why the project could not load', async () => {

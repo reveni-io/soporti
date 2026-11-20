@@ -3,6 +3,8 @@ import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHA
 import { useAutoApproveRepos } from '../hooks/useAutoApproveRepos/useAutoApproveRepos.js'
 import RepoOnModal from '../RepoOnModal/RepoOnModal.jsx'
 
+const REPO_OPTIONS_ID = 'auto-approve-repo-options'
+
 function countPatterns(denylist) {
   const count = denylist.filter(pattern => pattern.trim()).length
   if (count === 0) return <span className="admin__muted">none</span>
@@ -18,11 +20,13 @@ function describeBehavior(repo) {
   return <span className="badge badge--success">Approves when every gate passes</span>
 }
 
-export default function AutoApproveRepos({ token, state, keyConfigured = false, onLogout }) {
+export default function AutoApproveRepos({ token, state, keyConfigured = false, readableRepos = [], onLogout }) {
   const repos = useAutoApproveRepos(state, { token, onLogout, keyConfigured })
   const [bulkMode, setBulkMode] = useState(AUTO_APPROVE_SHADOW)
   const [newRepo, setNewRepo] = useState('')
   const count = repos.repos.length
+  const added = new Set(repos.repos.map(repo => repo.name.toLowerCase()))
+  const repoOptions = readableRepos.map(repo => repo.fullName).filter(name => !added.has(name.toLowerCase()))
 
   async function handleAdd(event) {
     event.preventDefault()
@@ -96,8 +100,9 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
         <input
           className="input"
           aria-label="Repository to add"
-          placeholder="org/repo"
+          placeholder="Search or type org/repo"
           autoComplete="off"
+          list={REPO_OPTIONS_ID}
           value={newRepo}
           onChange={handleNewRepoChange}
           disabled={repos.adding}
@@ -105,8 +110,16 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
         <button className="btn btn--secondary" type="submit" disabled={repos.adding || !newRepo.trim()}>
           {repos.adding ? 'Checking...' : 'Add repo'}
         </button>
+        <datalist id={REPO_OPTIONS_ID}>
+          {repoOptions.map(name => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </form>
-      <p className="admin__muted">Soporti checks that the GitHub token can read the repo before adding it.</p>
+      <p className="admin__muted">
+        Pick one of the repos the GitHub token can read, or type its name. Soporti checks that the token can read it
+        before adding it.
+      </p>
 
       {repos.confirming && (
         <RepoOnModal
