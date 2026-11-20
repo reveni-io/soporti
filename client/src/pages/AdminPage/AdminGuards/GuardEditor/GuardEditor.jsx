@@ -35,6 +35,11 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
     )
   }
 
+  function handleCallsChange(event) {
+    const enabled = event.target.checked
+    project.updateDraft(draft => ({ ...draft, enabled }))
+  }
+
   function handleSendChange(event) {
     const allowSend = event.target.checked
     project.updateDraft(draft => ({ ...draft, allowSend }))
@@ -48,6 +53,27 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
   return (
     <>
       <AdminSection title={`${guard.name} guard`}>
+        <label className="admin__switch">
+          <input
+            type="checkbox"
+            checked={project.draft.enabled === true}
+            onChange={handleCallsChange}
+            disabled={!catalog.keyConfigured && !project.draft.enabled}
+          />
+          <span className="admin__switch-slider" aria-hidden="true" />
+          <span className="admin__switch-label">
+            Allow Jev calls
+            <span className="admin__muted">
+              {isGithub
+                ? 'When off, the auto-approve repos decide without Jev: only a trivial PR with nothing blocking is approved.'
+                : 'When off, the guard is not offered in the chat and nothing calls Jev for it.'}
+            </span>
+          </span>
+        </label>
+        {!catalog.keyConfigured && (
+          <p className="admin__muted">Save the Jev API key above before turning the calls on.</p>
+        )}
+
         {isGithub ? (
           <p className="note">
             Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos,

@@ -69,6 +69,44 @@ describe('GuardEditor', () => {
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
   })
 
+  it('turns the Jev calls of the guard on and saves them with it', async () => {
+    const saved = document('legal', { enabled: true, set: SET, allowSend: false })
+    mockApi(
+      'legal',
+      { enabled: false, set: SET, allowSend: false },
+      { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] }
+    )
+    const user = userEvent.setup()
+    renderEditor(LEGAL)
+
+    const calls = await screen.findByRole('checkbox', { name: /Allow Jev calls/ })
+    expect(screen.getByText(/the guard is not offered in the chat/)).toBeInTheDocument()
+    await user.click(calls)
+    await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
+
+    const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
+    expect(JSON.parse(put[1].body).data.enabled).toBe(true)
+  })
+
+  it('locks the Jev calls off until an API key is saved', async () => {
+    mockApi('legal', { enabled: false, set: SET, allowSend: false })
+
+    render(
+      <MemoryRouter>
+        <GuardEditor
+          token="tok"
+          guard={LEGAL}
+          catalog={{ ...CATALOG, keyConfigured: false }}
+          onSaved={vi.fn()}
+          onLogout={vi.fn()}
+        />
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
+    expect(screen.getByText('Save the Jev API key above before turning the calls on.')).toBeInTheDocument()
+  })
+
   it('saves the sending switch and refreshes the list of guards', async () => {
     const saved = document('legal', { set: SET, allowSend: true })
     mockApi('legal', { set: SET, allowSend: false }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
@@ -96,6 +134,7 @@ describe('GuardEditor', () => {
     renderEditor(GITHUB)
 
     expect(await screen.findByRole('link', { name: 'Admin → GitHub' })).toHaveAttribute('href', '/admin/github')
+    expect(screen.getByText(/only a trivial PR with nothing blocking is approved/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow sending/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Set description')).toBeInTheDocument()
 

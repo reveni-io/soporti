@@ -180,18 +180,6 @@ describe('POST /api/admin/config/jev/test', () => {
     expect(listModels).not.toHaveBeenCalled()
   })
 
-  it('asks to turn the Jev calls on before testing', async () => {
-    stored[JEV_API_KEY_KEY] = 'jev-secret'
-    getJevDocument.mockResolvedValue(null)
-
-    const res = await request(app).post('/api/admin/config/jev/test')
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Jev calls are off. Turn them on and save before testing.' })
-    expect(getJevDocument).toHaveBeenCalledWith('jev')
-    expect(listModels).not.toHaveBeenCalled()
-  })
-
   it('reports the latency of a successful call', async () => {
     stored[JEV_API_KEY_KEY] = 'jev-secret'
     listModels.mockResolvedValue([LATEST])
@@ -271,7 +259,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
     expect(res.body).toEqual({
       id: 'legal',
       rev: 0,
-      data: { set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
+      data: { enabled: false, set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
       setVersion: 0,
       savedAt: null,
       savedBy: null,
@@ -306,7 +294,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
   it('returns 500 when the document cannot be read', async () => {
     getJevDocument.mockRejectedValue(new Error('db down'))
 
-    const res = await request(app).get('/api/admin/config/jev/documents/jev')
+    const res = await request(app).get('/api/admin/config/jev/documents/legal')
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the settings.' })
@@ -332,19 +320,44 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(options.defaults.set.questions).toEqual([])
     const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
+      data: { enabled: false, set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
       change: 'Questions; Min confidence 0.7 → 0.75',
       set: { model: 'jev-latest', minConfidence: 0.75, questions: [parsedQuestion] },
     })
   })
 
+  it('keeps the calls of a guard off until an API key is saved', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
+
+    await request(app)
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
+
+    const [, options] = saveJevDocument.mock.calls[0]
+    expect(options.plan({ rev: 1, data: { enabled: false, set: LEGAL_SET } })).toEqual({
+      error: 'Save the API key before turning Jev calls on.',
+    })
+  })
+
+  it('has no shared settings document to save, only its history', async () => {
+    listJevHistory.mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 5 })
+
+    const save = await request(app)
+      .put('/api/admin/config/jev/documents/jev')
+      .send({ rev: 1, data: { enabled: true } })
+    const history = await request(app).get('/api/admin/config/jev/documents/jev/history')
+
+    expect(save.status).toBe(404)
+    expect(history.status).toBe(200)
+  })
+
   it('returns 409 with who saved the newer version', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: true, document: { id: 'jev', rev: 6, data: {}, setVersion: 0 } })
+    saveJevDocument.mockResolvedValue({ conflict: true, document: { id: 'legal', rev: 6, data: {}, setVersion: 0 } })
     getLatestJevSave.mockResolvedValue({ at: SAVED_AT, author: 'luis@example.com', change: 'Jev calls off', rev: 6 })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 5, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 5, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(409)
     expect(res.body).toEqual({
@@ -355,9 +368,9 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
 
   it.each([
     [{ data: { enabled: true } }, '"rev" must be the version you edited.'],
-    [{ rev: 1, data: { enabled: 'on' } }, '"enabled" must be true or false.'],
+    [{ rev: 1, data: { enabled: 'on', set: LEGAL_SET } }, '"enabled" must be true or false.'],
   ])('rejects %j', async (body, error) => {
-    const res = await request(app).put('/api/admin/config/jev/documents/jev').send(body)
+    const res = await request(app).put('/api/admin/config/jev/documents/legal').send(body)
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error })
@@ -368,8 +381,8 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     saveJevDocument.mockRejectedValue(new Error('db down'))
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 1, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to save the settings.' })
@@ -469,8 +482,8 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
     saveJevDocument.mockResolvedValue({ conflict: false, error: 'Shadow first: acme/web must be saved in shadow.' })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 1, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(422)
     expect(res.body).toEqual({ error: 'Shadow first: acme/web must be saved in shadow.' })

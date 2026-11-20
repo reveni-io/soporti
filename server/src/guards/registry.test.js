@@ -20,15 +20,14 @@ function set(overrides = {}) {
   }
 }
 
-const SETTINGS = { id: 'jev', rev: 1, setVersion: 0, data: { enabled: true } }
 const LEGAL = {
   id: 'legal',
   rev: 4,
   setVersion: 3,
-  data: { set: set({ description: 'Customer replies' }), allowSend: true },
+  data: { enabled: true, set: set({ description: 'Customer replies' }), allowSend: true },
 }
-const GITHUB = { id: 'github', rev: 2, setVersion: 1, data: { set: set(), repos: [] } }
-const DOCUMENTS = { jev: SETTINGS, legal: LEGAL, github: GITHUB }
+const GITHUB = { id: 'github', rev: 2, setVersion: 1, data: { enabled: true, set: set(), repos: [] } }
+const DOCUMENTS = { legal: LEGAL, github: GITHUB }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -42,6 +41,7 @@ describe('listGuards', () => {
       {
         id: 'legal',
         name: 'Legal',
+        enabled: true,
         description: 'Customer replies',
         questions: 1,
         model: 'jev-latest',
@@ -51,6 +51,7 @@ describe('listGuards', () => {
       {
         id: 'github',
         name: 'GitHub PRs',
+        enabled: true,
         description: '',
         questions: 1,
         model: 'jev-latest',
@@ -65,7 +66,14 @@ describe('listGuards', () => {
 
     const [legal] = await listGuards()
 
-    expect(legal).toMatchObject({ id: 'legal', questions: 0, model: '', setVersion: 0, allowSend: false })
+    expect(legal).toMatchObject({
+      id: 'legal',
+      enabled: false,
+      questions: 0,
+      model: '',
+      setVersion: 0,
+      allowSend: false,
+    })
   })
 })
 
@@ -79,8 +87,10 @@ describe('listChatGuards', () => {
     expect(await listChatGuards()).toEqual([])
   })
 
-  it('offers none while Jev calls are off or there is no key', async () => {
-    getJevDocument.mockImplementation(async id => (id === 'jev' ? { data: { enabled: false } } : DOCUMENTS[id]))
+  it('offers none while the calls of the guard are off or there is no key', async () => {
+    getJevDocument.mockImplementation(async id =>
+      id === 'legal' ? { ...LEGAL, data: { ...LEGAL.data, enabled: false } } : DOCUMENTS[id]
+    )
     expect(await listChatGuards()).toEqual([])
 
     getJevDocument.mockImplementation(async id => DOCUMENTS[id])

@@ -7,12 +7,21 @@ const USAGE = { calls: 1200, cases: 9, sentReplies: 4 }
 const LEGAL = {
   id: 'legal',
   name: 'Legal',
+  enabled: true,
   description: 'Replies to customers',
   questions: 3,
   model: 'jev-1',
   usage: USAGE,
 }
-const GITHUB = { id: 'github', name: 'GitHub PRs', description: '', questions: 2, model: 'jev-1', usage: USAGE }
+const GITHUB = {
+  id: 'github',
+  name: 'GitHub PRs',
+  enabled: false,
+  description: '',
+  questions: 2,
+  model: 'jev-1',
+  usage: USAGE,
+}
 
 describe('GuardsTable', () => {
   it('lists each guard with what it is used for and its usage', () => {
@@ -22,19 +31,20 @@ describe('GuardsTable', () => {
     expect(within(legal).getByRole('cell', { name: 'Legal' })).toBeInTheDocument()
     expect(legal).toHaveTextContent('Replies to customers')
     expect(within(legal).getByRole('cell', { name: (1200).toLocaleString() })).toBeInTheDocument()
+    expect(within(legal).getByText('On')).toBeInTheDocument()
     expect(github).toHaveTextContent('PR reviews of the auto-approve repos')
+    expect(within(github).getByText('Off')).toBeInTheDocument()
     expect(screen.getByText('Calls, cases and sent replies of the last 30 days.')).toBeInTheDocument()
   })
 
-  it('says when a guard cannot be used in the chat yet, or has no description', () => {
-    const empty = { ...LEGAL, questions: 0 }
-    const { unmount } = render(<GuardsTable guards={[empty]} selectedId="legal" onSelect={vi.fn()} />)
+  it.each([
+    ['its calls are off', { enabled: false }, 'Not in the chat while its Jev calls are off'],
+    ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions and a model'],
+    ['it has no description', { description: '' }, 'No description'],
+  ])('says what the Legal guard is used for when %s', (_case, overrides, text) => {
+    render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} selectedId="legal" onSelect={vi.fn()} />)
 
-    expect(screen.getByText('Not in the chat until it has questions and a model')).toBeInTheDocument()
-    unmount()
-
-    render(<GuardsTable guards={[{ ...LEGAL, description: '' }]} selectedId="legal" onSelect={vi.fn()} />)
-    expect(screen.getByText('No description')).toBeInTheDocument()
+    expect(screen.getByText(text)).toBeInTheDocument()
   })
 
   it('edits one guard at a time', async () => {

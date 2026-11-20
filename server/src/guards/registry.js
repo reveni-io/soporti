@@ -1,4 +1,4 @@
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT } from '../constants.js'
 import { getJevDocument } from '../db/jev-documents.js'
 import { defaultJevDocument } from '../jev/documents.js'
 import { isConfigured } from '../jev/settings.js'
@@ -14,6 +14,7 @@ function toGuard({ id, name }, document) {
   return {
     id,
     name,
+    enabled: data.enabled === true,
     description: data.set.description,
     questions: data.set.questions.length,
     model: data.set.model,
@@ -29,14 +30,10 @@ export async function listGuards() {
 }
 
 export async function listChatGuards() {
-  const [settings, keyConfigured, guards] = await Promise.all([
-    getJevDocument(JEV_SETTINGS_DOCUMENT),
-    isConfigured(),
-    listGuards(),
-  ])
-  if (settings?.data?.enabled !== true || !keyConfigured) return []
+  const [keyConfigured, guards] = await Promise.all([isConfigured(), listGuards()])
+  if (!keyConfigured) return []
 
-  return guards.filter(guard => guard.id !== JEV_GITHUB_DOCUMENT && guard.questions > 0 && guard.model)
+  return guards.filter(guard => guard.id !== JEV_GITHUB_DOCUMENT && guard.enabled && guard.questions > 0 && guard.model)
 }
 
 export async function isGuardSendAllowed(guardId) {

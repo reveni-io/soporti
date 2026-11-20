@@ -27,7 +27,6 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
 const NO_MODELS_MESSAGE = 'Jev returned no models'
-const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 const router = Router()
@@ -118,12 +117,6 @@ function describeConflict(document, latestSave, editedRev) {
   return `${author} saved version ${document.rev} while you were editing version ${editedRev}. Nothing was saved. Reload the latest version and apply your changes again.`
 }
 
-async function areJevCallsEnabled() {
-  const settings = await getJevDocument(JEV_SETTINGS_DOCUMENT)
-
-  return settings?.data?.enabled === true
-}
-
 function sendFailure(res, err, action) {
   if (err instanceof JevApiError) {
     console.error(`Failed to ${action}:`, err.message)
@@ -134,8 +127,13 @@ function sendFailure(res, err, action) {
   res.status(500).json({ error: `Failed to ${action}.` })
 }
 
+function isConnectionHistory(req, id) {
+  return id === JEV_SETTINGS_DOCUMENT && req.path.endsWith('/history')
+}
+
 router.param('id', (req, res, next, id) => {
-  if (!isJevDocument(id)) return res.status(404).json({ error: 'Unknown Jev document.' })
+  if (!isJevDocument(id) && !isConnectionHistory(req, id))
+    return res.status(404).json({ error: 'Unknown Jev document.' })
 
   next()
 })
@@ -171,7 +169,6 @@ router.put('/api-key', async (req, res) => {
 router.post('/test', async (_req, res) => {
   try {
     if (!(await isConfigured())) return res.status(422).json({ error: NO_KEY_TEST_MESSAGE })
-    if (!(await areJevCallsEnabled())) return res.status(422).json({ error: CALLS_OFF_MESSAGE })
 
     const startedAt = Date.now()
     await listModels()
@@ -247,6 +244,7 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
+    const keyConfigured = await isConfigured()
     const {
       conflict,
       error: saveError,
@@ -255,7 +253,9 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom }),
+      plan: current => {
+        return planJevSave(current, value.data, { restoredFrom: value.restoredFrom, keyConfigured })
+      },
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
@@ -287,8 +287,6 @@ router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history
 
 async function listVersionsWithCalls(id, page) {
   const versions = await listJevSetVersions(id, page)
-  if (id === JEV_SETTINGS_DOCUMENT) return versions
-
   const calls = await countJevCallsBySetVersion(id)
   const callsOf = version => calls.find(row => row.setVersion === version)?.calls ?? 0
 
