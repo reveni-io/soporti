@@ -1,6 +1,6 @@
 import PaginatedTable from '../../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../../dates.js'
-import { describeQueries, describeRuns } from '../describe-queries.js'
+import { describeQueries, describeReplies, describeRuns } from '../describe-queries.js'
 
 const HEADERS = ['Date', 'Query', 'Owner', 'Set', 'Reason']
 
@@ -36,6 +36,10 @@ export default function LegalUsage({ usage, error, onPage }) {
         <div className="admin__kv-row">
           <dt>Not checked</dt>
           <dd>{describeRuns(usage.uncheckedRuns)}</dd>
+        </div>
+        <div className="admin__kv-row">
+          <dt>Sent from Soporti</dt>
+          <dd>{describeReplies(usage.sentReplies ?? 0)}</dd>
         </div>
       </dl>
       <h3 className="admin__subsection-title">Runs Jev could not check</h3>
