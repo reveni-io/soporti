@@ -278,14 +278,18 @@ function showValue(value) {
   return value === null || value === undefined || value === '' ? EMPTY_VALUE : String(value)
 }
 
+function describeScalarChange(label, before, after) {
+  return `${label} ${showValue(before)} → ${showValue(after)}`
+}
+
 function describeSetChanges(previous, next) {
   const changes = []
 
   if (previous.description !== next.description) changes.push('Set description')
   if (!isSameValue(previous.questions, next.questions)) changes.push('Questions')
 
-  const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(
-    ([field, label]) => `${label} ${showValue(previous[field])} → ${showValue(next[field])}`
+  const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(([field, label]) =>
+    describeScalarChange(label, previous[field], next[field])
   )
 
   return [...changes, ...scalars]
