@@ -6,10 +6,10 @@ describe('LegalRepliesDemo', () => {
   it('shows the drafted cases with their warnings when there is no IntersectionObserver', () => {
     const { container } = render(<LegalRepliesDemo />)
 
-    expect(screen.getByText('Ready for Legal')).toBeInTheDocument()
+    expect(screen.getByText('Ready to send')).toBeInTheDocument()
     expect(screen.getByText('No warnings')).toBeInTheDocument()
     expect(container.querySelectorAll('.lp-legal-demo__status--careful')).toHaveLength(2)
-    expect(screen.getByText('Nothing has been sent · Legal has the last word')).toBeInTheDocument()
+    expect(screen.getByText('Nothing has been sent · a person has the last word')).toBeInTheDocument()
     expect(container.textContent).not.toMatch(/jev/i)
   })
 
@@ -47,7 +47,7 @@ describe('LegalRepliesDemo', () => {
       vi.unstubAllGlobals()
     })
 
-    it('finds the tickets, drafts and reviews each one, and only then hands them to Legal', async () => {
+    it('finds the tickets, drafts and reviews each one, and only then hands them over', async () => {
       render(<LegalRepliesDemo />)
       act(() => {
         observers.forEach(observer =>
@@ -62,10 +62,10 @@ describe('LegalRepliesDemo', () => {
 
       await advance(1600)
       expect(screen.getAllByText('Reviewing…')).toHaveLength(3)
-      expect(screen.queryByText('Ready for Legal')).not.toBeInTheDocument()
+      expect(screen.queryByText('Ready to send')).not.toBeInTheDocument()
 
       await advance(1600)
-      expect(screen.getByText('Ready for Legal')).toBeInTheDocument()
+      expect(screen.getByText('Ready to send')).toBeInTheDocument()
       expect(screen.getByText('Careful · 2 warnings')).toBeInTheDocument()
     })
   })
