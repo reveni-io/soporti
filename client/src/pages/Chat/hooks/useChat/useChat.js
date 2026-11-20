@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { BROWSER_TIMEZONE } from '../../../../constants.js'
+import { createRequestId } from './request-id.js'
 import { getBotMessages, getConversation, isUnauthorized, stopChat, streamChat } from '../../../../services/services.js'
 import { createAnswer, notifyAnswerReady, trackAnswer } from './answer-notification.js'
 
@@ -266,11 +267,11 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
       }))
 
       const abortController = new AbortController()
-      const requestId = crypto.randomUUID()
       abortControllers.current.set(key, abortController)
-      requestIds.current.set(key, requestId)
 
       try {
+        const requestId = createRequestId()
+        requestIds.current.set(key, requestId)
         const response = await streamChat(
           token,
           chatRequestBody(chat, text, { selectedSources, profile, skills, attachments, requestId }),
@@ -307,7 +308,11 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
 
     abortController.abort()
     updateChat(key, chat => ({ ...chat, isLoading: false }))
-    stopChat(token, requestIds.current.get(key)).catch(err => {
+
+    const requestId = requestIds.current.get(key)
+    if (!requestId) return
+
+    stopChat(token, requestId).catch(err => {
       if (isUnauthorized(err)) onAuthErrorRef.current?.()
     })
   }, [currentKey, token, updateChat])

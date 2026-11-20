@@ -1115,6 +1115,22 @@ describe('useChat stop signal', () => {
     expect(second.requestId).not.toBe(first.requestId)
   })
 
+  it('still sends the message with a valid request id outside a secure context', async () => {
+    vi.spyOn(crypto, 'randomUUID', 'get').mockReturnValue(undefined)
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(createSSEResponse([{ type: 'done' }])))
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('plain http', { selectedSources: [], profile: 'support' })
+    })
+
+    expect(chatRequests()).toHaveLength(1)
+    expect(chatRequests()[0].message).toBe('plain http')
+    expect(chatRequests()[0].requestId).toMatch(UUID_RE)
+    expect(result.current.isLoading).toBe(false)
+    vi.restoreAllMocks()
+  })
+
   it('tells the server the user stopped the answer it is generating', async () => {
     const stream = createManualStream()
     global.fetch = vi.fn().mockImplementation(url => {
