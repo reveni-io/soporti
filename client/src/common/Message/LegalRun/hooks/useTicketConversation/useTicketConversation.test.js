@@ -29,8 +29,18 @@ describe('useTicketConversation', () => {
     await act(() => result.current.load())
 
     expect(result.current.messages).toEqual(MESSAGES)
+    expect(result.current.notice).toBeNull()
     expect(result.current.loading).toBe(false)
     expect(global.fetch.mock.calls[0][0]).toContain('/api/legal/cases/41/conversation')
+  })
+
+  it('keeps the notice of a ticket that was cut short', async () => {
+    global.fetch = vi.fn(async () => respond(200, { messages: MESSAGES, notice: 'This ticket is long.' }))
+    const { result } = renderHook(() => useTicketConversation('tok', 41, vi.fn()))
+
+    await act(() => result.current.load())
+
+    expect(result.current.notice).toBe('This ticket is long.')
   })
 
   it('shows why the ticket could not be read', async () => {

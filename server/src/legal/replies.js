@@ -18,6 +18,8 @@ const HUBSPOT_CANNOT_REPLY =
   'Your HubSpot user cannot reply from Soporti: replies in HubSpot conversations must be allowed in the HubSpot section of the admin.'
 const HUBSPOT_CANNOT_READ = 'Soporti cannot read HubSpot conversations: an admin can allow it in the HubSpot section.'
 const HUBSPOT_NO_THREAD = 'This HubSpot ticket has no conversation to reply to. Send the reply from HubSpot.'
+const CONVERSATION_CAPPED =
+  'This ticket is long: only its first messages are shown here. Open the ticket to read the newest ones.'
 const SOURCE_LABELS = new Map([
   ['zendesk', 'Zendesk'],
   ['hubspot', 'HubSpot'],
@@ -119,7 +121,10 @@ async function readZendeskConversation(userId, ticketId) {
 
   const ticket = await getTicket(userId, ticketId)
 
-  return ticket.comments.filter(comment => comment.public).map(fromZendeskComment)
+  return {
+    messages: ticket.comments.filter(comment => comment.public).map(fromZendeskComment),
+    notice: ticket.notice ? CONVERSATION_CAPPED : null,
+  }
 }
 
 function fromHubspotMessage(message) {
@@ -141,11 +146,14 @@ async function readHubspotConversation(userId, ticketId) {
   }
 
   const threadId = await hubspotThreadId(ticketId, access.permissions)
-  if (!threadId) return []
+  if (!threadId) return { messages: [], notice: null }
 
-  const messages = await readHubspotMessages(threadId)
+  const { messages, capped } = await readHubspotMessages(threadId)
 
-  return messages.filter(message => message.type === PUBLIC_MESSAGE_TYPE).map(fromHubspotMessage)
+  return {
+    messages: messages.filter(message => message.type === PUBLIC_MESSAGE_TYPE).map(fromHubspotMessage),
+    notice: capped ? CONVERSATION_CAPPED : null,
+  }
 }
 
 async function readHubspotMessages(threadId) {
@@ -155,11 +163,11 @@ async function readHubspotMessages(threadId) {
   for (let page = 0; page < MAX_CONVERSATION_PAGES; page++) {
     const result = await getConversation(threadId, { after })
     messages.push(...result.messages)
-    if (!result.after) break
     after = result.after
+    if (!after) return { messages, capped: false }
   }
 
-  return messages
+  return { messages, capped: true }
 }
 
 const READERS = new Map([

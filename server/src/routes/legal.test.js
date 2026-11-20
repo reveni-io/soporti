@@ -210,12 +210,12 @@ describe('GET /cases/:id/conversation', () => {
   it('reads the ticket conversation of a case of the user', async () => {
     const messages = [{ id: '1', author: 'Customer', fromCustomer: true, at: SENT_AT, text: 'Where is my refund?' }]
     getOwnedLegalCase.mockResolvedValue(CHECKED)
-    readLegalConversation.mockResolvedValue(messages)
+    readLegalConversation.mockResolvedValue({ messages, notice: 'This ticket is long.' })
 
     const res = await request(app).get('/cases/41/conversation')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ messages })
+    expect(res.body).toEqual({ messages, notice: 'This ticket is long.' })
     expect(readLegalConversation).toHaveBeenCalledWith(CHECKED, 3)
   })
 

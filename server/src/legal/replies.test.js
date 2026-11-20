@@ -141,11 +141,23 @@ describe('readLegalConversation', () => {
       ],
     })
 
-    expect(await readLegalConversation(ZENDESK_CASE, 3)).toEqual([
-      { id: '1', author: 'Customer', fromCustomer: true, at: AT, text: 'Where is my refund?' },
-      { id: '3', author: '', fromCustomer: false, at: AT, text: 'On its way.' },
-    ])
+    expect(await readLegalConversation(ZENDESK_CASE, 3)).toEqual({
+      messages: [
+        { id: '1', author: 'Customer', fromCustomer: true, at: AT, text: 'Where is my refund?' },
+        { id: '3', author: '', fromCustomer: false, at: AT, text: 'On its way.' },
+      ],
+      notice: null,
+    })
     expect(getTicket).toHaveBeenCalledWith(3, '48213')
+  })
+
+  it('says when a long Zendesk ticket was cut short, so the newest messages are not missed silently', async () => {
+    isConfigured.mockResolvedValue(true)
+    getTicket.mockResolvedValue({ comments: [], notice: 'Only the first 500 comments are included.' })
+
+    expect((await readLegalConversation(ZENDESK_CASE, 3)).notice).toBe(
+      'This ticket is long: only its first messages are shown here. Open the ticket to read the newest ones.'
+    )
   })
 
   it('reads the public messages of the HubSpot ticket conversation, leaving the internal comments out', async () => {
@@ -166,15 +178,18 @@ describe('readLegalConversation', () => {
       after: null,
     })
 
-    expect(await readLegalConversation(HUBSPOT_CASE, 3)).toEqual([
-      { id: 'm-1', author: 'c@example.com', fromCustomer: true, at: AT, text: 'Hi' },
-      { id: 'm-2', author: 'Ana', fromCustomer: false, at: AT, text: 'Hello' },
-      { id: 'm-3', author: '', fromCustomer: false, at: AT, text: 'Bot' },
-    ])
+    expect(await readLegalConversation(HUBSPOT_CASE, 3)).toEqual({
+      messages: [
+        { id: 'm-1', author: 'c@example.com', fromCustomer: true, at: AT, text: 'Hi' },
+        { id: 'm-2', author: 'Ana', fromCustomer: false, at: AT, text: 'Hello' },
+        { id: 'm-3', author: '', fromCustomer: false, at: AT, text: 'Bot' },
+      ],
+      notice: null,
+    })
     expect(getConversation).toHaveBeenCalledWith('thread-1', { after: undefined })
   })
 
-  it('reads every page of the HubSpot conversation, up to 10 pages', async () => {
+  it('reads every page of the HubSpot conversation, up to 10 pages, and says when there were more', async () => {
     getConversation.mockImplementation(async (_threadId, { after }) => {
       const page = Number(after ?? 0)
       return {
@@ -185,9 +200,10 @@ describe('readLegalConversation', () => {
       }
     })
 
-    const messages = await readLegalConversation(HUBSPOT_CASE, 3)
+    const { messages, notice } = await readLegalConversation(HUBSPOT_CASE, 3)
 
     expect(messages.map(message => message.text)).toEqual(Array.from({ length: 10 }, (_, page) => `Page ${page}`))
+    expect(notice).toMatch(/^This ticket is long/)
     expect(getConversation).toHaveBeenCalledTimes(10)
     expect(getConversation).toHaveBeenNthCalledWith(2, 'thread-1', { after: '1' })
   })
@@ -195,7 +211,7 @@ describe('readLegalConversation', () => {
   it('shows no messages for a HubSpot ticket without a conversation', async () => {
     getRecord.mockResolvedValue({ id: '9312', properties: {} })
 
-    expect(await readLegalConversation(HUBSPOT_CASE, 3)).toEqual([])
+    expect(await readLegalConversation(HUBSPOT_CASE, 3)).toEqual({ messages: [], notice: null })
     expect(getConversation).not.toHaveBeenCalled()
   })
 

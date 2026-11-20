@@ -137,7 +137,8 @@ router.get('/cases/:id/conversation', async (req, res) => {
     const legalCase = await getOwnedLegalCase(Number(req.params.id), req.user.id)
     if (!legalCase) return res.status(404).json(NOT_FOUND)
 
-    res.json({ messages: await readLegalConversation(legalCase, req.user.id) })
+    const { messages, notice } = await readLegalConversation(legalCase, req.user.id)
+    res.json({ messages, notice })
   } catch (err) {
     if (err instanceof LegalReplyError) return res.status(502).json({ error: err.message })
 

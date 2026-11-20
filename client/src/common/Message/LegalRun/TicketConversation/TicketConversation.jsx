@@ -49,6 +49,7 @@ export default function TicketConversation({ token, legalCase, label, send, need
         </button>
       </div>
       {conversation.error && <p className="alert alert--error">{conversation.error}</p>}
+      {conversation.notice && <p className="alert alert--warning">{conversation.notice}</p>}
       <MessageList messages={conversation.messages} />
       {send?.allowed && (
         <FollowUpReply
