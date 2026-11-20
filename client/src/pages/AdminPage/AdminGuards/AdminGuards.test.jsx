@@ -48,7 +48,7 @@ beforeEach(() => {
 })
 
 describe('AdminGuards', () => {
-  it('starts with Jev, then the guards, editing Legal first, and ends with the Jev history', async () => {
+  it('starts with Jev, then the guards, with no guard open, and ends with the Jev history', async () => {
     mockApi()
 
     render(
@@ -67,16 +67,14 @@ describe('AdminGuards', () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByRole('button', { name: 'Edit Legal' })).toBeDisabled()
-    expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Edit Legal' })).toBeEnabled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const titles = [...document.querySelectorAll('h2')].map(title => title.textContent)
-    expect(titles[0]).toBe('Jev')
-    expect(titles.indexOf('Guards')).toBeLessThan(titles.indexOf('Legal guard'))
-    expect(titles.at(-1)).toBe('Jev history')
+    expect(titles).toEqual(['Jev', 'Guards', 'Jev history'])
     expect(screen.queryByRole('textbox', { name: 'Name of the new guard' })).not.toBeInTheDocument()
   })
 
-  it('opens the guard named in the address and switches guards', async () => {
+  it('opens the guard named in the address in a modal, closes it and opens another', async () => {
     mockApi()
     const user = userEvent.setup()
 
@@ -96,11 +94,16 @@ describe('AdminGuards', () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByText('GitHub PRs guard', { selector: 'h2' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'GitHub PRs guard' })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('search')).toBeEmptyDOMElement()
+
     await user.click(screen.getByRole('button', { name: 'Edit Legal' }))
 
     expect(screen.getByTestId('search')).toHaveTextContent('?guard=legal')
-    expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Legal guard' })).toBeInTheDocument()
   })
 
   it('reloads the Jev history once the key changes', async () => {

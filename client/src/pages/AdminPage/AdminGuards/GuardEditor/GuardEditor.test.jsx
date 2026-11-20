@@ -102,7 +102,9 @@ describe('GuardEditor', () => {
     )
 
     expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
-    expect(screen.getByText('Save the Jev API key above before turning the calls on.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Save the Jev API key in the Jev section of this page before turning the calls on.')
+    ).toBeInTheDocument()
   })
 
   it('saves the sending switch and refreshes the list of guards', async () => {
@@ -151,6 +153,40 @@ describe('GuardEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Delete set' }))
 
     expect(screen.getByText(/Cannot delete the set: 1 auto-approve repo \(acme\/web\) use it/)).toBeInTheDocument()
+  })
+
+  it('closes at once without changes, and asks before dropping unsaved ones', async () => {
+    mockApi('legal', { set: SET, allowSend: false })
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter>
+        <GuardEditor
+          token="tok"
+          guard={LEGAL}
+          catalog={CATALOG}
+          onSaved={vi.fn()}
+          onClose={onClose}
+          onLogout={vi.fn()}
+        />
+      </MemoryRouter>
+    )
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(screen.queryByRole('group', { name: 'Unsaved changes' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('shows why the guard could not load', async () => {

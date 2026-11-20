@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AUTO_APPROVE_OFF, JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
 import { ROUTES } from '../../../../router/constants.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
+import ModalFrame from '../../../../common/ModalFrame/ModalFrame.jsx'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
 import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
 import ReviewRules from '../ReviewRules/ReviewRules.jsx'
+import './GuardEditor.css'
 
 function describeSetUsers({ set, repos }) {
   if (!repos || set.questions.length === 0) return null
@@ -18,23 +21,48 @@ function describeSetUsers({ set, repos }) {
   return `Cannot delete the set: ${users.length} auto-approve repo${users.length === 1 ? '' : 's'} (${users.join(', ')}) use it. Set them to off in Admin → GitHub and save first.`
 }
 
-export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }) {
+function DiscardConfirm({ onDiscard, onKeep }) {
+  return (
+    <div className="alert alert--warning guard-modal__confirm" role="group" aria-label="Unsaved changes">
+      <span>This guard has unsaved changes.</span>
+      <button type="button" className="btn btn--danger btn--sm" onClick={onDiscard}>
+        Discard changes
+      </button>
+      <button type="button" className="btn btn--secondary btn--sm" autoFocus onClick={onKeep}>
+        Keep editing
+      </button>
+    </div>
+  )
+}
+
+export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose }) {
   const project = useJevDocument(token, guard.id, onLogout)
+  const [confirmingClose, setConfirmingClose] = useState(false)
   const isGithub = guard.id === JEV_GITHUB_DOCUMENT
+  const title = `${guard.name} guard`
 
   if (project.loadError) {
     return (
-      <AdminSection title={guard.name}>
+      <ModalFrame title={title} className="guard-modal" onClose={onClose}>
         <p className="alert alert--error">{project.loadError}</p>
-      </AdminSection>
+      </ModalFrame>
     )
   }
   if (!project.document) {
     return (
-      <AdminSection title={guard.name}>
+      <ModalFrame title={title} className="guard-modal" onClose={onClose}>
         <p className="admin__muted">Loading...</p>
-      </AdminSection>
+      </ModalFrame>
     )
+  }
+
+  function requestClose() {
+    if (project.dirty) setConfirmingClose(true)
+    else onClose()
+  }
+
+  function handleKeepEditing() {
+    setConfirmingClose(false)
   }
 
   function handleCallsChange(event) {
@@ -53,8 +81,10 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
   }
 
   return (
-    <>
-      <AdminSection title={`${guard.name} guard`}>
+    <ModalFrame title={title} className="guard-modal" onClose={requestClose}>
+      {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
+
+      <AdminSection title="Settings">
         <label className="admin__switch">
           <input
             type="checkbox"
@@ -73,7 +103,9 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
           </span>
         </label>
         {!catalog.keyConfigured && (
-          <p className="admin__muted">Save the Jev API key above before turning the calls on.</p>
+          <p className="admin__muted">
+            Save the Jev API key in the Jev section of this page before turning the calls on.
+          </p>
         )}
 
         {isGithub ? (
@@ -139,7 +171,7 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
         <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
       </AdminSection>
 
-      <DocBar label={`${guard.name} guard`} state={{ ...project, save: saveAndRefresh }} />
-    </>
+      <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />
+    </ModalFrame>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
+import { JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
 import { getGuards, getJevConfig } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
@@ -21,11 +21,14 @@ export default function AdminGuards({ token, onLogout }) {
   const loadError = catalogError ?? listError
   if (loadError || !catalog || !list) return <AdminSectionStatus title="Guards" error={loadError} />
 
-  const selectedId = params.get(GUARD_PARAM) ?? JEV_LEGAL_DOCUMENT
-  const selected = list.guards.find(guard => guard.id === selectedId) ?? list.guards[0]
+  const selected = list.guards.find(guard => guard.id === params.get(GUARD_PARAM))
 
-  function select(id) {
+  function openGuard(id) {
     setParams({ [GUARD_PARAM]: id })
+  }
+
+  function closeGuard() {
+    setParams({})
   }
 
   function handleSettingsChanged() {
@@ -44,21 +47,24 @@ export default function AdminGuards({ token, onLogout }) {
 
       <AdminSection title="Guards">
         <p className="admin__muted">
-          A guard is a set of questions Jev answers about something Soporti or a person wants checked: a reply to a
+          A guard is the list of questions Jev answers about something Soporti or a person wants checked: a reply to a
           customer or a pull request. Each answer comes with a confidence, and the answers you mark raise a warning.
-          Guards warn: they never send, approve or block anything on their own.
+          Guards warn: they never send, approve or block anything on their own. Press Edit to change a guard.
         </p>
-        <GuardsTable guards={list.guards} selectedId={selected.id} onSelect={select} />
+        <GuardsTable guards={list.guards} onEdit={openGuard} />
       </AdminSection>
 
-      <GuardEditor
-        key={selected.id}
-        token={token}
-        guard={selected}
-        catalog={catalog}
-        onLogout={onLogout}
-        onSaved={reload}
-      />
+      {selected && (
+        <GuardEditor
+          key={selected.id}
+          token={token}
+          guard={selected}
+          catalog={catalog}
+          onLogout={onLogout}
+          onSaved={reload}
+          onClose={closeGuard}
+        />
+      )}
 
       <AdminSection title="Jev history">
         <JevHistory key={settingsRevision} token={token} documentId={JEV_SETTINGS_DOCUMENT} onLogout={onLogout} />

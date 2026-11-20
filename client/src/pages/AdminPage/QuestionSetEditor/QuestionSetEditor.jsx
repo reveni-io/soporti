@@ -121,7 +121,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         </p>
       )}
       <p className="admin__muted">
-        Each guard configures Jev on its own. The models come from the list saved in the Jev section above
+        Each guard configures Jev on its own. The models come from the list saved in the Jev section of the Guards page
         {catalog.keyConfigured ? '' : ', which has no key saved: the model cannot be changed until it does'}. A daily
         limit of <code>0</code> means no limit.
       </p>
@@ -183,7 +183,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
       </div>
       <p className="admin__muted">
         The set version goes up on save when the {labels.versioned} change. Editing only the description keeps the
-        version. Question edits stay in this page until you save the project below.
+        version. Question edits stay here until you save the guard below.
       </p>
     </>
   )

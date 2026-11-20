@@ -8,7 +8,7 @@ function describeUse(guard) {
   return guard.description || 'No description'
 }
 
-export default function GuardsTable({ guards, selectedId, onSelect }) {
+export default function GuardsTable({ guards, onEdit }) {
   return (
     <>
       <div className="admin__table-wrap">
@@ -45,11 +45,10 @@ export default function GuardsTable({ guards, selectedId, onSelect }) {
                   <button
                     className="btn btn--secondary btn--sm"
                     type="button"
-                    onClick={() => onSelect(guard.id)}
-                    disabled={guard.id === selectedId}
+                    onClick={() => onEdit(guard.id)}
                     aria-label={`Edit ${guard.name}`}
                   >
-                    {guard.id === selectedId ? 'Editing' : 'Edit'}
+                    Edit
                   </button>
                 </td>
               </tr>

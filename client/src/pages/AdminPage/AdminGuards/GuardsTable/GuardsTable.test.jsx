@@ -25,7 +25,7 @@ const GITHUB = {
 
 describe('GuardsTable', () => {
   it('lists each guard with what it is used for and its usage', () => {
-    render(<GuardsTable guards={[LEGAL, GITHUB]} selectedId="legal" onSelect={vi.fn()} />)
+    render(<GuardsTable guards={[LEGAL, GITHUB]} onEdit={vi.fn()} />)
 
     const [, legal, github] = screen.getAllByRole('row')
     expect(within(legal).getByRole('cell', { name: 'Legal' })).toBeInTheDocument()
@@ -42,19 +42,19 @@ describe('GuardsTable', () => {
     ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions and a model'],
     ['it has no description', { description: '' }, 'No description'],
   ])('says what the Legal guard is used for when %s', (_case, overrides, text) => {
-    render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} selectedId="legal" onSelect={vi.fn()} />)
+    render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} onEdit={vi.fn()} />)
 
     expect(screen.getByText(text)).toBeInTheDocument()
   })
 
-  it('edits one guard at a time', async () => {
-    const onSelect = vi.fn()
+  it('opens the guard picked to edit', async () => {
+    const onEdit = vi.fn()
     const user = userEvent.setup()
-    render(<GuardsTable guards={[LEGAL, GITHUB]} selectedId="legal" onSelect={onSelect} />)
+    render(<GuardsTable guards={[LEGAL, GITHUB]} onEdit={onEdit} />)
 
-    expect(screen.getByRole('button', { name: 'Edit Legal' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit Legal' })).toHaveTextContent('Edit')
     await user.click(screen.getByRole('button', { name: 'Edit GitHub PRs' }))
 
-    expect(onSelect).toHaveBeenCalledWith('github')
+    expect(onEdit).toHaveBeenCalledWith('github')
   })
 })

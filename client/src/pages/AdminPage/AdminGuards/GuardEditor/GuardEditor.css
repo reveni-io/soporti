@@ -1,0 +1,19 @@
+.modal.guard-modal {
+  max-width: 64rem;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.guard-modal__confirm {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.guard-modal__confirm span {
+  flex: 1;
+}
