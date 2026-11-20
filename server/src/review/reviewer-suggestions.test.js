@@ -8,8 +8,10 @@ const listPathAuthors = vi.fn()
 const canPushToRepository = vi.fn()
 const countReviewsSince = vi.fn()
 const listOrganizationMembers = vi.fn()
+const findFirstPullRequestDates = vi.fn()
 vi.mock('../github/client.js', () => ({
   listOrganizationMembers,
+  findFirstPullRequestDates,
   listPullRequestReviews,
   listPathAuthors,
   canPushToRepository,
@@ -22,7 +24,11 @@ const logger = { error: vi.fn(), warn: vi.fn() }
 const NOW = new Date('2026-11-20T10:00:00Z')
 
 function members(...entries) {
-  listOrganizationMembers.mockResolvedValue(entries.map(([login, createdAt]) => ({ login, createdAt })))
+  const firstPullRequests = new Map(entries)
+  listOrganizationMembers.mockResolvedValue(entries.map(([login]) => login))
+  findFirstPullRequestDates.mockImplementation(
+    async (_org, logins) => new Map(logins.map(login => [login, firstPullRequests.get(login) ?? null]))
+  )
 }
 
 const TRIGGER = {
@@ -59,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
   getReviewerSuggestionsEnabled.mockResolvedValue(true)
-  members(['veterana-reveni', '2023-01-10T09:00:00Z'])
+  members(['veterana', '2023-01-10T09:00:00Z'])
   listPullRequestReviews.mockResolvedValue([])
   listPathAuthors.mockResolvedValue([
     { path: 'src/a.js', authors: ['ana', 'ana', 'luis'] },
@@ -164,39 +170,38 @@ describe('suggestReviewers', () => {
     expect(listPathAuthors).not.toHaveBeenCalled()
   })
 
-  it('suggests, among the -reveni accounts created in the last 180 days, the one with fewer recent reviews', async () => {
+  it('suggests, among the members whose first PR in the org is less than 180 days old, the one with fewer recent reviews', async () => {
     members(
-      ['nueva-reveni', '2026-10-01T09:00:00Z'],
-      ['nuevo-Reveni', '2026-05-25T10:00:00Z'],
-      ['antigua-reveni', '2026-05-24T09:00:00Z'],
-      ['personal-account', '2026-11-01T09:00:00Z'],
-      ['author-reveni', '2026-11-01T09:00:00Z']
+      ['nueva', '2026-10-01T09:00:00Z'],
+      ['nuevo', '2026-05-25T10:00:00Z'],
+      ['antigua', '2026-05-24T09:00:00Z'],
+      ['sin-prs', null],
+      ['author', '2026-11-01T09:00:00Z'],
+      ['dependabot[bot]', null]
     )
-    loads({ 'nueva-reveni': 3, 'nuevo-Reveni': 1 })
+    loads({ nueva: 3, nuevo: 1, 'sin-prs': 2 })
 
-    expect(
-      await suggestReviewers(
-        buildContext({ risk: 'Medium', effort: 3, trigger: { ...TRIGGER, authorLogin: 'author-reveni' } }),
-        {
-          logger,
-        }
-      )
-    ).toEqual({ expert: 'ana', learner: 'nuevo-Reveni' })
+    expect(await suggestReviewers(buildContext({ risk: 'Medium', effort: 3 }), { logger })).toEqual({
+      expert: 'ana',
+      learner: 'nuevo',
+    })
     expect(listOrganizationMembers).toHaveBeenCalledWith('acme-io')
+    expect(findFirstPullRequestDates).toHaveBeenCalledWith('acme-io', ['nueva', 'nuevo', 'antigua', 'sin-prs'])
+    expect(countReviewsSince.mock.calls[0][1]).not.toContain('antigua')
   })
 
-  it('suggests a newcomer even when the PR already has a reviewer', async () => {
-    members(['nueva-reveni', '2026-11-01T09:00:00Z'])
+  it('suggests a member who has not opened a PR yet, even when the PR already has a reviewer', async () => {
+    members(['nueva', null])
     listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva-reveni' })
+    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva' })
   })
 
   it('does not suggest the expert again as the newcomer', async () => {
-    members(['ana-reveni', '2026-11-01T09:00:00Z'])
-    listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana-reveni'] }])
+    members(['ana', '2026-11-01T09:00:00Z'])
+    listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana'] }])
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana-reveni', learner: null })
+    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
   })
 
   it.each([
@@ -206,7 +211,7 @@ describe('suggestReviewers', () => {
     ['complex change', { risk: 'Low', effort: 4 }],
     ['no overview', { risk: 'Low', effort: undefined }],
   ])('looks for no newcomer on a %s', async (_label, overrides) => {
-    members(['nueva-reveni', '2026-11-01T09:00:00Z'])
+    members(['nueva', '2026-11-01T09:00:00Z'])
 
     expect((await suggestReviewers(buildContext(overrides), { logger })).learner).toBeNull()
     expect(listOrganizationMembers).not.toHaveBeenCalled()

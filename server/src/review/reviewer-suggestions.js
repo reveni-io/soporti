@@ -1,6 +1,7 @@
 import {
   canPushToRepository,
   countReviewsSince,
+  findFirstPullRequestDates,
   listOrganizationMembers,
   listPathAuthors,
   listPullRequestReviews,
@@ -12,7 +13,6 @@ const MAX_PATHS = 10
 const MAX_EXPERTS = 5
 const LOAD_WINDOW_DAYS = 30
 const NEWCOMER_DAYS = 180
-const NEWCOMER_MARK = '-reveni'
 const DAY_MS = 86_400_000
 const LEARNING_RISKS = new Set(['Low', 'Medium'])
 const LEARNING_EFFORTS = new Set([2, 3])
@@ -33,8 +33,7 @@ async function pickReviewers(context, logger) {
   const { owner } = parseRepo(repoFullName)
   const taken = await listTakenReviewers(context)
   const experts = context.approved || taken.hasReviewer ? [] : await rankExperts(context, taken.logins)
-  const newcomers = isLearningPr(context) ? await findNewcomers(owner, logger) : []
-  const learners = newcomers.filter(login => !taken.logins.has(login.toLowerCase()))
+  const learners = isLearningPr(context) ? await findNewcomers({ org: owner, taken: taken.logins }, logger) : []
   const candidates = await keepPushers(repoFullName, [...new Set([...experts, ...learners])])
 
   if (candidates.size === 0) return null
@@ -50,20 +49,23 @@ async function pickReviewers(context, logger) {
   return expert || learner ? { expert, learner } : null
 }
 
-async function findNewcomers(org, logger) {
+async function findNewcomers({ org, taken }, logger) {
   try {
     const joinedAfter = daysAgo(NEWCOMER_DAYS).getTime()
-    const members = await listOrganizationMembers(org)
+    const members = (await listOrganizationMembers(org)).filter(login => {
+      return !isBotLogin(login) && !taken.has(login.toLowerCase())
+    })
+    const firstPullRequests = await findFirstPullRequestDates(org, members)
 
-    return members.filter(member => isNewcomer(member, joinedAfter)).map(({ login }) => login)
+    return members.filter(login => isNewcomer(firstPullRequests.get(login), joinedAfter))
   } catch (err) {
     logger.warn(`[review] Could not list the members of ${org} to find newcomers: ${err.message}`)
     return []
   }
 }
 
-function isNewcomer({ login, createdAt }, joinedAfter) {
-  return login.toLowerCase().includes(NEWCOMER_MARK) && Date.parse(createdAt) >= joinedAfter
+function isNewcomer(firstPullRequestAt, joinedAfter) {
+  return !firstPullRequestAt || Date.parse(firstPullRequestAt) >= joinedAfter
 }
 
 async function listTakenReviewers({ trigger, pr, reviewerLogin }) {
