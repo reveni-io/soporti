@@ -8,8 +8,7 @@ const recordJevCall = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsSince, recordJevCall }))
 
 const isConfigured = vi.fn()
-const areJevCallsEnabled = vi.fn()
-vi.mock('./settings.js', () => ({ isConfigured, areJevCallsEnabled }))
+vi.mock('./settings.js', () => ({ isConfigured }))
 
 const askQuestions = vi.fn()
 vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), askQuestions }))
@@ -43,7 +42,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockDocuments()
   isConfigured.mockResolvedValue(true)
-  areJevCallsEnabled.mockResolvedValue(true)
   countJevCallsSince.mockResolvedValue(0)
 })
 
@@ -141,11 +139,9 @@ describe('runJevCheck', () => {
   })
 
   it.each([
-    ['the Jev calls are off', () => areJevCallsEnabled.mockResolvedValue(false), 'Jev calls are off'],
     ['no key is saved', () => isConfigured.mockResolvedValue(false), 'No API key saved'],
     ['the guard was never saved', () => mockDocuments({ set: null }), 'No questions in the set'],
     ['the guard has no questions', () => mockDocuments({ set: { ...SET, questions: [] } }), 'No questions in the set'],
-    ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
     [
       'no min confidence is set',
       () => mockDocuments({ set: { ...SET, minConfidence: null } }),

@@ -6,32 +6,18 @@ import { QUESTION_CHOICE } from '../QuestionForm/question-form.js'
 import './QuestionSetEditor.css'
 
 const NEW_QUESTION = 'new'
-const RELEASE_RE = /^jev-\d+\.\d+\.\d+$/
 
 function versionedPart(set) {
   return JSON.stringify(VERSIONED_SET_FIELDS.map(field => set[field] ?? null))
 }
 
-function modelOptions(models, current) {
-  const options = models.map(model => ({
-    value: model.name,
-    label: model.description ? `${model.name} · ${model.description}` : model.name,
-  }))
-  if (current && !models.some(model => model.name === current)) {
-    options.push({ value: current, label: `${current} (not in the saved list)` })
-  }
-
-  return [{ value: '', label: 'Choose a model' }, ...options]
-}
-
-export default function QuestionSetEditor({ project, state, catalog, inUseMessage }) {
+export default function QuestionSetEditor({ project, state, inUseMessage }) {
   const [editing, setEditing] = useState(null)
   const [message, setMessage] = useState(null)
   const labels = projectLabels(project)
   const set = state.draft.set
   const setVersion = state.document.setVersion
   const bumps = versionedPart(state.document.data.set) !== versionedPart(set)
-  const canPickModel = catalog.keyConfigured && catalog.models.length > 0
 
   function updateSet(field, value) {
     state.updateDraft(draft => ({ ...draft, set: { ...draft.set, [field]: value } }))
@@ -73,26 +59,6 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
       </label>
 
       <div key={`${state.document.rev}-${state.restoredFrom}`} className="question-set__fields">
-        <label className="question-set__label">
-          Model
-          <select
-            className="input input--select"
-            name="model"
-            value={set.model}
-            onChange={handleSetFieldChange}
-            disabled={!canPickModel}
-          >
-            {canPickModel ? (
-              modelOptions(catalog.models, set.model).map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))
-            ) : (
-              <option value={set.model}>{set.model || 'No model'}</option>
-            )}
-          </select>
-        </label>
         <NumberField
           label="Min confidence"
           inputMode="decimal"
@@ -114,16 +80,8 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         )}
       </div>
 
-      {set.model && !RELEASE_RE.test(set.model) && (
-        <p className="alert alert--warning">
-          <code>{set.model}</code> is an alias: when it moves to a new Jev release, the answers can change without a new
-          set version. Pick a numbered release to pin them.
-        </p>
-      )}
       <p className="admin__muted">
-        Each guard configures Jev on its own. The models come from the list saved in the Jev section of the Guards page
-        {catalog.keyConfigured ? '' : ', which has no key saved: the model cannot be changed until it does'}. A daily
-        limit of <code>0</code> means no limit.
+        Every guard asks Jev’s latest model. A daily limit of <code>0</code> means no limit.
       </p>
 
       <h3 className="admin__subsection-title">

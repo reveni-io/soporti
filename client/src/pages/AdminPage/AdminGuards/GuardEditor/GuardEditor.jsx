@@ -6,7 +6,6 @@ import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import ModalFrame from '../../../../common/ModalFrame/ModalFrame.jsx'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
-import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
 import ReviewRules from '../ReviewRules/ReviewRules.jsx'
@@ -35,7 +34,7 @@ function DiscardConfirm({ onDiscard, onKeep }) {
   )
 }
 
-export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose }) {
+export default function GuardEditor({ token, guard, onLogout, onSaved, onClose }) {
   const project = useJevDocument(token, guard.id, onLogout)
   const [confirmingClose, setConfirmingClose] = useState(false)
   const isGithub = guard.id === JEV_GITHUB_DOCUMENT
@@ -91,7 +90,6 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         <QuestionSetEditor
           project={guard.id}
           state={project}
-          catalog={catalog}
           inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
         />
       </AdminSection>
@@ -112,10 +110,6 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
           onLogout={onLogout}
           withCalls
         />
-      </AdminSection>
-
-      <AdminSection title="Change history">
-        <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
       </AdminSection>
 
       <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />

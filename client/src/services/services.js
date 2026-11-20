@@ -587,24 +587,6 @@ export function getJevConfig(token) {
   return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
 }
 
-export function saveJevCalls(token, enabled) {
-  return request('/api/admin/config/jev/calls', {
-    method: 'PUT',
-    token,
-    body: { enabled },
-    errorMessage: 'Failed to save the Jev calls switch',
-  })
-}
-
-export function saveGuardSending(token, enabled) {
-  return request('/api/admin/config/jev/sending', {
-    method: 'PUT',
-    token,
-    body: { enabled },
-    errorMessage: 'Failed to save the sending switch',
-  })
-}
-
 export function saveJevApiKey(token, apiKey) {
   return request('/api/admin/config/jev/api-key', {
     method: 'PUT',
@@ -619,14 +601,6 @@ export function testJevConnection(token) {
     method: 'POST',
     token,
     errorMessage: 'Failed to test the connection',
-  })
-}
-
-export function scanJevModels(token) {
-  return request('/api/admin/config/jev/models/scan', {
-    method: 'POST',
-    token,
-    errorMessage: 'Failed to scan for models',
   })
 }
 
@@ -667,13 +641,6 @@ export function getGithubShadowStats(token, repos) {
   return request(`/api/admin/config/jev/github/shadow-stats?repos=${encodeURIComponent(repos.join(','))}`, {
     token,
     errorMessage: 'Failed to load the shadow results',
-  })
-}
-
-export function getJevHistory(token, id, page) {
-  return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
-    token,
-    errorMessage: 'Failed to load the change history',
   })
 }
 

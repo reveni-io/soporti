@@ -1,15 +1,8 @@
 import { Router } from 'express'
-import { isGuardSendingEnabled } from '../jev/settings.js'
 import { LEGAL_CASE_CHECKED } from '../constants.js'
 import { findOwnedLegalCases, getOwnedLegalCase } from '../db/legal-cases.js'
 import { listLegalReplies, saveLegalReply } from '../db/legal-replies.js'
-import {
-  GUARD_SEND_OFF,
-  LegalReplyError,
-  findSendBlocker,
-  readLegalConversation,
-  sendLegalReply,
-} from '../legal/replies.js'
+import { LegalReplyError, findSendBlocker, readLegalConversation, sendLegalReply } from '../legal/replies.js'
 
 const router = Router()
 
@@ -54,8 +47,6 @@ function toReply({ id, sentBy, text, sentAt }) {
 }
 
 async function describeSending(legalCases, userId) {
-  if (!(await isGuardSendingEnabled())) return new Map(legalCases.map(({ id }) => [id, GUARD_SEND_OFF]))
-
   const sources = [...new Set(legalCases.map(({ source }) => source))]
   const blockers = await Promise.all(sources.map(source => findSendBlocker(source, userId)))
   const bySource = new Map(sources.map((source, index) => [source, blockers[index]]))
@@ -70,12 +61,6 @@ async function recordReply({ legalCase, user, text, externalId }) {
     console.error('Failed to record a sent Legal reply:', err)
     return null
   }
-}
-
-async function findReplyBlocker(legalCase, userId) {
-  if (!(await isGuardSendingEnabled())) return GUARD_SEND_OFF
-
-  return findSendBlocker(legalCase.source, userId)
 }
 
 router.get('/cases', async (req, res) => {
@@ -111,7 +96,7 @@ router.post('/cases/:id/replies', async (req, res) => {
     const legalCase = await getOwnedLegalCase(Number(req.params.id), req.user.id)
     if (!legalCase) return res.status(404).json(NOT_FOUND)
 
-    const blocker = await findReplyBlocker(legalCase, req.user.id)
+    const blocker = await findSendBlocker(legalCase.source, req.user.id)
     if (blocker) return res.status(403).json({ error: blocker })
     if (needsCare(legalCase) && !value.warningsRead) return res.status(422).json({ error: WARNINGS_NOT_READ })
 

@@ -8,14 +8,9 @@ const {
   getJevApiKey,
   isConfigured,
   setJevApiKey,
-  getJevModelCatalog,
-  setJevModelCatalog,
   JEV_API_KEY_KEY,
-  JEV_MODEL_CATALOG_KEY,
   _resetJevSettingsCacheForTests,
 } = await import('./settings.js')
-
-const CATALOG = { models: [{ name: 'jev-latest', description: 'Latest', releaseDate: '2026-10-14' }], scannedAt: 'x' }
 
 beforeEach(() => {
   getConfigValue.mockReset()
@@ -60,24 +55,5 @@ describe('isConfigured', () => {
     _resetJevSettingsCacheForTests()
     getConfigValue.mockResolvedValue('')
     expect(await isConfigured()).toBe(false)
-  })
-})
-
-describe('getJevModelCatalog', () => {
-  it('returns an empty catalog when nothing was scanned', async () => {
-    getConfigValue.mockResolvedValue(null)
-
-    expect(await getJevModelCatalog()).toEqual({ models: [], scannedAt: null })
-  })
-
-  it('returns the saved catalog and refreshes it after a save', async () => {
-    getConfigValue.mockResolvedValue(null)
-    await getJevModelCatalog()
-
-    getConfigValue.mockResolvedValue(CATALOG)
-    await setJevModelCatalog(CATALOG)
-
-    expect(setConfigValue).toHaveBeenCalledWith(JEV_MODEL_CATALOG_KEY, CATALOG)
-    expect(await getJevModelCatalog()).toEqual(CATALOG)
   })
 })

@@ -1,33 +1,16 @@
 import { Router } from 'express'
-import { JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { REPO_NAME_RE } from '../constants.js'
 import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
-import {
-  addJevHistoryEntry,
-  getJevDocument,
-  getLatestJevSave,
-  listJevHistory,
-  listJevSetVersions,
-  saveJevDocument,
-} from '../db/jev-documents.js'
+import { getJevDocument, getLatestJevSave, listJevSetVersions, saveJevDocument } from '../db/jev-documents.js'
 import { getRepository } from '../github/client.js'
 import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
 import { listGuards } from '../guards/registry.js'
-import {
-  areJevCallsEnabled,
-  getJevModelCatalog,
-  isConfigured,
-  isGuardSendingEnabled,
-  setGuardSendingEnabled,
-  setJevApiKey,
-  setJevCallsEnabled,
-  setJevModelCatalog,
-} from '../jev/settings.js'
+import { isConfigured, setJevApiKey } from '../jev/settings.js'
 
-const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
@@ -35,8 +18,6 @@ const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
 const MAX_STATS_REPOS = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
-const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
-const NO_MODELS_MESSAGE = 'Jev returned no models'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 const router = Router()
@@ -109,18 +90,6 @@ function toShadowStats(repo, rows) {
   return { repo, evaluated: row.evaluated, wouldApprove: row.wouldApprove, days }
 }
 
-function describeKeyChange(hadKey, hasKey) {
-  if (hasKey) return hadKey ? 'API key replaced' : 'API key saved'
-
-  return hadKey ? 'API key removed' : null
-}
-
-function countNewModels(savedModels, scannedModels) {
-  const known = new Set(savedModels.map(model => model.name))
-
-  return scannedModels.filter(model => !known.has(model.name)).length
-}
-
 function toPayload(id, document, latestSave) {
   const saved = document ?? { rev: 0, data: defaultJevDocument(id), setVersion: 0 }
 
@@ -150,26 +119,15 @@ function sendFailure(res, err, action) {
   res.status(500).json({ error: `Failed to ${action}.` })
 }
 
-function isConnectionHistory(req, id) {
-  return id === JEV_SETTINGS_DOCUMENT && req.path.endsWith('/history')
-}
-
 router.param('id', (req, res, next, id) => {
-  if (!isJevDocument(id) && !isConnectionHistory(req, id))
-    return res.status(404).json({ error: 'Unknown Jev document.' })
+  if (!isJevDocument(id)) return res.status(404).json({ error: 'Unknown Jev document.' })
 
   next()
 })
 
 router.get('/', async (_req, res) => {
   try {
-    const [keyConfigured, catalog, callsEnabled, sendingEnabled] = await Promise.all([
-      isConfigured(),
-      getJevModelCatalog(),
-      areJevCallsEnabled(),
-      isGuardSendingEnabled(),
-    ])
-    res.json({ keyConfigured, models: catalog.models, scannedAt: catalog.scannedAt, callsEnabled, sendingEnabled })
+    res.json({ keyConfigured: await isConfigured() })
   } catch (err) {
     console.error('Failed to load the Jev settings:', err)
     res.status(500).json({ error: 'Failed to load the Jev settings.' })
@@ -181,61 +139,13 @@ router.put('/api-key', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const hadKey = await isConfigured()
     await setJevApiKey(value)
-
-    const change = describeKeyChange(hadKey, value.length > 0)
-    if (change) await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
-
     res.json({ keyConfigured: value.length > 0 })
   } catch (err) {
     console.error('Failed to save the Jev API key:', err)
     res.status(500).json({ error: 'Failed to save the Jev API key.' })
   }
 })
-
-function parseSwitch(body) {
-  if (typeof body?.enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
-
-  return { value: body.enabled }
-}
-
-function switchHandler({ label, read, save, check = async () => null }) {
-  return async function handleSwitch(req, res) {
-    const { error, value: enabled } = parseSwitch(req.body)
-    if (error) return res.status(400).json({ error })
-
-    try {
-      const blocker = enabled ? await check() : null
-      if (blocker) return res.status(422).json({ error: blocker })
-
-      if ((await read()) !== enabled) {
-        await save(enabled)
-        const change = `${label} ${enabled ? 'on' : 'off'}`
-        await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
-      }
-
-      res.json({ enabled })
-    } catch (err) {
-      console.error(`Failed to save ${label}:`, err)
-      res.status(500).json({ error: `Failed to save ${label}.` })
-    }
-  }
-}
-
-async function findCallsBlocker() {
-  return (await isConfigured()) ? null : NO_KEY_CALLS_MESSAGE
-}
-
-router.put(
-  '/calls',
-  switchHandler({ label: 'Jev calls', read: areJevCallsEnabled, save: setJevCallsEnabled, check: findCallsBlocker })
-)
-
-router.put(
-  '/sending',
-  switchHandler({ label: 'Sending from Soporti', read: isGuardSendingEnabled, save: setGuardSendingEnabled })
-)
 
 router.post('/test', async (_req, res) => {
   try {
@@ -246,22 +156,6 @@ router.post('/test', async (_req, res) => {
     res.json({ latencyMs: Date.now() - startedAt })
   } catch (err) {
     sendFailure(res, err, 'test the Jev connection')
-  }
-})
-
-router.post('/models/scan', async (_req, res) => {
-  try {
-    if (!(await isConfigured())) return res.status(422).json({ error: NO_KEY_SCAN_MESSAGE })
-
-    const [saved, models] = await Promise.all([getJevModelCatalog(), listModels()])
-    if (models.length === 0) throw new JevApiError(NO_MODELS_MESSAGE)
-
-    const catalog = { models, scannedAt: new Date().toISOString() }
-    await setJevModelCatalog(catalog)
-
-    res.json({ ...catalog, newModels: countNewModels(saved.models, models) })
-  } catch (err) {
-    sendFailure(res, err, 'scan the Jev models')
   }
 })
 
@@ -350,8 +244,6 @@ function pageHandler(list, label) {
     }
   }
 }
-
-router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history'))
 
 async function listVersionsWithCalls(id, page) {
   const versions = await listJevSetVersions(id, page)

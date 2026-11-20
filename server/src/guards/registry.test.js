@@ -4,8 +4,7 @@ const getJevDocument = vi.fn()
 vi.mock('../db/jev-documents.js', () => ({ getJevDocument }))
 
 const isConfigured = vi.fn()
-const areJevCallsEnabled = vi.fn()
-vi.mock('../jev/settings.js', () => ({ isConfigured, areJevCallsEnabled }))
+vi.mock('../jev/settings.js', () => ({ isConfigured }))
 
 const { listChatGuards, listGuards } = await import('./registry.js')
 
@@ -34,7 +33,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   getJevDocument.mockImplementation(async id => DOCUMENTS[id] ?? null)
   isConfigured.mockResolvedValue(true)
-  areJevCallsEnabled.mockResolvedValue(true)
 })
 
 describe('listGuards', () => {
@@ -45,7 +43,6 @@ describe('listGuards', () => {
         name: 'Legal',
         description: 'Customer replies',
         questions: 1,
-        model: 'jev-latest',
         setVersion: 3,
       },
       {
@@ -53,7 +50,6 @@ describe('listGuards', () => {
         name: 'GitHub PRs',
         description: '',
         questions: 1,
-        model: 'jev-latest',
         setVersion: 1,
       },
     ])
@@ -64,7 +60,7 @@ describe('listGuards', () => {
 
     const [legal] = await listGuards()
 
-    expect(legal).toMatchObject({ id: 'legal', questions: 0, model: '', setVersion: 0 })
+    expect(legal).toMatchObject({ id: 'legal', questions: 0, setVersion: 0 })
   })
 })
 
@@ -78,10 +74,7 @@ describe('listChatGuards', () => {
     expect(await listChatGuards()).toEqual([])
   })
 
-  it('offers none while the Jev calls are off or there is no key', async () => {
-    areJevCallsEnabled.mockResolvedValueOnce(false)
-    expect(await listChatGuards()).toEqual([])
-
+  it('offers none while there is no key', async () => {
     isConfigured.mockResolvedValueOnce(false)
     expect(await listChatGuards()).toEqual([])
   })
