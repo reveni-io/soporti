@@ -29,6 +29,14 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
     if (await repos.addRepo(newRepo)) setNewRepo('')
   }
 
+  function handleBulkModeChange(event) {
+    setBulkMode(event.target.value)
+  }
+
+  function handleNewRepoChange(event) {
+    setNewRepo(event.target.value)
+  }
+
   return (
     <>
       <p className="admin__muted">
@@ -59,7 +67,7 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
           <select
             className="input input--select admin__select--compact"
             value={bulkMode}
-            onChange={event => setBulkMode(event.target.value)}
+            onChange={handleBulkModeChange}
           >
             {AUTO_APPROVE_MODES.map(mode => (
               <option key={mode} value={mode}>
@@ -88,7 +96,7 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
           placeholder="org/repo"
           autoComplete="off"
           value={newRepo}
-          onChange={event => setNewRepo(event.target.value)}
+          onChange={handleNewRepoChange}
           disabled={repos.adding}
         />
         <button className="btn btn--secondary" type="submit" disabled={repos.adding || !newRepo.trim()}>
@@ -116,18 +124,29 @@ function ReposTable({ repos }) {
 
   const allSelected = repos.selected.length === count
 
+  function handleSelectAll(event) {
+    repos.toggleAll(event.target.checked)
+  }
+
+  function handleSelect(name, event) {
+    repos.toggleSelected(name, event.target.checked)
+  }
+
+  function handleModeChange(name, event) {
+    repos.requestMode([name], event.target.value)
+  }
+
+  function handleJevChange(name, event) {
+    repos.updateRepo(name, { jev: event.target.checked })
+  }
+
   return (
     <div className="admin__table-wrap">
       <table className="admin__table">
         <thead>
           <tr>
             <th>
-              <input
-                type="checkbox"
-                aria-label="Select all repos"
-                checked={allSelected}
-                onChange={event => repos.toggleAll(event.target.checked)}
-              />
+              <input type="checkbox" aria-label="Select all repos" checked={allSelected} onChange={handleSelectAll} />
             </th>
             <th>Repository</th>
             <th>Mode</th>
@@ -145,7 +164,7 @@ function ReposTable({ repos }) {
                   type="checkbox"
                   aria-label={`Select ${repo.name}`}
                   checked={repos.selected.includes(repo.name)}
-                  onChange={event => repos.toggleSelected(repo.name, event.target.checked)}
+                  onChange={event => handleSelect(repo.name, event)}
                 />
               </td>
               <td>
@@ -156,7 +175,7 @@ function ReposTable({ repos }) {
                   className="input input--select admin__select--compact"
                   aria-label={`Mode of ${repo.name}`}
                   value={repo.mode}
-                  onChange={event => repos.requestMode([repo.name], event.target.value)}
+                  onChange={event => handleModeChange(repo.name, event)}
                 >
                   {AUTO_APPROVE_MODES.map(mode => (
                     <option key={mode} value={mode} disabled={mode === AUTO_APPROVE_ON && !repos.canGoOn(repo.name)}>
@@ -170,7 +189,7 @@ function ReposTable({ repos }) {
                   type="checkbox"
                   aria-label={`Ask Jev about ${repo.name}`}
                   checked={repo.jev}
-                  onChange={event => repos.updateRepo(repo.name, { jev: event.target.checked })}
+                  onChange={event => handleJevChange(repo.name, event)}
                 />
               </td>
               <td>{countPatterns(repo.denylist)}</td>
