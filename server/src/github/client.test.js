@@ -88,7 +88,7 @@ const {
   listPathAuthors,
   countReviewsSince,
   canPushToRepository,
-  listOrganizationMembers,
+  findFirstPullRequestDates,
 } = await import('./client.js')
 
 describe('listRepos', () => {
@@ -681,6 +681,14 @@ describe('listPathAuthors', () => {
     expect(variables).toEqual({ owner: 'acme-io', repo: 'app', ref: 'main', p0: 'src/a.js', p1: 'src/new.js' })
   })
 
+  it('reads more commits per path when asked', async () => {
+    mockGraphql.mockResolvedValue({ repository: { object: { f0: { nodes: [] } } } })
+
+    await listPathAuthors('acme-io/app', 'main', ['apps/returns'], { limit: 50 })
+
+    expect(mockGraphql.mock.calls[0][0]).toContain('f0: history(first: 50, path: $p0)')
+  })
+
   it('returns no authors when the ref is missing', async () => {
     mockGraphql.mockResolvedValue({ repository: { object: null } })
 
@@ -743,41 +751,30 @@ describe('canPushToRepository', () => {
   })
 })
 
-describe('listOrganizationMembers', () => {
+describe('findFirstPullRequestDates', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('reads every page of members with the date their account was created', async () => {
+  it('finds the oldest PR each person opened in the org, 50 people per query', async () => {
+    const logins = Array.from({ length: 51 }, (_, index) => `dev${index}`)
     mockGraphql
-      .mockResolvedValueOnce({
-        organization: {
-          membersWithRole: {
-            nodes: [{ login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z', name: 'Ana' }],
-            pageInfo: { hasNextPage: true, endCursor: 'c1' },
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        organization: {
-          membersWithRole: {
-            nodes: [{ login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' }],
-            pageInfo: { hasNextPage: false, endCursor: 'c2' },
-          },
-        },
-      })
+      .mockResolvedValueOnce({ r0: { nodes: [{ createdAt: '2026-06-01T10:00:00Z' }] }, r1: { nodes: [] } })
+      .mockResolvedValueOnce({ r0: null })
 
-    expect(await listOrganizationMembers('acme-io')).toEqual([
-      { login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z' },
-      { login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' },
-    ])
-    expect(mockGraphql.mock.calls.map(([, variables]) => variables)).toEqual([
-      { org: 'acme-io', cursor: null },
-      { org: 'acme-io', cursor: 'c1' },
-    ])
+    const dates = await findFirstPullRequestDates('acme-io', logins)
+
+    expect(dates.get('dev0')).toBe('2026-06-01T10:00:00Z')
+    expect(dates.get('dev1')).toBeNull()
+    expect(dates.get('dev50')).toBeNull()
+    expect(dates.size).toBe(51)
+    expect(mockGraphql).toHaveBeenCalledTimes(2)
+    const [query, variables] = mockGraphql.mock.calls[0]
+    expect(query).toContain('r49: search(query: $q49, type: ISSUE, first: 1)')
+    expect(variables.q0).toBe('is:pr org:acme-io author:dev0 sort:created-asc')
+    expect(mockGraphql.mock.calls[1][1]).toEqual({ q0: 'is:pr org:acme-io author:dev50 sort:created-asc' })
   })
 
-  it('returns no members when the owner is not an organization', async () => {
-    mockGraphql.mockResolvedValue({ organization: null })
-
-    expect(await listOrganizationMembers('someone')).toEqual([])
+  it('does not query GitHub without people', async () => {
+    expect(await findFirstPullRequestDates('acme-io', [])).toEqual(new Map())
+    expect(mockGraphql).not.toHaveBeenCalled()
   })
 })
