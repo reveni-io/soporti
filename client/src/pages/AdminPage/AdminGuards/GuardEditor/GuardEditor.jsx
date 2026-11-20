@@ -82,94 +82,97 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
 
   return (
     <ModalFrame title={title} className="guard-modal" onClose={requestClose}>
-      {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
+      <div className="guard-modal__body">
+        {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
 
-      <AdminSection title="Settings">
-        <label className="admin__switch">
-          <input
-            type="checkbox"
-            checked={project.draft.enabled === true}
-            onChange={handleCallsChange}
-            disabled={!catalog.keyConfigured && !project.draft.enabled}
-          />
-          <span className="admin__switch-slider" aria-hidden="true" />
-          <span className="admin__switch-label">
-            Allow Jev calls
-            <span className="admin__muted">
-              {isGithub
-                ? 'When off, the auto-approve repos decide without Jev: only a trivial PR with nothing blocking is approved.'
-                : 'When off, the guard is not offered in the chat and nothing calls Jev for it.'}
-            </span>
-          </span>
-        </label>
-        {!catalog.keyConfigured && (
-          <p className="admin__muted">
-            Save the Jev API key in the Jev section of this page before turning the calls on.
-          </p>
-        )}
-
-        {isGithub ? (
-          <p className="note">
-            Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos
-            and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in the chat.
-          </p>
-        ) : (
-          <p className="admin__muted">
-            Ask for it in any chat, in Slack or over MCP, and in a scheduled query, by its name: for example “pass the
-            reply through the {guard.name} guard”. The assistant only uses a guard when it is asked to. A guard never
-            blocks anything: it warns, and a person has the last word.
-          </p>
-        )}
-
-        {!isGithub && (
+        <AdminSection title="Settings">
           <label className="admin__switch">
-            <input type="checkbox" checked={project.draft.allowSend === true} onChange={handleSendChange} />
+            <input
+              type="checkbox"
+              checked={project.draft.enabled === true}
+              onChange={handleCallsChange}
+              disabled={!catalog.keyConfigured && !project.draft.enabled}
+            />
             <span className="admin__switch-slider" aria-hidden="true" />
             <span className="admin__switch-label">
-              Allow sending replies from Soporti
+              Allow Jev calls
               <span className="admin__muted">
-                When on, a reply to a Zendesk or HubSpot ticket checked by this guard can be sent from its case in the
-                chat, by the person who sends it, after a confirmation.
+                {isGithub
+                  ? 'When off, the auto-approve repos decide without Jev: only a trivial PR with nothing blocking is approved.'
+                  : 'When off, the guard is not offered in the chat and nothing calls Jev for it.'}
               </span>
             </span>
           </label>
+          {!catalog.keyConfigured && (
+            <p className="admin__muted">
+              Save the Jev API key in the Jev section of this page before turning the calls on.
+            </p>
+          )}
+
+          {isGithub ? (
+            <p className="note">
+              Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The
+              repos and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in
+              the chat.
+            </p>
+          ) : (
+            <p className="admin__muted">
+              Ask for it in any chat, in Slack or over MCP, and in a scheduled query, by its name: for example “pass the
+              reply through the {guard.name} guard”. The assistant only uses a guard when it is asked to. A guard never
+              blocks anything: it warns, and a person has the last word.
+            </p>
+          )}
+
+          {!isGithub && (
+            <label className="admin__switch">
+              <input type="checkbox" checked={project.draft.allowSend === true} onChange={handleSendChange} />
+              <span className="admin__switch-slider" aria-hidden="true" />
+              <span className="admin__switch-label">
+                Allow sending replies from Soporti
+                <span className="admin__muted">
+                  When on, a reply to a Zendesk or HubSpot ticket checked by this guard can be sent from its case in the
+                  chat, by the person who sends it, after a confirmation.
+                </span>
+              </span>
+            </label>
+          )}
+
+          <p className="alert alert--warning">
+            A guard sends what it checks to a third party. Review TypeSafe’s data retention before using it.
+          </p>
+        </AdminSection>
+
+        <AdminSection title="Questions and answers">
+          <QuestionSetEditor
+            project={guard.id}
+            state={project}
+            catalog={catalog}
+            inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
+          />
+        </AdminSection>
+
+        {isGithub && (
+          <AdminSection title="Rules">
+            <ReviewRules state={project} />
+          </AdminSection>
         )}
 
-        <p className="alert alert--warning">
-          A guard sends what it checks to a third party. Review TypeSafe’s data retention before using it.
-        </p>
-      </AdminSection>
-
-      <AdminSection title="Questions and answers">
-        <QuestionSetEditor
-          project={guard.id}
-          state={project}
-          catalog={catalog}
-          inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
-        />
-      </AdminSection>
-
-      {isGithub && (
-        <AdminSection title="Rules">
-          <ReviewRules state={project} />
+        <AdminSection title="Versions">
+          <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
+          <VersionsTable
+            key={project.document.setVersion}
+            token={token}
+            project={guard.id}
+            state={project}
+            onLogout={onLogout}
+            withCalls
+          />
         </AdminSection>
-      )}
 
-      <AdminSection title="Versions">
-        <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
-        <VersionsTable
-          key={project.document.setVersion}
-          token={token}
-          project={guard.id}
-          state={project}
-          onLogout={onLogout}
-          withCalls
-        />
-      </AdminSection>
-
-      <AdminSection title="Change history">
-        <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
-      </AdminSection>
+        <AdminSection title="Change history">
+          <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
+        </AdminSection>
+      </div>
 
       <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />
     </ModalFrame>

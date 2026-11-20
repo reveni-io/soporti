@@ -1,7 +1,22 @@
 .modal.guard-modal {
   max-width: 64rem;
   max-height: 90vh;
+  overflow: hidden;
+}
+
+.guard-modal__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp3);
+  min-height: 0;
   overflow-y: auto;
+}
+
+.guard-modal .docbar {
+  position: static;
+  flex-shrink: 0;
+  box-shadow: none;
 }
 
 .guard-modal__confirm {
