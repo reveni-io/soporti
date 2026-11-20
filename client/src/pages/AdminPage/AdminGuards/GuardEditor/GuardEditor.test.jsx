@@ -112,36 +112,21 @@ describe('GuardEditor', () => {
     expect(screen.getByText(/Cannot delete the set: 1 auto-approve repo \(acme\/web\) use it/)).toBeInTheDocument()
   })
 
-  it('renames a created guard and deletes it after a confirmation', async () => {
-    mockApi(
-      'guard-0a1b2c3d',
-      { name: 'Payments', set: SET },
-      { [`DELETE ${BASE}/guards/guard-0a1b2c3d`]: [{ ok: true, status: 204, json: async () => null }] }
-    )
-    const onDeleted = vi.fn()
+  it('renames a created guard', async () => {
+    mockApi('guard-0a1b2c3d', { name: 'Payments', set: SET })
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <GuardEditor
-          token="tok"
-          guard={PAYMENTS}
-          catalog={CATALOG}
-          onSaved={vi.fn()}
-          onDeleted={onDeleted}
-          onLogout={vi.fn()}
-        />
+        <GuardEditor token="tok" guard={PAYMENTS} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
     const name = await screen.findByRole('textbox', { name: 'Name' })
     await user.clear(name)
     await user.type(name, 'Refunds')
+
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /Delete guard/ }))
-    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
-
-    expect(onDeleted).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /Delete guard/ })).not.toBeInTheDocument()
   })
 
   it('closes at once without changes, and asks before dropping unsaved ones', async () => {
