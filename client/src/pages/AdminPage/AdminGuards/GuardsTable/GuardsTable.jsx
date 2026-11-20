@@ -49,7 +49,6 @@ export default function GuardsTable({ guards, onEdit }) {
           </tbody>
         </table>
       </div>
-      <p className="admin__muted">Calls, cases and sent replies of the last 30 days.</p>
     </>
   )
 }

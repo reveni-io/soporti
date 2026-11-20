@@ -30,7 +30,6 @@ describe('GuardsTable', () => {
     expect(legal).toHaveTextContent('Replies to customers')
     expect(within(legal).getByRole('cell', { name: (1200).toLocaleString() })).toBeInTheDocument()
     expect(github).toHaveTextContent('PR reviews of the auto-approve repos')
-    expect(screen.getByText('Calls, cases and sent replies of the last 30 days.')).toBeInTheDocument()
   })
 
   it.each([
