@@ -24,4 +24,4 @@ export function projectLabels(id) {
   return id === JEV_GITHUB_DOCUMENT ? GITHUB_LABELS : GUARD_LABELS
 }
 
-export const VERSIONED_SET_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
+export const VERSIONED_SET_FIELDS = ['minConfidence', 'questions', 'rules']
