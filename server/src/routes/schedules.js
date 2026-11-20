@@ -22,6 +22,8 @@ const router = Router()
 
 const ID_RE = /^\d{1,9}$/
 
+const LEGAL_FLAG_ERROR = '"legal" must be true or false.'
+
 function parseScheduleInput(body) {
   const { question, sources, profile, frequency, timezone } = body ?? {}
 
@@ -51,11 +53,14 @@ function parseScheduleInput(body) {
   return { value: { question: question.trim(), sources, profile, frequency, ...timing.value, timezone } }
 }
 
+function parseLegalFlag(value) {
+  return typeof value === 'boolean' ? { value } : { error: LEGAL_FLAG_ERROR }
+}
+
 function parseLegal(value) {
   if (value === undefined) return { value: false }
-  if (typeof value !== 'boolean') return { error: '"legal" must be true or false.' }
 
-  return { value }
+  return parseLegalFlag(value)
 }
 
 router.get('/', async (req, res) => {
@@ -112,10 +117,11 @@ router.put('/:id', async (req, res) => {
 
 router.patch('/:id/legal', async (req, res) => {
   if (!ID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid schedule ID.' })
-  if (typeof req.body?.legal !== 'boolean') return res.status(400).json({ error: '"legal" must be true or false.' })
+  const legal = parseLegalFlag(req.body?.legal)
+  if (legal.error) return res.status(400).json({ error: legal.error })
 
   try {
-    const schedule = await setScheduleLegal(Number(req.params.id), req.user.id, req.body.legal)
+    const schedule = await setScheduleLegal(Number(req.params.id), req.user.id, legal.value)
     if (!schedule) return res.status(404).json({ error: 'Scheduled query not found.' })
     res.json({ schedule })
   } catch (err) {
