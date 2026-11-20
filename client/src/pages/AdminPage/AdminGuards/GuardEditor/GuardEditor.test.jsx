@@ -41,16 +41,6 @@ function mockApi(id, data, routes = {}) {
   })
 }
 
-function renderEditor(guard, props = {}) {
-  const handlers = { onSaved: vi.fn(), onLogout: vi.fn(), ...props }
-  render(
-    <MemoryRouter>
-      <GuardEditor token="tok" guard={guard} catalog={CATALOG} {...handlers} />
-    </MemoryRouter>
-  )
-  return handlers
-}
-
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -59,7 +49,11 @@ describe('GuardEditor', () => {
   it('edits a guard: how to ask for it, sending, its questions, versions and history', async () => {
     mockApi('legal', { set: SET, allowSend: false })
 
-    renderEditor(LEGAL)
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
     expect(screen.getByText(/pass the reply through the Legal guard/)).toBeInTheDocument()
@@ -77,7 +71,11 @@ describe('GuardEditor', () => {
       { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] }
     )
     const user = userEvent.setup()
-    renderEditor(LEGAL)
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     const calls = await screen.findByRole('checkbox', { name: /Allow Jev calls/ })
     expect(screen.getByText(/the guard is not offered in the chat/)).toBeInTheDocument()
@@ -111,7 +109,12 @@ describe('GuardEditor', () => {
     const saved = document('legal', { set: SET, allowSend: true })
     mockApi('legal', { set: SET, allowSend: false }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
     const user = userEvent.setup()
-    const { onSaved } = renderEditor(LEGAL)
+    const onSaved = vi.fn()
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={onSaved} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     await user.click(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
     await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
@@ -131,7 +134,11 @@ describe('GuardEditor', () => {
     })
     const user = userEvent.setup()
 
-    renderEditor(GITHUB)
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={GITHUB} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByRole('link', { name: 'Admin → GitHub' })).toHaveAttribute('href', '/admin/github')
     expect(screen.getByText(/only a trivial PR with nothing blocking is approved/)).toBeInTheDocument()
@@ -148,7 +155,11 @@ describe('GuardEditor', () => {
       [`GET ${BASE}/documents/legal`]: [{ ok: false, status: 500, json: async () => ({ error: 'Failed to load.' }) }],
     })
 
-    renderEditor(LEGAL)
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Failed to load.')).toBeInTheDocument()
   })

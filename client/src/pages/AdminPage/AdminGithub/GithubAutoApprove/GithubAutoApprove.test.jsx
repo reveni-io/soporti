@@ -36,19 +36,15 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderAutoApprove() {
-  render(
-    <MemoryRouter>
-      <GithubAutoApprove token="tok" onLogout={vi.fn()} />
-    </MemoryRouter>
-  )
-}
-
 describe('GithubAutoApprove', () => {
   it('shows the repos, the rules and the save bar, and points to the GitHub PRs guard for the questions', async () => {
     mockApi([])
 
-    renderAutoApprove()
+    render(
+      <MemoryRouter>
+        <GithubAutoApprove token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Auto-approve repos')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'GitHub PRs guard' })).toHaveAttribute('href', '/admin/guards?guard=github')
@@ -66,7 +62,11 @@ describe('GithubAutoApprove', () => {
       },
     })
 
-    renderAutoApprove()
+    render(
+      <MemoryRouter>
+        <GithubAutoApprove token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Failed to load the settings.')).toBeInTheDocument()
   })

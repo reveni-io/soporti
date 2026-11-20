@@ -43,24 +43,6 @@ function SearchProbe() {
   return <span data-testid="search">{useLocation().search}</span>
 }
 
-function renderPage(path = '/admin/guards') {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="/admin/guards"
-          element={
-            <>
-              <AdminGuards token="tok" onLogout={vi.fn()} />
-              <SearchProbe />
-            </>
-          }
-        />
-      </Routes>
-    </MemoryRouter>
-  )
-}
-
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -69,7 +51,21 @@ describe('AdminGuards', () => {
   it('starts with Jev, then the guards, editing Legal first, and ends with the Jev history', async () => {
     mockApi()
 
-    renderPage()
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <Routes>
+          <Route
+            path="/admin/guards"
+            element={
+              <>
+                <AdminGuards token="tok" onLogout={vi.fn()} />
+                <SearchProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
 
     expect(await screen.findByRole('button', { name: 'Edit Legal' })).toBeDisabled()
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
@@ -84,7 +80,21 @@ describe('AdminGuards', () => {
     mockApi()
     const user = userEvent.setup()
 
-    renderPage('/admin/guards?guard=github')
+    render(
+      <MemoryRouter initialEntries={['/admin/guards?guard=github']}>
+        <Routes>
+          <Route
+            path="/admin/guards"
+            element={
+              <>
+                <AdminGuards token="tok" onLogout={vi.fn()} />
+                <SearchProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('GitHub PRs guard', { selector: 'h2' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Edit Legal' }))
@@ -110,7 +120,21 @@ describe('AdminGuards', () => {
     })
     const user = userEvent.setup()
 
-    renderPage()
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <Routes>
+          <Route
+            path="/admin/guards"
+            element={
+              <>
+                <AdminGuards token="tok" onLogout={vi.fn()} />
+                <SearchProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
     await user.type(await screen.findByPlaceholderText('Paste a new key to replace it'), 'jev-secret')
     await user.click(screen.getByRole('button', { name: 'Save key' }))
 
@@ -122,7 +146,21 @@ describe('AdminGuards', () => {
       [`GET ${BASE}/guards`]: [{ ok: false, status: 500, json: async () => ({ error: 'Failed to load the guards.' }) }],
     })
 
-    renderPage()
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <Routes>
+          <Route
+            path="/admin/guards"
+            element={
+              <>
+                <AdminGuards token="tok" onLogout={vi.fn()} />
+                <SearchProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Failed to load the guards.')).toBeInTheDocument()
   })

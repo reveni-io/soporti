@@ -50,12 +50,6 @@ function Harness({ initial, onChanged }) {
   )
 }
 
-function renderConnection(config = NO_KEY) {
-  const onChanged = vi.fn()
-  render(<Harness initial={config} onChanged={onChanged} />)
-  return { onChanged }
-}
-
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -64,7 +58,7 @@ describe('JevConnection', () => {
   it('starts without a key or models, and has no switch of its own: each guard has one', async () => {
     mockApi({})
 
-    renderConnection()
+    render(<Harness initial={NO_KEY} onChanged={vi.fn()} />)
 
     expect(await screen.findByText('not configured')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeDisabled()
@@ -75,7 +69,7 @@ describe('JevConnection', () => {
   it('shows the saved catalog when the key is configured', async () => {
     mockApi({})
 
-    renderConnection(WITH_KEY)
+    render(<Harness initial={WITH_KEY} onChanged={vi.fn()} />)
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Paste a new key to replace it')).toBeInTheDocument()
@@ -87,7 +81,7 @@ describe('JevConnection', () => {
     mockApi({ [`POST ${BASE}/test`]: [okResponse({ latencyMs: 312 })] })
     const user = userEvent.setup()
 
-    renderConnection()
+    render(<Harness initial={NO_KEY} onChanged={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText('Connected · 312 ms')).toBeInTheDocument()
@@ -102,7 +96,8 @@ describe('JevConnection', () => {
     })
     const user = userEvent.setup()
 
-    const { onChanged } = renderConnection()
+    const onChanged = vi.fn()
+    render(<Harness initial={NO_KEY} onChanged={onChanged} />)
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText(failure)).toBeInTheDocument()
@@ -126,7 +121,7 @@ describe('JevConnection', () => {
     })
     const user = userEvent.setup()
 
-    renderConnection(WITH_KEY)
+    render(<Harness initial={WITH_KEY} onChanged={vi.fn()} />)
     const scan = await screen.findByRole('button', { name: 'Scan for new models' })
     await user.click(scan)
 
@@ -143,7 +138,7 @@ describe('JevConnection', () => {
     })
     const user = userEvent.setup()
 
-    renderConnection({ ...WITH_KEY, models: [], scannedAt: null })
+    render(<Harness initial={{ ...WITH_KEY, models: [], scannedAt: null }} onChanged={vi.fn()} />)
     await user.click(await screen.findByRole('button', { name: 'Scan for new models' }))
 
     expect(await screen.findByText('Could not scan the Jev models: Jev error (HTTP 529).')).toBeInTheDocument()

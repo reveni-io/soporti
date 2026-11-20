@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AUTO_APPROVE_OFF, JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
+import { ROUTES } from '../../../../router/constants.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
@@ -77,8 +78,8 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
         {isGithub ? (
           <p className="note">
             Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos,
-            their modes and the rules are in <Link to="/admin/github">Admin → GitHub</Link>. It is not offered in the
-            chat.
+            their modes and the rules are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in
+            the chat.
           </p>
         ) : (
           <p className="admin__muted">

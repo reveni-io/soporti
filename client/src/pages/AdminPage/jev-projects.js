@@ -1,3 +1,5 @@
+import { JEV_GITHUB_DOCUMENT } from '../../constants.js'
+
 const GITHUB_LABELS = {
   flag: 'Veto approval',
   badge: 'vetoes approval',
@@ -19,7 +21,7 @@ const GUARD_LABELS = {
 }
 
 export function projectLabels(id) {
-  return id === 'github' ? GITHUB_LABELS : GUARD_LABELS
+  return id === JEV_GITHUB_DOCUMENT ? GITHUB_LABELS : GUARD_LABELS
 }
 
 export const VERSIONED_SET_FIELDS = ['model', 'minConfidence', 'questions', 'rules']

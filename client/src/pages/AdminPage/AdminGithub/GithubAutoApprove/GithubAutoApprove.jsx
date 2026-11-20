@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
+import { ROUTES } from '../../../../router/constants.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
@@ -33,9 +34,9 @@ export default function GithubAutoApprove({ token, onLogout }) {
       <AdminSection title="Questions for this review">
         <p className="note">
           The questions Jev answers about each PR, with their model, versions and history, are in the{' '}
-          <Link to="/admin/guards?guard=github">GitHub PRs guard</Link>. In repos set to <code>on</code>, an answer that
-          vetoes, or one Jev is not sure about, keeps the PR from being approved; in <code>shadow</code> it is only
-          logged. Jev can only veto, never approve.
+          <Link to={`${ROUTES.ADMIN_GUARDS}?guard=${JEV_GITHUB_DOCUMENT}`}>GitHub PRs guard</Link>. In repos set to{' '}
+          <code>on</code>, an answer that vetoes, or one Jev is not sure about, keeps the PR from being approved; in{' '}
+          <code>shadow</code> it is only logged. Jev can only veto, never approve.
         </p>
       </AdminSection>
 
