@@ -4,7 +4,7 @@ const GUARD_LABELS = {
   score: 'Warn when the score is at least',
   badgeAt: 'warns at',
   help: 'Tick the answers that should raise a warning. A guard never blocks anything: a person has the last word.',
-  versioned: 'questions, model and min confidence',
+  versioned: 'questions and min confidence',
   description: 'When to use it',
 }
 
