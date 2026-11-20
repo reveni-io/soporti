@@ -23,6 +23,7 @@ function makeChain(op) {
     where: record('where'),
     values: record('values'),
     onConflictDoNothing: record('onConflictDoNothing'),
+    returning: record('returning'),
     innerJoin: () => chain,
     groupBy: record('groupBy'),
     having: record('having'),
@@ -41,9 +42,17 @@ function makeChain(op) {
 const db = { select: () => makeChain('select'), insert: () => makeChain('insert'), delete: () => makeChain('delete') }
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
-const { legalCases } = await import('./schema.js')
-const { countLegalRuns, deleteLegalCases, findDraftedLegalCases, isDrafted, listUncheckedLegalRuns, saveLegalCase } =
-  await import('./legal-cases.js')
+const { legalCases, schedules } = await import('./schema.js')
+const {
+  countLegalRuns,
+  deleteLegalCases,
+  findDraftedLegalCases,
+  findOwnedLegalCases,
+  getOwnedLegalCase,
+  isDrafted,
+  listUncheckedLegalRuns,
+  saveLegalCase,
+} = await import('./legal-cases.js')
 
 const TICKET = { source: 'zendesk', ticketId: '48213', messageHash: 'abc' }
 
@@ -77,11 +86,45 @@ describe('findDraftedLegalCases', () => {
 })
 
 describe('saveLegalCase', () => {
-  it('stores the case once', async () => {
-    await saveLegalCase({ ...TICKET, scheduleId: 3 })
+  it('stores the case once and returns its id', async () => {
+    queue.push([{ id: 41 }])
 
+    expect(await saveLegalCase({ ...TICKET, scheduleId: 3 })).toBe(41)
     expect(calls[0].steps.values).toEqual({ ...TICKET, scheduleId: 3 })
     expect(calls[0].steps).toHaveProperty('onConflictDoNothing')
+  })
+
+  it('returns no id when the case was already stored', async () => {
+    expect(await saveLegalCase({ ...TICKET, scheduleId: 3 })).toBeNull()
+  })
+})
+
+describe('findOwnedLegalCases', () => {
+  it('only finds the cases of the schedules of the user', async () => {
+    queue.push([{ id: 41, source: 'zendesk' }])
+
+    expect(await findOwnedLegalCases([41, 42], 3)).toEqual([{ id: 41, source: 'zendesk' }])
+    expect(calls[0].steps.where).toEqual({
+      op: 'and',
+      preds: [
+        { op: 'inArray', col: legalCases.id, val: [41, 42] },
+        { op: 'eq', col: schedules.userId, val: 3 },
+      ],
+    })
+  })
+
+  it('does not query without ids', async () => {
+    expect(await findOwnedLegalCases([], 3)).toEqual([])
+    expect(calls).toHaveLength(0)
+  })
+})
+
+describe('getOwnedLegalCase', () => {
+  it('returns the case of the user, or null', async () => {
+    queue.push([{ id: 41 }])
+
+    expect(await getOwnedLegalCase(41, 3)).toEqual({ id: 41 })
+    expect(await getOwnedLegalCase(42, 3)).toBeNull()
   })
 })
 

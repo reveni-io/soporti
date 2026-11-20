@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   loadCustomInstructions.mockResolvedValue('Be brief.')
   findDraftedLegalCases.mockResolvedValue(new Set())
-  saveLegalCase.mockResolvedValue()
+  saveLegalCase.mockResolvedValue(41)
   deleteLegalCases.mockResolvedValue()
   runJevCheck.mockResolvedValue({
     status: 'answered',
@@ -153,7 +153,7 @@ describe('runLegalSchedule', () => {
     const { jev, ...chatCase } = legalCase
     expect(turn.uiMessages[1].parts[1]).toEqual({
       type: 'legal-run',
-      cases: [{ ...chatCase, review: { setVersion: 7, minConfidence: 0.7, rows: jev.rows } }],
+      cases: [{ id: 41, ...chatCase, review: { setVersion: 7, minConfidence: 0.7, rows: jev.rows } }],
     })
     expect(JSON.stringify(turn.uiMessages)).not.toMatch(/jev/i)
   })

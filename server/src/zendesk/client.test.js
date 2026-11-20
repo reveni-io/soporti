@@ -4,7 +4,7 @@ const getZendeskConnection = vi.fn()
 const isZendeskConfigured = vi.fn()
 vi.mock('./settings.js', () => ({ getZendeskConnection, isZendeskConfigured }))
 
-const { getTicket, listViews, listViewTickets, searchTickets, postInternalNote, isConfigured } =
+const { getTicket, listViews, listViewTickets, searchTickets, postInternalNote, postPublicReply, isConfigured } =
   await import('./client.js')
 
 const API_TOKEN = 'abcdefghijklmnopqrstuvwxyz0123456789ABCD'
@@ -387,6 +387,34 @@ describe('searchTickets', () => {
 
   it('refuses an empty query', async () => {
     await expect(searchTickets(7, '   ')).rejects.toThrow(/needs a query/)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('postPublicReply', () => {
+  it('posts a public comment the customer receives, as plain text without secrets', async () => {
+    routeFetch({
+      '/tickets/123.json': jsonResponse({ ticket: TICKET, audit: { events: [{ id: 777, type: 'Comment' }] } }),
+    })
+
+    const result = await postPublicReply(7, '#123', '  Hello, use sk-abcdefghijklmnopqrstuvwxyz123456.  ')
+
+    expect(result).toEqual({
+      ticketId: 123,
+      commentId: 777,
+      public: true,
+      url: 'https://acme.zendesk.com/agent/tickets/123',
+    })
+    const [, options] = global.fetch.mock.calls[0]
+    expect(options.method).toBe('PUT')
+    const comment = JSON.parse(options.body).ticket.comment
+    expect(comment.public).toBe(true)
+    expect(comment.body).not.toContain('sk-abcdefghijklmnopqrstuvwxyz123456')
+    expect(comment.html_body).toBeUndefined()
+  })
+
+  it('refuses an empty reply without calling Zendesk', async () => {
+    await expect(postPublicReply(7, '123', '   ')).rejects.toThrow('A reply needs a body.')
     expect(global.fetch).not.toHaveBeenCalled()
   })
 })

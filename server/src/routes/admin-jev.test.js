@@ -41,6 +41,9 @@ const countLegalRuns = vi.fn()
 const listUncheckedLegalRuns = vi.fn()
 vi.mock('../db/legal-cases.js', () => ({ countLegalRuns, listUncheckedLegalRuns }))
 
+const countLegalReplies = vi.fn()
+vi.mock('../db/legal-replies.js', () => ({ countLegalReplies }))
+
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
 const { GITHUB_TOKEN_KEY, _resetSettingsCacheForTests } = await import('../github/settings.js')
@@ -267,7 +270,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
     expect(res.body).toEqual({
       id: 'legal',
       rev: 0,
-      data: { set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] } },
+      data: { set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
       setVersion: 0,
       savedAt: null,
       savedBy: null,
@@ -328,7 +331,7 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(options.defaults.set.questions).toEqual([])
     const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] } },
+      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
       change: 'Questions; Min confidence 0.7 → 0.75',
       set: { model: 'jev-latest', minConfidence: 0.75, questions: [parsedQuestion] },
     })
@@ -634,11 +637,12 @@ describe('Legal in the Jev admin routes', () => {
     countLegalSchedules.mockResolvedValue(4)
     countLegalRuns.mockResolvedValue({ checked: 27, notChecked: 6 })
     listUncheckedLegalRuns.mockResolvedValue(unchecked)
+    countLegalReplies.mockResolvedValue(12)
 
     const res = await request(app).get('/api/admin/config/jev/legal/usage?page=2')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ queriesOn: 4, checkedRuns: 27, uncheckedRuns: 6, unchecked })
+    expect(res.body).toEqual({ queriesOn: 4, checkedRuns: 27, uncheckedRuns: 6, sentReplies: 12, unchecked })
     expect(listUncheckedLegalRuns).toHaveBeenCalledWith(2)
   })
 

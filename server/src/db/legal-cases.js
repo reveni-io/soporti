@@ -34,7 +34,39 @@ export function isDrafted(drafted, ticket) {
 }
 
 export async function saveLegalCase(legalCase) {
-  await getDb().insert(legalCases).values(legalCase).onConflictDoNothing()
+  const [row] = await getDb()
+    .insert(legalCases)
+    .values(legalCase)
+    .onConflictDoNothing()
+    .returning({ id: legalCases.id })
+
+  return row?.id ?? null
+}
+
+const OWNED_CASE_FIELDS = {
+  id: legalCases.id,
+  source: legalCases.source,
+  ticketId: legalCases.ticketId,
+  ticketUrl: legalCases.ticketUrl,
+  customer: legalCases.customer,
+  status: legalCases.status,
+  warnings: legalCases.warnings,
+}
+
+export async function findOwnedLegalCases(ids, userId) {
+  if (ids.length === 0) return []
+
+  return getDb()
+    .select(OWNED_CASE_FIELDS)
+    .from(legalCases)
+    .innerJoin(schedules, eq(schedules.id, legalCases.scheduleId))
+    .where(and(inArray(legalCases.id, ids), eq(schedules.userId, userId)))
+}
+
+export async function getOwnedLegalCase(id, userId) {
+  const [row] = await findOwnedLegalCases([id], userId)
+
+  return row ?? null
 }
 
 export async function deleteLegalCases(conversationId) {

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
 import { countLegalRuns, listUncheckedLegalRuns } from '../db/legal-cases.js'
+import { countLegalReplies } from '../db/legal-replies.js'
 import { countLegalSchedules } from '../db/schedules.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
@@ -317,12 +318,13 @@ router.get('/legal/usage', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const [queriesOn, runs, unchecked] = await Promise.all([
+    const [queriesOn, runs, unchecked, sentReplies] = await Promise.all([
       countLegalSchedules(),
       countLegalRuns(),
       listUncheckedLegalRuns(page),
+      countLegalReplies(),
     ])
-    res.json({ queriesOn, checkedRuns: runs.checked, uncheckedRuns: runs.notChecked, unchecked })
+    res.json({ queriesOn, checkedRuns: runs.checked, uncheckedRuns: runs.notChecked, sentReplies, unchecked })
   } catch (err) {
     console.error('Failed to load the Legal usage:', err)
     res.status(500).json({ error: 'Failed to load the Legal usage.' })

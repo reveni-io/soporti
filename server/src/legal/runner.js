@@ -109,9 +109,14 @@ async function handleTicket(context, ticket) {
     warnings: countWarnings(outcome.jev),
   }
 
-  await saveLegalCase({ ...legalCase, scheduleId: schedule.id, conversationId, messageHash: ticket.messageHash })
+  const id = await saveLegalCase({
+    ...legalCase,
+    scheduleId: schedule.id,
+    conversationId,
+    messageHash: ticket.messageHash,
+  })
 
-  return legalCase
+  return { id, ...legalCase }
 }
 
 function describeRun(cases, waiting) {
@@ -124,7 +129,7 @@ function describeRun(cases, waiting) {
   return (
     [
       `Found **${count}** to answer. For each one Soporti looked up the data, drafted a reply and reviewed the customer's request and the draft.`,
-      'Nothing has been sent. Check each reply, edit it if needed, copy it and send it from its ticket. The warnings are there to help: Legal has the last word on every case.',
+      'Nothing has been sent yet. Check each reply, edit it if needed and send it, from here or from its ticket. The warnings are there to help: Legal has the last word on every case.',
     ].join('\n\n') + later
   )
 }

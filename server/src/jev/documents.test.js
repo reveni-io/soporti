@@ -210,6 +210,27 @@ describe('planJevSave', () => {
   })
 })
 
+describe('the Legal sending switch', () => {
+  it('is off by default and must be true or false', () => {
+    expect(defaultJevDocument('legal').allowSend).toBe(false)
+    expect(parseJevDocument('legal', { set: legalSet() }).value.allowSend).toBe(false)
+    expect(parseJevDocument('legal', { set: legalSet(), allowSend: true }).value.allowSend).toBe(true)
+    expect(parseJevDocument('legal', { set: legalSet(), allowSend: 'yes' })).toEqual({
+      error: '"allowSend" must be true or false.',
+    })
+  })
+
+  it('records turning the sending on and off in the change history', () => {
+    const saved = { set: legalSet() }
+
+    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
+    expect(planJevSave({ rev: 4, data: { ...saved, allowSend: true } }, { ...saved, allowSend: false }).change).toBe(
+      'Sending from Soporti off'
+    )
+    expect(planJevSave({ rev: 4, data: saved }, { ...saved, allowSend: false })).toBeNull()
+  })
+})
+
 describe('planJevSave for the GitHub project', () => {
   const RULES = [{ id: 'merge-risk', role: 'veto', limit: 'Low' }]
 
