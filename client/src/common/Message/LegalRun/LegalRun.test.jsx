@@ -193,12 +193,14 @@ describe('sending from Soporti', () => {
 
     const confirm = screen.getByRole('group', { name: 'Confirm the reply' })
     expect(send).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
     expect(confirm).toHaveTextContent('Send this reply to customer-a@example.com on Zendesk ticket 48213?')
     expect(confirm).toHaveTextContent('You edited the reply after the review')
     await user.click(within(confirm).getByRole('button', { name: 'Send reply' }))
 
     expect(await screen.findByText(/^Sent by ana@example\.com · /)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sent' })).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
     expect(within(screen.getAllByRole('table')[0]).getAllByRole('row')[1]).toHaveTextContent('Sent')
     expect(bodyOf('POST', '/api/legal/cases/41/replies')).toEqual({
       text: 'Hello, we issued your refund. Thanks.',
@@ -268,6 +270,7 @@ describe('sending from Soporti', () => {
     const followUp = screen.getAllByRole('textbox').at(-1)
     await user.type(followUp, 'It is on its way.')
     await user.click(screen.getAllByRole('button', { name: 'Send' }).at(-1))
+    expect(followUp).toHaveAttribute('readonly')
     await user.click(screen.getByRole('button', { name: 'Send reply' }))
 
     expect(await screen.findByText(/^Ana · /)).toBeInTheDocument()
@@ -291,6 +294,34 @@ describe('sending from Soporti', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
     expect(await screen.findByText('The ticket has no public messages yet.')).toBeInTheDocument()
+  })
+
+  it('logs out instead of showing an error when the session expired', async () => {
+    const onLogout = vi.fn()
+    global.fetch = vi.fn(async () => respond(401, { error: 'Session expired' }))
+
+    const { unmount } = render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" onLogout={onLogout} />)
+
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1))
+    unmount()
+
+    mockLegalApi({
+      routes: {
+        'POST /api/legal/cases/41/replies': [respond(401, { error: 'Session expired' })],
+        'GET /api/legal/cases/41/conversation': [respond(401, { error: 'Session expired' })],
+      },
+    })
+    const user = userEvent.setup()
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" onLogout={onLogout} />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(2))
+
+    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(3))
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
   })
 
   it('tells when the state of the cases could not be loaded', async () => {

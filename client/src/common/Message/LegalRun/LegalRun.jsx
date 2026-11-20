@@ -40,8 +40,8 @@ function describeSending({ legalCase, state, copyStatus }) {
   return state?.send.reason ?? ''
 }
 
-export default function LegalRun({ cases, token = null }) {
-  const status = useLegalCases(token, cases.map(legalCase => legalCase.id).filter(Boolean))
+export default function LegalRun({ cases, token = null, onLogout }) {
+  const status = useLegalCases(token, cases.map(legalCase => legalCase.id).filter(Boolean), onLogout)
 
   return (
     <div className="legal-run">
@@ -82,6 +82,7 @@ export default function LegalRun({ cases, token = null }) {
           state={status.cases.get(legalCase.id)}
           token={token}
           onSent={status.addReply}
+          onLogout={onLogout}
         />
       ))}
     </div>
@@ -101,11 +102,11 @@ function CheckBadge({ legalCase }) {
   )
 }
 
-function LegalCase({ number, legalCase, state, token, onSent }) {
+function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
   const [reply, setReply] = useState(legalCase.draft?.body ?? '')
   const textareaRef = useRef(null)
   const { status: copyStatus, copy } = useCopyReply()
-  const sender = useSendReply(token, legalCase.id, handleSent)
+  const sender = useSendReply(token, legalCase.id, handleSent, onLogout)
   const label = ticketLabel(legalCase)
   const isSent = state?.replies.length > 0
   const canSend = Boolean(state?.send.allowed && legalCase.draft && !isSent && !sender.confirming && reply.trim())
@@ -139,7 +140,14 @@ function LegalCase({ number, legalCase, state, token, onSent }) {
       <DataFacts facts={legalCase.dataFacts} />
 
       <p className="legal-run__heading">Draft reply</p>
-      <DraftReply legalCase={legalCase} label={label} reply={reply} textareaRef={textareaRef} onChange={setReply} />
+      <DraftReply
+        legalCase={legalCase}
+        label={label}
+        reply={reply}
+        locked={isSent || sender.confirming || sender.sending}
+        textareaRef={textareaRef}
+        onChange={setReply}
+      />
       <p className="legal-run__muted">Edit the reply if needed, then send it from here or copy it to the ticket.</p>
 
       <ReviewCheck legalCase={legalCase} />
@@ -180,6 +188,7 @@ function LegalCase({ number, legalCase, state, token, onSent }) {
           send={state.send}
           needsCare={needsCare(legalCase)}
           onSent={handleSent}
+          onLogout={onLogout}
         />
       )}
     </section>
@@ -200,7 +209,7 @@ function DataFacts({ facts }) {
   )
 }
 
-function DraftReply({ legalCase, label, reply, textareaRef, onChange }) {
+function DraftReply({ legalCase, label, reply, locked, textareaRef, onChange }) {
   if (!legalCase.draft) return <p className="alert alert--warning">No draft: {legalCase.reason}.</p>
 
   return (
@@ -213,6 +222,7 @@ function DraftReply({ legalCase, label, reply, textareaRef, onChange }) {
         className="textarea"
         rows={8}
         value={reply}
+        readOnly={locked}
         onChange={event => onChange(event.target.value)}
       />
     </label>

@@ -12,7 +12,7 @@ import { groupParts } from './group-parts.js'
 const PART_SEPARATOR = '\n\n'
 const ROUTINE_ICON_SIZE = 12
 
-export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact }) {
+export default function AssistantMessage({ message, isStreaming, token, onOpenArtifact, onLogout }) {
   const groups = groupParts(message.parts)
   const routine = message.parts.find(part => part.type === 'routine')
   const answer = answerMarkdown(message.parts)
@@ -33,6 +33,7 @@ export default function AssistantMessage({ message, isStreaming, token, onOpenAr
             isActive={isStreaming && index === groups.length - 1}
             token={token}
             onOpenArtifact={onOpenArtifact}
+            onLogout={onLogout}
             citations={citations}
             onSelectCitation={select}
           />
@@ -62,7 +63,7 @@ function answerMarkdown(parts) {
     .join(PART_SEPARATOR)
 }
 
-function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citations, onSelectCitation }) {
+function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, onLogout, citations, onSelectCitation }) {
   if (part.type === 'text') {
     return (
       <MarkdownContent
@@ -87,7 +88,7 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citat
   }
 
   if (part.type === 'legal-run') {
-    return <LegalRun cases={part.cases} token={token} />
+    return <LegalRun cases={part.cases} token={token} onLogout={onLogout} />
   }
 
   if (part.type === 'error') {

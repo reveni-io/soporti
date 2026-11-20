@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { sendLegalReply } from '../../../../../services/services.js'
+import { isUnauthorized, sendLegalReply } from '../../../../../services/services.js'
 
-export function useSendReply(token, caseId, onSent) {
+export function useSendReply(token, caseId, onSent, onLogout) {
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
@@ -23,6 +23,10 @@ export function useSendReply(token, caseId, onSent) {
       setConfirming(false)
       onSent(reply)
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setError(err.message)
     } finally {
       setSending(false)

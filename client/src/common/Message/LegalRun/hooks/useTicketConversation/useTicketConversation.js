@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { getLegalConversation } from '../../../../../services/services.js'
+import { getLegalConversation, isUnauthorized } from '../../../../../services/services.js'
 
-export function useTicketConversation(token, caseId) {
+export function useTicketConversation(token, caseId, onLogout) {
   const [messages, setMessages] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -13,6 +13,10 @@ export function useTicketConversation(token, caseId) {
       const data = await getLegalConversation(token, caseId)
       setMessages(data.messages)
     } catch (err) {
+      if (isUnauthorized(err)) {
+        onLogout?.()
+        return
+      }
       setError(err.message)
     } finally {
       setLoading(false)
