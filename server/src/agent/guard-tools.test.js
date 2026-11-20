@@ -44,12 +44,14 @@ beforeEach(() => {
 })
 
 describe('ask_guard', () => {
-  it('lists the guards and what they are for, and asks to use every guard that applies on its own', () => {
+  it('lists the guards and asks to use them only when asked, every guard whose name matches', () => {
     const { name, description } = askGuard()
 
     expect(name).toBe('ask_guard')
-    expect(description).toContain('Use the guards on your own')
-    expect(description).toContain('every guard that applies, and only those, in one call')
+    expect(description).toContain(
+      'Use guards only when the user, a scheduled query or the instructions of a bot ask for them'
+    )
+    expect(description).toContain('Never use a guard on your own.')
     expect(description).toContain('- "Legal": Replies to customers\n- "Refunds"')
   })
 

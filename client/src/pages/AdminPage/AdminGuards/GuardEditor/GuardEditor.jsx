@@ -95,8 +95,8 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
 
       <p className="admin__muted">
         The assistant uses this guard when a chat, Slack, MCP, a scheduled query or a bot asks for it, for example “use
-        the {guard.name} guards”, and the PR reviewer uses it when a repo’s <code>REVIEW.md</code> names it. A guard
-        never blocks anything on its own: it warns, and a person has the last word.
+        the {guard.name} guards”, and never on its own; the PR reviewer uses it when a repo’s <code>REVIEW.md</code>{' '}
+        names it. A guard never blocks anything: it warns, and a person has the last word.
       </p>
 
       <AdminSection title="Questions and answers">
