@@ -114,9 +114,9 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         </p>
       ) : (
         <p className="admin__muted">
-          The assistant uses this guard on its own when what it is about to deliver matches “When to use it”, and when a
-          chat, Slack, MCP, a scheduled query or a bot names it, for example “apply the {guard.name} guard”. A guard
-          never blocks anything: it warns, and a person has the last word.
+          The assistant uses this guard when a chat, Slack, MCP, a scheduled query or a bot asks for it, for example
+          “use the {guard.name} guards”, and never on its own. A guard never blocks anything: it warns, and a person has
+          the last word.
         </p>
       )}
 

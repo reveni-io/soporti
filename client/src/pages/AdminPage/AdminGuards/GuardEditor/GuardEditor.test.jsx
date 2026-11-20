@@ -57,7 +57,7 @@ describe('GuardEditor', () => {
     )
 
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
-    expect(screen.getByText(/apply the Legal guard/)).toBeInTheDocument()
+    expect(screen.getByText(/use the Legal guards/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
