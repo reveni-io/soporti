@@ -12,7 +12,6 @@ function toGuard({ id, data, setVersion }) {
   return {
     id,
     name: data.name || LEGACY_NAMES.get(id) || id,
-    description: data.set.description,
     questions: data.set.questions.length,
     setVersion,
   }

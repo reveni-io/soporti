@@ -15,9 +15,7 @@ const MAX_QUESTIONS = 50
 const MIN_ANSWERS = 2
 const MAX_ANSWERS = 255
 const MAX_SCORE = 100
-const MAX_DESCRIPTION_CHARS = 500
 const MAX_QUESTION_CHARS = 500
-const MAX_GUIDANCE_CHARS = 4_000
 const MAX_LABEL_CHARS = 200
 const MAX_NAME_CHARS = 60
 const CUSTOM_GUARD_RE = /^guard-[0-9a-f]{8}$/
@@ -27,7 +25,6 @@ const VERSIONED_FIELDS = ['minConfidence', 'questions']
 const LEGACY_GUARD_IDS = new Set([JEV_LEGAL_DOCUMENT, JEV_GITHUB_DOCUMENT])
 
 const DEFAULT_SET = {
-  description: '',
   minConfidence: null,
   timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
   dailyLimit: DEFAULT_DAILY_LIMIT,
@@ -94,13 +91,10 @@ function parseFields(source, parsers) {
 const COMMON_QUESTION_PARSERS = [
   ['id', value => parseText(value, { label: 'The question id', max: MAX_ID_CHARS, required: true })],
   ['text', value => parseText(value, { label: 'The question', max: MAX_QUESTION_CHARS, required: true })],
-  ['instructions', value => parseText(value, { label: 'The instructions', max: MAX_GUIDANCE_CHARS })],
-  ['criteria', value => parseText(value, { label: 'The criteria', max: MAX_GUIDANCE_CHARS })],
 ]
 
 const ANSWER_PARSERS = [
   ['label', value => parseText(value, { label: 'Each answer', max: MAX_LABEL_CHARS, required: true })],
-  ['criteria', value => parseText(value, { label: 'The answer criteria', max: MAX_GUIDANCE_CHARS })],
 ]
 
 function parseAnswer(answer) {
@@ -200,7 +194,6 @@ function parseMaxCharacters(value = DEFAULT_MAX_CHARACTERS) {
 }
 
 const SET_PARSERS = [
-  ['description', value => parseText(value, { label: 'The set description', max: MAX_DESCRIPTION_CHARS })],
   ['minConfidence', parseMinConfidence],
   ['timeoutSeconds', parseTimeoutSeconds],
   ['dailyLimit', parseDailyLimit],
@@ -257,7 +250,6 @@ function describeScalarChange(label, before, after) {
 function describeSetChanges(previous, next) {
   const changes = []
 
-  if (previous.description !== next.description) changes.push('Set description')
   if (!isSameValue(previous.questions, next.questions)) changes.push('Questions')
 
   const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(([field, label]) =>

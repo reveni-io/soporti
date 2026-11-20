@@ -5,7 +5,6 @@ const GUARD_LABELS = {
   badgeAt: 'warns at',
   help: 'Tick the answers that should raise a warning. A guard never blocks anything: a person has the last word.',
   versioned: 'questions and min confidence',
-  description: 'When to use it',
 }
 
 export function projectLabels() {

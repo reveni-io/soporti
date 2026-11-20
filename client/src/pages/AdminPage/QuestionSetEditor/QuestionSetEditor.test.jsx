@@ -7,23 +7,18 @@ const CHOICE = {
   id: 'q1',
   type: 'choice',
   text: 'Does the change alter how money is refunded?',
-  instructions: 'Read the diff.',
-  criteria: '',
   answers: [
-    { label: 'Yes', criteria: 'A refund path changes.', flag: true },
-    { label: 'No', criteria: '', flag: false },
+    { label: 'Yes', flag: true },
+    { label: 'No', flag: false },
   ],
 }
 const NOUL = {
   id: 'q2',
   type: 'noul',
   text: 'Merging this change is risky',
-  instructions: '',
-  criteria: '',
   flagAt: 70,
 }
 const SET = {
-  description: 'PR risk questions',
   minConfidence: 0.75,
   timeoutSeconds: 30,
   dailyLimit: 0,
@@ -104,16 +99,6 @@ describe('QuestionSetEditor', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Delete' })[0])
     expect(applyLastUpdate(state).set.questions).toEqual([NOUL])
-  })
-
-  it('empties the set when nothing uses it', async () => {
-    const state = editorState()
-    const user = userEvent.setup()
-
-    render(<QuestionSetEditor project="legal" state={state} />)
-    await user.click(screen.getByRole('button', { name: 'Delete set' }))
-
-    expect(applyLastUpdate(state).set).toMatchObject({ description: '', questions: [] })
   })
 
   it('invites to add the first question', () => {

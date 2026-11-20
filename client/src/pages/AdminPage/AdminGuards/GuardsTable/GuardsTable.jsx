@@ -5,13 +5,7 @@ import './GuardsTable.css'
 
 const DELETE_QUESTION = 'Are you sure you want to delete this guard?'
 const ICON_SIZE = 14
-const COLUMN_COUNT = 7
-
-function describeUse(guard) {
-  if (guard.questions === 0) return 'Not in the chat until it has questions'
-
-  return guard.description || 'No description'
-}
+const COLUMN_COUNT = 6
 
 function GuardActions({ guard, onEdit, onAskToDelete }) {
   return (
@@ -50,7 +44,6 @@ export default function GuardsTable({ guards, deleting = false, onEdit, onDelete
         <thead>
           <tr>
             <th>Guard</th>
-            <th>Used for</th>
             <th>Questions</th>
             <th>Calls</th>
             <th>Cases</th>
@@ -65,7 +58,6 @@ export default function GuardsTable({ guards, deleting = false, onEdit, onDelete
                 <td className="admin__nowrap">
                   <strong>{guard.name}</strong>
                 </td>
-                <td>{describeUse(guard)}</td>
                 <td>{guard.questions}</td>
                 <td>{guard.usage.calls.toLocaleString()}</td>
                 <td>{guard.usage.cases.toLocaleString()}</td>

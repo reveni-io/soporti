@@ -10,7 +10,6 @@ const { findGuardByName, listUsableGuards, listGuards } = await import('./regist
 
 function set(overrides = {}) {
   return {
-    description: '',
     minConfidence: 0.7,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -23,7 +22,7 @@ const LEGAL = {
   id: 'legal',
   rev: 4,
   setVersion: 3,
-  data: { set: set({ description: 'Customer replies' }) },
+  data: { set: set() },
 }
 const GITHUB = { id: 'github', rev: 2, setVersion: 1, data: { set: set(), repos: [] } }
 const PAYMENTS = {
@@ -51,10 +50,10 @@ describe('listGuards', () => {
     ])
 
     expect(await listGuards()).toEqual([
-      { id: 'guard-1a2b3c4d', name: 'Analytics', description: '', questions: 1, setVersion: 1 },
-      { id: 'github', name: 'GitHub PRs', description: '', questions: 1, setVersion: 1 },
-      { id: 'legal', name: 'Legal', description: 'Customer replies', questions: 1, setVersion: 3 },
-      { id: 'guard-0a1b2c3d', name: 'Payments', description: '', questions: 0, setVersion: 0 },
+      { id: 'guard-1a2b3c4d', name: 'Analytics', questions: 1, setVersion: 1 },
+      { id: 'github', name: 'GitHub PRs', questions: 1, setVersion: 1 },
+      { id: 'legal', name: 'Legal', questions: 1, setVersion: 3 },
+      { id: 'guard-0a1b2c3d', name: 'Payments', questions: 0, setVersion: 0 },
     ])
   })
 

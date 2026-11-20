@@ -16,7 +16,6 @@ const NOUL = { id: 'q2', type: 'noul', text: 'Merging this change is risky', fla
 
 function legalSet(overrides = {}) {
   return {
-    description: 'Customer reply guardrail',
     minConfidence: 0.75,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -43,7 +42,6 @@ describe('defaultJevDocument', () => {
     expect(defaultJevDocument('legal')).toEqual({ set: expect.any(Object) })
     expect(defaultJevDocument('jev')).toBeNull()
     expect(defaultJevDocument('legal').set).toEqual({
-      description: '',
       minConfidence: null,
       timeoutSeconds: 30,
       dailyLimit: 0,
@@ -73,15 +71,13 @@ describe('parseJevDocument', () => {
       {
         id: 'q1',
         text: 'Does the change alter how money is refunded?',
-        instructions: 'Read the diff.',
-        criteria: 'Ignore tests.',
         type: 'choice',
         answers: [
-          { label: 'Yes', criteria: 'A refund path changes.', flag: true },
-          { label: 'No', criteria: 'No money logic is touched.', flag: false },
+          { label: 'Yes', flag: true },
+          { label: 'No', flag: false },
         ],
       },
-      { id: 'q2', text: 'Merging this change is risky', instructions: '', criteria: '', type: 'noul', flagAt: 70 },
+      { id: 'q2', text: 'Merging this change is risky', type: 'noul', flagAt: 70 },
     ])
   })
 
@@ -117,8 +113,6 @@ describe('parseJevDocument', () => {
     [{ minConfidence: 1.5 }, 'Min confidence must be a number between 0 and 1.'],
     [{ timeoutSeconds: 0 }, 'Timeout must be a whole number of seconds.'],
     [{ dailyLimit: -1 }, 'Daily limit must be a whole number. Use 0 for no limit.'],
-    [{ description: 7 }, 'The set description must be text.'],
-    [{ description: 'd'.repeat(501) }, 'The set description is too long (max 500 characters).'],
     [{ questions: 'none' }, 'Questions must be a list.'],
     [{ questions: Array.from({ length: 51 }, (_, i) => ({ ...NOUL, id: `q${i}` })) }, 'A set can have at most 50'],
     [{ questions: [NOUL, NOUL] }, 'Two questions have the same id.'],
@@ -151,7 +145,7 @@ describe('planJevSave', () => {
   it('describes the first save and starts the set versions', () => {
     const plan = planJevSave({ rev: 0, data: defaultJevDocument('legal') }, saved)
 
-    expect(plan.change).toBe('Created; Set description; Questions; Min confidence (empty) → 0.75')
+    expect(plan.change).toBe('Created; Questions; Min confidence (empty) → 0.75')
     expect(plan.set).toEqual({ minConfidence: 0.75, questions: saved.set.questions })
     expect(plan.data).toBe(saved)
   })
@@ -167,15 +161,12 @@ describe('planJevSave', () => {
     expect(planJevSave({ rev: 3, data: saved }, { set: legalSet({ minConfidence: 0.8 }) }).set).not.toBeNull()
   })
 
-  it('keeps the set version when only the description, timeout or daily limit change', () => {
-    const plan = planJevSave(
-      { rev: 3, data: saved },
-      { set: legalSet({ description: 'New', timeoutSeconds: 60, dailyLimit: 50 }) }
-    )
+  it('keeps the set version when only the timeout or daily limit change', () => {
+    const plan = planJevSave({ rev: 3, data: saved }, { set: legalSet({ timeoutSeconds: 60, dailyLimit: 50 }) })
 
     expect(plan).toEqual({
-      data: { set: legalSet({ description: 'New', timeoutSeconds: 60, dailyLimit: 50 }) },
-      change: 'Set description; Timeout 30 → 60; Daily limit 0 → 50',
+      data: { set: legalSet({ timeoutSeconds: 60, dailyLimit: 50 }) },
+      change: 'Timeout 30 → 60; Daily limit 0 → 50',
       set: null,
     })
   })

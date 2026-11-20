@@ -5,9 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import GuardEditor from './GuardEditor.jsx'
 
 const BASE = '/api/admin/config/jev'
-const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', instructions: '', criteria: '', flagAt: 60 }
+const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', flagAt: 60 }
 const SET = {
-  description: 'Replies to customers',
   model: 'jev-latest',
   minConfidence: 0.75,
   timeoutSeconds: 30,
@@ -45,7 +44,7 @@ beforeEach(() => {
 })
 
 describe('GuardEditor', () => {
-  it('edits a guard: how to ask for it, its questions, versions and history, with no switches', async () => {
+  it('edits a guard: how to ask for it, its questions and versions, with no switches', async () => {
     mockApi('legal', { set: SET })
 
     render(
@@ -57,14 +56,13 @@ describe('GuardEditor', () => {
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
     expect(screen.getByText(/use the Legal guards/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Legal')
     expect(screen.getByText(/when a repo’s/)).toBeInTheDocument()
   })
 
   it('saves the guard and refreshes the list of guards', async () => {
-    const saved = document('legal', { set: { ...SET, description: 'Replies to customers and emails' } })
+    const saved = document('legal', { name: 'Legal Review', set: SET })
     mockApi('legal', { set: SET }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
     const user = userEvent.setup()
     const onSaved = vi.fn()
@@ -74,12 +72,12 @@ describe('GuardEditor', () => {
       </MemoryRouter>
     )
 
-    await user.type(await screen.findByLabelText('When to use it'), ' and emails')
+    await user.type(await screen.findByRole('textbox', { name: 'Name' }), ' Review')
     await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
 
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
-    expect(JSON.parse(put[1].body).data.set.description).toBe('Replies to customers and emails')
+    expect(JSON.parse(put[1].body).data.name).toBe('Legal Review')
   })
 
   it('renames a guard', async () => {
@@ -113,7 +111,7 @@ describe('GuardEditor', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
 
-    await user.type(screen.getByLabelText('When to use it'), ' and emails')
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), ' Review')
     await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalledTimes(1)

@@ -22,10 +22,6 @@ export default function QuestionSetEditor({ project, state }) {
     state.updateDraft(draft => ({ ...draft, set: { ...draft.set, [field]: value } }))
   }
 
-  function handleSetFieldChange(event) {
-    updateSet(event.target.name, event.target.value)
-  }
-
   function handleSaveQuestion(question) {
     const questions =
       editing === NEW_QUESTION
@@ -42,17 +38,8 @@ export default function QuestionSetEditor({ project, state }) {
     )
   }
 
-  function handleDeleteSet() {
-    state.updateDraft(draft => ({ ...draft, set: { ...draft.set, description: '', questions: [] } }))
-  }
-
   return (
     <>
-      <label className="question-set__label">
-        {labels.description}
-        <input className="input" name="description" value={set.description} onChange={handleSetFieldChange} />
-      </label>
-
       <div key={`${state.document.rev}-${state.restoredFrom}`} className="question-set__fields">
         <NumberField
           label="Min confidence"
@@ -129,13 +116,10 @@ export default function QuestionSetEditor({ project, state }) {
         >
           Add question
         </button>
-        <button className="btn btn--danger btn--sm" type="button" onClick={handleDeleteSet}>
-          Delete set
-        </button>
       </div>
       <p className="admin__muted">
-        The set version goes up on save when the {labels.versioned} change. Editing only the description keeps the
-        version. Question edits stay here until you save the guard below.
+        The set version goes up on save when the {labels.versioned} change. Question edits stay here until you save the
+        guard below.
       </p>
     </>
   )
@@ -157,14 +141,6 @@ function QuestionItem({ number, question, labels, isLocked, onEdit, onDelete }) 
         </button>
       </div>
       <dl>
-        <div className="admin__kv-row">
-          <dt>Instructions</dt>
-          <dd>{question.instructions || <span className="admin__muted">none</span>}</dd>
-        </div>
-        <div className="admin__kv-row">
-          <dt>Criteria</dt>
-          <dd>{question.criteria || <span className="admin__muted">none</span>}</dd>
-        </div>
         {question.type === QUESTION_CHOICE ? (
           <div className="admin__kv-row">
             <dt>Answers</dt>
@@ -172,8 +148,7 @@ function QuestionItem({ number, question, labels, isLocked, onEdit, onDelete }) 
               <ul>
                 {question.answers.map(answer => (
                   <li key={answer.label}>
-                    <strong>{answer.label}</strong>
-                    {answer.criteria && `: ${answer.criteria}`}{' '}
+                    <strong>{answer.label}</strong>{' '}
                     {answer.flag && <span className="badge badge--warning">{labels.badge}</span>}
                   </li>
                 ))}

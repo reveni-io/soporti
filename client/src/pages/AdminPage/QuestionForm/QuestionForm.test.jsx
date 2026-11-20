@@ -11,7 +11,6 @@ describe('QuestionForm', () => {
     render(<QuestionForm project="github" title="New question" question={null} onSave={onSave} onCancel={vi.fn()} />)
     await user.type(screen.getByPlaceholderText(/Does the change alter/), 'Does it touch refunds?')
     await user.type(screen.getByLabelText('Answer 1'), 'Yes')
-    await user.type(screen.getByLabelText('Criteria of answer 1'), 'A refund path changes.')
     await user.click(screen.getAllByRole('checkbox', { name: 'Warn' })[0])
     await user.type(screen.getByLabelText('Answer 2'), 'No')
     await user.click(screen.getByRole('button', { name: 'Save question' }))
@@ -21,11 +20,9 @@ describe('QuestionForm', () => {
       id: expect.any(String),
       type: 'choice',
       text: 'Does it touch refunds?',
-      instructions: '',
-      criteria: '',
       answers: [
-        { label: 'Yes', criteria: 'A refund path changes.', flag: true },
-        { label: 'No', criteria: '', flag: false },
+        { label: 'Yes', flag: true },
+        { label: 'No', flag: false },
       ],
     })
     expect(screen.getByText(/A guard never blocks anything: a person has the last word/)).toBeInTheDocument()
@@ -50,8 +47,6 @@ describe('QuestionForm', () => {
       id: 'q2',
       type: 'noul',
       text: 'The reply promises a refund',
-      instructions: '',
-      criteria: '',
       flagAt: 60,
     }
     const user = userEvent.setup()

@@ -21,8 +21,8 @@ const { buildGuardTools } = await import('./guard-tools.js')
 const { LegalReplyError } = await import('../legal/replies.js')
 
 const GUARDS = [
-  { id: 'legal', name: 'Legal', description: 'Replies to customers' },
-  { id: 'guard-0a1b2c3d', name: 'Refunds', description: '' },
+  { id: 'legal', name: 'Legal' },
+  { id: 'guard-0a1b2c3d', name: 'Refunds' },
 ]
 const ROWS = [
   { question: 'Is it unusual?', answer: 'Yes', confidence: 0.9, flagged: true, unsure: false },
@@ -62,7 +62,7 @@ describe('ask_guard', () => {
       'Use guards only when the user, a scheduled query or the instructions of a bot ask for them'
     )
     expect(description).toContain('Never use a guard on your own.')
-    expect(description).toContain('- "Legal": Replies to customers\n- "Refunds"')
+    expect(description).toContain('Guards:\n- "Legal"\n- "Refunds"')
   })
 
   it('checks content with the guard named, in any case', async () => {

@@ -54,7 +54,6 @@ app.use('/api/admin/config/jev', adminJevRouter)
 const LATEST = { name: 'jev-latest', description: 'Most recent stable release', releaseDate: '2026-10-14' }
 const SAVED_AT = '2026-11-19T10:00:00.000Z'
 const LEGAL_SET = {
-  description: '',
   minConfidence: 0.75,
   timeoutSeconds: 30,
   dailyLimit: 0,
@@ -315,11 +314,10 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(id).toBe('legal')
     expect(options).toMatchObject({ expectedRev: 4, author: 'ana@example.com' })
     expect(options.defaults.set.questions).toEqual([])
-    const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] } },
-      change: 'Questions; Min confidence 0.7 → 0.75',
-      set: { minConfidence: 0.75, questions: [parsedQuestion] },
+      data: { set: LEGAL_SET },
+      change: 'Min confidence 0.7 → 0.75',
+      set: { minConfidence: 0.75, questions: LEGAL_SET.questions },
     })
   })
 
@@ -414,7 +412,7 @@ describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => 
     const stored = { set: { ...LEGAL_SET, minConfidence: 0.8 } }
     expect(options.plan({ rev: 1, data: stored }).data).toEqual({
       name: 'Customer replies',
-      set: { ...stored.set, questions: [{ ...LEGAL_SET.questions[0], instructions: '', criteria: '' }] },
+      set: stored.set,
     })
   })
 
@@ -452,7 +450,7 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
 
     const [, options] = saveJevDocument.mock.calls[0]
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } }).change).toBe(
-      'Restored v2; Questions; Min confidence 0.7 → 0.75'
+      'Restored v2; Min confidence 0.7 → 0.75'
     )
   })
 

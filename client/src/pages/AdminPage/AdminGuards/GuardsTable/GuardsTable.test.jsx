@@ -7,7 +7,6 @@ const USAGE = { calls: 1200, cases: 9, sentReplies: 4 }
 const LEGAL = {
   id: 'legal',
   name: 'Legal',
-  description: 'Replies to customers',
   questions: 3,
   model: 'jev-1',
   usage: USAGE,
@@ -15,30 +14,18 @@ const LEGAL = {
 const GITHUB = {
   id: 'github',
   name: 'GitHub PRs',
-  description: '',
   questions: 2,
   model: 'jev-1',
   usage: USAGE,
 }
 
 describe('GuardsTable', () => {
-  it('lists each guard with what it is used for and its usage', () => {
+  it('lists each guard with its usage', () => {
     render(<GuardsTable guards={[LEGAL, GITHUB]} onEdit={vi.fn()} />)
 
-    const [, legal, github] = screen.getAllByRole('row')
+    const [, legal] = screen.getAllByRole('row')
     expect(within(legal).getByRole('cell', { name: 'Legal' })).toBeInTheDocument()
-    expect(legal).toHaveTextContent('Replies to customers')
     expect(within(legal).getByRole('cell', { name: (1200).toLocaleString() })).toBeInTheDocument()
-    expect(github).toHaveTextContent('No description')
-  })
-
-  it.each([
-    ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions'],
-    ['it has no description', { description: '' }, 'No description'],
-  ])('says what the Legal guard is used for when %s', (_case, overrides, text) => {
-    render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} onEdit={vi.fn()} />)
-
-    expect(screen.getByText(text)).toBeInTheDocument()
   })
 
   it('opens the guard picked to edit', async () => {
