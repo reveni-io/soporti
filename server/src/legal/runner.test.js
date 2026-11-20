@@ -185,7 +185,7 @@ describe('runLegalSchedule', () => {
   })
 
   it('says when there is nothing new to answer', async () => {
-    runUnattended.mockResolvedValue({ result: { finalOutput: 'not structured' } })
+    runUnattended.mockResolvedValue({ result: { finalOutput: { tickets: [] } } })
     readLegalTickets.mockResolvedValue([])
     const conversations = store()
 
@@ -268,6 +268,19 @@ describe('runLegalSchedule', () => {
     await expect(runLegalSchedule(SCHEDULE, conversations, { logger })).rejects.toThrow('db down')
     expect(saveLegalCase).toHaveBeenCalledTimes(1)
     expect(deleteLegalCases).toHaveBeenCalledWith('conv-1')
+    expect(conversations.deleteWeb).toHaveBeenCalledWith('conv-1', 7)
+  })
+
+  it('fails the run instead of reporting no tickets when the search does not return a list', async () => {
+    runUnattended.mockResolvedValue({ result: { finalOutput: 'not structured' } })
+    const conversations = store()
+
+    await expect(runLegalSchedule(SCHEDULE, conversations, { logger })).rejects.toThrow(
+      'The ticket search did not return a list of tickets'
+    )
+    expect(readLegalTickets).not.toHaveBeenCalled()
+    expect(saveLegalCase).not.toHaveBeenCalled()
+    expect(conversations.saveTurn).not.toHaveBeenCalled()
     expect(conversations.deleteWeb).toHaveBeenCalledWith('conv-1', 7)
   })
 

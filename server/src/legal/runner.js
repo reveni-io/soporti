@@ -38,8 +38,9 @@ async function findTicketRefs(task, conversation) {
     conversation
   )
   const parsed = ticketRefsSchema.safeParse(result?.finalOutput)
+  if (!parsed.success) throw new Error('The ticket search did not return a list of tickets')
 
-  return parsed.success ? parsed.data.tickets : []
+  return parsed.data.tickets
 }
 
 async function draftReply(task, ticket, logger) {
