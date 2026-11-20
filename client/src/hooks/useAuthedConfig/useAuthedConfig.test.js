@@ -36,6 +36,23 @@ describe('useAuthedConfig', () => {
     expect(onLogout).not.toHaveBeenCalled()
   })
 
+  it('clears the error once a reload succeeds', async () => {
+    const fetchConfig = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError('Server exploded', 500))
+      .mockResolvedValueOnce({ org: 'my-org' })
+
+    const onLogout = vi.fn()
+
+    const { result } = renderHook(() => useAuthedConfig(fetchConfig, 'tok', onLogout))
+    await waitFor(() => expect(result.current.error).toBe('Server exploded'))
+
+    act(() => result.current.reload())
+
+    await waitFor(() => expect(result.current.config).toEqual({ org: 'my-org' }))
+    expect(result.current.error).toBeNull()
+  })
+
   it('merges a patch into the loaded config', async () => {
     const fetchConfig = vi.fn().mockResolvedValue({ tokenConfigured: false, org: 'my-org' })
 

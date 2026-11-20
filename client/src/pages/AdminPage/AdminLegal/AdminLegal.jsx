@@ -25,8 +25,8 @@ export default function AdminLegal({ token, onLogout }) {
   const project = useJevDocument(token, JEV_LEGAL_DOCUMENT, onLogout)
   const settings = useJevDocument(token, JEV_SETTINGS_DOCUMENT, onLogout)
   const { config: catalog, error: catalogError } = useAuthedConfig(getJevConfig, token, onLogout)
-  const [usagePage, setUsagePage] = useState(1)
-  const fetchUsage = useCallback(authToken => getLegalUsage(authToken, usagePage), [usagePage])
+  const [usageRequest, setUsageRequest] = useState({ page: 1 })
+  const fetchUsage = useCallback(authToken => getLegalUsage(authToken, usageRequest.page), [usageRequest])
   const { config: usage, error: usageError } = useAuthedConfig(fetchUsage, token, onLogout)
 
   const loadError = catalogError ?? project.loadError ?? settings.loadError
@@ -131,7 +131,7 @@ export default function AdminLegal({ token, onLogout }) {
       </AdminSection>
 
       <AdminSection title="Usage">
-        <LegalUsage usage={usage} error={usageError} onPage={setUsagePage} />
+        <LegalUsage usage={usage} error={usageError} onPage={page => setUsageRequest({ page })} />
       </AdminSection>
 
       <AdminSection title="Versions">

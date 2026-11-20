@@ -63,4 +63,11 @@ describe('LegalUsage', () => {
     rerender(<LegalUsage usage={null} error="Failed to load the Legal usage." onPage={vi.fn()} />)
     expect(screen.getByText('Failed to load the Legal usage.')).toBeInTheDocument()
   })
+
+  it('keeps the last page it loaded under an error, so the page can be asked again', () => {
+    render(<LegalUsage usage={usage()} error="Failed to load the Legal usage." onPage={vi.fn()} />)
+
+    expect(screen.getByText('Failed to load the Legal usage.')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+  })
 })

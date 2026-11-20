@@ -18,11 +18,12 @@ function toRow(run, index) {
 }
 
 export default function LegalUsage({ usage, error, onPage }) {
-  if (error) return <p className="alert alert--error">{error}</p>
+  if (error && !usage) return <p className="alert alert--error">{error}</p>
   if (!usage) return <p className="admin__muted">Loading...</p>
 
   return (
     <>
+      {error && <p className="alert alert--error">{error}</p>}
       <dl className="admin__kv admin__kv--text">
         <div className="admin__kv-row">
           <dt>Check on</dt>
