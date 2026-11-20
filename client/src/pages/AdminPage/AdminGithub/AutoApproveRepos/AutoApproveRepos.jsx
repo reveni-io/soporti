@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { AUTO_APPROVE_MODES, AUTO_APPROVE_OFF, AUTO_APPROVE_ON, AUTO_APPROVE_SHADOW } from '../../../../constants.js'
 import { useAutoApproveRepos } from '../hooks/useAutoApproveRepos/useAutoApproveRepos.js'
 import RepoOnModal from '../RepoOnModal/RepoOnModal.jsx'
-
-const REPO_OPTIONS_ID = 'auto-approve-repo-options'
+import RepoSearch from '../RepoSearch/RepoSearch.jsx'
 
 function countPatterns(denylist) {
   const count = denylist.filter(pattern => pattern.trim()).length
@@ -35,10 +34,6 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
 
   function handleBulkModeChange(event) {
     setBulkMode(event.target.value)
-  }
-
-  function handleNewRepoChange(event) {
-    setNewRepo(event.target.value)
   }
 
   return (
@@ -97,28 +92,14 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
 
       {repos.addError && <p className="alert alert--error">{repos.addError}</p>}
       <form className="admin__form admin__form--row" onSubmit={handleAdd}>
-        <input
-          className="input"
-          aria-label="Repository to add"
-          placeholder="Search or type org/repo"
-          autoComplete="off"
-          list={REPO_OPTIONS_ID}
-          value={newRepo}
-          onChange={handleNewRepoChange}
-          disabled={repos.adding}
-        />
+        <RepoSearch value={newRepo} options={repoOptions} disabled={repos.adding} onChange={setNewRepo} />
         <button className="btn btn--secondary" type="submit" disabled={repos.adding || !newRepo.trim()}>
           {repos.adding ? 'Checking...' : 'Add repo'}
         </button>
-        <datalist id={REPO_OPTIONS_ID}>
-          {repoOptions.map(name => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
       </form>
       <p className="admin__muted">
-        Pick one of the repos the GitHub token can read, or type its name. Soporti checks that the token can read it
-        before adding it.
+        Type to search the repos the GitHub token can read, or write the full name. Soporti checks that the token can
+        read it before adding it.
       </p>
 
       {repos.confirming && (

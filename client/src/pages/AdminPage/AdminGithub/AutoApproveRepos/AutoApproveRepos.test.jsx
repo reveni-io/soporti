@@ -164,14 +164,19 @@ describe('AutoApproveRepos', () => {
     expect(screen.queryByText(/Save the Jev API key/)).not.toBeInTheDocument()
   })
 
-  it('suggests the repos the GitHub token can read that are not in the list yet', () => {
+  it('suggests, as you type, the repos the GitHub token can read that are not in the list yet', async () => {
     const readableRepos = [{ fullName: 'acme/web' }, { fullName: 'acme/api' }, { fullName: 'Acme/Docs' }]
+    const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={reposState()} readableRepos={readableRepos} onLogout={vi.fn()} />)
+    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme')
 
-    const input = screen.getByRole('combobox', { name: 'Repository to add' })
-    const options = document.getElementById(input.getAttribute('list')).querySelectorAll('option')
-    expect([...options].map(option => option.value)).toEqual(['acme/api'])
+    const suggestions = within(screen.getByRole('listbox', { name: 'Repositories' })).getAllByRole('option')
+    expect(suggestions.map(option => option.textContent)).toEqual(['acme/api'])
+
+    await user.click(screen.getByRole('option', { name: 'acme/api' }))
+
+    expect(screen.getByRole('combobox', { name: 'Repository to add' })).toHaveValue('acme/api')
   })
 
   it.each([

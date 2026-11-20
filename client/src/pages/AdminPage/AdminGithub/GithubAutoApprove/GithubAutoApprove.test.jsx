@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import GithubAutoApprove from './GithubAutoApprove.jsx'
@@ -54,7 +54,8 @@ describe('GithubAutoApprove', () => {
     expect(screen.queryByText('Rules')).not.toBeInTheDocument()
     expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
     expect(await screen.findByText(/Save the Jev API key in Admin → Guards/)).toBeInTheDocument()
-    await waitFor(() => expect(document.querySelector('option[value="acme/api"]')).toBeInTheDocument())
+    await userEvent.setup().type(screen.getByRole('combobox', { name: 'Repository to add' }), 'api')
+    expect(await screen.findByRole('option', { name: 'acme/api' })).toBeInTheDocument()
   })
 
   it('saves only the repos, leaving the guard settings to the Guards section', async () => {
