@@ -65,6 +65,24 @@ describe('runSchedule', () => {
     })
   })
 
+  it('keeps the guard results of the run after the answer', async () => {
+    const legalCase = { id: 41, guard: 'Legal', source: 'zendesk', ticketId: '48213' }
+    createAgent.mockImplementationOnce(async (_sources, _profile, { guardCases }) => {
+      expect(guardCases.conversationId).toBe(CONVERSATION_ID)
+      guardCases.onChecked({ kind: 'case', case: legalCase })
+      return { name: 'agent', clone: vi.fn() }
+    })
+    const store = makeStore()
+
+    await runSchedule(SCHEDULE, store)
+
+    const [, { uiMessages }] = store.saveTurn.mock.calls[0]
+    expect(uiMessages[1].parts).toEqual([
+      { type: 'text', content: 'Two payments failed.' },
+      { type: 'legal-run', cases: [legalCase] },
+    ])
+  })
+
   it('builds the agent with the sources, profile and custom instructions of the schedule', async () => {
     const store = makeStore()
 
@@ -75,6 +93,7 @@ describe('runSchedule', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       unattended: true,
       timezone: 'Europe/Madrid',
     })
@@ -147,6 +166,7 @@ describe('runSchedule', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       unattended: true,
       timezone: 'Europe/Madrid',
     })

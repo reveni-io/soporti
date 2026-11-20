@@ -44,6 +44,7 @@ describe('runUnattended', () => {
       userId: 7,
       onNestedToolCall: expect.any(Function),
       onNestedUsage: expect.any(Function),
+      guardCases: null,
       unattended: true,
       timezone: 'Europe/Madrid',
       bot: { name: 'Ticket triager', description: 'Triage tickets.' },

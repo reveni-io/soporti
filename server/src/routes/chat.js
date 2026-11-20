@@ -19,6 +19,7 @@ import { recordAgentRun } from '../db/agent-runs.js'
 import { carriesImage, isValidAttachmentName } from '../documents/attachments.js'
 import { buildAgentInput } from '../agent/agent-input.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
+import { toGuardPart } from '../guards/check.js'
 import {
   AGENT_CHANNEL_WEB,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -245,6 +246,7 @@ function createTurnStream(res) {
   const toolCalls = []
   const nestedUsage = []
   const pendingArtifacts = []
+  const pendingParts = []
   const toolStartTimes = new Map()
   const callIdToName = new Map()
   let sentContent = false
@@ -293,6 +295,11 @@ function createTurnStream(res) {
       parts.push({ type: 'artifact', ...artifact })
       sendEvent(res, { type: 'artifact', ...artifact })
     }
+    while (pendingParts.length > 0) {
+      const part = pendingParts.shift()
+      parts.push(part)
+      sendEvent(res, { type: 'part', part })
+    }
   }
 
   return {
@@ -304,6 +311,7 @@ function createTurnStream(res) {
     finishToolCall,
     flushArtifacts,
     queueArtifact: artifact => pendingArtifacts.push(artifact),
+    queueGuardResult: result => pendingParts.push(toGuardPart(result)),
     hasSentContent: () => sentContent,
   }
 }
@@ -456,6 +464,7 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
       userId,
       conversationId,
       onArtifactPublished: turn.queueArtifact,
+      guardCases: { conversationId, onChecked: turn.queueGuardResult },
       onNestedToolCall: turn.startToolCall,
       onNestedToolResult: turn.finishToolCall,
       onNestedUsage: usage => turn.nestedUsage.push(usage),
