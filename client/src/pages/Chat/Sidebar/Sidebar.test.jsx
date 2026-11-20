@@ -423,7 +423,7 @@ describe('Sidebar', () => {
 
       await waitFor(() => expect(screen.getByText('Why did the payout fail?')).toBeInTheDocument())
       expect(screen.getByLabelText('Answering')).toBeInTheDocument()
-      expect(screen.getByText('Auth question')).toBeInTheDocument()
+      expect(await screen.findByText('Auth question')).toBeInTheDocument()
     })
 
     it('shows the conversations section for an in-flight conversation on an empty server list', async () => {
