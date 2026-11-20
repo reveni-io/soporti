@@ -230,6 +230,19 @@ describe('POST /api/admin/config/jev/models/scan', () => {
     expect(stored[JEV_MODEL_CATALOG_KEY]).toEqual({ models: [LATEST, PREVIEW], scannedAt: res.body.scannedAt })
   })
 
+  it('keeps the saved list when Jev returns no models', async () => {
+    const saved = { models: [LATEST], scannedAt: '2026-11-01T08:00:00.000Z' }
+    stored[JEV_API_KEY_KEY] = 'jev-secret'
+    stored[JEV_MODEL_CATALOG_KEY] = saved
+    listModels.mockResolvedValue([])
+
+    const res = await request(app).post('/api/admin/config/jev/models/scan')
+
+    expect(res.status).toBe(502)
+    expect(res.body).toEqual({ error: 'Could not scan the Jev models: Jev returned no models.' })
+    expect(stored[JEV_MODEL_CATALOG_KEY]).toBe(saved)
+  })
+
   it('keeps the saved list when Jev fails', async () => {
     const saved = { models: [LATEST], scannedAt: '2026-11-01T08:00:00.000Z' }
     stored[JEV_API_KEY_KEY] = 'jev-secret'

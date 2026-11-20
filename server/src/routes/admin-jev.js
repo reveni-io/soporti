@@ -26,6 +26,7 @@ const MAX_STATS_REPOS = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
+const NO_MODELS_MESSAGE = 'Jev returned no models'
 const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const PROJECTS = [JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT]
@@ -186,6 +187,8 @@ router.post('/models/scan', async (_req, res) => {
     if (!(await getJevApiKey())) return res.status(422).json({ error: NO_KEY_SCAN_MESSAGE })
 
     const [saved, models] = await Promise.all([getJevModelCatalog(), listModels()])
+    if (models.length === 0) throw new JevApiError(NO_MODELS_MESSAGE)
+
     const catalog = { models, scannedAt: new Date().toISOString() }
     await setJevModelCatalog(catalog)
 
