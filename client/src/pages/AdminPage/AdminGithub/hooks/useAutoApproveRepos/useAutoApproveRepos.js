@@ -97,6 +97,10 @@ export function useAutoApproveRepos(state, { token, onLogout }) {
     }
   }
 
+  function cancelOn() {
+    setConfirming(null)
+  }
+
   return {
     repos,
     selected: selectedRepos,
@@ -107,7 +111,7 @@ export function useAutoApproveRepos(state, { token, onLogout }) {
     canGoOn,
     requestMode,
     confirmOn,
-    cancelOn: () => setConfirming(null),
+    cancelOn,
     updateRepo,
     toggleSelected,
     toggleAll,
