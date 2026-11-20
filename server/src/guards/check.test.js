@@ -56,6 +56,15 @@ describe('checkContent', () => {
     })
   })
 
+  it('adds what the caller attaches, such as a pull request, to what the guard reads', async () => {
+    await checkContent(GUARD, { request: 'Use the guards: Legal', content: null, attach: { diff: '+fee' } })
+
+    expect(runJevCheck).toHaveBeenCalledWith({
+      project: 'legal',
+      state: { request: 'Use the guards: Legal', content: null, diff: '+fee' },
+    })
+  })
+
   it('says the review could not run without naming the service', async () => {
     runJevCheck.mockResolvedValue({ status: 'unavailable', setVersion: 7, reason: 'Jev calls are off' })
 

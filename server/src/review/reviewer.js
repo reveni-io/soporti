@@ -23,7 +23,7 @@ import { classifyMergeRisk, renderInlineComment, renderReviewBody, renderWalkthr
 import { suggestReviewers } from './reviewer-suggestions.js'
 import { upsertWalkthrough } from './walkthrough.js'
 import { resolveFixedThreads, selectFixedThreads } from './fixed-threads.js'
-import { decideAutoApprove } from './auto-approve.js'
+import { buildReviewGuards, decideAutoApprove } from './auto-approve.js'
 import { shortSha } from '../github/sanitize.js'
 import {
   PR_HEAD_PLACEHOLDER,
@@ -114,9 +114,17 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       logger,
     }
 
+    const guards = await buildReviewGuards(
+      {
+        pullRequest: { repoFullName, prNumber, title: current.title, body: current.body },
+        files: changedFiles,
+      },
+      { logger }
+    )
+
     signal?.throwIfAborted()
 
-    const team = await runReviewTeam({ ...scope, standards, spec })
+    const team = await runReviewTeam({ ...scope, standards, spec, guardTools: guards.tools })
 
     signal?.throwIfAborted()
 
@@ -128,24 +136,10 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const notReviewed = findUnreviewedFiles(changedFiles, team.reviewedPaths)
     const placed = placeFindings(findings, files)
     const fixedThreads = selectFixedThreads(team.overview, history)
-    const { event, autoApprove } = await decideAutoApprove(
-      {
-        standards,
-        todayEvent: resolveEvent(team, notReviewed),
-        pullRequest: { repoFullName, prNumber, headSha: reviewedSha, title: current.title, body: current.body },
-        review: {
-          ciStatus,
-          findings,
-          passes: team.passes,
-          notReviewed,
-          overview: team.overview,
-          history,
-          fixedThreads,
-          files: changedFiles,
-        },
-      },
-      { logger }
-    )
+    const { event, autoApprove } = decideAutoApprove({
+      todayEvent: resolveEvent(team, notReviewed),
+      guardChecks: guards.checks,
+    })
     const review = {
       event,
       autoApprove,

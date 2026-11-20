@@ -218,7 +218,6 @@ describe('renderReviewBody', () => {
       guard: 'GitHub Review PR',
       answered: true,
       setVersion: 2,
-      model: 'jev-1',
       minConfidence: 0.75,
       rows: [],
     }

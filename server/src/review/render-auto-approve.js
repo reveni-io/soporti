@@ -50,7 +50,7 @@ function describeOutcome(autoApprove) {
   return approve
     ? [
         '✅ Guards · no warnings',
-        `REVIEW.md names ${listGuards(checks.map(check => check.guard))}, and none raised a warning.`,
+        `Soporti passed this PR through ${listGuards(checks.map(check => check.guard))}, and none raised a warning.`,
       ]
     : [
         '⛔ Guards · not approved',
@@ -72,7 +72,7 @@ function renderGuardAnswers(check) {
   const rows = check.rows.map(row => questionRow(row, check.minConfidence))
 
   return renderDetails(
-    `🛡️ ${check.guard} · ${verdict} · set v${check.setVersion} · ${check.model}`,
+    `🛡️ ${check.guard} · ${verdict} · set v${check.setVersion}`,
     [...QUESTIONS_HEADER, ...rows].join('\n')
   )
 }

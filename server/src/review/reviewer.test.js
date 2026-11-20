@@ -59,10 +59,13 @@ vi.mock('./spec.js', () => ({
 }))
 
 const mockDecideAutoApprove = vi.fn()
+const mockBuildReviewGuards = vi.fn()
 vi.mock('./auto-approve.js', () => ({
+  buildReviewGuards: mockBuildReviewGuards,
   decideAutoApprove: mockDecideAutoApprove,
 }))
-mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+mockDecideAutoApprove.mockImplementation(({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+mockBuildReviewGuards.mockResolvedValue({ tools: [], checks: [] })
 
 const mockSuggestReviewers = vi.fn(async () => null)
 vi.mock('./reviewer-suggestions.js', () => ({ suggestReviewers: mockSuggestReviewers }))
@@ -318,30 +321,27 @@ describe('runReview', () => {
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
   })
 
-  it('lets the guards REVIEW.md names decide the event, with the standards of the repo', async () => {
-    const check = {
-      guard: 'GitHub Review PR',
-      answered: true,
-      setVersion: 9,
-      model: 'jev-1',
-      minConfidence: 0.75,
-      rows: [],
-    }
+  it('gives the overview ask_guard and lets what the guards answered decide the event', async () => {
+    const askGuard = { name: 'ask_guard' }
+    const guardChecks = [{ guard: 'GitHub Review PR', status: 'checked', review: { rows: [] } }]
+    mockBuildReviewGuards.mockResolvedValueOnce({ tools: [askGuard], checks: guardChecks })
+    const check = { guard: 'GitHub Review PR', answered: true, setVersion: 9, minConfidence: 0.75, rows: [] }
     const autoApprove = { approve: true, reason: null, checks: [check] }
-    mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
+    mockDecideAutoApprove.mockReturnValueOnce({ event: 'APPROVE', autoApprove })
     setupHappyPath({ verdict: 'comment', findings: [] })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockDecideAutoApprove).toHaveBeenCalledTimes(1)
-    const [context] = mockDecideAutoApprove.mock.calls[0]
-    expect(context).toMatchObject({
-      todayEvent: 'COMMENT',
-      pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
-      review: { findings: [], notReviewed: [], fixedThreads: [] },
-      standards: expect.objectContaining({ documents: expect.any(Array) }),
+    const [guardsContext] = mockBuildReviewGuards.mock.calls[0]
+    expect(guardsContext.pullRequest).toEqual({
+      repoFullName: 'acme-io/app',
+      prNumber: 7,
+      title: 'Fix totals',
+      body: 'desc',
     })
-    expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
+    expect(guardsContext.files.map(file => file.filename)).toEqual(['src/checkout.js'])
+    expect(teamCall().guardTools).toEqual([askGuard])
+    expect(mockDecideAutoApprove).toHaveBeenCalledWith({ todayEvent: 'COMMENT', guardChecks })
     const posted = mockCreatePullRequestReview.mock.calls[0][2]
     expect(posted.event).toBe('APPROVE')
     expect(posted.body).toContain('✅ Guards · no warnings')

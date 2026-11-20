@@ -37,8 +37,8 @@ function toReview(jev) {
   return jev && { setVersion: jev.setVersion, minConfidence: jev.minConfidence, rows: jev.rows }
 }
 
-export async function checkContent(guard, { request, content }) {
-  const outcome = describeCheck(await runJevCheck({ project: guard.id, state: { request, content } }))
+export async function checkContent(guard, { request, content, attach = null }) {
+  const outcome = describeCheck(await runJevCheck({ project: guard.id, state: { request, content, ...attach } }))
 
   return {
     guard: guard.name,

@@ -6,7 +6,7 @@ function row(question, { flagged = false, unsure = false, confidence = 0.9 } = {
 }
 
 function check(guard, rows = [row('Is it risky?')]) {
-  return { guard, answered: true, reason: null, setVersion: 4, model: 'jev-1', minConfidence: 0.75, rows }
+  return { guard, answered: true, reason: null, setVersion: 4, minConfidence: 0.75, rows }
 }
 
 function autoApprove(overrides = {}) {
@@ -19,12 +19,12 @@ function autoApprove(overrides = {}) {
 }
 
 describe('renderAutoApprove', () => {
-  it('says every guard REVIEW.md names raised no warning', () => {
+  it('says every guard passed raised no warning', () => {
     const text = renderAutoApprove(autoApprove())
 
     expect(text).toContain('✅ Guards · no warnings')
     expect(text).toContain(
-      'REVIEW.md names the **GitHub Review PR** and **Payments** guards, and none raised a warning.'
+      'Soporti passed this PR through the **GitHub Review PR** and **Payments** guards, and none raised a warning.'
     )
   })
 
@@ -64,7 +64,7 @@ describe('renderJevAnswers', () => {
       })
     )
 
-    expect(text).toContain('🛡️ Payments · 2 warnings · set v4 · jev-1')
+    expect(text).toContain('🛡️ Payments · 2 warnings · set v4')
     expect(text).toContain('| Fees? | No | 0.90 | ⛔ Warning |')
     expect(text).toContain('| Big? | No | 0.50 | ⛔ Warning (not sure: 0.50 < 0.75) |')
     expect(text).not.toContain('Legal')

@@ -60,11 +60,13 @@ describe('ask_guard', () => {
 
     expect(name).toBe('ask_guard')
     expect(description).toContain(
-      'Use guards only when the user, a scheduled query or the instructions of a bot ask for them'
+      'Use guards only when the user, a scheduled query, the instructions of a bot or the REVIEW.md of a pull request under review ask for them'
     )
     expect(description).toContain('Never use a guard on your own.')
     expect(description).toContain('If no guard has the name they used, pass none: ask them whether they want the guard')
-    expect(description).toContain('Pass in `request` what was asked, quoting the words of the person')
+    expect(description).toContain(
+      'Pass in `request` what was asked, quoting the words of the person, the scheduled query, the bot or the REVIEW.md'
+    )
     expect(description).toContain('Guards:\n- "Legal"\n- "Refunds"')
   })
 
@@ -88,6 +90,25 @@ describe('ask_guard', () => {
       ].join('\n')
     )
     expect(onChecked).toHaveBeenCalledWith({ kind: 'check', check: expect.objectContaining({ guard: 'Legal' }) })
+  })
+
+  it('checks a pull request in a review, with the pull request attached, and hands each answer to the review', async () => {
+    const onChecked = vi.fn()
+    const attach = { pullRequest: { number: 12 }, diff: '+fee' }
+    const guardTool = askGuard({ userId: null, review: { attach, onChecked } })
+
+    const answer = await guardTool.execute({
+      request: 'Use the guards: Legal',
+      guards: ['Legal'],
+      content: null,
+      ticket: null,
+    })
+
+    expect(guardTool.description).toContain('In a pull request review, Soporti adds the pull request and its diff')
+    expect(askGuard().description).not.toContain('In a pull request review')
+    expect(checkContent).toHaveBeenCalledWith(GUARDS[0], { request: 'Use the guards: Legal', content: null, attach })
+    expect(onChecked).toHaveBeenCalledWith(expect.objectContaining({ guard: 'Legal', warnings: 2 }))
+    expect(answer).toMatch(/^The Legal guard raised 2 warnings/)
   })
 
   it('passes content through every guard named, once each', async () => {
@@ -156,7 +177,7 @@ describe('ask_guard', () => {
 
   it('needs the request, something to check and a guard that exists', async () => {
     expect(await askGuard().execute({ request: ' ', guards: ['Legal'], content: 'x', ticket: null })).toBe(
-      'Pass in `request` what the person, the scheduled query or the bot asked for.'
+      'Pass in `request` what the person, the scheduled query, the bot or the REVIEW.md asked for.'
     )
     expect(await askGuard().execute({ request: REQUEST, guards: ['Legal'], content: '  ', ticket: null })).toMatch(
       /^Pass `content`/
