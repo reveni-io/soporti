@@ -132,15 +132,16 @@ function settingsSignature({ region, accessKey, roleArn, accounts }) {
   ])
 }
 
-function toAssumeRoleError(err, roleArn) {
-  if (err.code === AWS_REQUEST_FAILED) return err
-  if (isAccessDenied(err)) {
-    return awsError(
-      `AWS did not let Soporti assume ${roleArn}. The role's trust policy must allow the identity Soporti runs with, and that identity needs sts:AssumeRole on the role.`
-    )
-  }
+function isAssumeRoleRefused(err) {
+  return isAccessDenied(err) && !REJECTED_CREDENTIAL_NAMES.has(err.name)
+}
 
-  return toAwsError(err, `sts:AssumeRole on ${roleArn}`)
+function toAssumeRoleError(err, roleArn) {
+  if (!isAssumeRoleRefused(err)) return toAwsError(err, `sts:AssumeRole on ${roleArn}`)
+
+  return awsError(
+    `AWS did not let Soporti assume ${roleArn}. The role's trust policy must allow the identity Soporti runs with, and that identity needs sts:AssumeRole on the role.`
+  )
 }
 
 async function requestRoleCredentials(sts, roleArn) {

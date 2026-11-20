@@ -334,14 +334,17 @@ describe('AWS accounts', () => {
     expect(error.message).toMatch(new RegExp(`^AWS did not let Soporti assume ${namedArn}\\. The role's trust policy`))
   })
 
-  it('keep the credential errors of the first hop', async () => {
+  it.each([
+    [awsFailure('CredentialsProviderError'), /No AWS credentials were found/],
+    [awsFailure('InvalidClientTokenId', { status: 403 }), /^AWS rejected the credentials/],
+  ])('keep the credential errors of the first hop (%s)', async (failure, expected) => {
     useHandlers({
       AssumeRole: () => {
-        throw awsFailure('CredentialsProviderError')
+        throw failure
       },
     })
 
-    await expect(listAlarms({ account: 'prod' })).rejects.toThrow(/No AWS credentials were found/)
+    await expect(listAlarms({ account: 'prod' })).rejects.toThrow(expected)
   })
 
   it('list the configured account names, or none', async () => {
