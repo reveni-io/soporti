@@ -76,6 +76,7 @@ async function callJev(project, loaded, { state, questions }) {
       model: response.model,
       minConfidence: set.minConfidence,
       rows: readJevAnswers(questions, response.answers, set.minConfidence),
+      set,
     }
   } catch (err) {
     if (!(err instanceof JevApiError)) throw err
