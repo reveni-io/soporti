@@ -35,6 +35,15 @@ const RESOLVE_REVIEW_THREAD_MUTATION = `mutation ($threadId: ID!) {
 const PATH_HISTORY_LIMIT = 20
 const PUSH_PERMISSIONS = new Set(['admin', 'write'])
 
+const ORGANIZATION_MEMBERS_QUERY = `query ($org: String!, $cursor: String) {
+  organization(login: $org) {
+    membersWithRole(first: 100, after: $cursor) {
+      nodes { login createdAt }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`
+
 let octokitInstance = null
 let octokitInstanceToken = null
 
@@ -292,6 +301,21 @@ export async function countReviewsSince(owner, logins, since) {
   const data = await octokit.graphql(`query (${definitions}) {\n${fields.join('\n')}\n}`, variables)
 
   return new Map(logins.map((login, index) => [login, data[`r${index}`]?.issueCount ?? 0]))
+}
+
+export async function listOrganizationMembers(org) {
+  const octokit = await getOctokit()
+  const members = []
+  let cursor = null
+
+  do {
+    const data = await octokit.graphql(ORGANIZATION_MEMBERS_QUERY, { org, cursor })
+    const page = data.organization?.membersWithRole
+    members.push(...(page?.nodes ?? []).map(({ login, createdAt }) => ({ login, createdAt })))
+    cursor = page?.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null
+  } while (cursor)
+
+  return members
 }
 
 export async function canPushToRepository(repoFullName, login) {

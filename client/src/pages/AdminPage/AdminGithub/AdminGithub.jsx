@@ -3,6 +3,7 @@ import {
   absoluteApiUrl,
   getGithubConfig,
   saveGithubCatalog,
+  saveGithubReviewerSuggestions,
   saveGithubToken,
   saveGithubWebhookSecret,
 } from '../../../services/services.js'
@@ -11,9 +12,9 @@ import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
 import GithubAutoApprove from './GithubAutoApprove/GithubAutoApprove.jsx'
-import GithubReviewerSuggestions from './GithubReviewerSuggestions/GithubReviewerSuggestions.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
+import ToggleField from '../ToggleField/ToggleField.jsx'
 
 const MAX_CATALOG_LENGTH = 100_000
 const SECRET_BYTES = 24
@@ -42,8 +43,9 @@ export default function AdminGithub({ token, onLogout }) {
     patchConfig({ webhookSecretConfigured: data.webhookSecretConfigured })
   }
 
-  function handleReviewerSuggestionsSaved(reviewerSuggestions) {
-    patchConfig({ reviewerSuggestions })
+  async function saveReviewerSuggestions(enabled) {
+    const data = await saveGithubReviewerSuggestions(token, enabled)
+    patchConfig({ reviewerSuggestionsEnabled: data.reviewerSuggestionsEnabled })
   }
 
   function handleCatalogSave() {
@@ -66,9 +68,10 @@ export default function AdminGithub({ token, onLogout }) {
           the database and never shown again after saving.
         </p>
         <p className="admin__muted">
-          A classic token with the <code>repo</code> scope covers everything. A fine-grained token also needs{' '}
-          <strong>Checks: read</strong> and <strong>Commit statuses: read</strong> so PR reviews can see the CI results;
-          without them, reviews run without the CI section.
+          A classic token with the <code>repo</code> scope covers everything but finding who joined recently for the
+          reviewer suggestions (see below). A fine-grained token also needs <strong>Checks: read</strong> and{' '}
+          <strong>Commit statuses: read</strong> so PR reviews can see the CI results; without them, reviews run without
+          the CI section.
         </p>
 
         <StatusRow configured={config.tokenConfigured} />
@@ -166,12 +169,26 @@ export default function AdminGithub({ token, onLogout }) {
         </div>
       </AdminSection>
 
-      <GithubReviewerSuggestions
-        settings={config.reviewerSuggestions}
-        token={token}
-        onLogout={onLogout}
-        onSaved={handleReviewerSuggestionsSaved}
-      />
+      <AdminSection title="Reviewer suggestions">
+        <p className="admin__muted">
+          Each PR review adds a line to the walkthrough with a good reviewer: someone who knows the changed files and
+          has reviewed less lately. On simple PRs that are not risky, it also suggests someone who joined recently, so
+          they learn that part of the code. It works without Jev.
+        </p>
+        <p className="admin__muted">
+          People who joined recently are the organization members with <code>-reveni</code> in their username whose
+          account is less than 90 days old. Listing the members needs the <code>read:org</code> scope on a classic
+          token, or <strong>Members: read</strong> on a fine-grained one; without it, only the reviewer is suggested.
+        </p>
+
+        <ToggleField
+          enabled={config.reviewerSuggestionsEnabled}
+          label="Suggest reviewers"
+          hint="The reviewer is left out when someone else is already reviewing the PR or Soporti approved it."
+          onSave={saveReviewerSuggestions}
+          onLogout={onLogout}
+        />
+      </AdminSection>
 
       <GithubAutoApprove token={token} onLogout={onLogout} />
     </>

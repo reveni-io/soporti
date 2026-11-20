@@ -1,37 +1,44 @@
-import { canPushToRepository, countReviewsSince, listPathAuthors, listPullRequestReviews } from '../github/client.js'
-import { getReviewerSuggestions } from '../github/settings.js'
-import { isBotLogin, isGithubLogin, isSameLogin, parseRepo } from '../github/sanitize.js'
+import {
+  canPushToRepository,
+  countReviewsSince,
+  listOrganizationMembers,
+  listPathAuthors,
+  listPullRequestReviews,
+} from '../github/client.js'
+import { getReviewerSuggestionsEnabled } from '../github/settings.js'
+import { isBotLogin, isSameLogin, parseRepo } from '../github/sanitize.js'
 
 const MAX_PATHS = 10
 const MAX_EXPERTS = 5
 const LOAD_WINDOW_DAYS = 30
+const NEWCOMER_DAYS = 90
+const NEWCOMER_MARK = '-reveni'
 const DAY_MS = 86_400_000
 const LEARNING_RISKS = new Set(['Low', 'Medium'])
 const LEARNING_EFFORTS = new Set([2, 3])
 
 export async function suggestReviewers(context, { logger = console } = {}) {
   try {
-    const settings = await getReviewerSuggestions()
-    if (!settings.enabled) return null
+    if (!(await getReviewerSuggestionsEnabled())) return null
 
-    return await pickReviewers(context, settings.newcomers)
+    return await pickReviewers(context, logger)
   } catch (err) {
     logger.error(`[review] Could not suggest reviewers for ${context.trigger.dedupeKey}:`, err)
     return null
   }
 }
 
-async function pickReviewers(context, newcomers) {
+async function pickReviewers(context, logger) {
   const { repoFullName } = context.trigger
+  const { owner } = parseRepo(repoFullName)
   const taken = await listTakenReviewers(context)
   const experts = context.approved || taken.hasReviewer ? [] : await rankExperts(context, taken.logins)
-  const learners = isLearningPr(context)
-    ? newcomers.filter(login => isGithubLogin(login) && !taken.logins.has(login.toLowerCase()))
-    : []
+  const newcomers = isLearningPr(context) ? await findNewcomers(owner, logger) : []
+  const learners = newcomers.filter(login => !taken.logins.has(login.toLowerCase()))
   const candidates = await keepPushers(repoFullName, [...new Set([...experts, ...learners])])
   if (candidates.size === 0) return null
 
-  const load = await countReviewsSince(parseRepo(repoFullName).owner, [...candidates], loadWindowStart())
+  const load = await countReviewsSince(owner, [...candidates], daysAgo(LOAD_WINDOW_DAYS).toISOString().slice(0, 10))
   const expert = leastLoaded(experts, candidates, load)
   const learner = leastLoaded(
     learners.filter(login => !isSameLogin(login, expert)),
@@ -40,6 +47,22 @@ async function pickReviewers(context, newcomers) {
   )
 
   return expert || learner ? { expert, learner } : null
+}
+
+async function findNewcomers(org, logger) {
+  try {
+    const joinedAfter = daysAgo(NEWCOMER_DAYS).getTime()
+    const members = await listOrganizationMembers(org)
+
+    return members
+      .filter(
+        ({ login, createdAt }) => login.toLowerCase().includes(NEWCOMER_MARK) && Date.parse(createdAt) >= joinedAfter
+      )
+      .map(({ login }) => login)
+  } catch (err) {
+    logger.warn(`[review] Could not list the members of ${org} to find newcomers: ${err.message}`)
+    return []
+  }
 }
 
 async function listTakenReviewers({ trigger, pr, reviewerLogin }) {
@@ -98,6 +121,6 @@ function leastLoaded(logins, candidates, load) {
   return eligible.reduce((best, login) => (load.get(login) < load.get(best) ? login : best))
 }
 
-function loadWindowStart() {
-  return new Date(Date.now() - LOAD_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10)
+function daysAgo(days) {
+  return new Date(Date.now() - days * DAY_MS)
 }

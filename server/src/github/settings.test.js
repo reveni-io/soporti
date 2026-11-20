@@ -11,9 +11,8 @@ const {
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
-  getReviewerSuggestions,
-  setReviewerSuggestions,
-  parseReviewerSuggestions,
+  getReviewerSuggestionsEnabled,
+  setReviewerSuggestionsEnabled,
   GITHUB_TOKEN_KEY,
   GITHUB_WEBHOOK_SECRET_KEY,
   REPO_CATALOG_KEY,
@@ -110,66 +109,25 @@ describe('repo catalog', () => {
   })
 })
 
-describe('getReviewerSuggestions', () => {
-  it('is off with no newcomers when nothing is stored', async () => {
+describe('getReviewerSuggestionsEnabled', () => {
+  it('is off unless true is stored', async () => {
     getConfigValue.mockResolvedValue(null)
-
-    expect(await getReviewerSuggestions()).toEqual({ enabled: false, newcomers: [] })
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
     expect(getConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY)
-  })
 
-  it('returns the stored switch and newcomers', async () => {
-    getConfigValue.mockResolvedValue({ enabled: true, newcomers: ['ana'] })
-
-    expect(await getReviewerSuggestions()).toEqual({ enabled: true, newcomers: ['ana'] })
+    _resetSettingsCacheForTests()
+    getConfigValue.mockResolvedValue('yes')
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
   })
 
   it('reads the new value after saving', async () => {
-    getConfigValue.mockResolvedValue({ enabled: false, newcomers: [] })
-    await getReviewerSuggestions()
+    getConfigValue.mockResolvedValue(false)
+    expect(await getReviewerSuggestionsEnabled()).toBe(false)
 
-    getConfigValue.mockResolvedValue({ enabled: true, newcomers: [] })
-    const saved = await setReviewerSuggestions({ enabled: true, newcomers: [] })
+    getConfigValue.mockResolvedValue(true)
+    await setReviewerSuggestionsEnabled(true)
 
-    expect(saved).toEqual({ enabled: true, newcomers: [] })
-    expect(setConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY, { enabled: true, newcomers: [] })
-    expect((await getReviewerSuggestions()).enabled).toBe(true)
-  })
-})
-
-describe('parseReviewerSuggestions', () => {
-  it('keeps the switch and cleans the newcomers: no @, no blanks, no repeats', () => {
-    expect(parseReviewerSuggestions({ enabled: true, newcomers: [' @ana ', '', 'Luis', 'luis', 'ANA'] })).toEqual({
-      value: { enabled: true, newcomers: ['ana', 'Luis'] },
-    })
-  })
-
-  it('needs a boolean switch', () => {
-    expect(parseReviewerSuggestions({ enabled: 'yes', newcomers: [] })).toEqual({
-      error: '"enabled" must be true or false.',
-    })
-    expect(parseReviewerSuggestions().error).toBe('"enabled" must be true or false.')
-  })
-
-  it('needs a list of strings', () => {
-    const error = '"newcomers" must be a list of GitHub usernames.'
-
-    expect(parseReviewerSuggestions({ enabled: true, newcomers: 'ana' })).toEqual({ error })
-    expect(parseReviewerSuggestions({ enabled: true, newcomers: ['ana', 3] })).toEqual({ error })
-  })
-
-  it('rejects anything that is not a GitHub username, shortened', () => {
-    expect(parseReviewerSuggestions({ enabled: true, newcomers: ['ana', 'ana garcia'] })).toEqual({
-      error: '"ana garcia" is not a GitHub username.',
-    })
-    expect(parseReviewerSuggestions({ enabled: true, newcomers: ['x'.repeat(60)] }).error).toBe(
-      `"${'x'.repeat(40)}" is not a GitHub username.`
-    )
-  })
-
-  it('caps the list at 50 people', () => {
-    const newcomers = Array.from({ length: 51 }, (_, index) => `dev${index}`)
-
-    expect(parseReviewerSuggestions({ enabled: true, newcomers }).error).toBe('List at most 50 people new to the code.')
+    expect(setConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY, true)
+    expect(await getReviewerSuggestionsEnabled()).toBe(true)
   })
 })

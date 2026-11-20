@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRepo, sanitizePath, shortSha, isSameLogin, isGithubLogin, isBotLogin, BLOCKED_PATHS } from './sanitize.js'
+import { parseRepo, sanitizePath, shortSha, isSameLogin, isBotLogin, BLOCKED_PATHS } from './sanitize.js'
 
 describe('parseRepo', () => {
   it('parses valid owner/repo format', () => {
@@ -114,21 +114,6 @@ describe('isSameLogin', () => {
   it('tells different logins apart, including a missing one', () => {
     expect(isSameLogin('soporti-bot', 'dev')).toBe(false)
     expect(isSameLogin(undefined, 'soporti-bot')).toBe(false)
-  })
-})
-
-describe('isGithubLogin', () => {
-  it('accepts GitHub logins', () => {
-    expect(isGithubLogin('ana-garcia')).toBe(true)
-    expect(isGithubLogin('A1')).toBe(true)
-  })
-
-  it('rejects anything a login cannot be', () => {
-    expect(isGithubLogin('-ana')).toBe(false)
-    expect(isGithubLogin('ana garcia')).toBe(false)
-    expect(isGithubLogin('ana reviewed-by:luis')).toBe(false)
-    expect(isGithubLogin('a'.repeat(40))).toBe(false)
-    expect(isGithubLogin(null)).toBe(false)
   })
 })
 

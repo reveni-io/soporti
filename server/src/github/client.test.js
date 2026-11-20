@@ -88,6 +88,7 @@ const {
   listPathAuthors,
   countReviewsSince,
   canPushToRepository,
+  listOrganizationMembers,
 } = await import('./client.js')
 
 describe('listRepos', () => {
@@ -739,5 +740,44 @@ describe('canPushToRepository', () => {
     mockGetCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }))
 
     await expect(canPushToRepository('acme-io/app', 'ana')).rejects.toThrow('Forbidden')
+  })
+})
+
+describe('listOrganizationMembers', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('reads every page of members with the date their account was created', async () => {
+    mockGraphql
+      .mockResolvedValueOnce({
+        organization: {
+          membersWithRole: {
+            nodes: [{ login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z', name: 'Ana' }],
+            pageInfo: { hasNextPage: true, endCursor: 'c1' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        organization: {
+          membersWithRole: {
+            nodes: [{ login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' }],
+            pageInfo: { hasNextPage: false, endCursor: 'c2' },
+          },
+        },
+      })
+
+    expect(await listOrganizationMembers('acme-io')).toEqual([
+      { login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z' },
+      { login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' },
+    ])
+    expect(mockGraphql.mock.calls.map(([, variables]) => variables)).toEqual([
+      { org: 'acme-io', cursor: null },
+      { org: 'acme-io', cursor: 'c1' },
+    ])
+  })
+
+  it('returns no members when the owner is not an organization', async () => {
+    mockGraphql.mockResolvedValue({ organization: null })
+
+    expect(await listOrganizationMembers('someone')).toEqual([])
   })
 })

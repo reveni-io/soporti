@@ -9,18 +9,16 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-const SUGGESTIONS_OFF = { enabled: false, newcomers: [] }
-
 function mockGet({
   tokenConfigured = false,
   webhookSecretConfigured = false,
   repoCatalog = '',
-  reviewerSuggestions = SUGGESTIONS_OFF,
+  reviewerSuggestionsEnabled = false,
 } = {}) {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ tokenConfigured, webhookSecretConfigured, repoCatalog, reviewerSuggestions }),
+    json: async () => ({ tokenConfigured, webhookSecretConfigured, repoCatalog, reviewerSuggestionsEnabled }),
   }
 }
 
@@ -34,27 +32,24 @@ describe('AdminGithub', () => {
     expect(screen.getByDisplayValue(/org\/api/)).toBeInTheDocument()
   })
 
-  it('keeps the saved reviewer suggestions in the page', async () => {
+  it('turns the reviewer suggestions on', async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce(mockGet())
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ reviewerSuggestions: { enabled: true, newcomers: ['ana'] } }),
-      })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviewerSuggestionsEnabled: true }) })
     const user = userEvent.setup()
 
     render(<AdminGithub token="tok" onLogout={vi.fn()} />)
 
-    await user.click(await screen.findByRole('checkbox', { name: /suggest reviewers/i }))
-    await user.type(screen.getByRole('textbox', { name: 'People new to the code' }), '@ana')
-    await user.click(screen.getByRole('button', { name: 'Save suggestions' }))
+    expect(await screen.findByText(/organization members with/)).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /suggest reviewers/i }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).toBeChecked()
-    expect(screen.getByRole('textbox', { name: 'People new to the code' })).toHaveValue('ana')
-    expect(screen.getByRole('button', { name: 'Save suggestions' })).toBeDisabled()
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/github/reviewer-suggestions')
+    expect(JSON.parse(options.body)).toEqual({ enabled: true })
   })
 
   it('lists the token permissions PR reviews need to read the CI status', async () => {

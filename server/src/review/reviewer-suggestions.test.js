@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getReviewerSuggestions = vi.fn()
-vi.mock('../github/settings.js', () => ({ getReviewerSuggestions }))
+const getReviewerSuggestionsEnabled = vi.fn()
+vi.mock('../github/settings.js', () => ({ getReviewerSuggestionsEnabled }))
 
 const listPullRequestReviews = vi.fn()
 const listPathAuthors = vi.fn()
 const canPushToRepository = vi.fn()
 const countReviewsSince = vi.fn()
+const listOrganizationMembers = vi.fn()
 vi.mock('../github/client.js', () => ({
+  listOrganizationMembers,
   listPullRequestReviews,
   listPathAuthors,
   canPushToRepository,
@@ -16,17 +18,24 @@ vi.mock('../github/client.js', () => ({
 
 const { suggestReviewers } = await import('./reviewer-suggestions.js')
 
-const logger = { error: vi.fn() }
+const logger = { error: vi.fn(), warn: vi.fn() }
+const NOW = new Date('2026-11-20T10:00:00Z')
+
+function members(...entries) {
+  listOrganizationMembers.mockResolvedValue(entries.map(([login, createdAt]) => ({ login, createdAt })))
+}
+
+const TRIGGER = {
+  repoFullName: 'acme-io/app',
+  prNumber: 7,
+  dedupeKey: 'acme-io/app#7',
+  authorLogin: 'author',
+  baseRef: 'main',
+}
 
 function buildContext(overrides = {}) {
   return {
-    trigger: {
-      repoFullName: 'acme-io/app',
-      prNumber: 7,
-      dedupeKey: 'acme-io/app#7',
-      authorLogin: 'author',
-      baseRef: 'main',
-    },
+    trigger: TRIGGER,
     pr: { requested_reviewers: [], requested_teams: [] },
     files: [
       { filename: 'src/a.js', changes: 40 },
@@ -48,8 +57,9 @@ function loads(entries) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.useRealTimers()
-  getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: [] })
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+  getReviewerSuggestionsEnabled.mockResolvedValue(true)
+  members(['veterana-reveni', '2023-01-10T09:00:00Z'])
   listPullRequestReviews.mockResolvedValue([])
   listPathAuthors.mockResolvedValue([
     { path: 'src/a.js', authors: ['ana', 'ana', 'luis'] },
@@ -61,7 +71,7 @@ beforeEach(() => {
 
 describe('suggestReviewers', () => {
   it('does nothing while the switch is off', async () => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: false, newcomers: ['nueva'] })
+    getReviewerSuggestionsEnabled.mockResolvedValue(false)
 
     expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
     expect(listPullRequestReviews).not.toHaveBeenCalled()
@@ -90,8 +100,6 @@ describe('suggestReviewers', () => {
   })
 
   it('counts the reviews of the last 30 days', async () => {
-    vi.useFakeTimers({ now: new Date('2026-11-20T10:00:00Z'), toFake: ['Date'] })
-
     await suggestReviewers(buildContext(), { logger })
 
     expect(countReviewsSince.mock.calls[0][2]).toBe('2026-10-21')
@@ -156,28 +164,39 @@ describe('suggestReviewers', () => {
     expect(listPathAuthors).not.toHaveBeenCalled()
   })
 
-  it('suggests the newcomer with fewer recent reviews on a PR that is good to learn from', async () => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['nueva', 'nuevo', 'author'] })
-    loads({ nueva: 3, nuevo: 1 })
+  it('suggests, among the -reveni accounts created in the last 90 days, the one with fewer recent reviews', async () => {
+    members(
+      ['nueva-reveni', '2026-10-01T09:00:00Z'],
+      ['nuevo-Reveni', '2026-08-23T10:00:00Z'],
+      ['antigua-reveni', '2026-08-22T09:00:00Z'],
+      ['personal-account', '2026-11-01T09:00:00Z'],
+      ['author-reveni', '2026-11-01T09:00:00Z']
+    )
+    loads({ 'nueva-reveni': 3, 'nuevo-Reveni': 1 })
 
-    expect(await suggestReviewers(buildContext({ risk: 'Medium', effort: 3 }), { logger })).toEqual({
-      expert: 'ana',
-      learner: 'nuevo',
-    })
+    expect(
+      await suggestReviewers(
+        buildContext({ risk: 'Medium', effort: 3, trigger: { ...TRIGGER, authorLogin: 'author-reveni' } }),
+        {
+          logger,
+        }
+      )
+    ).toEqual({ expert: 'ana', learner: 'nuevo-Reveni' })
+    expect(listOrganizationMembers).toHaveBeenCalledWith('acme-io')
   })
 
   it('suggests a newcomer even when the PR already has a reviewer', async () => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['nueva'] })
+    members(['nueva-reveni', '2026-11-01T09:00:00Z'])
     listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva' })
+    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva-reveni' })
   })
 
   it('does not suggest the expert again as the newcomer', async () => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['ANA'] })
-    listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana'] }])
+    members(['ana-reveni', '2026-11-01T09:00:00Z'])
+    listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana-reveni'] }])
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
+    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana-reveni', learner: null })
   })
 
   it.each([
@@ -186,14 +205,23 @@ describe('suggestReviewers', () => {
     ['trivial change', { risk: 'Low', effort: 1 }],
     ['complex change', { risk: 'Low', effort: 4 }],
     ['no overview', { risk: 'Low', effort: undefined }],
-  ])('suggests no newcomer on a %s', async (_label, overrides) => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['nueva'] })
+  ])('looks for no newcomer on a %s', async (_label, overrides) => {
+    members(['nueva-reveni', '2026-11-01T09:00:00Z'])
 
     expect((await suggestReviewers(buildContext(overrides), { logger })).learner).toBeNull()
+    expect(listOrganizationMembers).not.toHaveBeenCalled()
   })
 
-  it('skips newcomers that are not valid logins', async () => {
-    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['bad login'] })
+  it('still suggests the expert when the members cannot be listed', async () => {
+    listOrganizationMembers.mockRejectedValue(new Error('Resource not accessible by personal access token'))
+
+    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[review] Could not list the members of acme-io to find newcomers: Resource not accessible by personal access token'
+    )
+  })
+
+  it('suggests nobody when there is no expert and no newcomer', async () => {
     listPathAuthors.mockResolvedValue([])
 
     expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
