@@ -563,6 +563,59 @@ export function saveVideoEffort(token, effort) {
   })
 }
 
+export function getJevConfig(token) {
+  return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
+}
+
+export function saveJevApiKey(token, apiKey) {
+  return request('/api/admin/config/jev/api-key', {
+    method: 'PUT',
+    token,
+    body: { apiKey },
+    errorMessage: 'Failed to save the API key',
+  })
+}
+
+export function testJevConnection(token) {
+  return request('/api/admin/config/jev/test', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to test the connection',
+  })
+}
+
+export function scanJevModels(token) {
+  return request('/api/admin/config/jev/models/scan', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to scan for models',
+  })
+}
+
+export function getJevUsage(token) {
+  return request('/api/admin/config/jev/usage', { token, errorMessage: 'Failed to load the Jev usage' })
+}
+
+export function getJevDocument(token, id) {
+  return request(`/api/admin/config/jev/documents/${id}`, { token, errorMessage: 'Failed to load the settings' })
+}
+
+export function saveJevDocument(token, id, { rev, data }) {
+  return request(`/api/admin/config/jev/documents/${id}`, {
+    method: 'PUT',
+    token,
+    body: { rev, data },
+    errorMessage: 'Failed to save the settings',
+  })
+}
+
+export function getJevHistory(token, id, page) {
+  return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
+    token,
+    errorMessage: 'Failed to load the change history',
+  })
+}
+
 export function getSubagents(token) {
   return request('/api/admin/subagents', { token, errorMessage: 'Failed to load the subagents' })
 }

@@ -26,6 +26,15 @@ export const ROUTINE_RESULT_MAX_LENGTH = 4000
 export const NOTHING_TO_REPORT = 'NOTHING_TO_REPORT'
 export const BOT_HISTORY_MAX_CHARS = 300_000
 
+export const JEV_SETTINGS_DOCUMENT = 'jev'
+export const JEV_GITHUB_DOCUMENT = 'github'
+export const JEV_LEGAL_DOCUMENT = 'legal'
+export const JEV_CHECK_ANSWERED = 'answered'
+export const JEV_CHECK_UNAVAILABLE = 'unavailable'
+export const JEV_QUESTION_CHOICE = 'choice'
+export const JEV_QUESTION_NOUL = 'noul'
+export const MS_PER_SECOND = 1000
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export const PROMPT_SECTION_SEPARATOR = '\n\n---\n\n'

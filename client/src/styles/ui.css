@@ -269,6 +269,12 @@
   border-color: var(--success-border);
 }
 
+.badge--warning {
+  color: var(--warning-text);
+  background-color: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
