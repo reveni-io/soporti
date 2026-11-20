@@ -8,8 +8,8 @@ const BASE = '/api/admin/config/jev'
 const LATEST = { name: 'jev-latest', description: 'Most recent stable release', releaseDate: '2026-10-14' }
 const PREVIEW = { name: 'jev-preview', description: 'Most recent release', releaseDate: '2026-10-14' }
 const SCANNED_AT = '2026-11-17T08:30:00.000Z'
-const NO_KEY = { keyConfigured: false, models: [], scannedAt: null }
-const WITH_KEY = { keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT }
+const NO_KEY = { keyConfigured: false, models: [], scannedAt: null, callsEnabled: false }
+const WITH_KEY = { keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT, callsEnabled: false }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -55,7 +55,7 @@ beforeEach(() => {
 })
 
 describe('JevConnection', () => {
-  it('starts without a key or models, and has no switch of its own: each guard has one', async () => {
+  it('starts without a key or models, with the calls switch locked off until a key is saved', async () => {
     mockApi({})
 
     render(<Harness initial={NO_KEY} onChanged={vi.fn()} />)
@@ -63,7 +63,22 @@ describe('JevConnection', () => {
     expect(await screen.findByText('not configured')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeDisabled()
     expect(screen.getByText('No models saved yet.')).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
+    expect(screen.getByText('Save the API key before turning the calls on.')).toBeInTheDocument()
+  })
+
+  it('turns the Jev calls on for every guard and reloads the history', async () => {
+    mockApi({ [`PUT ${BASE}/calls`]: [okResponse({ enabled: true })] })
+    const onChanged = vi.fn()
+    const user = userEvent.setup()
+
+    render(<Harness initial={WITH_KEY} onChanged={onChanged} />)
+    await user.click(await screen.findByRole('checkbox', { name: /Allow Jev calls/ }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(JSON.parse(requestsTo('PUT', `${BASE}/calls`)[0][1].body)).toEqual({ enabled: true })
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(onChanged).toHaveBeenCalled()
   })
 
   it('shows the saved catalog when the key is configured', async () => {

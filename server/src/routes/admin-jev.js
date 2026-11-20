@@ -16,8 +16,18 @@ import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
 import { listGuards } from '../guards/registry.js'
-import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
+import {
+  areJevCallsEnabled,
+  getJevModelCatalog,
+  isConfigured,
+  isGuardSendingEnabled,
+  setGuardSendingEnabled,
+  setJevApiKey,
+  setJevCallsEnabled,
+  setJevModelCatalog,
+} from '../jev/settings.js'
 
+const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
@@ -67,11 +77,11 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function planMergedSave(id, current, { data, restoredFrom, keyConfigured }) {
+function planMergedSave(id, current, { data, restoredFrom }) {
   const next = parseJevDocument(id, { ...current.data, ...data })
   if (next.error) return next
 
-  return planJevSave(current, next.value, { restoredFrom, keyConfigured })
+  return planJevSave(current, next.value, { restoredFrom })
 }
 
 function parsePage(value) {
@@ -153,8 +163,13 @@ router.param('id', (req, res, next, id) => {
 
 router.get('/', async (_req, res) => {
   try {
-    const [keyConfigured, catalog] = await Promise.all([isConfigured(), getJevModelCatalog()])
-    res.json({ keyConfigured, models: catalog.models, scannedAt: catalog.scannedAt })
+    const [keyConfigured, catalog, callsEnabled, sendingEnabled] = await Promise.all([
+      isConfigured(),
+      getJevModelCatalog(),
+      areJevCallsEnabled(),
+      isGuardSendingEnabled(),
+    ])
+    res.json({ keyConfigured, models: catalog.models, scannedAt: catalog.scannedAt, callsEnabled, sendingEnabled })
   } catch (err) {
     console.error('Failed to load the Jev settings:', err)
     res.status(500).json({ error: 'Failed to load the Jev settings.' })
@@ -178,6 +193,49 @@ router.put('/api-key', async (req, res) => {
     res.status(500).json({ error: 'Failed to save the Jev API key.' })
   }
 })
+
+function parseSwitch(body) {
+  if (typeof body?.enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
+
+  return { value: body.enabled }
+}
+
+function switchHandler({ label, read, save, check = async () => null }) {
+  return async function handleSwitch(req, res) {
+    const { error, value: enabled } = parseSwitch(req.body)
+    if (error) return res.status(400).json({ error })
+
+    try {
+      const blocker = enabled ? await check() : null
+      if (blocker) return res.status(422).json({ error: blocker })
+
+      if ((await read()) !== enabled) {
+        await save(enabled)
+        const change = `${label} ${enabled ? 'on' : 'off'}`
+        await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
+      }
+
+      res.json({ enabled })
+    } catch (err) {
+      console.error(`Failed to save ${label}:`, err)
+      res.status(500).json({ error: `Failed to save ${label}.` })
+    }
+  }
+}
+
+async function findCallsBlocker() {
+  return (await isConfigured()) ? null : NO_KEY_CALLS_MESSAGE
+}
+
+router.put(
+  '/calls',
+  switchHandler({ label: 'Jev calls', read: areJevCallsEnabled, save: setJevCallsEnabled, check: findCallsBlocker })
+)
+
+router.put(
+  '/sending',
+  switchHandler({ label: 'Sending from Soporti', read: isGuardSendingEnabled, save: setGuardSendingEnabled })
+)
 
 router.post('/test', async (_req, res) => {
   try {
@@ -257,7 +315,6 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const keyConfigured = await isConfigured()
     const {
       conflict,
       error: saveError,
@@ -266,7 +323,7 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planMergedSave(id, current, { ...value, keyConfigured }),
+      plan: current => planMergedSave(id, current, value),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 

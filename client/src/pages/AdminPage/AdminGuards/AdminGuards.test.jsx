@@ -25,9 +25,11 @@ function documentRoutes(id, data) {
 
 function mockApi(routes = {}) {
   const handlers = {
-    [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [], scannedAt: null })],
+    [`GET ${BASE}`]: [
+      okResponse({ keyConfigured: true, models: [], scannedAt: null, callsEnabled: true, sendingEnabled: false }),
+    ],
     [`GET ${BASE}/guards`]: [okResponse({ guards: [LEGAL, GITHUB] })],
-    ...documentRoutes('legal', { set: SET, allowSend: false }),
+    ...documentRoutes('legal', { set: SET }),
     ...documentRoutes('jev', { enabled: true }),
     ...documentRoutes('github', { set: { ...SET, maxCharacters: 100_000, rules: [] }, repos: [] }),
     ...routes,
@@ -104,6 +106,26 @@ describe('AdminGuards', () => {
 
     expect(screen.getByTestId('search')).toHaveTextContent('?guard=legal')
     expect(await screen.findByRole('dialog', { name: 'Legal guard' })).toBeInTheDocument()
+  })
+
+  it('turns the sending of checked replies on for every guard', async () => {
+    mockApi({ [`PUT ${BASE}/sending`]: [okResponse({ enabled: true })] })
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <AdminGuards token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    await user.click(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
+    const sendingSave = screen.getAllByRole('button', { name: 'Save' }).find(button => !button.disabled)
+    await user.click(sendingSave)
+
+    const put = global.fetch.mock.calls.find(
+      ([url, options = {}]) => options.method === 'PUT' && url.endsWith('/sending')
+    )
+    expect(JSON.parse(put[1].body)).toEqual({ enabled: true })
+    expect(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ })).toBeChecked()
   })
 
   it('reloads the Jev history once the key changes', async () => {

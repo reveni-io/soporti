@@ -4,15 +4,19 @@ import { getJevDocument } from '../db/jev-documents.js'
 import { askQuestions, JevApiError } from './client.js'
 import { defaultJevDocument } from './documents.js'
 import { buildJevQuestions, readJevAnswers } from './questions.js'
-import { isConfigured } from './settings.js'
+import { areJevCallsEnabled, isConfigured } from './settings.js'
 
 const CALL_FAILED = 'failed'
 
 async function loadProject(project) {
-  const [document, keyConfigured] = await Promise.all([getJevDocument(project), isConfigured()])
+  const [document, keyConfigured, enabled] = await Promise.all([
+    getJevDocument(project),
+    isConfigured(),
+    areJevCallsEnabled(),
+  ])
 
   return {
-    enabled: document?.data?.enabled === true,
+    enabled,
     keyConfigured,
     set: document?.data?.set ?? defaultJevDocument(project).set,
     setVersion: document?.setVersion ?? 0,
@@ -37,7 +41,7 @@ async function isOverDailyLimit(project, dailyLimit) {
 }
 
 async function findBlocker(project, { enabled, keyConfigured, set }, { stateChars, questionCount }) {
-  if (!enabled) return 'Jev calls are off for this guard'
+  if (!enabled) return 'Jev calls are off'
   if (!keyConfigured) return 'No API key saved'
   if (questionCount === 0) return 'No questions in the set'
   if (!set.model) return 'No model selected'

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
 
-export default function ToggleField({ enabled, label, hint, onSave, onLogout }) {
+export default function ToggleField({ enabled, label, hint, disabled = false, onSave, onLogout }) {
   const [edited, setEdited] = useState(null)
   const { saving, error, savedAt, save } = useSaveField(onLogout)
 
@@ -26,7 +26,7 @@ export default function ToggleField({ enabled, label, hint, onSave, onLogout }) 
             type="checkbox"
             checked={value}
             onChange={event => setEdited(event.target.checked)}
-            disabled={saving}
+            disabled={saving || disabled}
           />
           <span className="admin__switch-slider" aria-hidden="true" />
           <span className="admin__switch-label">

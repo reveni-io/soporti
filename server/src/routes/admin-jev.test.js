@@ -96,16 +96,30 @@ describe('GET /api/admin/config/jev', () => {
     const res = await request(app).get('/api/admin/config/jev')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ keyConfigured: false, models: [], scannedAt: null })
+    expect(res.body).toEqual({
+      keyConfigured: false,
+      models: [],
+      scannedAt: null,
+      callsEnabled: false,
+      sendingEnabled: false,
+    })
   })
 
   it('reports the key as configured without returning it, with the saved catalog', async () => {
     stored[JEV_API_KEY_KEY] = 'jev-secret'
     stored[JEV_MODEL_CATALOG_KEY] = { models: [LATEST], scannedAt: '2026-11-17T08:30:00.000Z' }
+    stored.jev_calls_enabled = true
+    stored.guard_sending_enabled = true
 
     const res = await request(app).get('/api/admin/config/jev')
 
-    expect(res.body).toEqual({ keyConfigured: true, models: [LATEST], scannedAt: '2026-11-17T08:30:00.000Z' })
+    expect(res.body).toEqual({
+      keyConfigured: true,
+      models: [LATEST],
+      scannedAt: '2026-11-17T08:30:00.000Z',
+      callsEnabled: true,
+      sendingEnabled: true,
+    })
     expect(JSON.stringify(res.body)).not.toContain('jev-secret')
   })
 
@@ -116,6 +130,50 @@ describe('GET /api/admin/config/jev', () => {
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the Jev settings.' })
+  })
+})
+
+describe('PUT /api/admin/config/jev/calls and /sending', () => {
+  it('turns the Jev calls on once a key is saved, and records the change once', async () => {
+    const refused = await request(app).put('/api/admin/config/jev/calls').send({ enabled: true })
+
+    expect(refused.status).toBe(422)
+    expect(refused.body).toEqual({ error: 'Save the API key before turning Jev calls on.' })
+
+    stored[JEV_API_KEY_KEY] = 'jev-secret'
+    _resetJevSettingsCacheForTests()
+    const res = await request(app).put('/api/admin/config/jev/calls').send({ enabled: true })
+    await request(app).put('/api/admin/config/jev/calls').send({ enabled: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ enabled: true })
+    expect(stored.jev_calls_enabled).toBe(true)
+    expect(addJevHistoryEntry).toHaveBeenCalledTimes(1)
+    expect(addJevHistoryEntry).toHaveBeenCalledWith('jev', { author: 'ana@example.com', change: 'Jev calls on' })
+  })
+
+  it('turns the calls off without a key, and the sending on and off', async () => {
+    stored.jev_calls_enabled = true
+
+    await request(app).put('/api/admin/config/jev/calls').send({ enabled: false })
+    await request(app).put('/api/admin/config/jev/sending').send({ enabled: true })
+
+    expect(stored).toMatchObject({ jev_calls_enabled: false, guard_sending_enabled: true })
+    expect(addJevHistoryEntry.mock.calls.map(([, entry]) => entry.change)).toEqual([
+      'Jev calls off',
+      'Sending from Soporti on',
+    ])
+  })
+
+  it('rejects a switch that is not true or false, and returns 500 when it cannot be saved', async () => {
+    const invalid = await request(app).put('/api/admin/config/jev/sending').send({ enabled: 'yes' })
+    setConfigValue.mockRejectedValue(new Error('db down'))
+    const failed = await request(app).put('/api/admin/config/jev/sending').send({ enabled: true })
+
+    expect(invalid.status).toBe(400)
+    expect(invalid.body).toEqual({ error: '"enabled" must be true or false.' })
+    expect(failed.status).toBe(500)
+    expect(failed.body).toEqual({ error: 'Failed to save Sending from Soporti.' })
   })
 })
 
@@ -259,7 +317,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
     expect(res.body).toEqual({
       id: 'legal',
       rev: 0,
-      data: { enabled: false, set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
+      data: { set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] } },
       setVersion: 0,
       savedAt: null,
       savedBy: null,
@@ -320,22 +378,9 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(options.defaults.set.questions).toEqual([])
     const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { enabled: false, set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
+      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] } },
       change: 'Questions; Min confidence 0.7 → 0.75',
       set: { model: 'jev-latest', minConfidence: 0.75, questions: [parsedQuestion] },
-    })
-  })
-
-  it('keeps the calls of a guard off until an API key is saved', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
-
-    await request(app)
-      .put('/api/admin/config/jev/documents/legal')
-      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
-
-    const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 1, data: { enabled: false, set: LEGAL_SET } })).toEqual({
-      error: 'Save the API key before turning Jev calls on.',
     })
   })
 
@@ -368,7 +413,7 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
 
   it.each([
     [{ data: { enabled: true } }, '"rev" must be the version you edited.'],
-    [{ rev: 1, data: { enabled: 'on', set: LEGAL_SET } }, '"enabled" must be true or false.'],
+    [{ rev: 1, data: { set: { ...LEGAL_SET, minConfidence: 2 } } }, 'Min confidence must be a number between 0 and 1.'],
   ])('rejects %j', async (body, error) => {
     const res = await request(app).put('/api/admin/config/jev/documents/legal').send(body)
 
@@ -468,7 +513,7 @@ describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => 
 
     expect(res.status).toBe(200)
     const [, options] = saveJevDocument.mock.calls[0]
-    const stored = { enabled: false, set: { ...GITHUB_SET, minConfidence: 0.8 }, repos: [] }
+    const stored = { set: { ...GITHUB_SET, minConfidence: 0.8 }, repos: [] }
     expect(options.plan({ rev: 1, data: stored }).data).toEqual({
       ...stored,
       set: { ...stored.set, questions: [{ ...LEGAL_SET.questions[0], instructions: '', criteria: '' }] },
@@ -484,8 +529,8 @@ describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => 
       .send({ rev: 1, data: { repos: [REPO] } })
 
     const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 1, data: { enabled: 'on', set: GITHUB_SET } })).toEqual({
-      error: '"enabled" must be true or false.',
+    expect(options.plan({ rev: 1, data: { set: { ...GITHUB_SET, minConfidence: 2 } } })).toEqual({
+      error: 'Min confidence must be a number between 0 and 1.',
     })
   })
 

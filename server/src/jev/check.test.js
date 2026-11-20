@@ -8,7 +8,8 @@ const recordJevCall = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsSince, recordJevCall }))
 
 const isConfigured = vi.fn()
-vi.mock('./settings.js', () => ({ isConfigured }))
+const areJevCallsEnabled = vi.fn()
+vi.mock('./settings.js', () => ({ isConfigured, areJevCallsEnabled }))
 
 const askQuestions = vi.fn()
 vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), askQuestions }))
@@ -34,14 +35,15 @@ const SET = {
 }
 const STATE = { customerMessage: 'Where is my refund?' }
 
-function mockDocuments({ enabled = true, set = SET } = {}) {
-  getJevDocument.mockImplementation(async id => (set ? { id, rev: 3, data: { enabled, set }, setVersion: 7 } : null))
+function mockDocuments({ set = SET } = {}) {
+  getJevDocument.mockImplementation(async id => (set ? { id, rev: 3, data: { set }, setVersion: 7 } : null))
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockDocuments()
   isConfigured.mockResolvedValue(true)
+  areJevCallsEnabled.mockResolvedValue(true)
   countJevCallsSince.mockResolvedValue(0)
 })
 
@@ -139,9 +141,9 @@ describe('runJevCheck', () => {
   })
 
   it.each([
-    ['the calls of the guard are off', () => mockDocuments({ enabled: false }), 'Jev calls are off for this guard'],
+    ['the Jev calls are off', () => areJevCallsEnabled.mockResolvedValue(false), 'Jev calls are off'],
     ['no key is saved', () => isConfigured.mockResolvedValue(false), 'No API key saved'],
-    ['the guard was never saved', () => mockDocuments({ set: null }), 'Jev calls are off for this guard'],
+    ['the guard was never saved', () => mockDocuments({ set: null }), 'No questions in the set'],
     ['the guard has no questions', () => mockDocuments({ set: { ...SET, questions: [] } }), 'No questions in the set'],
     ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
     [

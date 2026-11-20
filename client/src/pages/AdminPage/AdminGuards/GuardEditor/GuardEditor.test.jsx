@@ -46,8 +46,8 @@ beforeEach(() => {
 })
 
 describe('GuardEditor', () => {
-  it('edits a guard: how to ask for it, sending, its questions, versions and history', async () => {
-    mockApi('legal', { set: SET, allowSend: false })
+  it('edits a guard: how to ask for it, its questions, versions and history, with no switches', async () => {
+    mockApi('legal', { set: SET })
 
     render(
       <MemoryRouter>
@@ -57,59 +57,15 @@ describe('GuardEditor', () => {
 
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
     expect(screen.getByText(/pass the reply through the Legal guard/)).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /Allow sending replies from Soporti/ })).not.toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
   })
 
-  it('turns the Jev calls of the guard on and saves them with it', async () => {
-    const saved = document('legal', { enabled: true, set: SET, allowSend: false })
-    mockApi(
-      'legal',
-      { enabled: false, set: SET, allowSend: false },
-      { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] }
-    )
-    const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
-      </MemoryRouter>
-    )
-
-    const calls = await screen.findByRole('checkbox', { name: /Allow Jev calls/ })
-    expect(screen.getByText(/the guard is not offered in the chat/)).toBeInTheDocument()
-    await user.click(calls)
-    await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
-
-    const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
-    expect(JSON.parse(put[1].body).data.enabled).toBe(true)
-  })
-
-  it('locks the Jev calls off until an API key is saved', async () => {
-    mockApi('legal', { enabled: false, set: SET, allowSend: false })
-
-    render(
-      <MemoryRouter>
-        <GuardEditor
-          token="tok"
-          guard={LEGAL}
-          catalog={{ ...CATALOG, keyConfigured: false }}
-          onSaved={vi.fn()}
-          onLogout={vi.fn()}
-        />
-      </MemoryRouter>
-    )
-
-    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
-    expect(
-      screen.getByText('Save the Jev API key in the Jev section of this page before turning the calls on.')
-    ).toBeInTheDocument()
-  })
-
-  it('saves the sending switch and refreshes the list of guards', async () => {
-    const saved = document('legal', { set: SET, allowSend: true })
-    mockApi('legal', { set: SET, allowSend: false }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
+  it('saves the guard and refreshes the list of guards', async () => {
+    const saved = document('legal', { set: { ...SET, description: 'Replies to customers and emails' } })
+    mockApi('legal', { set: SET }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
     const user = userEvent.setup()
     const onSaved = vi.fn()
     render(
@@ -118,12 +74,12 @@ describe('GuardEditor', () => {
       </MemoryRouter>
     )
 
-    await user.click(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
+    await user.type(await screen.findByLabelText('When to use it'), ' and emails')
     await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
 
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
-    expect(JSON.parse(put[1].body).data.allowSend).toBe(true)
+    expect(JSON.parse(put[1].body).data.set.description).toBe('Replies to customers and emails')
   })
 
   it('shows the GitHub guard with its rules and denylists, without sending, and names the repos that use its set', async () => {
@@ -143,7 +99,6 @@ describe('GuardEditor', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Admin → GitHub' })).toHaveAttribute('href', '/admin/github')
-    expect(screen.getByText(/only a trivial PR with nothing blocking is approved/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow sending/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Set description')).toBeInTheDocument()
     expect(screen.getByText('Rules', { selector: 'h2' })).toBeInTheDocument()
@@ -156,7 +111,7 @@ describe('GuardEditor', () => {
   })
 
   it('closes at once without changes, and asks before dropping unsaved ones', async () => {
-    mockApi('legal', { set: SET, allowSend: false })
+    mockApi('legal', { set: SET })
     const onClose = vi.fn()
     const user = userEvent.setup()
 
@@ -176,7 +131,7 @@ describe('GuardEditor', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
+    await user.type(screen.getByLabelText('When to use it'), ' and emails')
     await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalledTimes(1)

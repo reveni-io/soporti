@@ -39,9 +39,8 @@ describe('isJevDocument', () => {
 })
 
 describe('defaultJevDocument', () => {
-  it('keeps the Jev calls of each guard off and gives each one its defaults', () => {
-    expect(defaultJevDocument('legal').enabled).toBe(false)
-    expect(defaultJevDocument('github').enabled).toBe(false)
+  it('gives each guard its defaults, with no switches of its own', () => {
+    expect(defaultJevDocument('legal')).toEqual({ set: expect.any(Object) })
     expect(defaultJevDocument('jev')).toBeNull()
     expect(defaultJevDocument('legal').set).toEqual({
       description: '',
@@ -94,11 +93,9 @@ describe('parseJevDocument', () => {
     expect(value.set.questions[0].flagAt).toBeNull()
   })
 
-  it('validates the Jev calls switch of each guard, off by default', () => {
-    expect(parseJevDocument('legal', { enabled: true, set: legalSet() }).value.enabled).toBe(true)
-    expect(parseJevDocument('legal', { set: legalSet() }).value.enabled).toBe(false)
-    expect(parseJevDocument('github', { enabled: 'yes', set: legalSet(), repos: [] })).toEqual({
-      error: '"enabled" must be true or false.',
+  it('drops the switches a guard no longer has, and knows no other document', () => {
+    expect(parseJevDocument('legal', { enabled: true, allowSend: true, set: legalSet() }).value).toEqual({
+      set: parseLegal().value.set,
     })
     expect(parseJevDocument('jev', { enabled: true })).toEqual({ error: 'Unknown document.' })
   })
@@ -107,7 +104,6 @@ describe('parseJevDocument', () => {
     const github = { set: legalSet({ maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] }), repos: [] }
 
     expect(parseJevDocument('github', github).value).toEqual({
-      enabled: false,
       set: { ...parseLegal().value.set, maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] },
       repos: [],
     })
@@ -205,65 +201,11 @@ describe('planJevSave', () => {
     expect(planJevSave({ rev: 3, data: saved }, empty).change).toBe('Questions')
   })
 
-  it('describes the Jev calls switch of a guard', () => {
-    const off = parseLegal().value
-    const on = { ...off, enabled: true }
-
-    expect(planJevSave({ rev: 1, data: off }, on)).toEqual({ data: on, change: 'Jev calls on', set: null })
-    expect(planJevSave({ rev: 2, data: on }, off).change).toBe('Jev calls off')
-  })
-
-  it('refuses to turn the calls on without an API key, and lets them off', () => {
-    const off = parseLegal().value
-    const on = { ...off, enabled: true }
-
-    expect(planJevSave({ rev: 1, data: off }, on, { keyConfigured: false })).toEqual({
-      error: 'Save the API key before turning Jev calls on.',
-    })
-    expect(planJevSave({ rev: 2, data: on }, off, { keyConfigured: false }).change).toBe('Jev calls off')
-  })
-
-  it('saves a guard without a min confidence while its calls are off', () => {
+  it('saves a guard without a min confidence', () => {
     const empty = parseLegal({ minConfidence: null }).value
 
     expect(empty.set.minConfidence).toBeNull()
     expect(planJevSave({ rev: 1, data: parseLegal().value }, empty).error).toBeUndefined()
-  })
-
-  it('refuses to turn the calls on, or to clear the min confidence while they are on, without a min confidence', () => {
-    const off = parseLegal({ minConfidence: null }).value
-    const on = { ...parseLegal().value, enabled: true }
-    const error = { error: 'Jev calls need a min confidence: set one or turn the calls off.' }
-
-    expect(planJevSave({ rev: 1, data: off }, { ...off, enabled: true })).toEqual(error)
-    expect(planJevSave({ rev: 2, data: on }, { ...on, set: off.set })).toEqual(error)
-  })
-
-  it('still saves a guard that already had its calls on without a min confidence', () => {
-    const saved = { ...parseLegal({ minConfidence: null }).value, enabled: true }
-
-    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
-  })
-})
-
-describe('the Legal sending switch', () => {
-  it('is off by default and must be true or false', () => {
-    expect(defaultJevDocument('legal').allowSend).toBe(false)
-    expect(parseJevDocument('legal', { set: legalSet() }).value.allowSend).toBe(false)
-    expect(parseJevDocument('legal', { set: legalSet(), allowSend: true }).value.allowSend).toBe(true)
-    expect(parseJevDocument('legal', { set: legalSet(), allowSend: 'yes' })).toEqual({
-      error: '"allowSend" must be true or false.',
-    })
-  })
-
-  it('records turning the sending on and off in the change history', () => {
-    const saved = { set: legalSet() }
-
-    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
-    expect(planJevSave({ rev: 4, data: { ...saved, allowSend: true } }, { ...saved, allowSend: false }).change).toBe(
-      'Sending from Soporti off'
-    )
-    expect(planJevSave({ rev: 4, data: saved }, { ...saved, allowSend: false })).toBeNull()
   })
 })
 

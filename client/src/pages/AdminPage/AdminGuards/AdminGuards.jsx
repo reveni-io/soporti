@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
-import { getGuards, getJevConfig } from '../../../services/services.js'
+import { getGuards, getJevConfig, saveGuardSending } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
 import JevHistory from '../JevHistory/JevHistory.jsx'
+import ToggleField from '../ToggleField/ToggleField.jsx'
 import GuardEditor from './GuardEditor/GuardEditor.jsx'
 import GuardsTable from './GuardsTable/GuardsTable.jsx'
 import JevConnection from './JevConnection/JevConnection.jsx'
@@ -35,6 +36,12 @@ export default function AdminGuards({ token, onLogout }) {
     setSettingsRevision(revision => revision + 1)
   }
 
+  async function saveSending(enabled) {
+    const data = await saveGuardSending(token, enabled)
+    patchConfig({ sendingEnabled: data.enabled })
+    handleSettingsChanged()
+  }
+
   return (
     <>
       <JevConnection
@@ -52,6 +59,13 @@ export default function AdminGuards({ token, onLogout }) {
           Guards warn: they never send, approve or block anything on their own. Press Edit to change a guard.
         </p>
         <GuardsTable guards={list.guards} onEdit={openGuard} />
+        <ToggleField
+          enabled={catalog.sendingEnabled}
+          label="Allow sending replies from Soporti"
+          hint="When on, a reply to a Zendesk or HubSpot ticket checked by a guard can be sent from its case in the chat, by the person who sends it, after a confirmation."
+          onSave={saveSending}
+          onLogout={onLogout}
+        />
       </AdminSection>
 
       {selected && (

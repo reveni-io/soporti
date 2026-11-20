@@ -22,8 +22,6 @@ const MAX_LABEL_CHARS = 200
 const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
-const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
-const NO_MIN_CONFIDENCE_CALLS_MESSAGE = 'Jev calls need a min confidence: set one or turn the calls off.'
 const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
 
 const DEFAULT_SET = {
@@ -37,11 +35,10 @@ const DEFAULT_SET = {
 
 const DEFAULT_DOCUMENTS = {
   [JEV_GITHUB_DOCUMENT]: {
-    enabled: false,
     set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
     repos: [],
   },
-  [JEV_LEGAL_DOCUMENT]: { enabled: false, set: DEFAULT_SET, allowSend: false },
+  [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET },
 }
 
 const SCALAR_CHANGES = [
@@ -228,23 +225,14 @@ const SET_PARSERS = [
 const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters], ['rules', parseGithubRules]]
 
 function parseProject(data, setParsers) {
-  const enabled = data?.enabled ?? false
-  if (typeof enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
-
   const set = parseFields(data?.set, setParsers)
   if (set.error) return set
 
-  return { value: { enabled, set: set.value } }
+  return { value: { set: set.value } }
 }
 
 function parseLegalProject(data) {
-  const project = parseProject(data, SET_PARSERS)
-  if (project.error) return project
-
-  const allowSend = data.allowSend ?? false
-  if (typeof allowSend !== 'boolean') return { error: '"allowSend" must be true or false.' }
-
-  return { value: { ...project.value, allowSend } }
+  return parseProject(data, SET_PARSERS)
 }
 
 function parseGithubProject(data) {
@@ -298,24 +286,10 @@ function describeSetChanges(previous, next) {
   return [...changes, ...scalars]
 }
 
-function describeSendingChange(previous, next) {
-  if (!('allowSend' in next) || Boolean(previous.allowSend) === next.allowSend) return []
-
-  return [`Sending from Soporti ${next.allowSend ? 'on' : 'off'}`]
-}
-
-function describeCallsChange(previous, next) {
-  if (!('enabled' in next) || Boolean(previous.enabled) === next.enabled) return []
-
-  return [`Jev calls ${next.enabled ? 'on' : 'off'}`]
-}
-
 function describeChanges(previous, next) {
-  const calls = describeCallsChange(previous, next)
-  if (next.repos)
-    return [...calls, ...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
+  const setChanges = describeSetChanges(previous.set, next.set)
 
-  return [...calls, ...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
+  return next.repos ? [...describeGithubChanges(previous, next), ...setChanges] : setChanges
 }
 
 function versionedSet(data) {
@@ -324,16 +298,7 @@ function versionedSet(data) {
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
 }
 
-function lacksMinConfidence(data) {
-  return Boolean(data.enabled) && data.set?.minConfidence === null
-}
-
-function findSaveError(previous, next, keyConfigured) {
-  if (next.enabled && !previous.enabled && !keyConfigured) return NO_KEY_CALLS_MESSAGE
-  if (next.enabled && next.set.minConfidence === null && !lacksMinConfidence(previous)) {
-    return NO_MIN_CONFIDENCE_CALLS_MESSAGE
-  }
-
+function findSaveError(previous, next) {
   return next.repos ? findGithubSaveError(previous, next) : null
 }
 
@@ -352,11 +317,11 @@ export function parseJevDocument(id, data) {
   return parse(data)
 }
 
-export function planJevSave(current, next, { restoredFrom = null, keyConfigured = true } = {}) {
+export function planJevSave(current, next, { restoredFrom = null } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
 
-  const error = findSaveError(current.data, next, keyConfigured)
+  const error = findSaveError(current.data, next)
   if (error) return { error }
 
   const snapshot = versionedSet(next)

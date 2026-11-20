@@ -587,6 +587,24 @@ export function getJevConfig(token) {
   return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
 }
 
+export function saveJevCalls(token, enabled) {
+  return request('/api/admin/config/jev/calls', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the Jev calls switch',
+  })
+}
+
+export function saveGuardSending(token, enabled) {
+  return request('/api/admin/config/jev/sending', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the sending switch',
+  })
+}
+
 export function saveJevApiKey(token, apiKey) {
   return request('/api/admin/config/jev/api-key', {
     method: 'PUT',

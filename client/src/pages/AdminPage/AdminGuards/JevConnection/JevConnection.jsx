@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { saveJevApiKey, scanJevModels, testJevConnection } from '../../../../services/services.js'
+import { saveJevApiKey, saveJevCalls, scanJevModels, testJevConnection } from '../../../../services/services.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import SecretField from '../../SecretField/SecretField.jsx'
 import StatusRow from '../../StatusRow/StatusRow.jsx'
+import ToggleField from '../../ToggleField/ToggleField.jsx'
 import { formatDateTime } from '../../dates.js'
 
 function countLabel(count, noun) {
@@ -33,11 +34,17 @@ export default function JevConnection({ token, onLogout, config, onConfigChange,
     onChanged()
   }
 
+  async function saveCalls(enabled) {
+    const data = await saveJevCalls(token, enabled)
+    onConfigChange({ callsEnabled: data.enabled })
+    onChanged()
+  }
+
   return (
     <AdminSection title="Jev">
       <p className="admin__muted">
         Every guard asks Jev, TypeSafe’s question-answering model, its questions and gets each answer with a confidence.
-        The API key is shared by all the guards; each guard turns its own calls on or off.
+        The API key and the calls switch are shared by all the guards.
       </p>
 
       <StatusRow configured={config.keyConfigured} />
@@ -51,6 +58,22 @@ export default function JevConnection({ token, onLogout, config, onConfigChange,
         saveLabel="Save key"
       />
       <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
+
+      <ToggleField
+        enabled={config.callsEnabled}
+        label="Allow Jev calls"
+        hint={
+          config.keyConfigured || config.callsEnabled
+            ? 'When off, no guard calls Jev: the chat does not offer them and PR reviews decide without them.'
+            : 'Save the API key before turning the calls on.'
+        }
+        disabled={!config.keyConfigured && !config.callsEnabled}
+        onSave={saveCalls}
+        onLogout={onLogout}
+      />
+      <p className="alert alert--warning">
+        A guard sends what it checks to a third party. Review TypeSafe’s data retention before using it.
+      </p>
 
       <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
       <ModelScan
