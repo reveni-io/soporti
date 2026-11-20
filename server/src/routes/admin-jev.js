@@ -14,7 +14,7 @@ import { getRepository } from '../github/client.js'
 import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
-import { getJevApiKey, getJevModelCatalog, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
+import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
 
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
@@ -141,8 +141,8 @@ router.param('id', (req, res, next, id) => {
 
 router.get('/', async (_req, res) => {
   try {
-    const [apiKey, catalog] = await Promise.all([getJevApiKey(), getJevModelCatalog()])
-    res.json({ keyConfigured: Boolean(apiKey), models: catalog.models, scannedAt: catalog.scannedAt })
+    const [keyConfigured, catalog] = await Promise.all([isConfigured(), getJevModelCatalog()])
+    res.json({ keyConfigured, models: catalog.models, scannedAt: catalog.scannedAt })
   } catch (err) {
     console.error('Failed to load the Jev settings:', err)
     res.status(500).json({ error: 'Failed to load the Jev settings.' })
@@ -154,10 +154,10 @@ router.put('/api-key', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const previous = await getJevApiKey()
+    const hadKey = await isConfigured()
     await setJevApiKey(value)
 
-    const change = describeKeyChange(Boolean(previous), value.length > 0)
+    const change = describeKeyChange(hadKey, value.length > 0)
     if (change) await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
 
     res.json({ keyConfigured: value.length > 0 })
@@ -169,7 +169,7 @@ router.put('/api-key', async (req, res) => {
 
 router.post('/test', async (_req, res) => {
   try {
-    if (!(await getJevApiKey())) return res.status(422).json({ error: NO_KEY_TEST_MESSAGE })
+    if (!(await isConfigured())) return res.status(422).json({ error: NO_KEY_TEST_MESSAGE })
     if (!(await areJevCallsEnabled())) return res.status(422).json({ error: CALLS_OFF_MESSAGE })
 
     const startedAt = Date.now()
@@ -182,7 +182,7 @@ router.post('/test', async (_req, res) => {
 
 router.post('/models/scan', async (_req, res) => {
   try {
-    if (!(await getJevApiKey())) return res.status(422).json({ error: NO_KEY_SCAN_MESSAGE })
+    if (!(await isConfigured())) return res.status(422).json({ error: NO_KEY_SCAN_MESSAGE })
 
     const [saved, models] = await Promise.all([getJevModelCatalog(), listModels()])
     if (models.length === 0) throw new JevApiError(NO_MODELS_MESSAGE)
