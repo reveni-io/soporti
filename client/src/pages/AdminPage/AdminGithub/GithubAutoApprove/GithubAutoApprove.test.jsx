@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import GithubAutoApprove from './GithubAutoApprove.jsx'
 
 const BASE = '/api/admin/config/jev'
@@ -19,8 +19,6 @@ function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
 }
 
-const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', instructions: '', criteria: '', flagAt: 60 }
-
 function mockApi(repos, overrides = {}, set = SET) {
   const document = { id: 'github', rev: 2, data: { set, repos }, setVersion: 1, savedAt: null, savedBy: null }
   const page = { entries: [], total: 0, page: 1, pageSize: 5 }
@@ -38,45 +36,25 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
+function renderAutoApprove() {
+  render(
+    <MemoryRouter>
+      <GithubAutoApprove token="tok" onLogout={vi.fn()} />
+    </MemoryRouter>
+  )
+}
+
 describe('GithubAutoApprove', () => {
-  it('shows the question editor, the versions, the history and the project save bar', async () => {
+  it('shows the repos, the rules and the save bar, and points to the GitHub PRs guard for the questions', async () => {
     mockApi([])
 
-    render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
+    renderAutoApprove()
 
-    expect(await screen.findByText('Questions and answers for this review')).toBeInTheDocument()
-    expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
-    expect(await screen.findByText('No changes yet.')).toBeInTheDocument()
+    expect(await screen.findByText('Auto-approve repos')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'GitHub PRs guard' })).toHaveAttribute('href', '/admin/guards?guard=github')
+    expect(screen.getByText('Rules')).toBeInTheDocument()
     expect(screen.getByText('GitHub review project')).toBeInTheDocument()
-  })
-
-  it('names the repos that still use the set when deleting it', async () => {
-    mockApi(
-      [
-        { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] },
-        { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
-      ],
-      {},
-      { ...SET, questions: [QUESTION] }
-    )
-    const user = userEvent.setup()
-
-    render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
-    await user.click(await screen.findByRole('button', { name: 'Delete set' }))
-
-    expect(
-      screen.getByText('Cannot delete the set: 1 auto-approve repo (acme/web) use it. Set them to off and save first.')
-    ).toBeInTheDocument()
-  })
-
-  it('lets a set with no saved questions be cleared while repos use it', async () => {
-    mockApi([{ name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }])
-    const user = userEvent.setup()
-
-    render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
-    await user.click(await screen.findByRole('button', { name: 'Delete set' }))
-
-    expect(screen.queryByText(/Cannot delete the set/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Questions and answers for this review')).not.toBeInTheDocument()
   })
 
   it('shows why the project could not load', async () => {
@@ -88,7 +66,7 @@ describe('GithubAutoApprove', () => {
       },
     })
 
-    render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
+    renderAutoApprove()
 
     expect(await screen.findByText('Failed to load the settings.')).toBeInTheDocument()
   })

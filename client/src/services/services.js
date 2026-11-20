@@ -368,15 +368,6 @@ export function updateSchedule(token, id, schedule) {
   })
 }
 
-export function setScheduleLegal(token, id, legal) {
-  return request(`/api/schedules/${id}/legal`, {
-    method: 'PATCH',
-    token,
-    body: { legal },
-    errorMessage: 'Failed to change the Legal review',
-  })
-}
-
 export function getLegalCases(token, ids) {
   return request(`/api/legal/cases?ids=${ids.join(',')}`, { token, errorMessage: 'Failed to load the cases' })
 }
@@ -621,8 +612,25 @@ export function scanJevModels(token) {
   })
 }
 
-export function getJevUsage(token) {
-  return request('/api/admin/config/jev/usage', { token, errorMessage: 'Failed to load the Jev usage' })
+export function getGuards(token) {
+  return request('/api/admin/config/jev/guards', { token, errorMessage: 'Failed to load the guards' })
+}
+
+export function createGuard(token, name) {
+  return request('/api/admin/config/jev/guards', {
+    method: 'POST',
+    token,
+    body: { name },
+    errorMessage: 'Failed to create the guard',
+  })
+}
+
+export function deleteGuard(token, id) {
+  return request(`/api/admin/config/jev/guards/${id}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the guard',
+  })
 }
 
 export function getJevDocument(token, id) {
@@ -658,13 +666,6 @@ export function getGithubShadowStats(token, repos) {
   return request(`/api/admin/config/jev/github/shadow-stats?repos=${encodeURIComponent(repos.join(','))}`, {
     token,
     errorMessage: 'Failed to load the shadow results',
-  })
-}
-
-export function getLegalUsage(token, page) {
-  return request(`/api/admin/config/jev/legal/usage?page=${page}`, {
-    token,
-    errorMessage: 'Failed to load the Legal usage',
   })
 }
 

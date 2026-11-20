@@ -1,17 +1,13 @@
 import { useState } from 'react'
-import { JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
-import { getJevConfig, saveJevApiKey, scanJevModels, testJevConnection } from '../../../services/services.js'
-import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
-import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
-import { useJevDocument } from '../hooks/useJevDocument/useJevDocument.js'
-import AdminSection from '../AdminSection/AdminSection.jsx'
-import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
-import DocBar from '../DocBar/DocBar.jsx'
-import JevUsage from './JevUsage/JevUsage.jsx'
-import JevHistory from '../JevHistory/JevHistory.jsx'
-import SecretField from '../SecretField/SecretField.jsx'
-import StatusRow from '../StatusRow/StatusRow.jsx'
-import { formatDateTime } from '../dates.js'
+import { JEV_SETTINGS_DOCUMENT } from '../../../../constants.js'
+import { saveJevApiKey, scanJevModels, testJevConnection } from '../../../../services/services.js'
+import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
+import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
+import AdminSection from '../../AdminSection/AdminSection.jsx'
+import JevHistory from '../../JevHistory/JevHistory.jsx'
+import SecretField from '../../SecretField/SecretField.jsx'
+import StatusRow from '../../StatusRow/StatusRow.jsx'
+import { formatDateTime } from '../../dates.js'
 
 function countLabel(count, noun) {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
@@ -30,14 +26,13 @@ function describeCatalog({ models, scannedAt }, newModels) {
   return `${describeNewModels(newModels)}${countLabel(models.length, 'model')} saved · last scan ${formatDateTime(scannedAt)}`
 }
 
-export default function AdminJev({ token, onLogout }) {
-  const { config, error, patchConfig } = useAuthedConfig(getJevConfig, token, onLogout)
+export default function JevConnection({ token, onLogout, config, onConfigChange }) {
   const settings = useJevDocument(token, JEV_SETTINGS_DOCUMENT, onLogout)
   const [keyRevision, setKeyRevision] = useState(0)
 
   async function saveApiKey(value) {
     const data = await saveJevApiKey(token, value)
-    patchConfig({ keyConfigured: data.keyConfigured })
+    onConfigChange({ keyConfigured: data.keyConfigured })
     setKeyRevision(revision => revision + 1)
   }
 
@@ -46,16 +41,27 @@ export default function AdminJev({ token, onLogout }) {
     settings.updateDraft(draft => ({ ...draft, enabled }))
   }
 
-  const loadError = error ?? settings.loadError
-  if (loadError || !config || !settings.document) return <AdminSectionStatus title="Jev" error={loadError} />
+  if (settings.loadError) {
+    return (
+      <AdminSection title="Jev connection">
+        <p className="alert alert--error">{settings.loadError}</p>
+      </AdminSection>
+    )
+  }
+  if (!settings.document) {
+    return (
+      <AdminSection title="Jev connection">
+        <p className="admin__muted">Loading...</p>
+      </AdminSection>
+    )
+  }
 
   return (
     <>
       <AdminSection title="Jev connection">
         <p className="admin__muted">
-          Jev answers a set of questions about a document and returns each answer with a confidence. Soporti calls it
-          from two projects: GitHub PR reviews and Legal. This section holds only what both share: the API key and the
-          switch for all calls. Each project configures its own model, timeout and min confidence.
+          Every guard asks Jev its questions and gets each answer with a confidence. This section holds what all the
+          guards share: the API key, the saved models and the switch for every call.
         </p>
 
         <StatusRow configured={config.keyConfigured} />
@@ -69,7 +75,7 @@ export default function AdminJev({ token, onLogout }) {
           saveLabel="Save key"
         />
 
-        <p className="note">One key for the PR review and Legal projects. Rotating or removing it affects both.</p>
+        <p className="note">One key for every guard. Rotating or removing it affects all of them.</p>
         <p className="admin__muted">The key is stored in the database and never shown again after saving.</p>
 
         <ConnectionTest key={`test-${keyRevision}`} token={token} onLogout={onLogout} />
@@ -78,35 +84,32 @@ export default function AdminJev({ token, onLogout }) {
           token={token}
           onLogout={onLogout}
           config={config}
-          onScanned={patchConfig}
+          onScanned={onConfigChange}
         />
-
-        <p className="admin__muted">Each project picks its model from this saved list.</p>
       </AdminSection>
 
       <AdminSection title="Jev calls">
         <label className="admin__switch">
-          <input type="checkbox" checked={settings.draft.enabled} onChange={handleCallsChange} />
+          <input
+            type="checkbox"
+            checked={settings.draft.enabled}
+            onChange={handleCallsChange}
+            disabled={!config.keyConfigured && !settings.draft.enabled}
+          />
           <span className="admin__switch-slider" aria-hidden="true" />
           <span className="admin__switch-label">
             Allow Jev calls
-            <span className="admin__muted">When off, Soporti does not call Jev from any project.</span>
+            <span className="admin__muted">When off, no guard calls Jev.</span>
           </span>
         </label>
+        {!config.keyConfigured && <p className="admin__muted">Save the API key above before turning Jev calls on.</p>}
         <p className="note">
-          Turning it off stops the calls of ALL projects, Legal included. It does not change the auto-approve mode of
-          the GitHub repos.
+          Turning it off stops the calls of ALL guards. It does not change the auto-approve mode of the GitHub repos.
         </p>
+        <SettingsSave state={settings} />
       </AdminSection>
 
-      <AdminSection title="Usage">
-        <JevUsage token={token} onLogout={onLogout} />
-        <p className="admin__muted">
-          There is no question editor here. Each project keeps its own questions and answers: GitHub and Legal.
-        </p>
-      </AdminSection>
-
-      <AdminSection title="Change history">
+      <AdminSection title="Connection history">
         <JevHistory
           key={`${settings.document.rev}-${keyRevision}`}
           token={token}
@@ -114,8 +117,27 @@ export default function AdminJev({ token, onLogout }) {
           onLogout={onLogout}
         />
       </AdminSection>
+    </>
+  )
+}
 
-      <DocBar label="Jev settings" state={settings} />
+function SettingsSave({ state }) {
+  const { dirty, saving, saveError, conflict, savedAt, save, reload } = state
+
+  return (
+    <>
+      {saveError && <p className="alert alert--error">{saveError}</p>}
+      <div className="admin__form admin__form--row">
+        <button className="btn btn--primary" type="button" onClick={save} disabled={saving || !dirty}>
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        {conflict && (
+          <button className="btn btn--secondary" type="button" onClick={reload}>
+            Reload latest
+          </button>
+        )}
+        {!saveError && savedAt && !dirty && <span className="admin__saved">Saved</span>}
+      </div>
     </>
   )
 }

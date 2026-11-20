@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { JEV_PROJECT_LABELS, VERSIONED_SET_FIELDS } from '../jev-projects.js'
+import { VERSIONED_SET_FIELDS, projectLabels } from '../jev-projects.js'
 import NumberField from '../NumberField/NumberField.jsx'
 import QuestionForm from '../QuestionForm/QuestionForm.jsx'
 import { QUESTION_CHOICE } from '../QuestionForm/question-form.js'
@@ -27,7 +27,7 @@ function modelOptions(models, current) {
 export default function QuestionSetEditor({ project, state, catalog, inUseMessage }) {
   const [editing, setEditing] = useState(null)
   const [message, setMessage] = useState(null)
-  const labels = JEV_PROJECT_LABELS[project]
+  const labels = projectLabels(project)
   const set = state.draft.set
   const setVersion = state.document.setVersion
   const bumps = versionedPart(state.document.data.set) !== versionedPart(set)
@@ -68,7 +68,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
   return (
     <>
       <label className="question-set__label">
-        Set description
+        {labels.description}
         <input className="input" name="description" value={set.description} onChange={handleSetFieldChange} />
       </label>
 
@@ -121,7 +121,7 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         </p>
       )}
       <p className="admin__muted">
-        This project configures Jev on its own. The models come from the list saved in the Jev section
+        Each guard configures Jev on its own. The models come from the list saved in the Jev connection below
         {catalog.keyConfigured ? '' : ', which has no key saved: the model cannot be changed until it does'}. A daily
         limit of <code>0</code> means no limit.
       </p>

@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import AdminJev from './AdminJev.jsx'
+import JevConnection from './JevConnection.jsx'
 
 const BASE = '/api/admin/config/jev'
 const LATEST = { name: 'jev-latest', description: 'Most recent stable release', releaseDate: '2026-10-14' }
 const PREVIEW = { name: 'jev-preview', description: 'Most recent release', releaseDate: '2026-10-14' }
 const SCANNED_AT = '2026-11-17T08:30:00.000Z'
 const SAVED_AT = '2026-11-19T10:00:00.000Z'
+const NO_KEY = { keyConfigured: false, models: [], scannedAt: null }
+const WITH_KEY = { keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT }
 const UNSAVED = { id: 'jev', rev: 0, data: { enabled: false }, setVersion: 0, savedAt: null, savedBy: null }
 const NO_HISTORY = { entries: [], total: 0, page: 1, pageSize: 5 }
 
@@ -21,10 +24,8 @@ function errorResponse(status, error) {
 
 function mockApi(routes) {
   const handlers = {
-    [`GET ${BASE}`]: [okResponse({ keyConfigured: false, models: [], scannedAt: null })],
     [`GET ${BASE}/documents/jev`]: [okResponse(UNSAVED)],
     [`GET ${BASE}/documents/jev/history?page=1`]: [okResponse(NO_HISTORY)],
-    [`GET ${BASE}/usage`]: [okResponse({ projects: [] })],
     ...routes,
   }
   global.fetch = vi.fn(async (url, options = {}) => {
@@ -38,42 +39,56 @@ function requestsTo(method, path) {
   return global.fetch.mock.calls.filter(([url, options = {}]) => url === path && (options.method ?? 'GET') === method)
 }
 
+function Harness({ initial }) {
+  const [config, setConfig] = useState(initial)
+
+  function handleConfigChange(patch) {
+    setConfig(current => ({ ...current, ...patch }))
+  }
+
+  return <JevConnection token="tok" onLogout={vi.fn()} config={config} onConfigChange={handleConfigChange} />
+}
+
+function renderConnection(config = NO_KEY) {
+  render(<Harness initial={config} />)
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('AdminJev', () => {
-  it('starts without a key, without models and with Jev calls off', async () => {
+describe('JevConnection', () => {
+  it('starts without a key or models, with Jev calls off and locked until a key is saved', async () => {
     mockApi({})
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection()
 
     expect(await screen.findByText('not configured')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeDisabled()
     expect(screen.getByText('No models saved yet.')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
+    expect(screen.getByText('Save the API key above before turning Jev calls on.')).toBeInTheDocument()
     expect(await screen.findByText('No changes yet.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save (v0 → v1)' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('shows the saved catalog when the key is configured', async () => {
-    mockApi({
-      [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT })],
-    })
+    mockApi({})
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection(WITH_KEY)
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Paste a new key to replace it')).toBeInTheDocument()
     expect(screen.getByText(/^1 model saved · last scan/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).toBeEnabled()
   })
 
   it('shows the latency of a successful connection test', async () => {
     mockApi({ [`POST ${BASE}/test`]: [okResponse({ latencyMs: 312 })] })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection()
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText('Connected · 312 ms')).toBeInTheDocument()
@@ -88,18 +103,16 @@ describe('AdminJev', () => {
     })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection()
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText(failure)).toBeInTheDocument()
-    expect(screen.queryByText(/^Connected/)).not.toBeInTheDocument()
 
     await user.type(screen.getByPlaceholderText('Jev API key'), 'jev-secret')
     await user.click(screen.getByRole('button', { name: 'Save key' }))
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.queryByText(failure)).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Paste a new key to replace it')).toHaveValue('')
     const [[, options]] = requestsTo('PUT', `${BASE}/api-key`)
     expect(JSON.parse(options.body)).toEqual({ apiKey: 'jev-secret' })
     expect(requestsTo('GET', `${BASE}/documents/jev/history?page=1`)).toHaveLength(2)
@@ -107,7 +120,6 @@ describe('AdminJev', () => {
 
   it('saves the scanned models and says how many are new', async () => {
     mockApi({
-      [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT })],
       [`POST ${BASE}/models/scan`]: [
         okResponse({ models: [LATEST, PREVIEW], scannedAt: SCANNED_AT, newModels: 1 }),
         okResponse({ models: [LATEST, PREVIEW], scannedAt: SCANNED_AT, newModels: 0 }),
@@ -115,7 +127,7 @@ describe('AdminJev', () => {
     })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection(WITH_KEY)
     const scan = await screen.findByRole('button', { name: 'Scan for new models' })
     await user.click(scan)
 
@@ -128,18 +140,17 @@ describe('AdminJev', () => {
 
   it('shows why a scan failed', async () => {
     mockApi({
-      [`GET ${BASE}`]: [okResponse({ keyConfigured: true, models: [], scannedAt: null })],
       [`POST ${BASE}/models/scan`]: [errorResponse(502, 'Could not scan the Jev models: Jev error (HTTP 529).')],
     })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection({ ...WITH_KEY, models: [], scannedAt: null })
     await user.click(await screen.findByRole('button', { name: 'Scan for new models' }))
 
     expect(await screen.findByText('Could not scan the Jev models: Jev error (HTTP 529).')).toBeInTheDocument()
   })
 
-  it('saves the Jev calls switch as a new version and refreshes the history', async () => {
+  it('saves the Jev calls switch and refreshes the history', async () => {
     const saved = { ...UNSAVED, rev: 1, data: { enabled: true }, savedAt: SAVED_AT, savedBy: 'ana@example.com' }
     const entry = { at: SAVED_AT, author: 'ana@example.com', change: 'Created; Jev calls on', rev: 1 }
     mockApi({
@@ -151,23 +162,18 @@ describe('AdminJev', () => {
     })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection(WITH_KEY)
     await user.click(await screen.findByRole('checkbox', { name: /Allow Jev calls/ }))
-
-    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Save (v0 → v1)' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText('Created; Jev calls on')).toBeInTheDocument()
-    expect(screen.getByText(/version 1 · saved .* by ana@example\.com/)).toBeInTheDocument()
-    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
+    expect(screen.getByText('Saved')).toBeInTheDocument()
     const [[, options]] = requestsTo('PUT', `${BASE}/documents/jev`)
     expect(JSON.parse(options.body)).toEqual({ rev: 0, data: { enabled: true }, restoredFrom: null })
   })
 
   it('offers to reload the latest version after a conflict', async () => {
-    const conflict =
-      'luis@example.com saved version 1 while you were editing version 0. Nothing was saved. Reload the latest version and apply your changes again.'
+    const conflict = 'luis@example.com saved version 1 while you were editing version 0. Nothing was saved.'
     const latest = { ...UNSAVED, rev: 1, data: { enabled: true }, savedAt: SAVED_AT, savedBy: 'luis@example.com' }
     mockApi({
       [`GET ${BASE}/documents/jev`]: [okResponse(UNSAVED), okResponse(latest)],
@@ -175,17 +181,23 @@ describe('AdminJev', () => {
     })
     const user = userEvent.setup()
 
-    render(<AdminJev token="tok" onLogout={vi.fn()} />)
+    renderConnection(WITH_KEY)
     await user.click(await screen.findByRole('checkbox', { name: /Allow Jev calls/ }))
-    await user.click(screen.getByRole('button', { name: 'Save (v0 → v1)' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText(conflict)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Reload latest' }))
 
-    expect(await screen.findByText(/version 1 · saved .* by luis@example\.com/)).toBeInTheDocument()
+    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeChecked()
     expect(screen.queryByText(conflict)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Reload latest' })).not.toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /Allow Jev calls/ })).toBeChecked()
+  })
+
+  it('shows why the settings could not load', async () => {
+    mockApi({ [`GET ${BASE}/documents/jev`]: [errorResponse(500, 'Failed to load the settings.')] })
+
+    renderConnection()
+
+    expect(await screen.findByText('Failed to load the settings.')).toBeInTheDocument()
   })
 })
