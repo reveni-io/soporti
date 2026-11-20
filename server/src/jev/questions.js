@@ -1,4 +1,4 @@
-const QUESTION_CHOICE = 'choice'
+import { JEV_QUESTION_CHOICE } from '../constants.js'
 const SCORE_SCALE = 100
 
 function describeQuestion({ text, instructions, criteria }) {
@@ -8,9 +8,9 @@ function describeQuestion({ text, instructions, criteria }) {
 }
 
 function toApiQuestion(question) {
-  if (question.type === QUESTION_CHOICE) {
+  if (question.type === JEV_QUESTION_CHOICE) {
     return {
-      type: QUESTION_CHOICE,
+      type: JEV_QUESTION_CHOICE,
       instructions: describeQuestion(question),
       criteria: Object.fromEntries(question.answers.map(answer => [answer.label, answer.criteria || null])),
     }
@@ -40,7 +40,7 @@ function readNoul(question, answer) {
 }
 
 function readAnswer(question, answer, minConfidence) {
-  const read = question.type === QUESTION_CHOICE ? readChoice(question, answer) : readNoul(question, answer)
+  const read = question.type === JEV_QUESTION_CHOICE ? readChoice(question, answer) : readNoul(question, answer)
   const confidence = Number.isFinite(read.confidence) ? read.confidence : 0
 
   return {
