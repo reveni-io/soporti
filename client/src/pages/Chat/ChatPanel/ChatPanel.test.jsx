@@ -264,6 +264,42 @@ describe('ChatPanel', () => {
     expect(screen.queryByText(/spec\.pdf/)).not.toBeInTheDocument()
   })
 
+  it('prefills the composer and attaches the files shared from another app', async () => {
+    const onSend = vi.fn()
+    const onSharedContentRead = vi.fn()
+    const user = userEvent.setup()
+    const attachment = { name: 'spec.pdf', text: 'API body', truncated: false }
+    mockApi({ attachment })
+    vi.stubGlobal('caches', {
+      match: vi.fn(async path => {
+        if (path === '/share-target/payload') {
+          return {
+            json: async () => ({
+              title: '',
+              text: 'Why was this refund rejected?',
+              url: '',
+              files: [{ name: 'spec.pdf', type: 'application/pdf', path: '/share-target/files/0' }],
+            }),
+          }
+        }
+        return { blob: async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' }) }
+      }),
+      delete: vi.fn().mockResolvedValue(true),
+    })
+
+    render(<ChatPanel {...defaultProps} onSend={onSend} isShared onSharedContentRead={onSharedContentRead} />)
+
+    await screen.findByText(/spec\.pdf/)
+    expect(screen.getByPlaceholderText(/ask/i)).toHaveValue('Why was this refund rejected?')
+    expect(onSharedContentRead).toHaveBeenCalledTimes(1)
+    const uploads = global.fetch.mock.calls.filter(([url]) => String(url).includes('/api/attachments'))
+    expect(uploads).toHaveLength(1)
+
+    await user.keyboard('{Enter}')
+
+    expect(onSend).toHaveBeenCalledWith('Why was this refund rejected?', [], [attachment])
+  })
+
   it('keeps no trace of what the reader did to a message when another conversation is opened', async () => {
     const user = userEvent.setup()
     const { rerender } = render(

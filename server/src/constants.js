@@ -214,3 +214,8 @@ export const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.reado
 export const CALENDAR_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
 export const GOOGLE_WORKSPACE_SCOPES = ['openid', 'email', 'profile', GMAIL_READONLY_SCOPE, CALENDAR_READONLY_SCOPE]
 export const MAX_GOOGLE_CODE_LENGTH = 2048
+
+export const PUSH_OUTCOME_DELIVERED = 'delivered'
+export const PUSH_OUTCOME_GONE = 'gone'
+export const PUSH_OUTCOME_FAILED = 'failed'
+export const CHAT_PATH = '/chat'

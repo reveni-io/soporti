@@ -1,0 +1,38 @@
+.app-tab__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  padding: var(--sp3);
+}
+
+.app-tab__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp2);
+}
+
+.app-tab__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-tab__help,
+.app-tab__result {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.app-tab__result {
+  color: var(--accent-strong);
+}
+
+.app-tab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2);
+}

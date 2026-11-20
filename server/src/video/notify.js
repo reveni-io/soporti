@@ -1,9 +1,17 @@
 import config from '../config.js'
 import { findUserById } from '../db/users.js'
+import { notifyUser, videoTarget } from '../push/notify.js'
 import { isSlackConfigured } from '../slack/settings.js'
 import { postDirectMessage } from '../slack/client.js'
 import { formatClock } from './progress.js'
-import { VIDEO_STATUS_READY } from '../constants.js'
+import { MS_PER_SECOND, VIDEO_STATUS_READY } from '../constants.js'
+
+const READY_TITLE = 'Your video is ready'
+const FAILED_TITLE = 'A video version failed'
+
+function formatDuration(durationMs) {
+  return formatClock(durationMs / MS_PER_SECOND)
+}
 
 function videoUrl(videoId) {
   return `${config.publicUrl}/videos/${videoId}`
@@ -14,12 +22,22 @@ function buildOutcomeMessage({ job, status, durationMs, error }) {
   const link = videoUrl(job.videoId)
 
   if (status === VIDEO_STATUS_READY) {
-    return `Your video *${title}* is ready: version ${job.version}, ${formatClock(durationMs / 1000)}.\n${link}`
+    return `Your video *${title}* is ready: version ${job.version}, ${formatDuration(durationMs)}.\n${link}`
   }
   return `Version ${job.version} of your video *${title}* failed: ${error}\n${link}`
 }
 
-export async function notifyVersionOutcome(outcome) {
+function buildPushMessage({ job, status, durationMs, error }) {
+  const { title } = job.video
+
+  if (status === VIDEO_STATUS_READY) {
+    return { title: READY_TITLE, body: `"${title}", version ${job.version} (${formatDuration(durationMs)}).` }
+  }
+
+  return { title: FAILED_TITLE, body: `Version ${job.version} of "${title}" failed: ${error}` }
+}
+
+async function messageOwnerOnSlack(outcome) {
   const { job } = outcome
 
   try {
@@ -40,4 +58,16 @@ export async function notifyVersionOutcome(outcome) {
     console.log(`[videos] Could not DM the owner of video ${job.videoId} on Slack: ${err.message}`)
     return false
   }
+}
+
+function pushToOwner(outcome) {
+  const { job } = outcome
+
+  return notifyUser(job.video.userId, { ...buildPushMessage(outcome), ...videoTarget(job.videoId) })
+}
+
+export async function notifyVersionOutcome(outcome) {
+  const [slack, pushed] = await Promise.all([messageOwnerOnSlack(outcome), pushToOwner(outcome)])
+
+  return { slack, pushed }
 }

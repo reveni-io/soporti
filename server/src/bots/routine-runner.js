@@ -3,6 +3,7 @@ import { YOLO_SOURCE } from '../agent/sources.js'
 import { buildRoutineRunTurn } from '../agent/system-prompt.js'
 import { getBot, incrementBotUnread } from '../db/bots.js'
 import { storeRoutineResult } from '../db/routines.js'
+import { botTarget, notifyUser } from '../push/notify.js'
 import { loadCustomInstructions, runUnattended } from '../schedules/unattended-run.js'
 import { appendToBotChat, buildBotTurnItems } from './bot-chat.js'
 import { describeRoutineSchedule, describeRunTime } from './routines.js'
@@ -72,6 +73,10 @@ async function postAnswer(conversationStore, conversation, { schedule, outcome, 
   await Promise.all([incrementBotUnread(schedule.botId), storeRoutineResult(schedule.id, report)])
 }
 
+function notifyOwner(schedule, bot, body) {
+  return notifyUser(schedule.userId, { title: bot.name, body, ...botTarget(bot.id) })
+}
+
 async function runOrReportFailure(conversationStore, conversation, { schedule, bot }) {
   try {
     return await runRoutineAgent(schedule, bot, conversation.conversationId)
@@ -79,6 +84,7 @@ async function runOrReportFailure(conversationStore, conversation, { schedule, b
     await reportFailure(conversationStore, conversation, schedule).catch(reportErr => {
       console.error('[bots] Failed to report a failed routine run in the chat:', reportErr)
     })
+    await notifyOwner(schedule, bot, `The routine "${schedule.title}" could not run.`)
     throw err
   }
 }
@@ -93,6 +99,7 @@ export async function runBotRoutine(schedule, conversationStore) {
   if (isNothingToReport(outcome.answer)) return { posted: false }
 
   await postAnswer(conversationStore, conversation, { schedule, outcome, startedAt })
+  await notifyOwner(schedule, bot, outcome.answer)
 
   return { posted: true }
 }

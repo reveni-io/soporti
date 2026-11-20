@@ -33,6 +33,26 @@ server {
         try_files $uri =404;
     }
 
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    location = /share-target {
+        absolute_redirect off;
+        return 303 /chat;
+    }
+
     # SPA fallback: client-side routes resolve to index.html.
     location / {
         try_files $uri $uri/ /index.html;

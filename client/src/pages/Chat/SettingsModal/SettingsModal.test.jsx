@@ -83,6 +83,34 @@ describe('SettingsModal', () => {
     expect(screen.queryByPlaceholderText(/payments team/)).not.toBeInTheDocument()
   })
 
+  it('switches to the App tab with the notification state of this device', async () => {
+    global.fetch = mockApi()
+    const user = userEvent.setup()
+    const push = {
+      isChecking: false,
+      isSupported: true,
+      needsInstall: false,
+      permission: 'default',
+      isSubscribed: false,
+      isBusy: false,
+      error: null,
+      testResult: null,
+      enable: vi.fn(),
+      disable: vi.fn(),
+      sendTest: vi.fn(),
+    }
+
+    render(<SettingsModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} skills={skillStore()} push={push} />)
+    await screen.findByPlaceholderText(/payments team/)
+
+    await user.click(screen.getByRole('tab', { name: 'App' }))
+    await user.click(screen.getByRole('button', { name: 'Turn on' }))
+
+    expect(screen.getByRole('heading', { name: 'Notifications on this device' })).toBeInTheDocument()
+    expect(push.enable).toHaveBeenCalledTimes(1)
+    expect(screen.queryByPlaceholderText(/payments team/)).not.toBeInTheDocument()
+  })
+
   it('calls onClose from the Close button and the X button', async () => {
     global.fetch = mockApi()
     const onClose = vi.fn()

@@ -3,7 +3,7 @@ import { staggerStyle } from '../stagger.js'
 import './HighlightsGrid.css'
 
 const ICON_SIZE = 18
-const FIRST_INDEX = 6
+const FIRST_INDEX = 7
 
 const HIGHLIGHTS = [
   {

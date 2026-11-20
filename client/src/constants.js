@@ -3,6 +3,11 @@ export const YOLO_SOURCE = 'yolo'
 export const BROWSER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 export const QUESTION_PARAM = 'q'
+export const CONVERSATION_PARAM = 'conversation'
+export const SHARED_PARAM = 'shared'
+
+export const SHARE_CACHE_NAME = 'soporti-share-target'
+export const SHARE_PAYLOAD_PATH = '/share-target/payload'
 
 const SKILL_NAME_CHARS = '[a-z0-9-]'
 

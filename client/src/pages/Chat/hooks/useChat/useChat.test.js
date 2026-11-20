@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useChat } from './useChat.js'
 
@@ -1007,5 +1007,169 @@ describe('useChat', () => {
       expect(result.current.messages[0]).toEqual({ role: 'user', content: 'quick one' })
       expect(result.current.isFetching).toBe(false)
     })
+  })
+})
+
+describe('useChat notifications', () => {
+  function stubDevice() {
+    const registration = {
+      pushManager: { getSubscription: vi.fn().mockResolvedValue({ endpoint: 'https://push.example/1' }) },
+      showNotification: vi.fn().mockResolvedValue(),
+    }
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { getRegistration: vi.fn().mockResolvedValue(registration) },
+      configurable: true,
+    })
+    vi.stubGlobal('PushManager', function PushManager() {})
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+
+    return registration
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete navigator.serviceWorker
+    delete document.visibilityState
+  })
+
+  it('tells a user who left the tab that the answer of the conversation is ready', async () => {
+    const registration = stubDevice()
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        createSSEResponse([
+          { type: 'session_id', sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
+          { type: 'text_delta', text: 'Refunds are issued within 14 days.' },
+          { type: 'done' },
+        ])
+      )
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('how long do refunds take?', { selectedSources: ['yolo'], profile: 'support' })
+    })
+
+    await waitFor(() => expect(registration.showNotification).toHaveBeenCalledTimes(1))
+    expect(registration.showNotification).toHaveBeenCalledWith(
+      'Your answer is ready',
+      expect.objectContaining({
+        body: 'Refunds are issued within 14 days.',
+        tag: 'conversation-a3bb189e-8bf9-4888-9912-ace4e6543002',
+        data: { url: '/chat?conversation=a3bb189e-8bf9-4888-9912-ace4e6543002' },
+      })
+    )
+  })
+
+  it('does not notify about an answer the user stopped', async () => {
+    const registration = stubDevice()
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation((_url, options) => {
+      options.signal.addEventListener('abort', () => stream.close())
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    let sending
+    act(() => {
+      sending = result.current.sendMessage('hi', { selectedSources: ['yolo'], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      stream.push({ type: 'text_delta', text: 'Half an' })
+      result.current.stopGeneration()
+    })
+    await act(async () => {
+      await sending
+    })
+
+    expect(registration.showNotification).not.toHaveBeenCalled()
+  })
+})
+
+describe('useChat stop signal', () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  function chatRequests() {
+    return global.fetch.mock.calls.filter(([url]) => url === '/api/chat').map(([, options]) => JSON.parse(options.body))
+  }
+
+  function stopRequests() {
+    return global.fetch.mock.calls.filter(([url]) => url === '/api/chat/stop')
+  }
+
+  it('sends a new request id with every message', async () => {
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(createSSEResponse([{ type: 'done' }])))
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('first', { selectedSources: [], profile: 'support' })
+    })
+    await act(async () => {
+      await result.current.sendMessage('second', { selectedSources: [], profile: 'support' })
+    })
+
+    const [first, second] = chatRequests()
+    expect(first.requestId).toMatch(UUID_RE)
+    expect(second.requestId).toMatch(UUID_RE)
+    expect(second.requestId).not.toBe(first.requestId)
+  })
+
+  it('still sends the message with a valid request id outside a secure context', async () => {
+    vi.spyOn(crypto, 'randomUUID', 'get').mockReturnValue(undefined)
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(createSSEResponse([{ type: 'done' }])))
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('plain http', { selectedSources: [], profile: 'support' })
+    })
+
+    expect(chatRequests()).toHaveLength(1)
+    expect(chatRequests()[0].message).toBe('plain http')
+    expect(chatRequests()[0].requestId).toMatch(UUID_RE)
+    expect(result.current.isLoading).toBe(false)
+    vi.restoreAllMocks()
+  })
+
+  it('tells the server the user stopped the answer it is generating', async () => {
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation(url => {
+      if (url === '/api/chat/stop') return Promise.resolve({ ok: true, status: 204, json: async () => ({}) })
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('long research', { selectedSources: [], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      result.current.stopGeneration()
+    })
+
+    await waitFor(() => expect(stopRequests()).toHaveLength(1))
+    const [, options] = stopRequests()[0]
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ requestId: chatRequests()[0].requestId })
+  })
+
+  it('logs the user out when stopping answers unauthorized', async () => {
+    const onAuthError = vi.fn()
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation(url => {
+      if (url === '/api/chat/stop') return Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', onAuthError))
+
+    act(() => {
+      result.current.sendMessage('long research', { selectedSources: [], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      result.current.stopGeneration()
+    })
+
+    await waitFor(() => expect(onAuthError).toHaveBeenCalledTimes(1))
   })
 })

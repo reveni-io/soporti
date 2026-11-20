@@ -122,6 +122,15 @@ export async function streamChat(token, body, signal) {
   return response
 }
 
+export function stopChat(token, requestId) {
+  return request('/api/chat/stop', {
+    method: 'POST',
+    token,
+    body: { requestId },
+    errorMessage: 'Failed to stop the answer',
+  })
+}
+
 export function uploadAttachment(token, file, contentType, name) {
   return request(`/api/attachments?name=${encodeURIComponent(name)}`, {
     method: 'POST',
@@ -1333,4 +1342,30 @@ export function saveAnalyticsLayout(token, dashboardId, items) {
     body: { items },
     errorMessage: 'Failed to save the layout',
   })
+}
+
+export function getPushPublicKey(token) {
+  return request('/api/push/key', { token, errorMessage: 'Failed to load the notification settings' })
+}
+
+export function savePushSubscription(token, { endpoint, keys }) {
+  return request('/api/push/subscriptions', {
+    method: 'POST',
+    token,
+    body: { endpoint, keys },
+    errorMessage: 'Failed to turn on notifications on this device',
+  })
+}
+
+export function deletePushSubscription(token, endpoint) {
+  return request('/api/push/subscriptions', {
+    method: 'DELETE',
+    token,
+    body: { endpoint },
+    errorMessage: 'Failed to turn off notifications on this device',
+  })
+}
+
+export function sendTestPush(token) {
+  return request('/api/push/test', { method: 'POST', token, errorMessage: 'Failed to send the test notification' })
 }

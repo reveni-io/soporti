@@ -4,16 +4,21 @@ const PREVIEW_MAX_CHARS = 120
 const USER_LABEL = 'Question'
 const ASSISTANT_LABEL = 'Answer'
 
-export function messagePreview(message) {
-  const raw = message.role === 'user' ? message.content : assistantText(message.parts)
+export function plainTextExcerpt(raw, maxChars) {
   const text = String(raw ?? '')
     .replace(MARKDOWN_NOISE_RE, ' ')
     .replace(WHITESPACE_RE, ' ')
     .trim()
 
-  if (text.length <= PREVIEW_MAX_CHARS) return text
+  if (text.length <= maxChars) return text
 
-  return `${text.slice(0, PREVIEW_MAX_CHARS).trimEnd()}…`
+  return `${text.slice(0, maxChars).trimEnd()}…`
+}
+
+export function messagePreview(message) {
+  const raw = message.role === 'user' ? message.content : assistantText(message.parts)
+
+  return plainTextExcerpt(raw, PREVIEW_MAX_CHARS)
 }
 
 export function messageLabel(message, index) {

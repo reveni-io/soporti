@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Router from './Router.jsx'
@@ -209,5 +209,22 @@ describe('Router', () => {
   it('renders the landing page for unknown paths', () => {
     renderAt('/nope/nothing-here')
     expect(screen.getByTestId('landing-page')).toBeInTheDocument()
+  })
+
+  it('opens the page a notification points to when the service worker asks', () => {
+    const serviceWorker = new EventTarget()
+    Object.defineProperty(navigator, 'serviceWorker', { value: serviceWorker, configurable: true })
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Router />
+      </MemoryRouter>
+    )
+
+    act(() => {
+      serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'soporti:navigate', url: '/videos' } }))
+    })
+    delete navigator.serviceWorker
+
+    expect(screen.getByTestId('videos-page')).toBeInTheDocument()
   })
 })

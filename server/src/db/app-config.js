@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { appConfig } from './schema.js'
 
@@ -15,4 +15,20 @@ export async function setConfigValue(key, value) {
       target: appConfig.key,
       set: { value, updatedAt: new Date() },
     })
+}
+
+export async function insertConfigValueIfAbsent(key, value) {
+  await getDb()
+    .insert(appConfig)
+    .values({ key, value, updatedAt: new Date() })
+    .onConflictDoNothing({ target: appConfig.key })
+}
+
+export async function deleteConfigValueIfUnchanged(key, value) {
+  const deleted = await getDb()
+    .delete(appConfig)
+    .where(and(eq(appConfig.key, key), eq(appConfig.value, value)))
+    .returning({ key: appConfig.key })
+
+  return deleted.length > 0
 }
