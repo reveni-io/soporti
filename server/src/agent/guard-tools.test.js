@@ -104,7 +104,9 @@ describe('ask_guard', () => {
       ticket: null,
     })
 
-    expect(guardTool.description).toContain('In a pull request review, Soporti adds the pull request and its diff')
+    expect(guardTool.description).toContain(
+      'In a pull request review, quote in `request` the lines of the REVIEW.md that ask for the guards, and in `content` the rules of the REVIEW.md'
+    )
     expect(askGuard().description).not.toContain('In a pull request review')
     expect(checkContent).toHaveBeenCalledWith(GUARDS[0], { request: 'Use the guards: Legal', content: null, attach })
     expect(onChecked).toHaveBeenCalledWith(expect.objectContaining({ guard: 'Legal', warnings: 2 }))

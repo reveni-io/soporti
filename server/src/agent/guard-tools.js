@@ -21,7 +21,7 @@ const WEB_ONLY = 'Sending is only possible from the Soporti web chat: tell the u
 const TICKET_UNREADABLE = 'Could not read that ticket, or it has no message from the customer. Check the source and id.'
 const NOTHING_TO_CHECK = 'Pass `content`, or `ticket` to check a reply to a ticket.'
 const REVIEW_NOTE =
-  'In a pull request review, Soporti adds the pull request and its diff to what the guards read: pass in `content` only what else they need to know, or null.'
+  'In a pull request review, quote in `request` the lines of the REVIEW.md that ask for the guards, and in `content` the rules of the REVIEW.md the guards need to judge the pull request, such as the paths it protects. Soporti adds the pull request and its diff to what the guards read.'
 const NO_REQUEST = 'Pass in `request` what the person, the scheduled query, the bot or the REVIEW.md asked for.'
 
 function describeGuards(guards) {
