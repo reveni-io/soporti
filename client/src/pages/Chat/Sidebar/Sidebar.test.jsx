@@ -16,6 +16,14 @@ const defaultProps = {
     { id: 'github', name: 'GitHub', description: 'Explore repositories', selectable: false },
     { id: 'notion', name: 'Notion', description: 'Search Notion', selectable: true },
   ],
+  repos: {
+    repos: [
+      { fullName: 'org/app', description: 'Main app', language: 'JavaScript' },
+      { fullName: 'org/lib', description: 'Library', language: 'TypeScript' },
+    ],
+    loading: false,
+    error: null,
+  },
   token: 'test-token',
   isOpen: false,
   onClose: vi.fn(),
@@ -33,22 +41,7 @@ function withVideos(respond, videos = NO_VIDEOS) {
 describe('Sidebar', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    global.fetch = vi.fn().mockImplementation(
-      withVideos(url => {
-        if (url.includes('/api/repos')) {
-          return Promise.resolve({
-            ok: true,
-            json: async () => ({
-              repos: [
-                { fullName: 'org/app', description: 'Main app', language: 'JavaScript' },
-                { fullName: 'org/lib', description: 'Library', language: 'TypeScript' },
-              ],
-            }),
-          })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) })
-      })
-    )
+    global.fetch = vi.fn().mockImplementation(withVideos(() => Promise.resolve({ ok: true, json: async () => ({}) })))
   })
 
   it('links to the videos and marks it while a video is being generated', async () => {
@@ -156,69 +149,26 @@ describe('Sidebar', () => {
     expect(screen.queryByText('GitHub')).not.toBeInTheDocument()
   })
 
-  it('handles fetch error for repos', async () => {
-    global.fetch = vi.fn().mockImplementation(
-      withVideos(url => {
-        if (url.includes('/api/repos')) {
-          return Promise.reject(new Error('Network error'))
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-      })
-    )
-
-    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
-    await waitFor(() => {
-      expect(screen.getByText('Network error')).toBeInTheDocument()
+  it('shows the error the repos failed with', () => {
+    render(<Sidebar {...defaultProps} repos={{ repos: [], loading: false, error: 'Failed to fetch repos' }} />, {
+      wrapper: MemoryRouter,
     })
+
+    expect(screen.getByText('Failed to fetch repos')).toBeInTheDocument()
+    expect(screen.queryByText(/no repos found/i)).toBeNull()
   })
 
-  it('handles 401 response by calling onLogout', async () => {
-    const onLogout = vi.fn()
-    global.fetch = vi.fn().mockImplementation(
-      withVideos(url => {
-        if (url.includes('/api/repos')) {
-          return Promise.resolve({ ok: false, status: 401 })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-      })
-    )
+  it('says so while the repos load', () => {
+    render(<Sidebar {...defaultProps} repos={{ repos: [], loading: true, error: null }} />, { wrapper: MemoryRouter })
 
-    render(<Sidebar {...defaultProps} onLogout={onLogout} />, { wrapper: MemoryRouter })
-    await waitFor(() => {
-      expect(onLogout).toHaveBeenCalled()
-    })
+    expect(screen.getByText('Loading repos...')).toBeInTheDocument()
+    expect(screen.queryByText(/no repos found/i)).toBeNull()
   })
 
-  it('handles non-ok repos response', async () => {
-    global.fetch = vi.fn().mockImplementation(
-      withVideos(url => {
-        if (url.includes('/api/repos')) {
-          return Promise.resolve({ ok: false, status: 500 })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-      })
-    )
+  it('shows message when no repos found', () => {
+    render(<Sidebar {...defaultProps} repos={{ repos: [], loading: false, error: null }} />, { wrapper: MemoryRouter })
 
-    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
-    await waitFor(() => {
-      expect(screen.getByText('Failed to fetch repos')).toBeInTheDocument()
-    })
-  })
-
-  it('shows message when no repos found', async () => {
-    global.fetch = vi.fn().mockImplementation(
-      withVideos(url => {
-        if (url.includes('/api/repos')) {
-          return Promise.resolve({ ok: true, json: async () => ({ repos: [] }) })
-        }
-        return Promise.resolve({ ok: true, json: async () => ({ integrations: [] }) })
-      })
-    )
-
-    render(<Sidebar {...defaultProps} />, { wrapper: MemoryRouter })
-    await waitFor(() => {
-      expect(screen.getByText(/no repos found/i)).toBeInTheDocument()
-    })
+    expect(screen.getByText(/no repos found/i)).toBeInTheDocument()
   })
 
   it('calls onSelectProfile when profile button is clicked', async () => {

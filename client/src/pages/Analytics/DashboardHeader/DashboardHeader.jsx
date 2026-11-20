@@ -11,6 +11,7 @@ import './DashboardHeader.css'
 
 const MODAL = { NEW: 'new', SHARE: 'share', SETTINGS: 'settings' }
 const PAGE_TITLE = 'Analytics'
+const BACK_ICON_SIZE = 20
 
 function describeCount(count) {
   return `${count} ${count === 1 ? 'chart' : 'charts'}`
@@ -94,8 +95,9 @@ export default function DashboardHeader({
 
 function BackLink() {
   return (
-    <Link className="dashboard-header__back" to={ROUTES.CHAT}>
-      &larr; Chat
+    <Link className="dashboard-header__back page-back" to={ROUTES.CHAT} aria-label="Back to chat">
+      <Icon name="arrow-left" size={BACK_ICON_SIZE} className="page-back__icon" />
+      <span className="page-back__label">&larr; Chat</span>
     </Link>
   )
 }

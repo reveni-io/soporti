@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import Icon from '../../../../common/Icon/Icon.jsx'
 import SidebarSearch from '../SidebarSearch/SidebarSearch.jsx'
 import { splitOnMatch } from './highlight-match.js'
@@ -11,6 +12,8 @@ const SEARCH_PLACEHOLDER = 'Search conversations...'
 const SEARCH_MAX_LENGTH = 200
 const BADGE_ICON_SIZE = 12
 const DELETE_ICON_SIZE = 13
+const CONFIRM_LABEL = 'Delete this conversation?'
+const TOUCH_POINTER = 'touch'
 
 export default function ConversationList({
   conversations,
@@ -93,23 +96,65 @@ function ConversationItem({ conversation, index, searchedQuery, isSelected, onSe
           {conversation.snippet && <Snippet text={conversation.snippet} query={searchedQuery} />}
         </span>
       </button>
-      {conversation.isStreaming ? (
-        <span className="conversation-list__typing" role="img" aria-label={STREAMING_LABEL} title={STREAMING_LABEL}>
-          <span />
-          <span />
-          <span />
-        </span>
-      ) : (
+      <ConversationAction isStreaming={conversation.isStreaming} onDelete={() => onDelete(conversation.id)} />
+    </li>
+  )
+}
+
+function ConversationAction({ isStreaming, onDelete }) {
+  const [isConfirming, setIsConfirming] = useState(false)
+  const pointerTypeRef = useRef(null)
+
+  function handlePointerDown(event) {
+    pointerTypeRef.current = event.pointerType
+  }
+
+  function handleDelete() {
+    if (pointerTypeRef.current === TOUCH_POINTER) {
+      setIsConfirming(true)
+      return
+    }
+    onDelete()
+  }
+
+  if (isStreaming) {
+    return (
+      <span className="conversation-list__typing" role="img" aria-label={STREAMING_LABEL} title={STREAMING_LABEL}>
+        <span />
+        <span />
+        <span />
+      </span>
+    )
+  }
+
+  if (isConfirming) {
+    return (
+      <span className="conversation-list__confirm" role="group" aria-label={CONFIRM_LABEL}>
+        <button type="button" className="conversation-list__confirm-delete" onClick={onDelete}>
+          Delete
+        </button>
         <button
           type="button"
-          className="conversation-list__delete"
-          onClick={() => onDelete(conversation.id)}
-          aria-label="Delete conversation"
+          className="conversation-list__confirm-cancel"
+          onClick={() => setIsConfirming(false)}
+          aria-label="Keep it"
         >
-          <Icon name="trash" size={DELETE_ICON_SIZE} />
+          <Icon name="close" size={DELETE_ICON_SIZE} />
         </button>
-      )}
-    </li>
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className="conversation-list__delete"
+      onPointerDown={handlePointerDown}
+      onClick={handleDelete}
+      aria-label="Delete conversation"
+    >
+      <Icon name="trash" size={DELETE_ICON_SIZE} />
+    </button>
   )
 }
 

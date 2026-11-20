@@ -213,6 +213,7 @@ describe('ArtifactView', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'Soporti' })).toHaveAttribute('href', '/chat'))
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
   })
 
   it('shows the error instead of an empty frame', async () => {

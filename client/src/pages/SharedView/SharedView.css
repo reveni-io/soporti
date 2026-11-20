@@ -1,7 +1,7 @@
 .shared-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
   overflow: hidden;
   background-color: var(--bg-app);
@@ -21,6 +21,10 @@
   font-weight: 600;
   font-size: var(--fs-xl);
   color: var(--text-primary);
+}
+
+.icon-btn.shared-view__back {
+  display: none;
 }
 
 .shared-view__badge {
@@ -82,14 +86,25 @@
 
 @media (max-width: 768px) {
   .shared-view__header {
-    padding: var(--sp2) var(--sp3);
+    flex: none;
+    min-height: calc(var(--topbar-height) + var(--safe-top));
+    padding: var(--safe-top) calc(var(--sp4) + var(--safe-right)) 0 calc(var(--sp4) + var(--safe-left));
+  }
+
+  .icon-btn.shared-view__back {
+    display: inline-flex;
+    margin-left: calc(var(--sp2) * -1);
+  }
+
+  .shared-view__badge {
+    white-space: nowrap;
   }
 
   .shared-view__messages {
-    padding: var(--sp4) var(--sp3) var(--sp2);
+    padding: var(--sp4) calc(var(--sp3) + var(--safe-right)) var(--sp2) calc(var(--sp3) + var(--safe-left));
   }
 
   .shared-view__footer {
-    padding: var(--sp2) var(--sp3);
+    padding: var(--sp2) var(--sp4) calc(var(--sp2) + var(--safe-bottom));
   }
 }

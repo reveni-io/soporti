@@ -43,3 +43,13 @@
   color: var(--link-color);
   font-size: var(--fs-sm);
 }
+
+@media (max-width: 768px) {
+  .artifact-card {
+    min-height: var(--touch-target);
+  }
+
+  .artifact-card__meta {
+    display: none;
+  }
+}

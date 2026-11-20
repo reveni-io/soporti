@@ -51,4 +51,15 @@ describe('useRepos', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalled())
     expect(result.current.repos).toEqual([])
   })
+
+  it('waits for a token before it asks for the repos', () => {
+    global.fetch = vi.fn()
+    const onLogout = vi.fn()
+
+    const { result } = renderHook(() => useRepos(null, onLogout))
+
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(onLogout).not.toHaveBeenCalled()
+    expect(result.current.repos).toEqual([])
+  })
 })

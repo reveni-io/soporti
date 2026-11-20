@@ -170,6 +170,47 @@
   background-color: var(--btn-danger-bg-hover);
 }
 
+.composer__sources {
+  display: none;
+  align-items: center;
+  gap: var(--sp1);
+  min-width: 0;
+  height: var(--sp8);
+  padding: 0 var(--sp2) 0 var(--sp3);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-base) var(--ease-spring);
+}
+
+.composer__sources:active {
+  transform: scale(0.96);
+}
+
+.composer__sources:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.composer__sources-icon {
+  flex: none;
+  color: var(--accent-strong);
+}
+
+.composer__sources-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .composer--dropping .composer__card {
   border-style: dashed;
   border-color: var(--green-bright);
@@ -202,6 +243,34 @@
 
 @media (max-width: 768px) {
   .composer {
-    padding: 0 var(--sp3) var(--sp3);
+    padding: 0 var(--sp3) calc(var(--sp3) + var(--safe-bottom));
+  }
+
+  .composer__card {
+    border-radius: var(--radius-2xl);
+  }
+
+  .composer__input,
+  .composer__highlight {
+    font-size: var(--fs-lg);
+    line-height: 1.5rem;
+  }
+
+  .composer__toolbar {
+    gap: var(--sp2);
+  }
+
+  .composer__btn {
+    width: var(--sp10);
+    height: var(--sp10);
+  }
+
+  .composer__sources {
+    display: inline-flex;
+    height: var(--sp10);
+  }
+
+  .composer__disclaimer {
+    display: none;
   }
 }

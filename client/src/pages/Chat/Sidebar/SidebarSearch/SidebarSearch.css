@@ -91,6 +91,19 @@
   }
 }
 
+@media (max-width: 768px) {
+  .sidebar-search__input {
+    height: var(--sp10);
+    padding: 0 var(--sp10);
+    border-radius: var(--radius-lg);
+  }
+
+  .sidebar-search__clear {
+    width: var(--sp8);
+    height: var(--sp8);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar-search__icon,
   .sidebar-search__input,

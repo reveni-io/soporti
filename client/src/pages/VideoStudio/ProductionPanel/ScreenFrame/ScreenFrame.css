@@ -31,3 +31,9 @@
   height: 100%;
   border: 0;
 }
+
+@media (max-width: 768px) {
+  .screen-frame--tall {
+    max-width: min(22rem, calc(60dvh * 9 / 16));
+  }
+}

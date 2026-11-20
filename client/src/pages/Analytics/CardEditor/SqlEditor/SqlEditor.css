@@ -33,3 +33,9 @@
   overflow-wrap: anywhere;
   user-select: text;
 }
+
+@media (max-width: 768px) {
+  .sql-editor__bar .btn {
+    min-height: var(--sp10);
+  }
+}

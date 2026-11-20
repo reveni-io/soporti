@@ -100,6 +100,13 @@
   font-size: var(--fs-md);
 }
 
+@media (max-width: 768px) {
+  .share-dashboard-modal__link-row .copy-button {
+    align-self: stretch;
+    padding: 0 var(--sp3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .share-dashboard-modal__switch,
   .share-dashboard-modal__switch::before {

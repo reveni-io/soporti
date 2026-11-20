@@ -11,8 +11,9 @@ const ATTACH_HINT = 'Attach a PDF, Word, Excel or CSV file, or an image'
 const DISCLAIMER = 'Soporti has read-only access to the connected tools. It does not execute code or make changes.'
 const ASK_PLACEHOLDER = 'Ask Soporti anything...'
 const RESPONDING_PLACEHOLDER = 'Soporti is responding...'
-const NO_SOURCES_PLACEHOLDER = 'Select a source from the sidebar first...'
+const NO_SOURCES_PLACEHOLDER = 'Select a source first...'
 const TEXTAREA_ROWS = 2
+const SOURCES_ICON_SIZE = 14
 
 function resolvePlaceholder(isLoading, hasSourcesSelected) {
   if (!hasSourcesSelected) return NO_SOURCES_PLACEHOLDER
@@ -45,6 +46,8 @@ export default function ChatComposer({
   onAttachFiles,
   onRemoveAttachment,
   token,
+  sourcesLabel,
+  onOpenSources,
 }) {
   const fileInputRef = useRef(null)
   const isInputLocked = isLoading || !hasSourcesSelected
@@ -128,6 +131,8 @@ export default function ChatComposer({
             <Icon name="paperclip" size={17} strokeWidth={1.7} />
           </button>
 
+          {onOpenSources && <SourcesChip label={sourcesLabel} onClick={onOpenSources} />}
+
           {isLoading ? (
             <button
               type="button"
@@ -154,5 +159,15 @@ export default function ChatComposer({
 
       <p className="composer__disclaimer">{DISCLAIMER}</p>
     </form>
+  )
+}
+
+function SourcesChip({ label, onClick }) {
+  return (
+    <button type="button" className="composer__sources" onClick={onClick} aria-label={`Sources and profile: ${label}`}>
+      <Icon name="sliders" size={SOURCES_ICON_SIZE} className="composer__sources-icon" />
+      <span className="composer__sources-label">{label}</span>
+      <Icon name="chevron-down" size={SOURCES_ICON_SIZE} />
+    </button>
   )
 }

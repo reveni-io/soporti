@@ -44,6 +44,9 @@ export default function ChatPanel({
   onBackToBots,
   isShared = false,
   onSharedContentRead,
+  onNewChat,
+  sourcesLabel,
+  onOpenSources,
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -103,6 +106,7 @@ export default function ChatPanel({
         onExpandSidebar={onExpandSidebar}
         onOpenTour={() => setTourOpen(true)}
         onShare={onShare}
+        onNewChat={onNewChat}
         onOpenRoutines={onOpenRoutines}
         onEditBot={onEditBot}
         onBackToBots={onBackToBots}
@@ -163,6 +167,8 @@ export default function ChatPanel({
         onAttachFiles={addFiles}
         onRemoveAttachment={removeAttachment}
         token={token}
+        sourcesLabel={sourcesLabel}
+        onOpenSources={onOpenSources}
       />
 
       {tourOpen && <TourModal integrations={integrations} onClose={closeTour} onTryExample={handleTourExample} />}

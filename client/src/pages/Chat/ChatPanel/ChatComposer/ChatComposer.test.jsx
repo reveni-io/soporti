@@ -50,7 +50,7 @@ describe('ChatComposer', () => {
   it('disables the textarea and asks for a source when none is selected', () => {
     const { container } = render(<ChatComposer {...BASE_PROPS} hasSourcesSelected={false} />)
 
-    expect(screen.getByPlaceholderText('Select a source from the sidebar first...')).toBeDisabled()
+    expect(screen.getByPlaceholderText('Select a source first...')).toBeDisabled()
     expect(container.querySelector('.composer__card')).toHaveClass('composer__card--locked')
   })
 
@@ -293,5 +293,21 @@ describe('ChatComposer', () => {
 
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     expect(screen.getByText('/trace-order')).toBeInTheDocument()
+  })
+
+  it('shows the sources and profile in use and opens them', async () => {
+    const onOpenSources = vi.fn()
+    const user = userEvent.setup()
+    render(<ChatComposer {...BASE_PROPS} sourcesLabel="Auto · Support" onOpenSources={onOpenSources} />)
+
+    await user.click(screen.getByRole('button', { name: 'Sources and profile: Auto · Support' }))
+
+    expect(onOpenSources).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no sources button when there is nothing to pick', () => {
+    render(<ChatComposer {...BASE_PROPS} sourcesLabel="Auto · Support" onOpenSources={null} />)
+
+    expect(screen.queryByRole('button', { name: /sources and profile/i })).toBeNull()
   })
 })

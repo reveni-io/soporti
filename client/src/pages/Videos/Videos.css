@@ -1,7 +1,7 @@
 .videos {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-app);
 }
 
@@ -39,4 +39,35 @@
   max-width: 72rem;
   margin: 0 auto;
   padding: var(--sp6) var(--sp4);
+}
+
+@media (max-width: 768px) {
+  .videos__header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-wrap: nowrap;
+    gap: var(--sp1);
+    min-height: calc(var(--topbar-height) + var(--safe-top));
+    padding: var(--safe-top) calc(var(--sp2) + var(--safe-right)) 0 calc(var(--sp2) + var(--safe-left));
+  }
+
+  .videos__title {
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--fs-xl);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .videos__header .btn {
+    flex: none;
+    min-height: var(--touch-target);
+    margin-right: var(--sp2);
+  }
+
+  .videos__body {
+    padding: var(--sp4) calc(var(--sp4) + var(--safe-right)) calc(var(--sp8) + var(--safe-bottom))
+      calc(var(--sp4) + var(--safe-left));
+  }
 }

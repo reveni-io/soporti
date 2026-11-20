@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import VideoMeta from '../../../common/VideoMeta/VideoMeta.jsx'
+import Icon from '../../../common/Icon/Icon.jsx'
 import { ROUTES } from '../../../router/constants.js'
 import './StudioHeader.css'
+
+const BACK_ICON_SIZE = 20
 
 export default function StudioHeader({ video, busy, onDelete }) {
   return (
     <header className="studio-header">
-      <Link className="studio-header__back" to={ROUTES.VIDEOS}>
-        &larr; Videos
+      <Link className="studio-header__back page-back" to={ROUTES.VIDEOS} aria-label="Back to videos">
+        <Icon name="arrow-left" size={BACK_ICON_SIZE} className="page-back__icon" />
+        <span className="page-back__label">&larr; Videos</span>
       </Link>
 
       <div className="studio-header__heading">

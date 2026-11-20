@@ -146,6 +146,25 @@
   border: none;
 }
 
+@media (max-width: 768px) {
+  .dashboard-switcher {
+    position: static;
+  }
+
+  .dashboard-switcher__menu {
+    top: 100%;
+    right: calc(var(--sp2) + var(--safe-right));
+    left: calc(var(--sp2) + var(--safe-left));
+    min-width: 0;
+    max-width: none;
+    max-height: min(26rem, 70dvh);
+  }
+
+  .dashboard-switcher__item {
+    min-height: var(--touch-target);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-switcher__chevron {
     transition: none;

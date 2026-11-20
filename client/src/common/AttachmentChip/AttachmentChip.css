@@ -51,3 +51,15 @@
 .attachment-chip__remove:hover {
   color: var(--text-primary);
 }
+
+@media (max-width: 768px) {
+  .attachment-chip__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--sp8);
+    height: var(--sp8);
+    margin: calc(var(--sp2) * -1) calc(var(--sp2) * -1) calc(var(--sp2) * -1) 0;
+    border-radius: var(--radius-pill);
+  }
+}

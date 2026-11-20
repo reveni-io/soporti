@@ -69,3 +69,26 @@
 .settings-modal__saved {
   color: var(--accent-strong);
 }
+
+@media (max-width: 768px) {
+  .settings-modal__tabs {
+    flex: none;
+    flex-wrap: nowrap;
+    gap: var(--sp4);
+    margin: 0 calc(var(--sp6) * -1);
+    padding: 0 var(--sp6);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-modal__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-modal__tab {
+    flex: none;
+    min-height: var(--touch-target);
+    font-size: var(--fs-base);
+    white-space: nowrap;
+  }
+}

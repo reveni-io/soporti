@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   width: 100vw;
   padding: var(--sp4);
   background-color: var(--green-deep);
@@ -46,4 +46,24 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--sp3);
+}
+
+@media (max-width: 768px) {
+  .consent {
+    padding: calc(var(--sp4) + var(--safe-top)) calc(var(--sp4) + var(--safe-right))
+      calc(var(--sp4) + var(--safe-bottom)) calc(var(--sp4) + var(--safe-left));
+  }
+
+  .consent__card {
+    padding: var(--sp6);
+  }
+
+  .consent__title {
+    line-height: 1.25;
+  }
+
+  .consent__actions .btn {
+    flex: 1;
+    min-height: var(--touch-target);
+  }
 }

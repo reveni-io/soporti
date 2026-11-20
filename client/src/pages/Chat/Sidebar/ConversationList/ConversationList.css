@@ -166,6 +166,47 @@
   box-shadow: var(--focus-ring);
 }
 
+.conversation-list__confirm {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp1);
+  margin-right: var(--sp1);
+  animation: conversation-list-confirm-in var(--motion-base) var(--ease-spring) both;
+}
+
+.conversation-list__confirm-delete,
+.conversation-list__confirm-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--sp8);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.conversation-list__confirm-delete {
+  padding: 0 var(--sp3);
+  background-color: var(--btn-danger-bg);
+  color: var(--btn-danger-color);
+}
+
+.conversation-list__confirm-cancel {
+  width: var(--sp8);
+  background-color: var(--sidebar-surface-strong);
+  color: var(--sidebar-text);
+}
+
+.conversation-list__confirm-delete:focus-visible,
+.conversation-list__confirm-cancel:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .conversation-list__typing {
   display: flex;
   flex: none;
@@ -201,6 +242,13 @@
   }
 }
 
+@keyframes conversation-list-confirm-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--sp2)) scale(0.9);
+  }
+}
+
 @keyframes conversation-list-shimmer {
   from {
     background-position: 100% 0;
@@ -225,8 +273,46 @@
 
 @media (hover: none) {
   .conversation-list__delete {
-    opacity: 1;
+    opacity: 0.45;
     transform: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .conversation-list {
+    flex: 1 0 auto;
+    max-height: none;
+  }
+
+  .conversation-list .sidebar-search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 calc(var(--sp1) * -1);
+    padding: var(--sp1) var(--sp1) var(--sp2);
+    background-color: var(--bg-sidebar);
+  }
+
+  .conversation-list .sidebar__scroll {
+    flex: none;
+    overflow: visible;
+    mask-image: none;
+  }
+
+  .conversation-list__open {
+    min-height: var(--touch-target);
+  }
+
+  .conversation-list__title {
+    font-size: var(--fs-base);
+    line-height: 1.25rem;
+  }
+
+  .conversation-list__delete {
+    width: var(--sp10);
+    height: var(--sp10);
+    margin-right: 0;
+    border-radius: var(--radius-md);
   }
 }
 
@@ -239,7 +325,8 @@
 
   .conversation-list__item,
   .conversation-list__item--streaming .conversation-list__title,
-  .conversation-list__typing span {
+  .conversation-list__typing span,
+  .conversation-list__confirm {
     animation: none;
   }
 }

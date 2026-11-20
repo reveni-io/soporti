@@ -269,6 +269,17 @@ figcaption {
   padding: var(--sp4);
 }
 
+@media (max-width: 600px) {
+  body {
+    padding: var(--sp5) var(--sp4);
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
 @media print {
   html {
     overflow-y: visible;

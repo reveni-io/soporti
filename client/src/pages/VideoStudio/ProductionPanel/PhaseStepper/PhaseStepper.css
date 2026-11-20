@@ -28,3 +28,26 @@
   color: var(--text-primary);
   font-weight: 600;
 }
+
+@media (max-width: 768px) {
+  .phase-stepper {
+    flex-wrap: nowrap;
+    gap: var(--sp1);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .phase-stepper::-webkit-scrollbar {
+    display: none;
+  }
+
+  .phase-stepper__step {
+    flex: none;
+    gap: var(--sp1);
+    font-size: var(--fs-sm);
+  }
+
+  .phase-stepper__step:not(:last-child)::after {
+    width: var(--sp2);
+  }
+}

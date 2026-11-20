@@ -464,6 +464,14 @@
 
   .message__bubble--assistant table {
     display: block;
+    max-width: 100%;
     overflow-x: auto;
+  }
+
+  .message__bubble--assistant th,
+  .message__bubble--assistant td {
+    min-width: var(--sp16);
+    word-break: normal;
+    overflow-wrap: normal;
   }
 }
