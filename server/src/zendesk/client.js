@@ -269,25 +269,37 @@ export async function searchTickets(userId, query, page = 1) {
   }
 }
 
-export async function postInternalNote(userId, reference, body) {
+async function postComment(userId, reference, { body, isPublic, emptyError }) {
   const connection = await requireConnection(userId)
   const ticketId = parseTicketId(reference, connection.subdomain)
   const text = redactSecrets(String(body ?? '').trim())
 
-  if (!text) throw new Error('An internal note needs a body.')
+  if (!text) throw new Error(emptyError)
 
-  const data = await request(connection, `/tickets/${ticketId}.json`, {
-    method: 'PUT',
-    body: { ticket: { comment: { html_body: renderNoteHtml(text), public: false } } },
-  })
-  const note = (data.audit?.events || []).find(event => event.type === 'Comment')
+  const comment = isPublic ? { body: text, public: true } : { html_body: renderNoteHtml(text), public: false }
+  const data = await request(connection, `/tickets/${ticketId}.json`, { method: 'PUT', body: { ticket: { comment } } })
+  const posted = (data.audit?.events || []).find(event => event.type === 'Comment')
 
   return {
     ticketId: Number(ticketId),
-    noteId: note?.id ?? null,
-    public: false,
+    commentId: posted?.id ?? null,
+    public: isPublic,
     url: ticketUrl(connection.subdomain, ticketId),
   }
+}
+
+export async function postInternalNote(userId, reference, body) {
+  const { commentId, ...note } = await postComment(userId, reference, {
+    body,
+    isPublic: false,
+    emptyError: 'An internal note needs a body.',
+  })
+
+  return { ...note, noteId: commentId }
+}
+
+export async function postPublicReply(userId, reference, body) {
+  return postComment(userId, reference, { body, isPublic: true, emptyError: 'A reply needs a body.' })
 }
 
 export async function isConfigured(userId) {

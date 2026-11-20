@@ -38,6 +38,11 @@ export default function AdminLegal({ token, onLogout }) {
   const isReady = catalog.keyConfigured && settings.document.data.enabled && savedSet.questions.length > 0
   const minConfidence = project.draft.set.minConfidence ?? 'the minimum'
 
+  function handleSendChange(event) {
+    const allowSend = event.target.checked
+    project.updateDraft(draft => ({ ...draft, allowSend }))
+  }
+
   return (
     <>
       <AdminSection title="Legal">
@@ -57,8 +62,8 @@ export default function AdminLegal({ token, onLogout }) {
             Legal, or one Jev is not sure about, shows a Careful warning.
           </li>
           <li>
-            A person reads the reply and the warnings, edits it if needed, copies it and sends it from the ticket.
-            Soporti doesn’t send anything for now.
+            A person reads the reply and the warnings, edits it if needed and sends it: from Soporti, as themselves, or
+            by copying it to the ticket.
           </li>
         </ol>
         <StatusRow configured={isReady} configuredLabel="ready" unconfiguredLabel="not ready" />
@@ -79,8 +84,8 @@ export default function AdminLegal({ token, onLogout }) {
           <div className="admin__kv-row">
             <dt>Who sends</dt>
             <dd>
-              Always a person. For now they copy the reply and send it from the ticket: sending from Soporti comes
-              later.
+              Always a person, as themselves: from Soporti when sending is on below, or by copying the reply to the
+              ticket.
             </dd>
           </div>
           <div className="admin__kv-row">
@@ -110,6 +115,26 @@ export default function AdminLegal({ token, onLogout }) {
           There is no switch here to turn Legal on. Each user turns it on per query with the{' '}
           <strong>Legal review</strong> check in Scheduled queries.
         </p>
+      </AdminSection>
+
+      <AdminSection title="Sending from Soporti">
+        <label className="admin__switch">
+          <input type="checkbox" checked={project.draft.allowSend === true} onChange={handleSendChange} />
+          <span className="admin__switch-slider" aria-hidden="true" />
+          <span className="admin__switch-label">
+            Allow sending from Soporti
+            <span className="admin__muted">
+              When on, Legal sends each reply from its case and follows the ticket conversation there.
+            </span>
+          </span>
+        </label>
+        <p className="admin__muted">
+          Each reply goes out as the person who sends it: in Zendesk with their own Zendesk connection, in HubSpot as
+          their HubSpot user, which needs replies in conversations allowed in the HubSpot section. Every reply asks for
+          a confirmation, and a case with warnings asks to confirm they were read. The scheduled run never sends
+          anything.
+        </p>
+        <p className="note">Turning it on lets Soporti post public replies to customers in Zendesk and HubSpot.</p>
       </AdminSection>
 
       <AdminSection title="Questions and answers">

@@ -45,7 +45,7 @@ const DEFAULT_DOCUMENTS = {
     set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
     repos: [],
   },
-  [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET },
+  [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET, allowSend: false },
 }
 
 const SCALAR_CHANGES = [
@@ -243,6 +243,16 @@ function parseProject(data, setParsers) {
   return { value: { set: set.value } }
 }
 
+function parseLegalProject(data) {
+  const project = parseProject(data, SET_PARSERS)
+  if (project.error) return project
+
+  const allowSend = data.allowSend ?? false
+  if (typeof allowSend !== 'boolean') return { error: '"allowSend" must be true or false.' }
+
+  return { value: { ...project.value, allowSend } }
+}
+
 function parseGithubProject(data) {
   const project = parseProject(data, GITHUB_SET_PARSERS)
   if (project.error) return project
@@ -256,7 +266,7 @@ function parseGithubProject(data) {
 const DOCUMENT_PARSERS = new Map([
   [JEV_SETTINGS_DOCUMENT, parseJevSettings],
   [JEV_GITHUB_DOCUMENT, parseGithubProject],
-  [JEV_LEGAL_DOCUMENT, data => parseProject(data, SET_PARSERS)],
+  [JEV_LEGAL_DOCUMENT, parseLegalProject],
 ])
 
 function canonical(value) {
@@ -295,9 +305,15 @@ function describeSetChanges(previous, next) {
   return [...changes, ...scalars]
 }
 
+function describeSendingChange(previous, next) {
+  if (!('allowSend' in next) || Boolean(previous.allowSend) === next.allowSend) return []
+
+  return [`Sending from Soporti ${next.allowSend ? 'on' : 'off'}`]
+}
+
 function describeChanges(previous, next) {
   if (next.repos) return [...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
-  if (next.set) return describeSetChanges(previous.set, next.set)
+  if (next.set) return [...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
 
   return previous.enabled === next.enabled ? [] : [`Jev calls ${next.enabled ? 'on' : 'off'}`]
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import LegalRun from './LegalRun.jsx'
 
@@ -78,7 +78,7 @@ describe('LegalRun', () => {
     const [, first, second, third] = within(screen.getAllByRole('table')[0]).getAllByRole('row')
     expect(first).toHaveTextContent('Zendesk ticket 48213')
     expect(first).toHaveTextContent('No warnings')
-    expect(first).toHaveTextContent('Check it, copy it, send it from the ticket')
+    expect(first).toHaveTextContent('Check it, then send it')
     expect(second).toHaveTextContent('HubSpot ticket 9312')
     expect(second).toHaveTextContent('unknown')
     expect(second).toHaveTextContent('Careful · 2 warnings')
@@ -99,7 +99,8 @@ describe('LegalRun', () => {
     expect(screen.getByRole('textbox')).toHaveValue('Hello, we issued your refund.')
     expect(screen.getByRole('button', { name: 'Copy reply' })).toHaveClass('btn--primary')
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    expect(screen.getByText('Sending from Soporti isn’t available yet.')).toBeInTheDocument()
+    expect(screen.getByText(/This run is older than sending from Soporti/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 
   it('marks each answer that should make Legal careful, with the confidence that was too low', () => {
@@ -144,5 +145,213 @@ describe('LegalRun', () => {
 
     expect(await screen.findByText('Select the text and copy it with Ctrl+C.')).toBeInTheDocument()
     expect(select).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sending from Soporti', () => {
+  const SENT_AT = '2026-11-20T10:00:00.000Z'
+
+  function respond(status, body) {
+    return { ok: status < 400, status, json: async () => body }
+  }
+
+  function mockLegalApi({ send = { allowed: true, reason: null }, replies = [], routes = {} } = {}) {
+    const handlers = {
+      'GET /api/legal/cases?ids=41': [respond(200, { cases: [{ id: 41, replies, send }] })],
+      ...routes,
+    }
+    global.fetch = vi.fn(async (url, options = {}) => {
+      const key = `${options.method ?? 'GET'} ${new URL(url, 'http://localhost').pathname}${new URL(url, 'http://localhost').search}`
+      const responses = handlers[key]
+      if (!responses) throw new Error(`Unexpected request: ${key}`)
+      return responses.length > 1 ? responses.shift() : responses[0]
+    })
+  }
+
+  function sentReply(text) {
+    return respond(201, { reply: { id: 7, sentBy: 'ana@example.com', text, sentAt: SENT_AT } })
+  }
+
+  function bodyOf(method, path) {
+    const call = global.fetch.mock.calls.find(
+      ([url, options = {}]) => (options.method ?? 'GET') === method && url.endsWith(path)
+    )
+    return JSON.parse(call[1].body)
+  }
+
+  it('sends the edited draft as the user after confirming it', async () => {
+    mockLegalApi({
+      routes: { 'POST /api/legal/cases/41/replies': [sentReply('Hello, we issued your refund. Thanks.')] },
+    })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.type(screen.getByRole('textbox'), ' Thanks.')
+    await user.click(send)
+
+    const confirm = screen.getByRole('group', { name: 'Confirm the reply' })
+    expect(send).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
+    expect(confirm).toHaveTextContent('Send this reply to customer-a@example.com on Zendesk ticket 48213?')
+    expect(confirm).toHaveTextContent('You edited the reply after the review')
+    await user.click(within(confirm).getByRole('button', { name: 'Send reply' }))
+
+    expect(await screen.findByText(/^Sent by ana@example\.com · /)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sent' })).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
+    expect(within(screen.getAllByRole('table')[0]).getAllByRole('row')[1]).toHaveTextContent('Sent')
+    expect(bodyOf('POST', '/api/legal/cases/41/replies')).toEqual({
+      text: 'Hello, we issued your refund. Thanks.',
+      warningsRead: false,
+    })
+  })
+
+  it('asks to confirm the warnings of a case that needs care', async () => {
+    mockLegalApi({ routes: { 'POST /api/legal/cases/41/replies': [sentReply('Hello')] } })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41, warnings: 2 })]} token="tok" />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+
+    const sendReply = screen.getByRole('button', { name: 'Send reply' })
+    expect(sendReply).toBeDisabled()
+    await user.click(screen.getByRole('checkbox', { name: 'I read the warnings of this case' }))
+    await user.click(sendReply)
+
+    expect(await screen.findByText(/^Sent by ana@example\.com/)).toBeInTheDocument()
+    expect(bodyOf('POST', '/api/legal/cases/41/replies').warningsRead).toBe(true)
+  })
+
+  it('shows a reply that went out but was not recorded as sent, so it is not offered again', async () => {
+    const warning = 'The reply was sent, but Soporti could not record it. Check the ticket before sending it again.'
+    mockLegalApi({
+      routes: {
+        'POST /api/legal/cases/41/replies': [
+          respond(201, { reply: { id: null, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT }, warning }),
+        ],
+      },
+    })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+
+    expect(await screen.findByText(warning)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sent' })).toBeDisabled()
+    expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: 'Send reply' })).not.toBeInTheDocument()
+  })
+
+  it('shows why the reply cannot be sent, and why a send failed', async () => {
+    mockLegalApi({ send: { allowed: false, reason: 'Sending from Soporti is off.' } })
+
+    const { unmount } = render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+
+    expect(await screen.findByText('Sending from Soporti is off.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    unmount()
+
+    mockLegalApi({
+      routes: { 'POST /api/legal/cases/41/replies': [respond(502, { error: 'Zendesk did not take the reply.' })] },
+    })
+    const user = userEvent.setup()
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+
+    expect(await screen.findByText('Zendesk did not take the reply.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('group', { name: 'Confirm the reply' })).not.toBeInTheDocument()
+  })
+
+  it('shows the ticket conversation and sends a follow-up from it', async () => {
+    const before = [{ id: '1', author: '', fromCustomer: true, at: SENT_AT, text: 'Any news on my refund?' }]
+    const after = [...before, { id: '2', author: 'Ana', fromCustomer: false, at: SENT_AT, text: 'It is on its way.' }]
+    mockLegalApi({
+      replies: [{ id: 6, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT }],
+      routes: {
+        'GET /api/legal/cases/41/conversation': [respond(200, { messages: before }), respond(200, { messages: after })],
+        'POST /api/legal/cases/41/replies': [sentReply('It is on its way.')],
+      },
+    })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    await user.click(await screen.findByRole('button', { name: 'Show the ticket conversation' }))
+
+    expect(await screen.findByText('Any news on my refund?')).toBeInTheDocument()
+    expect(screen.getByText(/^Customer · /)).toBeInTheDocument()
+    const followUp = screen.getAllByRole('textbox').at(-1)
+    await user.type(followUp, 'It is on its way.')
+    await user.click(screen.getAllByRole('button', { name: 'Send' }).at(-1))
+    expect(followUp).toHaveAttribute('readonly')
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+
+    expect(await screen.findByText(/^Ana · /)).toBeInTheDocument()
+    expect(followUp).toHaveValue('')
+  })
+
+  it('shows an empty conversation and why it could not be read', async () => {
+    mockLegalApi({
+      routes: {
+        'GET /api/legal/cases/41/conversation': [
+          respond(502, { error: 'Could not read the Zendesk ticket.' }),
+          respond(200, { messages: [] }),
+        ],
+      },
+    })
+    const user = userEvent.setup()
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+    await user.click(await screen.findByRole('button', { name: 'Show the ticket conversation' }))
+    expect(await screen.findByText('Could not read the Zendesk ticket.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
+    expect(await screen.findByText('The ticket has no public messages yet.')).toBeInTheDocument()
+  })
+
+  it('logs out instead of showing an error when the session expired', async () => {
+    const onLogout = vi.fn()
+    global.fetch = vi.fn(async () => respond(401, { error: 'Session expired' }))
+
+    const { unmount } = render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" onLogout={onLogout} />)
+
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1))
+    unmount()
+
+    mockLegalApi({
+      routes: {
+        'POST /api/legal/cases/41/replies': [respond(401, { error: 'Session expired' })],
+        'GET /api/legal/cases/41/conversation': [respond(401, { error: 'Session expired' })],
+      },
+    })
+    const user = userEvent.setup()
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" onLogout={onLogout} />)
+    const send = await screen.findByRole('button', { name: 'Send' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
+    await user.click(screen.getByRole('button', { name: 'Send reply' }))
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(2))
+
+    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
+    await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(3))
+    expect(screen.queryByText('Session expired')).not.toBeInTheDocument()
+  })
+
+  it('tells when the state of the cases could not be loaded', async () => {
+    global.fetch = vi.fn(async () => respond(500, { error: 'Failed to load the cases.' }))
+
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+
+    expect(await screen.findByText('Failed to load the cases.')).toBeInTheDocument()
   })
 })

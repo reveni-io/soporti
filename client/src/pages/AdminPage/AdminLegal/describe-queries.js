@@ -9,3 +9,7 @@ export function describeQueries(count) {
 export function describeRuns(count) {
   return countLabel(count, 'run', 'runs')
 }
+
+export function describeReplies(count) {
+  return countLabel(count, 'reply', 'replies')
+}

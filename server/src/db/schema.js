@@ -675,3 +675,19 @@ export const legalCases = pgTable(
     index('legal_cases_created_idx').on(table.createdAt),
   ]
 )
+
+export const legalReplies = pgTable(
+  'legal_replies',
+  {
+    id: serial('id').primaryKey(),
+    caseId: integer('case_id')
+      .notNull()
+      .references(() => legalCases.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+    sentBy: text('sent_by').notNull(),
+    text: text('text').notNull(),
+    externalId: text('external_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  table => [index('legal_replies_case_idx').on(table.caseId)]
+)

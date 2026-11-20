@@ -31,9 +31,10 @@ describe('LegalUsage', () => {
     const onPage = vi.fn()
     const user = userEvent.setup()
 
-    render(<LegalUsage usage={usage()} error={null} onPage={onPage} />)
+    render(<LegalUsage usage={usage({ sentReplies: 1 })} error={null} onPage={onPage} />)
 
     expect(screen.getByText('4 scheduled queries')).toBeInTheDocument()
+    expect(screen.getByText('1 reply')).toBeInTheDocument()
     expect(screen.getByText('1 run')).toBeInTheDocument()
     expect(screen.getByText('6 runs')).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: 'v7' })).toBeInTheDocument()

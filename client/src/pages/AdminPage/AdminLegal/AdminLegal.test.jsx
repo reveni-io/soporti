@@ -98,6 +98,20 @@ describe('AdminLegal', () => {
     expect(screen.getByText('Legal project')).toBeInTheDocument()
   })
 
+  it('turns sending from Soporti on as an unsaved change of the project', async () => {
+    mockApi({ usage: { sentReplies: 3 } })
+    const user = userEvent.setup()
+
+    render(<AdminLegal token="tok" onLogout={vi.fn()} />)
+    const toggle = await screen.findByRole('checkbox', { name: /Allow sending from Soporti/ })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+
+    expect(toggle).toBeChecked()
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    expect(await screen.findByText('3 replies')).toBeInTheDocument()
+  })
+
   it('names the queries that still use the set when deleting it', async () => {
     mockApi({ usage: { queriesOn: 3 } })
     const user = userEvent.setup()

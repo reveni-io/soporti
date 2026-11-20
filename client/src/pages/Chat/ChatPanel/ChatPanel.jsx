@@ -119,6 +119,7 @@ export default function ChatPanel({
                   isStreaming={isLoading && index === messages.length - 1}
                   token={token}
                   onOpenArtifact={onOpenArtifact}
+                  onLogout={onLogout}
                 />
               </div>
             ))}
