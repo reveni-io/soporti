@@ -1,4 +1,11 @@
-import { AUTO_APPROVE_OFF, AUTO_APPROVE_ON, JEV_CHECK_ANSWERED, JEV_GITHUB_DOCUMENT } from '../constants.js'
+import {
+  AUTO_APPROVE_DECIDED_BY_JEV,
+  AUTO_APPROVE_INFO_ROLE,
+  AUTO_APPROVE_OFF,
+  AUTO_APPROVE_ON,
+  JEV_CHECK_ANSWERED,
+  JEV_GITHUB_DOCUMENT,
+} from '../constants.js'
 import { recordAutoApproveEvaluation } from '../db/auto-approve-evaluations.js'
 import { getJevDocument } from '../db/jev-documents.js'
 import { runJevCheck } from '../jev/check.js'
@@ -7,11 +14,9 @@ import { buildRuleQuestions, checkRuleFact, collectReviewFacts, ruleIdOf } from 
 
 const APPROVE = 'APPROVE'
 const COMMENT = 'COMMENT'
-const DECIDED_BY_JEV = 'jev'
 const DECIDED_AS_TODAY = 'today'
 const CI_RULE = 'ci'
 const PENDING_ANSWER = 'Pending'
-const INFO_ROLE = 'info'
 const RULE_LABELS = new Map(GITHUB_RULES.map(rule => [rule.id, rule.label]))
 
 export async function loadAutoApproveRepo(repoFullName, { logger = console } = {}) {
@@ -82,11 +87,11 @@ function fromJev(result, rules, facts) {
   const rulesById = new Map(rules.map(rule => [rule.id, rule]))
   const gates = result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById, facts))
   const questions = result.rows.filter(row => !ruleIdOf(row.questionId))
-  const blocking = [...gates.filter(gate => gate.role !== INFO_ROLE), ...questions].filter(isBlocking)
+  const blocking = [...gates.filter(gate => gate.role !== AUTO_APPROVE_INFO_ROLE), ...questions].filter(isBlocking)
 
   return {
     approve: blocking.length === 0,
-    decidedBy: DECIDED_BY_JEV,
+    decidedBy: AUTO_APPROVE_DECIDED_BY_JEV,
     reason: null,
     pendingOnly: blocking.length > 0 && blocking.every(isPendingCi),
     setVersion: result.setVersion,

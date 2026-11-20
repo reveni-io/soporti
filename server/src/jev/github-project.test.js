@@ -110,10 +110,16 @@ describe('findGithubSaveError', () => {
     expect(findGithubSaveError({ repos: [] }, { set: { questions: [] }, repos: [repo()] })).toBeNull()
   })
 
+  it('lets repos be added before the set has any question', () => {
+    const repos = [repo({ name: 'acme/a', mode: 'shadow' })]
+
+    expect(findGithubSaveError({ set: { questions: [] }, repos: [] }, { set: { questions: [] }, repos })).toBeNull()
+  })
+
   it('names the repos that still use the set', () => {
     const repos = [repo({ name: 'acme/a', mode: 'shadow' }), repo({ name: 'acme/b', mode: 'shadow' })]
 
-    expect(findGithubSaveError({ repos }, { set: { questions: [] }, repos })).toBe(
+    expect(findGithubSaveError({ set: { questions: [{ id: 'q1' }] }, repos }, { set: { questions: [] }, repos })).toBe(
       'Cannot delete the set: 2 auto-approve repos (acme/a, acme/b) use it. Set them to off and save first.'
     )
   })
