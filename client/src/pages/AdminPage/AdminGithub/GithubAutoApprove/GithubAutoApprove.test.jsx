@@ -19,8 +19,10 @@ function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
 }
 
-function mockApi(repos, overrides = {}) {
-  const document = { id: 'github', rev: 2, data: { set: SET, repos }, setVersion: 1, savedAt: null, savedBy: null }
+const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', instructions: '', criteria: '', flagAt: 60 }
+
+function mockApi(repos, overrides = {}, set = SET) {
+  const document = { id: 'github', rev: 2, data: { set, repos }, setVersion: 1, savedAt: null, savedBy: null }
   const page = { entries: [], total: 0, page: 1, pageSize: 5 }
   const responses = {
     [BASE]: okResponse({ keyConfigured: false, models: [], scannedAt: null }),
@@ -49,10 +51,14 @@ describe('GithubAutoApprove', () => {
   })
 
   it('names the repos that still use the set when deleting it', async () => {
-    mockApi([
-      { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] },
-      { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
-    ])
+    mockApi(
+      [
+        { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] },
+        { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
+      ],
+      {},
+      { ...SET, questions: [QUESTION] }
+    )
     const user = userEvent.setup()
 
     render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
@@ -61,6 +67,16 @@ describe('GithubAutoApprove', () => {
     expect(
       screen.getByText('Cannot delete the set: 1 auto-approve repo (acme/web) use it. Set them to off and save first.')
     ).toBeInTheDocument()
+  })
+
+  it('lets a set with no saved questions be cleared while repos use it', async () => {
+    mockApi([{ name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }])
+    const user = userEvent.setup()
+
+    render(<GithubAutoApprove token="tok" onLogout={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Delete set' }))
+
+    expect(screen.queryByText(/Cannot delete the set/)).not.toBeInTheDocument()
   })
 
   it('shows why the project could not load', async () => {
