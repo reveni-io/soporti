@@ -9,8 +9,10 @@ import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
 import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
 
+const GITHUB_PAGE_FIELDS = ['repos']
+
 export default function GithubAutoApprove({ token, onLogout }) {
-  const project = useJevDocument(token, JEV_GITHUB_DOCUMENT, onLogout)
+  const project = useJevDocument(token, JEV_GITHUB_DOCUMENT, onLogout, { fields: GITHUB_PAGE_FIELDS })
   const { config: catalog } = useAuthedConfig(getJevConfig, token, onLogout)
   const { repos: readableRepos } = useRepos(token, onLogout)
 
