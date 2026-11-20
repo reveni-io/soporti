@@ -8,6 +8,27 @@ import { formatDateTime } from '../dates.js'
 const HEADERS = ['Version', 'Date', 'Author', 'Change', '']
 const HEADERS_WITH_CALLS = ['Version', 'Date', 'Author', 'Change', 'Calls', '']
 
+function toCells(entry, { currentVersion, withCalls, onRestore }) {
+  const cells = [
+    <span className="admin__nowrap">
+      v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
+    </span>,
+    <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
+    entry.author,
+    entry.change,
+  ]
+  if (withCalls) cells.push((entry.calls ?? 0).toLocaleString())
+  cells.push(
+    entry.version !== currentVersion && (
+      <button className="btn btn--secondary btn--sm" type="button" onClick={() => onRestore(entry)}>
+        Restore
+      </button>
+    )
+  )
+
+  return cells
+}
+
 export default function VersionsTable({ token, project, state, onLogout, withCalls = false }) {
   const [request, setRequest] = useState({ page: 1 })
   const { result, error } = useJevPage(getJevVersions, { token, documentId: project, request }, onLogout)
@@ -20,28 +41,10 @@ export default function VersionsTable({ token, project, state, onLogout, withCal
   if (error && !result) return <p className="alert alert--error">{error}</p>
   if (!result) return <p className="admin__muted">Loading...</p>
 
-  function toCells(entry) {
-    const cells = [
-      <span className="admin__nowrap">
-        v{entry.version} {entry.version === currentVersion && <span className="badge badge--success">current</span>}
-      </span>,
-      <span className="admin__nowrap">{formatDateTime(entry.at)}</span>,
-      entry.author,
-      entry.change,
-    ]
-    if (withCalls) cells.push((entry.calls ?? 0).toLocaleString())
-    cells.push(
-      entry.version !== currentVersion && (
-        <button className="btn btn--secondary btn--sm" type="button" onClick={() => handleRestore(entry)}>
-          Restore
-        </button>
-      )
-    )
-
-    return cells
-  }
-
-  const rows = result.entries.map(entry => ({ key: entry.version, cells: toCells(entry) }))
+  const rows = result.entries.map(entry => ({
+    key: entry.version,
+    cells: toCells(entry, { currentVersion, withCalls, onRestore: handleRestore }),
+  }))
 
   return (
     <>
