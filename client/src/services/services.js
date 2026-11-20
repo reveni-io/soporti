@@ -1334,3 +1334,29 @@ export function saveAnalyticsLayout(token, dashboardId, items) {
     errorMessage: 'Failed to save the layout',
   })
 }
+
+export function getPushPublicKey(token) {
+  return request('/api/push/key', { token, errorMessage: 'Failed to load the notification settings' })
+}
+
+export function savePushSubscription(token, { endpoint, keys }) {
+  return request('/api/push/subscriptions', {
+    method: 'POST',
+    token,
+    body: { endpoint, keys },
+    errorMessage: 'Failed to turn on notifications on this device',
+  })
+}
+
+export function deletePushSubscription(token, endpoint) {
+  return request('/api/push/subscriptions', {
+    method: 'DELETE',
+    token,
+    body: { endpoint },
+    errorMessage: 'Failed to turn off notifications on this device',
+  })
+}
+
+export function sendTestPush(token) {
+  return request('/api/push/test', { method: 'POST', token, errorMessage: 'Failed to send the test notification' })
+}

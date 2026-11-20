@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { BROWSER_TIMEZONE } from '../../../../constants.js'
 import { getBotMessages, getConversation, isUnauthorized, streamChat } from '../../../../services/services.js'
+import { createAnswer, notifyAnswerReady, trackAnswer } from './answer-notification.js'
 
 const FIRST_CHAT_KEY = 'chat-1'
 const BOT_CHAT_PREFIX = 'bot-'
@@ -272,7 +273,12 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
           abortController.signal
         )
 
-        await readEvents(response, event => applyEvent(key, event))
+        const answer = createAnswer({ sessionId: chat.sessionId, botId: chat.botId })
+        await readEvents(response, event => {
+          trackAnswer(answer, event)
+          applyEvent(key, event)
+        })
+        notifyAnswerReady(answer)
       } catch (err) {
         if (err.name === 'AbortError') return
         if (isUnauthorized(err)) {

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import http from 'node:http'
+import { once } from 'node:events'
 import express from 'express'
 import request from 'supertest'
 
@@ -58,6 +60,8 @@ vi.mock('../db/bots.js', () => ({
   getBot: vi.fn(),
 }))
 
+vi.mock('../push/notify.js', async importOriginal => ({ ...(await importOriginal()), notifyUser: vi.fn() }))
+
 import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { isKnowledgeBaseConfigured, searchSimilarCases } from '../knowledge/client.js'
@@ -67,6 +71,7 @@ import { recordAgentRun } from '../db/agent-runs.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
 import { getBot } from '../db/bots.js'
 import { withConversationLock } from '../sessions/conversation-lock.js'
+import { notifyUser } from '../push/notify.js'
 import chatRoute from './chat.js'
 
 function createStreamMock(events, { history, lastResponseId, usage } = {}) {
@@ -1326,6 +1331,133 @@ describe('POST /api/chat', () => {
       expect(conversationStore.saveTurn).not.toHaveBeenCalled()
       expect(consoleError).toHaveBeenCalledWith('Failed to resume the bot conversation:', expect.any(Error))
       consoleError.mockRestore()
+    })
+  })
+
+  describe('when the browser leaves before the answer is finished', () => {
+    const TEXT_EVENT = { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Two refunds ' } }
+    const MORE_TEXT_EVENT = {
+      type: 'raw_model_stream_event',
+      data: { type: 'output_text_delta', delta: 'are pending.' },
+    }
+    const NOTION_CALL_EVENT = {
+      type: 'run_item_stream_event',
+      item: { type: 'tool_call_item', rawItem: { name: 'search_notion_pages', arguments: '{}' } },
+    }
+
+    function gatedStream(afterGate) {
+      let openGate
+      const gate = new Promise(resolve => {
+        openGate = resolve
+      })
+      const stream = {
+        state: undefined,
+        toStream: () => ({
+          async *[Symbol.asyncIterator]() {
+            yield TEXT_EVENT
+            await gate
+            yield* afterGate()
+          },
+        }),
+        completed: Promise.resolve(),
+      }
+
+      return { stream, openGate }
+    }
+
+    function countConnections(server) {
+      return new Promise((resolve, reject) => {
+        server.getConnections((err, count) => (err ? reject(err) : resolve(count)))
+      })
+    }
+
+    async function postThenLeave(body, openGate) {
+      const server = app.listen(0)
+      await once(server, 'listening')
+
+      const req = http.request({
+        port: server.address().port,
+        method: 'POST',
+        path: '/',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      req.on('error', () => {})
+      req.end(JSON.stringify(body))
+      const [response] = await once(req, 'response')
+      await once(response, 'data')
+      req.destroy()
+      await vi.waitFor(async () => expect(await countConnections(server)).toBe(0))
+
+      openGate()
+      await vi.waitFor(() => expect(recordAgentRun).toHaveBeenCalledTimes(1))
+      server.close()
+    }
+
+    it('notifies the user with the answer, without its sources footer, and a link to the conversation', async () => {
+      const { stream, openGate } = gatedStream(function* () {
+        yield NOTION_CALL_EVENT
+        yield MORE_TEXT_EVENT
+      })
+      run.mockResolvedValue(stream)
+
+      await postThenLeave({ message: 'pending refunds?', selectedSources: ['yolo'] }, openGate)
+
+      expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1)
+      expect(conversationStore.saveTurn.mock.calls[0][1].uiMessages[1].parts.at(-1).content).toContain(
+        'Sources consulted: Notion'
+      )
+      expect(notifyUser).toHaveBeenCalledTimes(1)
+      expect(notifyUser).toHaveBeenCalledWith(1, {
+        title: 'Your answer is ready',
+        body: 'Two refunds are pending.',
+        url: `/chat?conversation=${TEST_CONVERSATION_ID}`,
+        tag: `conversation-${TEST_CONVERSATION_ID}`,
+      })
+    })
+
+    it('titles the notification with the bot name and links to the bot chat in a bot conversation', async () => {
+      getBot.mockResolvedValue({ id: 4, name: 'Ticket triager', description: 'Triage tickets.', profile: 'tech' })
+      conversationStore.resolveBot.mockResolvedValue(buildResolvedWeb({ isNewConversation: false }))
+      const { stream, openGate } = gatedStream(function* () {
+        yield MORE_TEXT_EVENT
+      })
+      run.mockResolvedValue(stream)
+
+      await postThenLeave({ message: 'pending refunds?', botId: 4 }, openGate)
+
+      expect(notifyUser).toHaveBeenCalledTimes(1)
+      expect(notifyUser).toHaveBeenCalledWith(1, {
+        title: 'Ticket triager',
+        body: 'Two refunds are pending.',
+        url: '/bots/4',
+        tag: 'bot-4',
+      })
+    })
+
+    it('does not notify when the turn fails after the browser left', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { stream, openGate } = gatedStream(function* () {
+        yield MORE_TEXT_EVENT
+        throw new Error('model unavailable')
+      })
+      run.mockResolvedValue(stream)
+
+      await postThenLeave({ message: 'pending refunds?' }, openGate)
+
+      expect(recordAgentRun).toHaveBeenCalledWith({ channel: 'web', status: 'error', userId: 1 })
+      expect(conversationStore.saveTurn).not.toHaveBeenCalled()
+      expect(notifyUser).not.toHaveBeenCalled()
+      consoleError.mockRestore()
+    })
+
+    it('does not notify when the browser stays until the answer is finished', async () => {
+      run.mockResolvedValue(createStreamMock([TEXT_EVENT, MORE_TEXT_EVENT]))
+
+      const res = await request(app).post('/').send({ message: 'pending refunds?' })
+
+      expect(streamEvents(res).at(-1)).toEqual({ type: 'done' })
+      expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1)
+      expect(notifyUser).not.toHaveBeenCalled()
     })
   })
 })

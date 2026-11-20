@@ -4,10 +4,12 @@ vi.mock('../config.js', () => ({ default: { publicUrl: 'https://soporti.acme.com
 vi.mock('../db/users.js', () => ({ findUserById: vi.fn() }))
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn() }))
 vi.mock('../slack/client.js', () => ({ postDirectMessage: vi.fn() }))
+vi.mock('../push/notify.js', async importOriginal => ({ ...(await importOriginal()), notifyUser: vi.fn() }))
 
 const { findUserById } = await import('../db/users.js')
 const { isSlackConfigured } = await import('../slack/settings.js')
 const { postDirectMessage } = await import('../slack/client.js')
+const { notifyUser } = await import('../push/notify.js')
 const { notifyVersionOutcome } = await import('./notify.js')
 
 const VIDEO_ID = '3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f601'
@@ -18,6 +20,7 @@ beforeEach(() => {
   isSlackConfigured.mockResolvedValue(true)
   findUserById.mockResolvedValue({ id: 7, slackId: 'U0123ABCD', email: 'ana@acme.com' })
   postDirectMessage.mockResolvedValue({ channel: 'D1', ts: '1' })
+  notifyUser.mockResolvedValue(1)
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 
@@ -25,7 +28,7 @@ describe('notifyVersionOutcome', () => {
   it('DMs the owner the title, the version, the duration and the link when a version is ready', async () => {
     const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 62_000 })
 
-    expect(sent).toBe(true)
+    expect(sent).toEqual({ slack: true, pushed: 1 })
     expect(postDirectMessage).toHaveBeenCalledTimes(1)
     expect(postDirectMessage).toHaveBeenCalledWith(
       { slackId: 'U0123ABCD', email: 'ana@acme.com' },
@@ -38,7 +41,7 @@ describe('notifyVersionOutcome', () => {
 
     const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 7000 })
 
-    expect(sent).toBe(true)
+    expect(sent.slack).toBe(true)
     expect(findUserById).toHaveBeenCalledWith(7)
     expect(postDirectMessage).toHaveBeenCalledTimes(1)
     expect(postDirectMessage.mock.calls[0][0]).toEqual({ slackId: 'U0999ZZZZ', email: null })
@@ -58,7 +61,7 @@ describe('notifyVersionOutcome', () => {
 
     const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 1000 })
 
-    expect(sent).toBe(false)
+    expect(sent.slack).toBe(false)
     expect(findUserById).not.toHaveBeenCalled()
     expect(postDirectMessage).not.toHaveBeenCalled()
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Slack is not configured'))
@@ -69,7 +72,7 @@ describe('notifyVersionOutcome', () => {
 
     const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 1000 })
 
-    expect(sent).toBe(false)
+    expect(sent.slack).toBe(false)
     expect(postDirectMessage).not.toHaveBeenCalled()
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('has no Slack id or email'))
   })
@@ -79,9 +82,43 @@ describe('notifyVersionOutcome', () => {
 
     const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 1000 })
 
-    expect(sent).toBe(false)
+    expect(sent.slack).toBe(false)
     expect(console.log).toHaveBeenCalledWith(
       `[videos] Could not DM the owner of video ${VIDEO_ID} on Slack: No Slack user has that email address.`
     )
+  })
+
+  it('pushes the ready version to the devices of the owner, with a link to the video', async () => {
+    await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 62_000 })
+
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser).toHaveBeenCalledWith(7, {
+      title: 'Your video is ready',
+      body: '"Refunds in one click", version 2 (1:02).',
+      url: `/videos/${VIDEO_ID}`,
+      tag: `video-${VIDEO_ID}`,
+    })
+  })
+
+  it('pushes the failure of a version to the devices of the owner', async () => {
+    await notifyVersionOutcome({ job: JOB, status: 'failed', error: 'The page threw on boot.' })
+
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser).toHaveBeenCalledWith(7, {
+      title: 'A video version failed',
+      body: 'Version 2 of "Refunds in one click" failed: The page threw on boot.',
+      url: `/videos/${VIDEO_ID}`,
+      tag: `video-${VIDEO_ID}`,
+    })
+  })
+
+  it('pushes even when Slack is not configured', async () => {
+    isSlackConfigured.mockResolvedValue(false)
+    notifyUser.mockResolvedValue(2)
+
+    const sent = await notifyVersionOutcome({ job: JOB, status: 'ready', durationMs: 1000 })
+
+    expect(sent).toEqual({ slack: false, pushed: 2 })
+    expect(notifyUser).toHaveBeenCalledTimes(1)
   })
 })

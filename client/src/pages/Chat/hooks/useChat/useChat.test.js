@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useChat } from './useChat.js'
 
@@ -1007,5 +1007,82 @@ describe('useChat', () => {
       expect(result.current.messages[0]).toEqual({ role: 'user', content: 'quick one' })
       expect(result.current.isFetching).toBe(false)
     })
+  })
+})
+
+describe('useChat notifications', () => {
+  function stubDevice() {
+    const registration = {
+      pushManager: { getSubscription: vi.fn().mockResolvedValue({ endpoint: 'https://push.example/1' }) },
+      showNotification: vi.fn().mockResolvedValue(),
+    }
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: { getRegistration: vi.fn().mockResolvedValue(registration) },
+      configurable: true,
+    })
+    vi.stubGlobal('PushManager', function PushManager() {})
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+
+    return registration
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete navigator.serviceWorker
+    delete document.visibilityState
+  })
+
+  it('tells a user who left the tab that the answer of the conversation is ready', async () => {
+    const registration = stubDevice()
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        createSSEResponse([
+          { type: 'session_id', sessionId: 'a3bb189e-8bf9-4888-9912-ace4e6543002' },
+          { type: 'text_delta', text: 'Refunds are issued within 14 days.' },
+          { type: 'done' },
+        ])
+      )
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('how long do refunds take?', { selectedSources: ['yolo'], profile: 'support' })
+    })
+
+    await waitFor(() => expect(registration.showNotification).toHaveBeenCalledTimes(1))
+    expect(registration.showNotification).toHaveBeenCalledWith(
+      'Your answer is ready',
+      expect.objectContaining({
+        body: 'Refunds are issued within 14 days.',
+        tag: 'conversation-a3bb189e-8bf9-4888-9912-ace4e6543002',
+        data: { url: '/chat?conversation=a3bb189e-8bf9-4888-9912-ace4e6543002' },
+      })
+    )
+  })
+
+  it('does not notify about an answer the user stopped', async () => {
+    const registration = stubDevice()
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation((_url, options) => {
+      options.signal.addEventListener('abort', () => stream.close())
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    let sending
+    act(() => {
+      sending = result.current.sendMessage('hi', { selectedSources: ['yolo'], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      stream.push({ type: 'text_delta', text: 'Half an' })
+      result.current.stopGeneration()
+    })
+    await act(async () => {
+      await sending
+    })
+
+    expect(registration.showNotification).not.toHaveBeenCalled()
   })
 })

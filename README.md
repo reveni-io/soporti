@@ -125,6 +125,13 @@ HubSpot has no single switch: `/admin` → HubSpot gives each area — Contacts,
 - **Dark mode** — the sun and moon button at the bottom of the chat sidebar, also in the `/admin` header, switches the whole app between the light theme and a night-green dark one, and the new theme spreads from the button in a growing circle. Until you choose, Soporti follows your system setting and changes with it; once you choose, that browser remembers it. Charts, code, the bots, Analytics, Videos and the admin panel all follow the theme. Artifacts and diagrams keep their light page, so they look the same to everyone you share them with
 - **Animated navigation** — moving between the chat, **Bots**, **Analytics**, **Videos** and the admin sections fades one screen out as the next rises in, switching bots slides the highlight down the list to the bot you open while its chat rises in, and the admin menu marker slides to the section you open. It uses the browser's View Transitions: a browser without them simply switches screens, and nothing moves when your system asks for reduced motion
 
+### Install it as an app
+
+- **Its own window** — Soporti installs as an app on desktop and phone: from **Settings → App**, the install icon in the browser's address bar, **File → Add to Dock** in Safari on a Mac, or **Share → Add to Home Screen** on iPhone and iPad. It then opens from the dock, taskbar or home screen in a window of its own, and its icon offers shortcuts to a new chat, **Bots**, **Analytics** and **Videos** (except on iOS)
+- **Notifications on this device** — turn them on per device in **Settings → App** and Soporti tells you when a bot routine posts its report, a scheduled question is answered, an answer finishes after you left its conversation or a video is ready; a notification opens right where it happened, and **Send a test notification** checks the device. On iPhone and iPad they only work in the app added to the Home Screen, on iOS 16.4 or later
+- **Share to Soporti** — share a screenshot, a file, some text or a link from another app's share sheet and a new chat opens with the text in the composer and the files attached, ready for your question. It works with the installed app on Android and in desktop Chrome; iOS offers no share target to web apps
+- **Badge and updates** — the app icon carries a badge with your unread bot reports wherever the system shows app badges, and when a new version is deployed a toast offers to reload into it
+
 ### See what it is doing
 
 - **Agent traces in Langfuse** — connect a Langfuse project in `/admin` → **Langfuse** and every agent run (web chat, Slack, ticket auto-diagnose, scheduled queries, MCP, PR reviews, verification and mentions, video storyboards and compositions) lands there as a trace: each model call with its model, token counts and cost (for videos, also the reasoning effort it ran with), each tool call with its input and output, and the error when a step failed. Each trace shows the question that started the run (for PR reviews, the review pass and the PR) and its final answer when the run finished, and runs are grouped in **Sessions** by conversation, PR or ticket and tagged with the user. Token counts are split into fresh input, cache reads, cache writes and output, so once the model has a price in Langfuse each bucket is charged at its own rate and the cost of a run reflects prompt caching. Use it to see why a review came out odd, a long run gave up or a conversation got expensive. Known secret formats are redacted before anything leaves, each value is capped, and a **metadata only** switch keeps every prompt, diff and tool result out of Langfuse
@@ -273,6 +280,8 @@ To self-host, `docker-compose.prod.yml` runs the full production stack — Postg
 cp .env.example .env    # set JWT_SECRET (openssl rand -hex 32)
 npm run docker:prod     # open http://localhost:8080, then follow the first-run flow
 ```
+
+The installable app and its notifications need HTTPS (`localhost` aside) — see [Installable app and notifications](docs/deployment.md#installable-app-and-notifications).
 
 The standalone images (`server/Dockerfile`, `client/Dockerfile`) can also be deployed separately — e.g. the client as a static site and the server as a container on a PaaS. See [docs/deployment.md](docs/deployment.md) for the full guide: first-run flow, environment reference, split deployments, and operational notes.
 

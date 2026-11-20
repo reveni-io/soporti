@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { messageLabel, messagePreview } from './message-preview.js'
+import { messageLabel, messagePreview, plainTextExcerpt } from './message-preview.js'
 
 describe('messagePreview', () => {
   it('returns the content of a user message', () => {
@@ -57,5 +57,15 @@ describe('messageLabel', () => {
 
   it('falls back to the bare role and position when there is no preview yet', () => {
     expect(messageLabel({ role: 'assistant', parts: [] }, 1)).toBe('Answer 2')
+  })
+})
+
+describe('plainTextExcerpt', () => {
+  it('turns markdown into a single line of plain text', () => {
+    expect(plainTextExcerpt('## Refunds\n\n- **Fast** `track`', 50)).toBe('Refunds - Fast track')
+  })
+
+  it('cuts the text at the given length and marks the cut', () => {
+    expect(plainTextExcerpt('one two three', 7)).toBe('one two…')
   })
 })

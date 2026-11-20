@@ -20,6 +20,7 @@ import { carriesImage, isValidAttachmentName } from '../documents/attachments.js
 import { buildAgentInput } from '../agent/agent-input.js'
 import { getAttachmentImages } from '../db/attachment-images.js'
 import { toGuardPart } from '../guards/check.js'
+import { botTarget, conversationTarget, notifyUser } from '../push/notify.js'
 import {
   AGENT_CHANNEL_WEB,
   MAX_ATTACHMENTS_PER_MESSAGE,
@@ -46,6 +47,7 @@ function log(icon, ...args) {
 const SAFE_INPUT_FIELDS = ['repo', 'path', 'query']
 const MAX_BOT_ID = 999_999_999
 const INTERNAL_ERROR_EVENT = { type: 'error', message: 'An internal error occurred.' }
+const ANSWER_READY_TITLE = 'Your answer is ready'
 
 const TOOL_START = '  →'
 const TOOL_DONE = '  ✓'
@@ -193,6 +195,34 @@ function describeAttachment(attachment) {
   if (carriesImage(attachment)) return `${attachment.name} (image)`
 
   return `${attachment.name} (${attachment.text.length} chars${attachment.truncated ? ', truncated' : ''})`
+}
+
+function collectText(parts) {
+  return parts
+    .filter(p => p.type === 'text')
+    .map(p => p.content)
+    .join('')
+}
+
+function watchClientDisconnect(res) {
+  let disconnected = false
+  res.on('close', () => {
+    if (!res.writableEnded) disconnected = true
+  })
+
+  return () => disconnected
+}
+
+function describeAnswerNotification({ bot, conversationId }) {
+  if (bot) return { title: bot.name, ...botTarget(bot.id) }
+
+  return { title: ANSWER_READY_TITLE, ...conversationTarget(conversationId) }
+}
+
+function notifyIfClientLeft(turnContext, answer) {
+  if (!turnContext.hasClientLeft()) return
+
+  notifyUser(turnContext.userId, { ...describeAnswerNotification(turnContext), body: answer })
 }
 
 function appendText(parts, text) {
@@ -485,13 +515,11 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
     const totalMs = Date.now() - agentStart
     log('✅', `Done in ${totalMs}ms`)
 
+    const answer = collectText(turn.parts)
     const footer = isYoloMode(request.sources) ? buildSourcesFooter(turn.toolCalls) : null
     if (footer) turn.sendText(footer)
 
-    const finalText = turn.parts
-      .filter(p => p.type === 'text')
-      .map(p => p.content)
-      .join('')
+    const finalText = collectText(turn.parts)
     if (await isKnowledgeBaseConfigured()) {
       const feedbackId = storePendingFeedback(request.message, finalText)
       sendEvent(res, { type: 'feedback_id', feedbackId })
@@ -506,6 +534,7 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
         { role: 'assistant', parts: turn.parts },
       ],
     })
+    notifyIfClientLeft(turnContext, answer)
 
     await recordAgentRun({
       channel: AGENT_CHANNEL_WEB,
@@ -559,6 +588,7 @@ export default function chatRoute(conversationStore) {
     const { error, value: parsedRequest } = parseChatRequest(req.body)
     if (error) return res.status(400).json({ error })
 
+    const hasClientLeft = watchClientDisconnect(res)
     const userId = req.user.id
     const prerequisites = await loadPrerequisites(parsedRequest, userId)
     if (prerequisites.error) return res.status(prerequisites.status).json({ error: prerequisites.error })
@@ -600,6 +630,7 @@ export default function chatRoute(conversationStore) {
       agentInput,
       turn: createTurnStream(res),
       context,
+      hasClientLeft,
     }
     await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
       return runChatTurn(turnContext, conversation)

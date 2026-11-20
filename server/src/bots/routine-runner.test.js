@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('../db/bots.js', () => ({ getBot: vi.fn(), incrementBotUnread: vi.fn() }))
 vi.mock('../db/routines.js', () => ({ storeRoutineResult: vi.fn() }))
 vi.mock('../schedules/unattended-run.js', () => ({ loadCustomInstructions: vi.fn(), runUnattended: vi.fn() }))
+vi.mock('../push/notify.js', async importOriginal => ({ ...(await importOriginal()), notifyUser: vi.fn() }))
 
 const { getBot, incrementBotUnread } = await import('../db/bots.js')
 const { storeRoutineResult } = await import('../db/routines.js')
 const { loadCustomInstructions, runUnattended } = await import('../schedules/unattended-run.js')
+const { notifyUser } = await import('../push/notify.js')
 const { runBotRoutine } = await import('./routine-runner.js')
 
 const NOW = new Date('2026-11-17T16:00:30Z')
@@ -47,6 +49,7 @@ beforeEach(() => {
   incrementBotUnread.mockResolvedValue(undefined)
   storeRoutineResult.mockResolvedValue(undefined)
   loadCustomInstructions.mockResolvedValue('Be brief.')
+  notifyUser.mockResolvedValue(1)
   runUnattended.mockResolvedValue({
     answer: 'Three new tickets, one urgent.',
     text: 'Three new tickets, one urgent.\n\n---\n_Sources consulted: Zendesk_',
@@ -134,6 +137,18 @@ describe('runBotRoutine', () => {
     expect(storeRoutineResult).toHaveBeenCalledWith(9, 'Three new tickets, one urgent.')
   })
 
+  it('notifies the owner with the bot name, the report without its footer and a link to the bot chat', async () => {
+    await runBotRoutine(ROUTINE, makeStore())
+
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser).toHaveBeenCalledWith(7, {
+      title: 'Ticket triager',
+      body: 'Three new tickets, one urgent.',
+      url: '/bots/4',
+      tag: 'bot-4',
+    })
+  })
+
   it('keeps at most 4000 characters of the report for the next run and the session, and all of it in the chat', async () => {
     const store = makeStore()
     runUnattended.mockResolvedValue({ answer: 'x'.repeat(5000), text: 'x'.repeat(5000), wrappedUp: false })
@@ -157,6 +172,7 @@ describe('runBotRoutine', () => {
       expect(store.saveTurn).not.toHaveBeenCalled()
       expect(incrementBotUnread).not.toHaveBeenCalled()
       expect(storeRoutineResult).not.toHaveBeenCalled()
+      expect(notifyUser).not.toHaveBeenCalled()
     }
   )
 
@@ -186,6 +202,13 @@ describe('runBotRoutine', () => {
     })
     expect(incrementBotUnread).toHaveBeenCalledWith(4)
     expect(storeRoutineResult).not.toHaveBeenCalled()
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser).toHaveBeenCalledWith(7, {
+      title: 'Ticket triager',
+      body: 'The routine "Ticket triage" could not run.',
+      url: '/bots/4',
+      tag: 'bot-4',
+    })
   })
 
   it('does not promise another try for a one-off routine', async () => {
@@ -198,7 +221,7 @@ describe('runBotRoutine', () => {
     expect(uiMessages[0].parts[1]).toEqual({ type: 'error', content: 'I could not run this routine.' })
   })
 
-  it('still rethrows the run failure when the chat cannot be told', async () => {
+  it('still notifies the owner and rethrows the run failure when the chat cannot be told', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const store = makeStore()
     store.saveTurn.mockRejectedValue(new Error('db down'))
@@ -210,6 +233,8 @@ describe('runBotRoutine', () => {
       '[bots] Failed to report a failed routine run in the chat:',
       expect.objectContaining({ message: 'db down' })
     )
+    expect(notifyUser).toHaveBeenCalledTimes(1)
+    expect(notifyUser.mock.calls[0][1].body).toBe('The routine "Ticket triage" could not run.')
     consoleError.mockRestore()
   })
 
@@ -221,5 +246,6 @@ describe('runBotRoutine', () => {
 
     expect(runUnattended).not.toHaveBeenCalled()
     expect(store.saveTurn).not.toHaveBeenCalled()
+    expect(notifyUser).not.toHaveBeenCalled()
   })
 })

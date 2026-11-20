@@ -10,7 +10,7 @@ describe('BentoSection', () => {
     expect(screen.getByRole('heading', { level: 2, name: /when the answer is a deliverable/i })).toBeInTheDocument()
   })
 
-  it('shows one card per capability, with the bigger demos spanning two columns', () => {
+  it('shows one card per capability, with the bigger demos spanning two columns and the app closing the grid', () => {
     const { container } = render(<BentoSection />)
 
     const titles = screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)
@@ -21,8 +21,11 @@ describe('BentoSection', () => {
       'Ask for a chart, keep a live dashboard',
       'Product videos from a brief',
       'Specialists behind one assistant',
+      'Soporti in your dock and in your pocket',
     ])
     expect(container.querySelectorAll('.lp-bento-card--wide')).toHaveLength(3)
+    expect(container.querySelectorAll('.lp-bento-card--landscape')).toHaveLength(1)
+    expect(container.querySelector('.lp-bento-card--landscape')).toHaveTextContent(/install it on desktop or phone/i)
   })
 
   it('follows the pointer with the spotlight of every card', () => {

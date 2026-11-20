@@ -29,4 +29,17 @@ describe('BentoCard', () => {
     expect(card).toHaveClass('lp-bento-card--wide')
     expect(card.style.getPropertyValue('--i')).toBe('3')
   })
+
+  it('lays its copy beside the visual when it is landscape', () => {
+    const { container } = render(
+      <BentoCard icon="download" kicker="App" title="In your pocket" description="Install it." isLandscape index={6}>
+        <p>Visual</p>
+      </BentoCard>
+    )
+
+    const card = container.querySelector('article')
+    expect(card).toHaveClass('lp-bento-card', 'lp-bento-card--landscape')
+    expect(card).not.toHaveClass('lp-bento-card--wide')
+    expect(screen.getByRole('heading', { level: 3, name: 'In your pocket' })).toBeInTheDocument()
+  })
 })

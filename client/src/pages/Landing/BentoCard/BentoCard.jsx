@@ -4,13 +4,24 @@ import './BentoCard.css'
 
 const KICKER_ICON_SIZE = 14
 
-export default function BentoCard({ icon, kicker, title, description, isWide = false, index = 0, children }) {
+function cardClassName({ isWide, isLandscape }) {
+  const modifiers = [isWide && 'lp-bento-card--wide', isLandscape && 'lp-bento-card--landscape']
+
+  return ['lp-bento-card', 'lp-rise', ...modifiers.filter(Boolean)].join(' ')
+}
+
+export default function BentoCard({
+  icon,
+  kicker,
+  title,
+  description,
+  isWide = false,
+  isLandscape = false,
+  index = 0,
+  children,
+}) {
   return (
-    <article
-      className={`lp-bento-card lp-rise${isWide ? ' lp-bento-card--wide' : ''}`}
-      style={staggerStyle(index)}
-      data-spotlight=""
-    >
+    <article className={cardClassName({ isWide, isLandscape })} style={staggerStyle(index)} data-spotlight="">
       <div className="lp-bento-card__visual">{children}</div>
       <div className="lp-bento-card__copy">
         <span className="lp-bento-card__kicker">

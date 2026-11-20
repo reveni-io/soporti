@@ -93,6 +93,10 @@ import {
   getAnalyticsCardData,
   runAnalyticsQuery,
   saveAnalyticsLayout,
+  getPushPublicKey,
+  savePushSubscription,
+  deletePushSubscription,
+  sendTestPush,
 } from './services.js'
 
 const ORIGINAL_BASE = import.meta.env.VITE_API_URL
@@ -1051,5 +1055,63 @@ describe('analytics', () => {
     expect(url).toBe(`/api/analytics/dashboards/${DASHBOARD_ID}/layout`)
     expect(options.method).toBe('PUT')
     expect(JSON.parse(options.body)).toEqual({ items })
+  })
+})
+
+describe('push notifications', () => {
+  const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc'
+
+  it('loads the public key the browser subscribes with', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ publicKey: 'BKey' }))
+
+    await expect(getPushPublicKey('tok')).resolves.toEqual({ publicKey: 'BKey' })
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/push/key')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('saves the endpoint and keys of a subscription and drops its expiration time', async () => {
+    const subscription = { endpoint: ENDPOINT, expirationTime: null, keys: { p256dh: 'p256', auth: 'secret' } }
+
+    await savePushSubscription('tok', subscription)
+
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/push/subscriptions')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ endpoint: ENDPOINT, keys: { p256dh: 'p256', auth: 'secret' } })
+  })
+
+  it('surfaces why the server refused a subscription', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(400, { error: 'Unsupported push service.' }))
+
+    await expect(savePushSubscription('tok', { endpoint: ENDPOINT, keys: {} })).rejects.toMatchObject({
+      message: 'Unsupported push service.',
+      status: 400,
+    })
+  })
+
+  it('deletes a subscription by its endpoint', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => Promise.reject(new Error()) })
+
+    await expect(deletePushSubscription('tok', ENDPOINT)).resolves.toEqual({})
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/push/subscriptions')
+    expect(options.method).toBe('DELETE')
+    expect(JSON.parse(options.body)).toEqual({ endpoint: ENDPOINT })
+  })
+
+  it('asks the server to send a test notification', async () => {
+    global.fetch = vi.fn().mockResolvedValue(ok({ sent: 2 }))
+
+    await expect(sendTestPush('tok')).resolves.toEqual({ sent: 2 })
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/push/test')
+    expect(options.method).toBe('POST')
+  })
+
+  it('falls back to a readable message when the test notification fails without one', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(500))
+
+    await expect(sendTestPush('tok')).rejects.toThrow('Failed to send the test notification')
   })
 })

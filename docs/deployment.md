@@ -177,6 +177,22 @@ Two interchangeable options:
   base64 (≈3.75 MB raw) — lower `MAX_IMAGE_MB` in `server/src/constants.js` and
   `client/src/constants.js` together if you point the app at either.
 
+## Installable app and notifications
+
+The web app installs as a PWA: a service worker (`/sw.js`) receives push
+notifications, handles files shared to Soporti and keeps the last loaded app
+shell for offline starts. Nothing needs configuring — the server generates its
+VAPID keys and stores them in the database.
+
+- **HTTPS is required** for the service worker and for push (`localhost` is
+  exempt, so a local production build works over plain HTTP).
+- The client must serve `/sw.js` and `/manifest.webmanifest` from the **root of
+  the client origin**. The bundled nginx config does, and sends them and
+  `index.html` with `Cache-Control: no-cache` so a deploy reaches installed apps
+  right away; on a static host, don't give those three files a long cache life.
+- The service worker is registered only by production builds, never under
+  `npm run dev`.
+
 ## One-click deploys
 
 The README carries two deploy buttons. Each reads a manifest committed in this

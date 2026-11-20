@@ -4,10 +4,14 @@ import { useArtifacts } from './hooks/useArtifacts/useArtifacts.js'
 import { useBots } from './hooks/useBots/useBots.js'
 import { useChatView } from './hooks/useChatView/useChatView.js'
 import { useOpenBot } from './hooks/useOpenBot/useOpenBot.js'
+import { useConversationLink } from './hooks/useConversationLink/useConversationLink.js'
+import { useLinkParam } from './hooks/useLinkParam/useLinkParam.js'
+import { useAppBadge } from './hooks/useAppBadge/useAppBadge.js'
 import { useArtifactShare } from '../../hooks/useArtifactShare/useArtifactShare.js'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
 import { useAuthedResource } from '../../hooks/useAuthedResource/useAuthedResource.js'
+import { usePushNotifications } from './hooks/usePushNotifications/usePushNotifications.js'
 import { useSkills } from '../../hooks/useSkills/useSkills.js'
 import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
@@ -23,7 +27,7 @@ import BotsIntro from './BotsIntro/BotsIntro.jsx'
 import BotNotFound from './BotNotFound/BotNotFound.jsx'
 import BotFormModal from './BotFormModal/BotFormModal.jsx'
 import RoutinesModal from './RoutinesModal/RoutinesModal.jsx'
-import { DEFAULT_PROFILE, YOLO_SOURCE } from '../../constants.js'
+import { DEFAULT_PROFILE, SHARED_PARAM, YOLO_SOURCE } from '../../constants.js'
 import { absoluteAppUrl, createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
 
@@ -34,6 +38,10 @@ const BOT_SOURCES = [YOLO_SOURCE]
 
 function hasUnread(bot) {
   return bot.unreadCount > 0
+}
+
+function unreadTotal(bots) {
+  return bots.reduce((total, bot) => total + bot.unreadCount, 0)
 }
 
 export default function Chat({ initialQuestion = '' }) {
@@ -102,6 +110,10 @@ export default function Chat({ initialQuestion = '' }) {
     reloadBots: bots.reload,
     onLogout: logout,
   })
+  useConversationLink(token, loadConversation)
+  useAppBadge(unreadTotal(bots.bots))
+  const sharedLink = useLinkParam(SHARED_PARAM)
+  const push = usePushNotifications(token, logout)
 
   if (!isAuthenticated) {
     return (
@@ -271,6 +283,8 @@ export default function Chat({ initialQuestion = '' }) {
             onOpenRoutines={() => setRoutinesOpen(true)}
             onEditBot={() => setBotForm(BOT_FORM_EDIT)}
             onBackToBots={view.showBots}
+            isShared={sharedLink.value !== null}
+            onSharedContentRead={sharedLink.clear}
           />
         </ScreenTransition>
       )}
@@ -308,6 +322,7 @@ export default function Chat({ initialQuestion = '' }) {
           skills={skills}
           selectedSources={selectedSources}
           onConnectionsChange={() => setIntegrationsReloadKey(key => key + 1)}
+          push={push}
         />
       )}
       {artifactsOpen && (

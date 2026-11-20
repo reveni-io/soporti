@@ -26,6 +26,7 @@ import legalRouter from './routes/legal.js'
 import botsRoute from './routes/bots.js'
 import videosRouter from './routes/videos.js'
 import analyticsRouter from './routes/analytics.js'
+import pushRouter from './routes/push.js'
 import mcpRoute from './mcp/route.js'
 import oauthRouter from './oauth/route.js'
 import { buildAuthorizationServerMetadata, buildProtectedResourceMetadata } from './oauth/metadata.js'
@@ -88,6 +89,7 @@ app.use('/api/legal', legalRouter)
 app.use('/api/bots', botsRoute(conversationStore))
 app.use('/api/videos', videosRouter)
 app.use('/api/analytics', analyticsRouter)
+app.use('/api/push', pushRouter)
 app.use(OAUTH_BASE_PATH, oauthRouter)
 app.use('/api/mcp', mcpRoute(conversationStore))
 

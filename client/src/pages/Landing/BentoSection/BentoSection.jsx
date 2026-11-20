@@ -1,5 +1,6 @@
 import ArtifactsPreview from '../ArtifactsPreview/ArtifactsPreview.jsx'
 import AnalyticsTile from '../AnalyticsTile/AnalyticsTile.jsx'
+import AppTile from '../AppTile/AppTile.jsx'
 import BentoCard from '../BentoCard/BentoCard.jsx'
 import BotsTile from '../BotsTile/BotsTile.jsx'
 import HighlightsGrid from '../HighlightsGrid/HighlightsGrid.jsx'
@@ -83,6 +84,16 @@ export default function BentoSection() {
           index={5}
         >
           <SubagentsTile />
+        </BentoCard>
+        <BentoCard
+          icon="download"
+          kicker="App"
+          title="Soporti in your dock and in your pocket"
+          description="Install it on desktop or phone. Get notified when a bot reports, an answer lands or a video is ready, and share screenshots into a chat."
+          isLandscape
+          index={6}
+        >
+          <AppTile />
         </BentoCard>
       </div>
 
