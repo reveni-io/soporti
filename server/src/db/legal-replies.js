@@ -1,4 +1,4 @@
-import { asc, count, inArray } from 'drizzle-orm'
+import { asc, inArray } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { legalReplies } from './schema.js'
 
@@ -27,10 +27,4 @@ export async function listLegalReplies(caseIds) {
     .from(legalReplies)
     .where(inArray(legalReplies.caseId, caseIds))
     .orderBy(asc(legalReplies.createdAt))
-}
-
-export async function countLegalReplies() {
-  const [row] = await getDb().select({ total: count() }).from(legalReplies)
-
-  return row?.total ?? 0
 }

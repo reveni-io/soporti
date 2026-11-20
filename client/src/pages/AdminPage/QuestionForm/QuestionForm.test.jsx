@@ -41,10 +41,10 @@ describe('QuestionForm', () => {
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[0])
 
     expect(screen.queryByLabelText('Answer 3')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('checkbox', { name: 'Warn Legal' })).toHaveLength(2)
+    expect(screen.getAllByRole('checkbox', { name: 'Warn' })).toHaveLength(2)
   })
 
-  it('edits a noul question with its Legal threshold', async () => {
+  it('edits a noul question with its warning threshold', async () => {
     const onSave = vi.fn()
     const question = {
       id: 'q2',
@@ -59,7 +59,7 @@ describe('QuestionForm', () => {
     render(
       <QuestionForm project="legal" title="Edit question 2" question={question} onSave={onSave} onCancel={vi.fn()} />
     )
-    const threshold = screen.getByLabelText('Warn Legal when the score is at least')
+    const threshold = screen.getByLabelText('Warn when the score is at least')
     expect(threshold).toHaveValue('60')
 
     await user.clear(threshold)

@@ -261,6 +261,7 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -377,6 +378,7 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -401,6 +403,7 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -662,6 +665,7 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -748,6 +752,7 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
+      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -841,6 +846,47 @@ describe('POST /api/chat', () => {
         ]),
       })
     )
+  })
+
+  it('streams the guard results as parts and keeps them in the conversation', async () => {
+    const legalCase = { id: 41, guard: 'Legal', source: 'zendesk', ticketId: '48213', status: 'checked' }
+    const check = { guard: 'Payments', status: 'checked', reason: null, warnings: 1, review: { rows: [] } }
+    createAgent.mockImplementationOnce(async (_sources, _profile, { guardCases }) => {
+      guardCases.onChecked({ kind: 'case', case: legalCase })
+      guardCases.onChecked({ kind: 'check', check })
+      return { name: 'Soporti' }
+    })
+    run.mockResolvedValue(
+      createStreamMock([
+        {
+          type: 'run_item_stream_event',
+          item: {
+            type: 'tool_call_item',
+            rawItem: { name: 'ask_guard', arguments: '{"guard":"Legal"}', callId: 'call-1' },
+          },
+        },
+        {
+          type: 'run_item_stream_event',
+          item: { type: 'tool_call_output_item', rawItem: { callId: 'call-1' } },
+        },
+      ])
+    )
+
+    const res = await request(app).post('/').send({ message: 'pass the reply through the Legal guard' })
+
+    const parts = res.text
+      .split('\n\n')
+      .filter(line => line.startsWith('data: '))
+      .map(line => JSON.parse(line.replace('data: ', '')))
+      .filter(event => event.type === 'part')
+      .map(event => event.part)
+    const expected = [
+      { type: 'legal-run', cases: [legalCase] },
+      { type: 'guard-check', ...check },
+    ]
+    expect(parts).toEqual(expected)
+    const [, { uiMessages }] = conversationStore.saveTurn.mock.calls.at(-1)
+    expect(uiMessages.at(-1).parts).toEqual(expect.arrayContaining(expected))
   })
 
   it('streams no artifact event when the tool published nothing, so the chat shows no dead card', async () => {

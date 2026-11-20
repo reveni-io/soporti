@@ -5,6 +5,7 @@ import AgentSteps from '../../AgentSteps/AgentSteps.jsx'
 import ArtifactCard from '../../ArtifactCard/ArtifactCard.jsx'
 import Citations from '../../Citations/Citations.jsx'
 import MarkdownContent from '../MarkdownContent/MarkdownContent.jsx'
+import GuardReview from '../GuardReview/GuardReview.jsx'
 import LegalRun from '../LegalRun/LegalRun.jsx'
 import { useCitations } from '../../../hooks/useCitations/useCitations.js'
 import { groupParts } from './group-parts.js'
@@ -85,6 +86,10 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, onLog
 
   if (part.type === 'steps') {
     return <AgentSteps steps={part.steps} active={isActive} />
+  }
+
+  if (part.type === 'guard-check') {
+    return <GuardReview guard={part.guard} review={part.review} warnings={part.warnings} reason={part.reason} />
   }
 
   if (part.type === 'legal-run') {

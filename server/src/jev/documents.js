@@ -1,10 +1,4 @@
-import {
-  JEV_GITHUB_DOCUMENT,
-  JEV_LEGAL_DOCUMENT,
-  JEV_QUESTION_CHOICE,
-  JEV_QUESTION_NOUL,
-  JEV_SETTINGS_DOCUMENT,
-} from '../constants.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_QUESTION_CHOICE, JEV_QUESTION_NOUL } from '../constants.js'
 import {
   DEFAULT_GITHUB_RULES,
   describeGithubChanges,
@@ -28,6 +22,7 @@ const MAX_LABEL_CHARS = 200
 const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
+const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
 const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
 
 const DEFAULT_SET = {
@@ -40,12 +35,12 @@ const DEFAULT_SET = {
 }
 
 const DEFAULT_DOCUMENTS = {
-  [JEV_SETTINGS_DOCUMENT]: { enabled: false },
   [JEV_GITHUB_DOCUMENT]: {
+    enabled: false,
     set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
     repos: [],
   },
-  [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET, allowSend: false },
+  [JEV_LEGAL_DOCUMENT]: { enabled: false, set: DEFAULT_SET, allowSend: false },
 }
 
 const SCALAR_CHANGES = [
@@ -230,17 +225,14 @@ const SET_PARSERS = [
 
 const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters], ['rules', parseGithubRules]]
 
-function parseJevSettings(data) {
-  if (typeof data?.enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
-
-  return { value: { enabled: data.enabled } }
-}
-
 function parseProject(data, setParsers) {
+  const enabled = data?.enabled ?? false
+  if (typeof enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
+
   const set = parseFields(data?.set, setParsers)
   if (set.error) return set
 
-  return { value: { set: set.value } }
+  return { value: { enabled, set: set.value } }
 }
 
 function parseLegalProject(data) {
@@ -264,7 +256,6 @@ function parseGithubProject(data) {
 }
 
 const DOCUMENT_PARSERS = new Map([
-  [JEV_SETTINGS_DOCUMENT, parseJevSettings],
   [JEV_GITHUB_DOCUMENT, parseGithubProject],
   [JEV_LEGAL_DOCUMENT, parseLegalProject],
 ])
@@ -311,11 +302,18 @@ function describeSendingChange(previous, next) {
   return [`Sending from Soporti ${next.allowSend ? 'on' : 'off'}`]
 }
 
-function describeChanges(previous, next) {
-  if (next.repos) return [...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
-  if (next.set) return [...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
+function describeCallsChange(previous, next) {
+  if (!('enabled' in next) || Boolean(previous.enabled) === next.enabled) return []
 
-  return previous.enabled === next.enabled ? [] : [`Jev calls ${next.enabled ? 'on' : 'off'}`]
+  return [`Jev calls ${next.enabled ? 'on' : 'off'}`]
+}
+
+function describeChanges(previous, next) {
+  const calls = describeCallsChange(previous, next)
+  if (next.repos)
+    return [...calls, ...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
+
+  return [...calls, ...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
 }
 
 function versionedSet(data) {
@@ -324,17 +322,10 @@ function versionedSet(data) {
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
 }
 
-function describeQueriesInUse(count) {
-  const queries = count === 1 ? '1 scheduled query has' : `${count} scheduled queries have`
+function findSaveError(previous, next, keyConfigured) {
+  if (next.enabled && !previous.enabled && !keyConfigured) return NO_KEY_CALLS_MESSAGE
 
-  return `Cannot delete the set: ${queries} Legal review on. They must turn it off first.`
-}
-
-function findSaveError(previous, next, inUseQueries) {
-  if (next.repos) return findGithubSaveError(previous, next)
-  if (next.set && next.set.questions.length === 0 && inUseQueries > 0) return describeQueriesInUse(inUseQueries)
-
-  return null
+  return next.repos ? findGithubSaveError(previous, next) : null
 }
 
 export function isJevDocument(id) {
@@ -342,7 +333,7 @@ export function isJevDocument(id) {
 }
 
 export function defaultJevDocument(id) {
-  return structuredClone(DEFAULT_DOCUMENTS[id])
+  return structuredClone(DEFAULT_DOCUMENTS[id] ?? null)
 }
 
 export function parseJevDocument(id, data) {
@@ -352,11 +343,11 @@ export function parseJevDocument(id, data) {
   return parse(data)
 }
 
-export function planJevSave(current, next, { restoredFrom = null, inUseQueries = 0 } = {}) {
+export function planJevSave(current, next, { restoredFrom = null, keyConfigured = true } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
 
-  const error = findSaveError(current.data, next, inUseQueries)
+  const error = findSaveError(current.data, next, keyConfigured)
   if (error) return { error }
 
   const snapshot = versionedSet(next)

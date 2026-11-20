@@ -34,15 +34,12 @@ const countJevCallsByProjectSince = vi.fn()
 const countJevCallsBySetVersion = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsByProjectSince, countJevCallsBySetVersion }))
 
-const countLegalSchedules = vi.fn()
-vi.mock('../db/schedules.js', () => ({ countLegalSchedules }))
+const countCasesByGuardSince = vi.fn()
+const countSentRepliesByGuardSince = vi.fn()
+vi.mock('../db/legal-cases.js', () => ({ countCasesByGuardSince, countSentRepliesByGuardSince }))
 
-const countLegalRuns = vi.fn()
-const listUncheckedLegalRuns = vi.fn()
-vi.mock('../db/legal-cases.js', () => ({ countLegalRuns, listUncheckedLegalRuns }))
-
-const countLegalReplies = vi.fn()
-vi.mock('../db/legal-replies.js', () => ({ countLegalReplies }))
+const listGuards = vi.fn()
+vi.mock('../guards/registry.js', () => ({ listGuards }))
 
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
@@ -69,6 +66,10 @@ const LEGAL_SET = {
   questions: [{ id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }],
 }
 
+const LEGAL_GUARD = { id: 'legal', name: 'Legal', questions: 1, model: 'jev-latest', setVersion: 3 }
+const GITHUB_GUARD = { id: 'github', name: 'GitHub PRs', questions: 0, model: '', setVersion: 0 }
+const GUARDS = [LEGAL_GUARD, GITHUB_GUARD]
+
 let stored = {}
 
 beforeEach(() => {
@@ -82,7 +83,7 @@ beforeEach(() => {
   })
   getJevDocument.mockResolvedValue({ id: 'jev', rev: 1, data: { enabled: true }, setVersion: 0 })
   getLatestJevSave.mockResolvedValue(null)
-  countLegalSchedules.mockResolvedValue(0)
+  listGuards.mockResolvedValue(GUARDS)
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -179,18 +180,6 @@ describe('POST /api/admin/config/jev/test', () => {
     expect(listModels).not.toHaveBeenCalled()
   })
 
-  it('asks to turn the Jev calls on before testing', async () => {
-    stored[JEV_API_KEY_KEY] = 'jev-secret'
-    getJevDocument.mockResolvedValue(null)
-
-    const res = await request(app).post('/api/admin/config/jev/test')
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Jev calls are off. Turn them on and save before testing.' })
-    expect(getJevDocument).toHaveBeenCalledWith('jev')
-    expect(listModels).not.toHaveBeenCalled()
-  })
-
   it('reports the latency of a successful call', async () => {
     stored[JEV_API_KEY_KEY] = 'jev-secret'
     listModels.mockResolvedValue([LATEST])
@@ -270,7 +259,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
     expect(res.body).toEqual({
       id: 'legal',
       rev: 0,
-      data: { set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
+      data: { enabled: false, set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
       setVersion: 0,
       savedAt: null,
       savedBy: null,
@@ -305,7 +294,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
   it('returns 500 when the document cannot be read', async () => {
     getJevDocument.mockRejectedValue(new Error('db down'))
 
-    const res = await request(app).get('/api/admin/config/jev/documents/jev')
+    const res = await request(app).get('/api/admin/config/jev/documents/legal')
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to load the settings.' })
@@ -331,19 +320,44 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(options.defaults.set.questions).toEqual([])
     const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
+      data: { enabled: false, set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
       change: 'Questions; Min confidence 0.7 → 0.75',
       set: { model: 'jev-latest', minConfidence: 0.75, questions: [parsedQuestion] },
     })
   })
 
+  it('keeps the calls of a guard off until an API key is saved', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
+
+    await request(app)
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
+
+    const [, options] = saveJevDocument.mock.calls[0]
+    expect(options.plan({ rev: 1, data: { enabled: false, set: LEGAL_SET } })).toEqual({
+      error: 'Save the API key before turning Jev calls on.',
+    })
+  })
+
+  it('has no shared settings document to save, only its history', async () => {
+    listJevHistory.mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 5 })
+
+    const save = await request(app)
+      .put('/api/admin/config/jev/documents/jev')
+      .send({ rev: 1, data: { enabled: true } })
+    const history = await request(app).get('/api/admin/config/jev/documents/jev/history')
+
+    expect(save.status).toBe(404)
+    expect(history.status).toBe(200)
+  })
+
   it('returns 409 with who saved the newer version', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: true, document: { id: 'jev', rev: 6, data: {}, setVersion: 0 } })
+    saveJevDocument.mockResolvedValue({ conflict: true, document: { id: 'legal', rev: 6, data: {}, setVersion: 0 } })
     getLatestJevSave.mockResolvedValue({ at: SAVED_AT, author: 'luis@example.com', change: 'Jev calls off', rev: 6 })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 5, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 5, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(409)
     expect(res.body).toEqual({
@@ -354,9 +368,9 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
 
   it.each([
     [{ data: { enabled: true } }, '"rev" must be the version you edited.'],
-    [{ rev: 1, data: { enabled: 'on' } }, '"enabled" must be true or false.'],
+    [{ rev: 1, data: { enabled: 'on', set: LEGAL_SET } }, '"enabled" must be true or false.'],
   ])('rejects %j', async (body, error) => {
-    const res = await request(app).put('/api/admin/config/jev/documents/jev').send(body)
+    const res = await request(app).put('/api/admin/config/jev/documents/legal').send(body)
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error })
@@ -367,8 +381,8 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     saveJevDocument.mockRejectedValue(new Error('db down'))
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 1, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(500)
     expect(res.body).toEqual({ error: 'Failed to save the settings.' })
@@ -412,32 +426,32 @@ describe('GET /api/admin/config/jev/documents/:id/history', () => {
   })
 })
 
-describe('GET /api/admin/config/jev/usage', () => {
-  it('counts the calls of each project in the last 30 days', async () => {
+describe('GET /api/admin/config/jev/guards', () => {
+  it('lists every guard with its calls, cases and sent replies of the last 30 days', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
     countJevCallsByProjectSince.mockResolvedValue([{ project: 'legal', calls: 41 }])
+    countCasesByGuardSince.mockResolvedValue([{ guardId: 'legal', cases: 9 }])
+    countSentRepliesByGuardSince.mockResolvedValue([{ guardId: 'legal', replies: 4 }])
 
-    const res = await request(app).get('/api/admin/config/jev/usage')
+    const res = await request(app).get('/api/admin/config/jev/guards')
 
     vi.useRealTimers()
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({
-      projects: [
-        { id: 'github', calls: 0 },
-        { id: 'legal', calls: 41 },
-      ],
-    })
+    expect(res.body.guards).toEqual([
+      { ...LEGAL_GUARD, usage: { calls: 41, cases: 9, sentReplies: 4 } },
+      { ...GITHUB_GUARD, usage: { calls: 0, cases: 0, sentReplies: 0 } },
+    ])
     expect(countJevCallsByProjectSince).toHaveBeenCalledWith(new Date('2026-10-20T12:00:00.000Z'))
   })
 
-  it('returns 500 when the usage cannot be read', async () => {
-    countJevCallsByProjectSince.mockRejectedValue(new Error('db down'))
+  it('returns 500 when the guards cannot be read', async () => {
+    listGuards.mockRejectedValue(new Error('db down'))
 
-    const res = await request(app).get('/api/admin/config/jev/usage')
+    const res = await request(app).get('/api/admin/config/jev/guards')
 
     expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to load the Jev usage.' })
+    expect(res.body).toEqual({ error: 'Failed to load the guards.' })
   })
 })
 
@@ -468,8 +482,8 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
     saveJevDocument.mockResolvedValue({ conflict: false, error: 'Shadow first: acme/web must be saved in shadow.' })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/jev')
-      .send({ rev: 1, data: { enabled: true } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(422)
     expect(res.body).toEqual({ error: 'Shadow first: acme/web must be saved in shadow.' })
@@ -480,11 +494,12 @@ describe('GET /api/admin/config/jev/documents/:id/versions', () => {
   it('returns the requested page of set versions', async () => {
     const versions = { entries: [{ version: 2, at: SAVED_AT, author: 'ana@example.com', change: 'Questions' }] }
     listJevSetVersions.mockResolvedValue({ ...versions, total: 2, page: 1, pageSize: 5 })
+    countJevCallsBySetVersion.mockResolvedValue([])
 
     const res = await request(app).get('/api/admin/config/jev/documents/github/versions?page=1')
 
     expect(res.status).toBe(200)
-    expect(res.body.entries).toEqual(versions.entries)
+    expect(res.body.entries).toEqual([{ ...versions.entries[0], calls: 0 }])
     expect(listJevSetVersions).toHaveBeenCalledWith('github', 1)
   })
 })
@@ -577,22 +592,14 @@ describe('GET /api/admin/config/jev/github/shadow-stats', () => {
   })
 })
 
-describe('Legal in the Jev admin routes', () => {
-  it('refuses to empty the Legal set while scheduled queries use it', async () => {
-    countLegalSchedules.mockResolvedValue(3)
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 5, data: {}, setVersion: 4 } })
+describe('Guards in the Jev admin routes', () => {
+  it('has no document for other guards', async () => {
+    const res = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
 
-    await request(app)
-      .put('/api/admin/config/jev/documents/legal')
-      .send({ rev: 4, data: { set: { ...LEGAL_SET, questions: [] } } })
-
-    const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 4, data: { set: LEGAL_SET } })).toEqual({
-      error: 'Cannot delete the set: 3 scheduled queries have Legal review on. They must turn it off first.',
-    })
+    expect(res.status).toBe(404)
   })
 
-  it('adds the calls of each version of the Legal set', async () => {
+  it('adds the calls of each version of a guard', async () => {
     listJevSetVersions.mockResolvedValue({
       entries: [{ version: 2 }, { version: 1 }],
       total: 2,
@@ -601,63 +608,20 @@ describe('Legal in the Jev admin routes', () => {
     })
     countJevCallsBySetVersion.mockResolvedValue([{ setVersion: 2, calls: 17 }])
 
-    const res = await request(app).get('/api/admin/config/jev/documents/legal/versions')
+    const res = await request(app).get('/api/admin/config/jev/documents/github/versions')
 
     expect(res.body.entries).toEqual([
       { version: 2, calls: 17 },
       { version: 1, calls: 0 },
     ])
-    expect(countJevCallsBySetVersion).toHaveBeenCalledWith('legal')
+    expect(countJevCallsBySetVersion).toHaveBeenCalledWith('github')
   })
 
-  it('leaves the GitHub versions without calls', async () => {
-    listJevSetVersions.mockResolvedValue({ entries: [{ version: 1 }], total: 1, page: 1, pageSize: 5 })
+  it('leaves the versions of the shared settings without calls', async () => {
+    listJevSetVersions.mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 5 })
 
-    const res = await request(app).get('/api/admin/config/jev/documents/github/versions')
+    await request(app).get('/api/admin/config/jev/documents/jev/versions')
 
-    expect(res.body.entries).toEqual([{ version: 1 }])
     expect(countJevCallsBySetVersion).not.toHaveBeenCalled()
-  })
-
-  it('reports the Legal usage with a page of the runs Jev could not check', async () => {
-    const unchecked = {
-      entries: [
-        {
-          at: SAVED_AT,
-          query: 'Draft replies',
-          owner: 'ana@example.com',
-          setVersion: 7,
-          reasons: 'Jev error (HTTP 502)',
-        },
-      ],
-      total: 1,
-      page: 2,
-      pageSize: 5,
-    }
-    countLegalSchedules.mockResolvedValue(4)
-    countLegalRuns.mockResolvedValue({ checked: 27, notChecked: 6 })
-    listUncheckedLegalRuns.mockResolvedValue(unchecked)
-    countLegalReplies.mockResolvedValue(12)
-
-    const res = await request(app).get('/api/admin/config/jev/legal/usage?page=2')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ queriesOn: 4, checkedRuns: 27, uncheckedRuns: 6, sentReplies: 12, unchecked })
-    expect(listUncheckedLegalRuns).toHaveBeenCalledWith(2)
-  })
-
-  it('rejects an invalid page of the Legal usage', async () => {
-    const res = await request(app).get('/api/admin/config/jev/legal/usage?page=x')
-
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 500 when the Legal usage cannot be read', async () => {
-    countLegalRuns.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).get('/api/admin/config/jev/legal/usage')
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to load the Legal usage.' })
   })
 })

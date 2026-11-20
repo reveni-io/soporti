@@ -106,7 +106,7 @@ describe('LegalRun', () => {
   it('marks each answer that should make Legal careful, with the confidence that was too low', () => {
     render(<LegalRun cases={[CAREFUL]} />)
 
-    expect(screen.getByText('Legal review · set v7')).toBeInTheDocument()
+    expect(screen.getByText('Legal guard · set v7')).toBeInTheDocument()
     expect(screen.getByText('0.58 < 0.70')).toBeInTheDocument()
     expect(screen.getByText('no answer')).toBeInTheDocument()
     expect(screen.getAllByText('Careful')).toHaveLength(2)
@@ -201,11 +201,44 @@ describe('sending from Soporti', () => {
     expect(await screen.findByText(/^Sent by ana@example\.com · /)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sent' })).toBeDisabled()
     expect(screen.getByRole('textbox')).toHaveAttribute('readonly')
-    expect(within(screen.getAllByRole('table')[0]).getAllByRole('row')[1]).toHaveTextContent('Sent')
     expect(bodyOf('POST', '/api/legal/cases/41/replies')).toEqual({
       text: 'Hello, we issued your refund. Thanks.',
       warningsRead: false,
     })
+  })
+
+  it('sums up the run only when it has more than one case, with the sent ones', async () => {
+    mockLegalApi({
+      routes: {
+        'GET /api/legal/cases?ids=41,42': [
+          respond(200, {
+            cases: [
+              {
+                id: 41,
+                replies: [{ id: 7, sentBy: 'ana@example.com', text: 'Hi', sentAt: SENT_AT }],
+                send: { allowed: true },
+              },
+              { id: 42, replies: [], send: { allowed: true } },
+            ],
+          }),
+        ],
+      },
+    })
+
+    const { unmount } = render(
+      <LegalRun cases={[legalCase({ id: 41 }), legalCase({ id: 42, ticketId: '48214' })]} token="tok" />
+    )
+
+    const summary = screen.getAllByRole('table')[0]
+    await waitFor(() => expect(within(summary).getAllByRole('row')[1]).toHaveTextContent('Sent'))
+    expect(screen.getByRole('heading', { name: /^1\. Zendesk ticket 48213/ })).toBeInTheDocument()
+    unmount()
+
+    mockLegalApi()
+    render(<LegalRun cases={[legalCase({ id: 41 })]} token="tok" />)
+
+    expect(screen.getByRole('heading', { name: /^Zendesk ticket 48213/ })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Next step' })).not.toBeInTheDocument()
   })
 
   it('asks to confirm the warnings of a case that needs care', async () => {

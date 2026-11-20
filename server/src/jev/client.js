@@ -10,7 +10,7 @@ const FIRST_SERVER_ERROR = 500
 const MAX_ASK_ATTEMPTS = 3
 const FIRST_BACKOFF_MS = 500
 const TIMEOUT_ERROR = 'TimeoutError'
-const NOT_CONFIGURED_MESSAGE = 'Jev is not configured: save the API key in the admin panel (Jev section)'
+const NOT_CONFIGURED_MESSAGE = 'Jev is not configured: save the API key in the admin panel (Guards section)'
 
 export class JevApiError extends Error {
   constructor(message, status = null) {

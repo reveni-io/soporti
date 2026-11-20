@@ -1,5 +1,3 @@
-import { getJevDocument } from '../db/jev-documents.js'
-import { JEV_LEGAL_DOCUMENT } from '../constants.js'
 import { HUBSPOT_REQUEST_FAILED, getConversation, getRecord, replyToConversation } from '../hubspot/client.js'
 import { hasAreaAccess } from '../hubspot/permissions.js'
 import { resolveHubspotAccess } from '../hubspot/settings.js'
@@ -12,7 +10,8 @@ const READ_LEVEL = 'read'
 const PUBLIC_MESSAGE_TYPE = 'MESSAGE'
 const MAX_CONVERSATION_PAGES = 10
 
-export const LEGAL_SEND_OFF = 'Sending from Soporti is off. An admin can turn it on in the Legal section of the admin.'
+export const GUARD_SEND_OFF =
+  'Sending from Soporti is off for this guard. An admin can turn it on in the Guards section of the admin.'
 const ZENDESK_NOT_CONNECTED = 'Connect your Zendesk account in Settings to send replies and read tickets from Soporti.'
 const HUBSPOT_CANNOT_REPLY =
   'Your HubSpot user cannot reply from Soporti: replies in HubSpot conversations must be allowed in the HubSpot section of the admin.'
@@ -40,12 +39,6 @@ function asReplyError(err, fallback) {
   if (err.code === HUBSPOT_REQUEST_FAILED) return new LegalReplyError(err.message, { cause: err })
 
   return new LegalReplyError(fallback, { cause: err })
-}
-
-export async function isLegalSendAllowed() {
-  const document = await getJevDocument(JEV_LEGAL_DOCUMENT)
-
-  return document?.data?.allowSend === true
 }
 
 function hubspotAccess(userId) {

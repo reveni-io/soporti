@@ -10,7 +10,7 @@ const STAGE_REVIEWING = 2
 const STAGE_READY = 3
 const VIEW_THRESHOLD = 0.3
 
-const QUERY = 'Draft replies to the tickets Legal received yesterday'
+const QUERY = 'Draft replies to the tickets Legal received yesterday and pass each one through the Legal guard'
 const CASES = [
   { source: 'zendesk', ticket: 'Zendesk #48213', topic: 'Refund for order A-10234', status: 'No warnings' },
   { source: 'hubspot', ticket: 'HubSpot 9312', topic: 'Refund to another account', status: 'Careful · 2 warnings' },
@@ -43,7 +43,7 @@ export default function LegalRepliesDemo() {
 
   return (
     <div className="lp-legal-demo" ref={ref} aria-hidden="true">
-      <PreviewWindow title="Scheduled query · Legal review" badge={isReady ? 'Ready for Legal' : null}>
+      <PreviewWindow title="Scheduled query · Legal guard" badge={isReady ? 'Ready to send' : null}>
         <div className="lp-legal-demo__body">
           <p className="lp-legal-demo__query">{QUERY}</p>
 
@@ -67,7 +67,7 @@ export default function LegalRepliesDemo() {
             </ul>
           )}
 
-          {isReady && <p className="lp-legal-demo__footer">Nothing has been sent · Legal has the last word</p>}
+          {isReady && <p className="lp-legal-demo__footer">Nothing has been sent · a person has the last word</p>}
         </div>
       </PreviewWindow>
     </div>

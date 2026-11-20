@@ -37,6 +37,7 @@ import {
 } from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
 import { INTEGRATION_TOOL_NAMES } from './sources.js'
+import { buildGuardTools } from './guard-tools.js'
 import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
 import { parseTimeInput } from './clock.js'
@@ -1623,7 +1624,15 @@ export function buildAgentTools(policy, configured, context = {}) {
   const timeTools = buildTimeTools(context.timezone)
   const slackTools = context.slackConfigured ? [postSlackMessageTool] : []
   const routineTools = context.botId ? buildRoutineTools(context) : []
-  const sharedTools = [...integrationTools, ...artifactTools, ...timeTools, ...slackTools, ...routineTools]
+  const guardTools = context.guards?.length > 0 ? buildGuardTools(context) : []
+  const sharedTools = [
+    ...integrationTools,
+    ...artifactTools,
+    ...timeTools,
+    ...slackTools,
+    ...routineTools,
+    ...guardTools,
+  ]
 
   if (!policy || policy.unrestricted) return [...allTools, ...sharedTools]
 

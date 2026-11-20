@@ -31,6 +31,7 @@ import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { resolveHubspotAccess } from '../hubspot/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
+import { listChatGuards } from '../guards/registry.js'
 import * as shopify from '../shopify/client.js'
 
 function resolveBotRole(bot, { unattended }) {
@@ -59,6 +60,7 @@ export async function createAgent(
     timezone = null,
     bot = null,
     slackChannelId = null,
+    guardCases = null,
   } = {}
 ) {
   const userTimezone = canonicalizeTimezone(timezone)
@@ -89,6 +91,7 @@ export async function createAgent(
     catalogPrompt,
     subagents,
     mainAgentTools,
+    guards,
   ] = await Promise.all([
     isShortcutConfigured(),
     isSentryConfigured(),
@@ -112,6 +115,7 @@ export async function createAgent(
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
+    listChatGuards(),
   ])
   const configured = {
     shortcutConfigured,
@@ -146,6 +150,8 @@ export async function createAgent(
     hubspot: hubspotAccess,
     botId,
     profile,
+    guards,
+    guardCases,
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {

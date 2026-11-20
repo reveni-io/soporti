@@ -31,7 +31,7 @@ const db = { select: () => makeChain('select'), insert: () => makeChain('insert'
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { legalReplies } = await import('./schema.js')
-const { countLegalReplies, listLegalReplies, saveLegalReply } = await import('./legal-replies.js')
+const { listLegalReplies, saveLegalReply } = await import('./legal-replies.js')
 
 beforeEach(() => {
   queue = []
@@ -74,17 +74,5 @@ describe('listLegalReplies', () => {
   it('does not query without cases', async () => {
     expect(await listLegalReplies([])).toEqual([])
     expect(calls).toHaveLength(0)
-  })
-})
-
-describe('countLegalReplies', () => {
-  it('counts every reply sent from Soporti', async () => {
-    queue.push([{ total: 12 }])
-
-    expect(await countLegalReplies()).toBe(12)
-  })
-
-  it('returns 0 without rows', async () => {
-    expect(await countLegalReplies()).toBe(0)
   })
 })

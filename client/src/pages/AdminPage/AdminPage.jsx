@@ -129,6 +129,8 @@ export default function AdminPage() {
                   element={<section.Component token={token} onLogout={logout} />}
                 />
               ))}
+              <Route path="jev" element={<Navigate to={ROUTES.ADMIN_GUARDS} replace />} />
+              <Route path="legal" element={<Navigate to={ROUTES.ADMIN_GUARDS} replace />} />
               <Route path="*" element={<Navigate to={`/admin/${SECTIONS[0].path}`} replace />} />
             </Routes>
           </ScreenTransition>

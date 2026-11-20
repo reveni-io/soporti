@@ -31,15 +31,18 @@ function parseLegal(overrides) {
 }
 
 describe('isJevDocument', () => {
-  it('knows the settings and the two projects only', () => {
-    expect(['jev', 'github', 'legal'].every(isJevDocument)).toBe(true)
+  it('knows the two guards only', () => {
+    expect(['github', 'legal'].every(isJevDocument)).toBe(true)
+    expect(isJevDocument('jev')).toBe(false)
     expect(isJevDocument('toString')).toBe(false)
   })
 })
 
 describe('defaultJevDocument', () => {
-  it('keeps Jev calls off and gives each project its defaults', () => {
-    expect(defaultJevDocument('jev')).toEqual({ enabled: false })
+  it('keeps the Jev calls of each guard off and gives each one its defaults', () => {
+    expect(defaultJevDocument('legal').enabled).toBe(false)
+    expect(defaultJevDocument('github').enabled).toBe(false)
+    expect(defaultJevDocument('jev')).toBeNull()
     expect(defaultJevDocument('legal').set).toEqual({
       description: '',
       model: '',
@@ -91,15 +94,20 @@ describe('parseJevDocument', () => {
     expect(value.set.questions[0].flagAt).toBeNull()
   })
 
-  it('validates the Jev settings switch', () => {
-    expect(parseJevDocument('jev', { enabled: true })).toEqual({ value: { enabled: true } })
-    expect(parseJevDocument('jev', { enabled: 'yes' })).toEqual({ error: '"enabled" must be true or false.' })
+  it('validates the Jev calls switch of each guard, off by default', () => {
+    expect(parseJevDocument('legal', { enabled: true, set: legalSet() }).value.enabled).toBe(true)
+    expect(parseJevDocument('legal', { set: legalSet() }).value.enabled).toBe(false)
+    expect(parseJevDocument('github', { enabled: 'yes', set: legalSet(), repos: [] })).toEqual({
+      error: '"enabled" must be true or false.',
+    })
+    expect(parseJevDocument('jev', { enabled: true })).toEqual({ error: 'Unknown document.' })
   })
 
   it('parses the GitHub project with its rules and repos', () => {
     const github = { set: legalSet({ maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] }), repos: [] }
 
     expect(parseJevDocument('github', github).value).toEqual({
+      enabled: false,
       set: { ...parseLegal().value.set, maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] },
       repos: [],
     })
@@ -191,22 +199,28 @@ describe('planJevSave', () => {
     expect(planJevSave({ rev: 3, data: reordered }, parseLegal().value)).toBeNull()
   })
 
-  it('refuses to empty the Legal set while a scheduled query uses it, and lets it go when none does', () => {
+  it('lets the Legal set be emptied', () => {
     const empty = { set: legalSet({ questions: [] }) }
 
-    expect(planJevSave({ rev: 3, data: saved }, empty, { inUseQueries: 1 })).toEqual({
-      error: 'Cannot delete the set: 1 scheduled query has Legal review on. They must turn it off first.',
-    })
     expect(planJevSave({ rev: 3, data: saved }, empty).change).toBe('Questions')
   })
 
-  it('describes the Jev calls switch', () => {
-    expect(planJevSave({ rev: 1, data: { enabled: false } }, { enabled: true })).toEqual({
-      data: { enabled: true },
-      change: 'Jev calls on',
-      set: null,
+  it('describes the Jev calls switch of a guard', () => {
+    const off = parseLegal().value
+    const on = { ...off, enabled: true }
+
+    expect(planJevSave({ rev: 1, data: off }, on)).toEqual({ data: on, change: 'Jev calls on', set: null })
+    expect(planJevSave({ rev: 2, data: on }, off).change).toBe('Jev calls off')
+  })
+
+  it('refuses to turn the calls on without an API key, and lets them off', () => {
+    const off = parseLegal().value
+    const on = { ...off, enabled: true }
+
+    expect(planJevSave({ rev: 1, data: off }, on, { keyConfigured: false })).toEqual({
+      error: 'Save the API key before turning Jev calls on.',
     })
-    expect(planJevSave({ rev: 2, data: { enabled: true } }, { enabled: false }).change).toBe('Jev calls off')
+    expect(planJevSave({ rev: 2, data: on }, off, { keyConfigured: false }).change).toBe('Jev calls off')
   })
 })
 

@@ -740,6 +740,20 @@ describe('useChat', () => {
     ])
   })
 
+  it('adds the parts a guard leaves to the answer', async () => {
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockResolvedValue(stream.response)
+    const part = { type: 'guard-check', guard: 'Legal', warnings: 0, review: null, reason: 'off' }
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+    act(() => {
+      result.current.sendMessage('pass it through the Legal guard', { selectedSources: [], profile: 'support' })
+    })
+    stream.push({ type: 'part', part })
+
+    await waitFor(() => expect(result.current.messages[1].parts).toEqual([part]))
+  })
+
   describe('bot chats', () => {
     const GREETING = [{ role: 'assistant', parts: [{ type: 'text', content: 'Hi! I am Triager.' }] }]
 

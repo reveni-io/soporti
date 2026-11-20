@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { JEV_PROJECT_LABELS } from '../jev-projects.js'
+import { projectLabels } from '../jev-projects.js'
 import { blankAnswer, fromForm, QUESTION_CHOICE, QUESTION_NOUL, toForm } from './question-form.js'
 import './QuestionForm.css'
 
@@ -11,7 +11,7 @@ const TYPE_OPTIONS = [
 export default function QuestionForm({ project, title, question, onSave, onCancel }) {
   const [form, setForm] = useState(() => toForm(question))
   const [error, setError] = useState(null)
-  const labels = JEV_PROJECT_LABELS[project]
+  const labels = projectLabels(project)
 
   function update(field, value) {
     setForm(current => ({ ...current, [field]: value }))

@@ -15,7 +15,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Fix refund rounding for partial returns')
   })
 
-  it('shows the auto-approve, the Slack thread, the scheduled query and the Legal replies when they are picked', async () => {
+  it('shows the auto-approve, the Slack thread, the scheduled query and the replies checked by a guard when they are picked', async () => {
     const user = userEvent.setup()
     render(<AutomationsSection />)
 
@@ -30,7 +30,7 @@ describe('AutomationsSection', () => {
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Scheduled queries')
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'lp-automations-tab-schedule')
 
-    await user.click(screen.getByRole('tab', { name: /drafts replies for legal/i }))
+    await user.click(screen.getByRole('tab', { name: /drafts replies, checked by a guard/i }))
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Draft replies to the tickets Legal received yesterday')
   })
 

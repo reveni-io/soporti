@@ -464,6 +464,15 @@ describe('buildAgentTools', () => {
     expect(names(tools)).toContain('get_file_contents')
   })
 
+  it('registers ask_guard only when the chat has guards to use', () => {
+    const policy = { unrestricted: false, repos: [], integrations: [] }
+    const guards = [{ id: 'legal', name: 'Legal', description: '' }]
+
+    expect(names(buildAgentTools(policy, {}, { guards }))).toContain('ask_guard')
+    expect(names(buildAgentTools(policy, {}, { guards: [] }))).not.toContain('ask_guard')
+    expect(names(buildAgentTools(policy, {}, {}))).not.toContain('ask_guard')
+  })
+
   it('registers render_artifact for an unrestricted policy too', () => {
     const tools = buildAgentTools({ unrestricted: true, repos: [], integrations: [] }, {}, { conversationId: 'c-1' })
 

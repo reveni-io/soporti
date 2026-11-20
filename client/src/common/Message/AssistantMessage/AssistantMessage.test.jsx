@@ -135,6 +135,21 @@ describe('AssistantMessage', () => {
     expect(screen.getByText('Where is my refund?')).toBeInTheDocument()
   })
 
+  it('renders the review of a guard', () => {
+    const part = {
+      type: 'guard-check',
+      guard: 'Refunds',
+      status: 'not_checked',
+      warnings: 0,
+      review: null,
+      reason: 'no model',
+    }
+
+    render(<AssistantMessage message={{ parts: [part] }} isStreaming={false} />)
+
+    expect(screen.getByText('Not reviewed: no model.')).toBeInTheDocument()
+  })
+
   it('ignores an unknown part type', () => {
     const { container } = render(
       <AssistantMessage message={{ parts: [{ type: 'future_thing', content: 'x' }] }} isStreaming={false} />

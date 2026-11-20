@@ -8,10 +8,9 @@ vi.mock('../db/schedules.js', () => ({
   createSchedule: vi.fn(),
   updateSchedule: vi.fn(),
   deleteSchedule: vi.fn(),
-  setScheduleLegal: vi.fn(),
 }))
 
-const { listSchedules, countSchedules, createSchedule, updateSchedule, deleteSchedule, setScheduleLegal } =
+const { listSchedules, countSchedules, createSchedule, updateSchedule, deleteSchedule } =
   await import('../db/schedules.js')
 const { default: schedulesRouter } = await import('./schedules.js')
 
@@ -64,25 +63,6 @@ describe('schedules routes', () => {
   })
 
   describe('POST /', () => {
-    it('creates a query with the Legal review on, and off by default', async () => {
-      await request(app)
-        .post('/')
-        .send({ ...DAILY_BODY, legal: true })
-      await request(app).post('/').send(DAILY_BODY)
-
-      expect(createSchedule.mock.calls.map(([, schedule]) => schedule.legal)).toEqual([true, false])
-    })
-
-    it('rejects a Legal review that is not a boolean', async () => {
-      const res = await request(app)
-        .post('/')
-        .send({ ...DAILY_BODY, legal: 'yes' })
-
-      expect(res.status).toBe(400)
-      expect(res.body).toEqual({ error: '"legal" must be true or false.' })
-      expect(createSchedule).not.toHaveBeenCalled()
-    })
-
     it('creates a daily schedule and computes its next run', async () => {
       const res = await request(app).post('/').send(DAILY_BODY)
 
@@ -340,57 +320,5 @@ describe('schedules routes', () => {
 
       expect(res.status).toBe(500)
     })
-  })
-})
-
-describe('PATCH /:id/legal', () => {
-  let app
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    app = express()
-    app.use(express.json())
-    app.use((req, _res, next) => {
-      req.user = { id: 1 }
-      next()
-    })
-    app.use('/', schedulesRouter)
-  })
-
-  it('turns the Legal review of an owned query on or off', async () => {
-    setScheduleLegal.mockResolvedValue({ id: 3, legal: true })
-
-    const res = await request(app).patch('/3/legal').send({ legal: true })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ schedule: { id: 3, legal: true } })
-    expect(setScheduleLegal).toHaveBeenCalledWith(3, 1, true)
-  })
-
-  it.each([
-    ['/x/legal', { legal: true }, 'Invalid schedule ID.'],
-    ['/3/legal', { legal: 'on' }, '"legal" must be true or false.'],
-  ])('rejects %s %j', async (path, body, error) => {
-    const res = await request(app).patch(path).send(body)
-
-    expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error })
-  })
-
-  it('returns 404 for a query of someone else', async () => {
-    setScheduleLegal.mockResolvedValue(null)
-
-    const res = await request(app).patch('/3/legal').send({ legal: false })
-
-    expect(res.status).toBe(404)
-  })
-
-  it('returns 500 when the DB fails', async () => {
-    setScheduleLegal.mockRejectedValue(new Error('boom'))
-
-    const res = await request(app).patch('/3/legal').send({ legal: false })
-
-    expect(res.status).toBe(500)
   })
 })

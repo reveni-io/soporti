@@ -5,6 +5,8 @@ export const ROUTES = {
   BOTS: '/bots',
   BOT: '/bots/:botId',
   ADMIN: '/admin',
+  ADMIN_GUARDS: '/admin/guards',
+  ADMIN_GITHUB: '/admin/github',
   SHARE: '/share/:shareId',
   OAUTH_CONSENT: '/oauth/consent',
   LMSTFY: '/lmstfy',
