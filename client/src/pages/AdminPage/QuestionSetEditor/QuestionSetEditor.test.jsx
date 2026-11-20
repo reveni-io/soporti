@@ -54,12 +54,12 @@ function applyLastUpdate(state) {
 }
 
 describe('QuestionSetEditor', () => {
-  it('lists the questions with the answers that veto the approval', () => {
+  it('lists the questions with the answers that warn', () => {
     render(<QuestionSetEditor project="github" state={editorState()} catalog={CATALOG} inUseMessage={null} />)
 
     expect(screen.getByText('1. Does the change alter how money is refunded?')).toBeInTheDocument()
-    expect(screen.getByText('vetoes approval')).toBeInTheDocument()
-    expect(screen.getByText('vetoes at 70 or more')).toBeInTheDocument()
+    expect(screen.getByText('warns')).toBeInTheDocument()
+    expect(screen.getByText('warns at 70 or more')).toBeInTheDocument()
     expect(screen.getByText('set version 9')).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'jev-latest · Most recent stable release' })).toBeInTheDocument()
     expect(screen.getByLabelText('Max characters sent to Jev')).toHaveValue('100000')
@@ -148,7 +148,7 @@ describe('QuestionSetEditor', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     await user.click(screen.getAllByRole('button', { name: 'Edit' })[1])
-    await user.clear(screen.getByLabelText('Veto when the score is at least'))
+    await user.clear(screen.getByLabelText('Warn when the score is at least'))
     await user.click(screen.getByRole('button', { name: 'Save question' }))
     expect(applyLastUpdate(state).set.questions[1]).toEqual({ ...NOUL, flagAt: null })
 
@@ -164,17 +164,6 @@ describe('QuestionSetEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Delete set' }))
 
     expect(applyLastUpdate(state).set).toMatchObject({ description: '', questions: [] })
-  })
-
-  it('explains why a set in use cannot be deleted', async () => {
-    const state = editorState()
-    const user = userEvent.setup()
-
-    render(<QuestionSetEditor project="github" state={state} catalog={CATALOG} inUseMessage="Cannot delete the set." />)
-    await user.click(screen.getByRole('button', { name: 'Delete set' }))
-
-    expect(screen.getByText('Cannot delete the set.')).toBeInTheDocument()
-    expect(state.updateDraft).not.toHaveBeenCalled()
   })
 
   it('invites to add the first question', () => {

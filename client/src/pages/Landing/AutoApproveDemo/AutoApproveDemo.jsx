@@ -5,24 +5,24 @@ import { usePlayOnView } from '../hooks/usePlayOnView/usePlayOnView.js'
 import './AutoApproveDemo.css'
 
 const STAGE_CHECKING = 0
-const STAGE_RULES = 1
+const STAGE_FIRST_GUARD = 1
 const STAGE_ANSWERED = 2
 const STAGE_APPROVED = 3
 const VIEW_THRESHOLD = 0.3
 
 const PR = { number: 491, title: 'Clarify the return window on the help page', repo: 'acme/docs' }
 const CHECKS = [
-  { label: 'CI status', value: 'Passed', stage: STAGE_RULES },
-  { label: 'Blocking findings', value: 'None', stage: STAGE_RULES },
-  { label: 'Max merge risk ≤ Low', value: 'Low', stage: STAGE_RULES },
-  { label: 'Denylist', value: 'No match', stage: STAGE_RULES },
+  { label: 'Did every CI check pass?', value: 'Yes · 0.98', stage: STAGE_FIRST_GUARD },
+  { label: 'Did the review find a critical issue?', value: 'No · 0.97', stage: STAGE_FIRST_GUARD },
+  { label: 'What is the merge risk?', value: 'Low · 0.91', stage: STAGE_FIRST_GUARD },
+  { label: 'Does it change files REVIEW.md protects?', value: 'No · 0.95', stage: STAGE_FIRST_GUARD },
   { label: 'Does the change touch refunds?', value: 'No · 0.93', stage: STAGE_ANSWERED, isQuestion: true },
 ]
 const LOGO_SIZE = 14
 
 const playApproval = frameLoop([
   { frame: STAGE_CHECKING, ms: 1500 },
-  { frame: STAGE_RULES, ms: 1500 },
+  { frame: STAGE_FIRST_GUARD, ms: 1500 },
   { frame: STAGE_ANSWERED, ms: 1600 },
   { frame: STAGE_APPROVED, ms: 4400 },
 ])
@@ -66,7 +66,7 @@ export default function AutoApproveDemo() {
           {isApproved && (
             <div className="lp-approve-demo__verdict">
               <strong>✅ Auto-approve · approved</strong>
-              <span>No rule or question vetoed it, so Soporti approved the pull request.</span>
+              <span>The guards its REVIEW.md names raised no warning, so Soporti approved the pull request.</span>
             </div>
           )}
         </div>

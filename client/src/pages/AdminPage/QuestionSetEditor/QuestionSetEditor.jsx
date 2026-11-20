@@ -24,9 +24,8 @@ function modelOptions(models, current) {
   return [{ value: '', label: 'Choose a model' }, ...options]
 }
 
-export default function QuestionSetEditor({ project, state, catalog, inUseMessage }) {
+export default function QuestionSetEditor({ project, state, catalog }) {
   const [editing, setEditing] = useState(null)
-  const [message, setMessage] = useState(null)
   const labels = projectLabels(project)
   const set = state.draft.set
   const setVersion = state.document.setVersion
@@ -58,10 +57,6 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
   }
 
   function handleDeleteSet() {
-    if (inUseMessage) {
-      setMessage(inUseMessage)
-      return
-    }
     state.updateDraft(draft => ({ ...draft, set: { ...draft.set, description: '', questions: [] } }))
   }
 
@@ -167,7 +162,6 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         />
       )}
 
-      {message && <p className="alert alert--error">{message}</p>}
       <div className="admin__form admin__form--row">
         <button
           className="btn btn--secondary"

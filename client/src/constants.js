@@ -57,7 +57,7 @@ export const MAX_SUBAGENT_DESCRIPTION_LENGTH = 1000
 export const SUBAGENT_TOOL_PREFIX = 'ask_'
 
 export const JEV_SETTINGS_DOCUMENT = 'jev'
-export const JEV_GITHUB_DOCUMENT = 'github'
+export const AUTO_APPROVE_DOCUMENT = 'auto-approve'
 export const JEV_LEGAL_DOCUMENT = 'legal'
 
 export const AUTO_APPROVE_OFF = 'off'

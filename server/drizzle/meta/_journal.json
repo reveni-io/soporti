@@ -260,6 +260,13 @@
       "when": 1795189393354,
       "tag": "0036_guard_switches",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795190461486,
+      "tag": "0037_auto_approve_document",
+      "breakpoints": true
     }
   ]
 }

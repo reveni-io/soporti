@@ -47,7 +47,7 @@ describe('AutoApproveDemo', () => {
       vi.unstubAllGlobals()
     })
 
-    it('checks the rules, then the question, and approves only at the end', async () => {
+    it('checks the questions of one guard, then the next, and approves only at the end', async () => {
       const { container } = render(<AutoApproveDemo />)
       act(() => {
         observers.forEach(observer =>

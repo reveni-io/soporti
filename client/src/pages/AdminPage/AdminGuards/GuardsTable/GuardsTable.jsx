@@ -1,7 +1,4 @@
-import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
-
 function describeUse(guard) {
-  if (guard.id === JEV_GITHUB_DOCUMENT) return 'PR reviews of the auto-approve repos'
   if (guard.questions === 0 || !guard.model) return 'Not in the chat until it has questions and a model'
 
   return guard.description || 'No description'

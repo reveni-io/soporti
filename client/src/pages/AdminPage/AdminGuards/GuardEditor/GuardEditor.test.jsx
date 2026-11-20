@@ -16,9 +16,8 @@ const SET = {
   questions: [QUESTION],
 }
 const NO_ROWS = { entries: [], total: 0, page: 1, pageSize: 5 }
-const LEGAL = { id: 'legal', name: 'Legal', builtIn: true }
-const GITHUB = { id: 'github', name: 'GitHub PRs', builtIn: true }
-const PAYMENTS = { id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
+const LEGAL = { id: 'legal', name: 'Legal' }
+const PAYMENTS = { id: 'guard-0a1b2c3d', name: 'Payments' }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -57,12 +56,12 @@ describe('GuardEditor', () => {
     )
 
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
-    expect(screen.getByText(/apply the Legal guard/)).toBeInTheDocument()
+    expect(screen.getByText(/use the Legal guards/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Legal')
-    expect(screen.queryByRole('button', { name: /Delete guard/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/when a repo’s/)).toBeInTheDocument()
   })
 
   it('saves the guard and refreshes the list of guards', async () => {
@@ -82,34 +81,6 @@ describe('GuardEditor', () => {
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
     expect(JSON.parse(put[1].body).data.set.description).toBe('Replies to customers and emails')
-  })
-
-  it('shows the GitHub guard with its rules and denylists, without sending, and names the repos that use its set', async () => {
-    mockApi('github', {
-      set: { ...SET, maxCharacters: 100_000, rules: [{ id: 'denylist', role: 'veto' }] },
-      repos: [
-        { name: 'acme/web', mode: 'shadow', jev: true, denylist: ['src/payments/**'] },
-        { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
-      ],
-    })
-    const user = userEvent.setup()
-
-    render(
-      <MemoryRouter>
-        <GuardEditor token="tok" guard={GITHUB} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
-      </MemoryRouter>
-    )
-
-    expect(await screen.findByRole('link', { name: 'Admin → GitHub' })).toHaveAttribute('href', '/admin/github')
-    expect(screen.queryByRole('checkbox', { name: /Allow sending/ })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Set description')).toBeInTheDocument()
-    expect(screen.getByText('Rules', { selector: 'h2' })).toBeInTheDocument()
-    expect(screen.getByText('Denylist', { selector: '.review-rules__name' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('src/payments/**')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Delete set' }))
-
-    expect(screen.getByText(/Cannot delete the set: 1 auto-approve repo \(acme\/web\) use it/)).toBeInTheDocument()
   })
 
   it('renames a created guard and deletes it after a confirmation', async () => {

@@ -214,26 +214,21 @@ describe('renderReviewBody', () => {
   })
 
   it('keeps the comments line and adds the auto-approve block when auto-approve approved the PR', () => {
-    const autoApprove = {
-      repo: 'acme/web',
-      mode: 'on',
-      jevAsked: true,
-      approve: true,
-      decidedBy: 'jev',
-      reason: null,
-      pendingOnly: false,
+    const check = {
+      guard: 'GitHub Review PR',
+      answered: true,
       setVersion: 2,
-      model: 'jev-1.14.0',
+      model: 'jev-1',
       minConfidence: 0.75,
-      gates: [],
-      questions: [],
+      rows: [],
     }
+    const autoApprove = { repo: 'acme/web', mode: 'on', approve: true, decidedBy: 'jev', reason: null, checks: [check] }
 
     const body = renderReviewBody(review({ event: 'APPROVE', autoApprove }))
 
     expect(body.split('\n')[0]).toBe('**Actionable comments posted: 0**')
     expect(body).toContain('✅ Auto-approve · approved')
-    expect(body).toContain(', jev')
+    expect(body).toContain(', guards (GitHub Review PR)')
   })
 
   it('omits every empty section from a clean review', () => {

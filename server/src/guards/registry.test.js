@@ -7,7 +7,7 @@ const isConfigured = vi.fn()
 const areJevCallsEnabled = vi.fn()
 vi.mock('../jev/settings.js', () => ({ isConfigured, areJevCallsEnabled }))
 
-const { findGuardByName, listChatGuards, listGuards } = await import('./registry.js')
+const { findGuardByName, listUsableGuards, listGuards } = await import('./registry.js')
 
 function set(overrides = {}) {
   return {
@@ -44,54 +44,27 @@ beforeEach(() => {
 })
 
 describe('listGuards', () => {
-  it('lists the built-in guards first, then the created ones by name, and nothing else', async () => {
+  it('lists the stored guards by name, with the old ones named as before, and nothing else', async () => {
+    listJevDocuments.mockResolvedValue([
+      PAYMENTS,
+      LEGAL,
+      GITHUB,
+      ANALYTICS,
+      { id: 'auto-approve', rev: 1, data: { repos: [] } },
+    ])
+
     expect(await listGuards()).toEqual([
-      {
-        id: 'legal',
-        name: 'Legal',
-        builtIn: true,
-        description: 'Customer replies',
-        questions: 1,
-        model: 'jev-latest',
-        setVersion: 3,
-      },
-      {
-        id: 'github',
-        name: 'GitHub PRs',
-        builtIn: true,
-        description: '',
-        questions: 1,
-        model: 'jev-latest',
-        setVersion: 1,
-      },
-      {
-        id: 'guard-1a2b3c4d',
-        name: 'Analytics',
-        builtIn: false,
-        description: '',
-        questions: 1,
-        model: 'jev-latest',
-        setVersion: 1,
-      },
-      {
-        id: 'guard-0a1b2c3d',
-        name: 'Payments',
-        builtIn: false,
-        description: '',
-        questions: 0,
-        model: 'jev-latest',
-        setVersion: 0,
-      },
+      { id: 'guard-1a2b3c4d', name: 'Analytics', description: '', questions: 1, model: 'jev-latest', setVersion: 1 },
+      { id: 'github', name: 'GitHub PRs', description: '', questions: 1, model: 'jev-latest', setVersion: 1 },
+      { id: 'legal', name: 'Legal', description: 'Customer replies', questions: 1, model: 'jev-latest', setVersion: 3 },
+      { id: 'guard-0a1b2c3d', name: 'Payments', description: '', questions: 0, model: 'jev-latest', setVersion: 0 },
     ])
   })
 
-  it('shows a built-in guard that was never saved with its defaults', async () => {
+  it('has no guard before one is created', async () => {
     listJevDocuments.mockResolvedValue([])
 
-    expect(await listGuards()).toEqual([
-      expect.objectContaining({ id: 'legal', name: 'Legal', questions: 0, model: '', setVersion: 0 }),
-      expect.objectContaining({ id: 'github', name: 'GitHub PRs' }),
-    ])
+    expect(await listGuards()).toEqual([])
   })
 })
 
@@ -104,16 +77,16 @@ describe('findGuardByName', () => {
   })
 })
 
-describe('listChatGuards', () => {
-  it('offers the guards with questions and a model, never the GitHub one', async () => {
-    expect((await listChatGuards()).map(guard => guard.name)).toEqual(['Legal', 'Analytics'])
+describe('listUsableGuards', () => {
+  it('offers every guard with questions and a model', async () => {
+    expect((await listUsableGuards()).map(guard => guard.name)).toEqual(['Analytics', 'GitHub PRs', 'Legal'])
   })
 
   it('offers none while the Jev calls are off or there is no key', async () => {
     areJevCallsEnabled.mockResolvedValueOnce(false)
-    expect(await listChatGuards()).toEqual([])
+    expect(await listUsableGuards()).toEqual([])
 
     isConfigured.mockResolvedValueOnce(false)
-    expect(await listChatGuards()).toEqual([])
+    expect(await listUsableGuards()).toEqual([])
   })
 })

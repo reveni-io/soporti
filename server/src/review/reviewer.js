@@ -132,6 +132,7 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const { event, autoApprove } = await decideAutoApprove(
       {
         repo: autoApproveRepo,
+        standards,
         todayEvent: resolveEvent(team, notReviewed),
         pullRequest: { repoFullName, prNumber, headSha: reviewedSha, title: current.title, body: current.body },
         review: {

@@ -18,7 +18,7 @@ import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import {
   defaultJevDocument,
-  isCustomGuardId,
+  isGuardId,
   isJevDocument,
   parseGuardName,
   parseJevDocument,
@@ -338,14 +338,14 @@ router.post('/guards', async (req, res) => {
 
 router.delete('/guards/:guardId', async (req, res) => {
   const { guardId } = req.params
-  if (!isCustomGuardId(guardId)) return res.status(404).json({ error: 'Unknown guard.' })
+  if (!isGuardId(guardId)) return res.status(404).json({ error: 'Unknown guard.' })
 
   try {
     const document = await getJevDocument(guardId)
     if (!document) return res.status(404).json({ error: 'Unknown guard.' })
 
     await deleteJevDocument(guardId)
-    const change = `Deleted the ${document.data.name} guard`
+    const change = `Deleted the ${document.data.name ?? guardId} guard`
     await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
 
     res.status(204).end()

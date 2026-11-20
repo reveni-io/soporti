@@ -322,20 +322,22 @@ describe('runReview', () => {
   })
 
   it('lets the auto-approve settings of the repo decide the event, with the mode read at the start', async () => {
-    const repo = { name: 'acme-io/app', mode: 'on', jev: true, denylist: [] }
+    const repo = { name: 'acme-io/app', mode: 'on' }
+    const check = {
+      guard: 'GitHub Review PR',
+      answered: true,
+      setVersion: 9,
+      model: 'jev-1',
+      minConfidence: 0.75,
+      rows: [],
+    }
     const autoApprove = {
       repo: 'acme-io/app',
       mode: 'on',
-      jevAsked: true,
       approve: true,
       decidedBy: 'jev',
       reason: null,
-      pendingOnly: false,
-      setVersion: 9,
-      model: 'jev-1.14.0',
-      minConfidence: 0.75,
-      gates: [],
-      questions: [],
+      checks: [check],
     }
     mockLoadAutoApproveRepo.mockResolvedValueOnce(repo)
     mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
@@ -351,13 +353,14 @@ describe('runReview', () => {
       todayEvent: 'COMMENT',
       pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
       review: { findings: [], notReviewed: [], fixedThreads: [] },
+      standards: expect.objectContaining({ documents: expect.any(Array) }),
     })
     expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
     const posted = mockCreatePullRequestReview.mock.calls[0][2]
     expect(posted.event).toBe('APPROVE')
     expect(posted.body).toContain('✅ Auto-approve · approved')
     expect(posted.body).toContain('**Actionable comments posted: 0**')
-    expect(posted.body).toMatch(/\*\*Passes:\*\* .*, jev/)
+    expect(posted.body).toMatch(/\*\*Passes:\*\* .*, guards \(GitHub Review PR\)/)
   })
 
   it('downgrades an approve to COMMENT when a critical or major finding exists', async () => {

@@ -3,8 +3,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AutoApproveRepos from './AutoApproveRepos.jsx'
 
-const WEB = { name: 'acme/web', mode: 'off', jev: true, denylist: [] }
-const DOCS = { name: 'acme/docs', mode: 'shadow', jev: true, denylist: ['docs/legal/**', ''] }
+const WEB = { name: 'acme/web', mode: 'off' }
+const DOCS = { name: 'acme/docs', mode: 'shadow' }
 
 function reposState(repos = [WEB, DOCS], saved = repos) {
   return { document: { data: { repos: saved } }, draft: { repos }, updateDraft: vi.fn() }
@@ -23,11 +23,11 @@ beforeEach(() => {
 })
 
 describe('AutoApproveRepos', () => {
-  it('lists each repo with its behaviour and its own denylist', () => {
+  it('lists each repo with its behaviour', () => {
     render(
       <AutoApproveRepos
         token="tok"
-        state={reposState([WEB, DOCS, { ...DOCS, name: 'acme/api', mode: 'on', jev: false }])}
+        state={reposState([WEB, DOCS, { name: 'acme/api', mode: 'on' }])}
         onLogout={vi.fn()}
       />
     )
@@ -35,8 +35,7 @@ describe('AutoApproveRepos', () => {
     const rows = screen.getAllByRole('row')
     expect(within(rows[1]).getByText('Not evaluated')).toBeInTheDocument()
     expect(within(rows[2]).getByText('Logs but does not decide')).toBeInTheDocument()
-    expect(within(rows[2]).getByText('1 pattern')).toBeInTheDocument()
-    expect(within(rows[3]).getByText('Decides as today (Jev off)')).toBeInTheDocument()
+    expect(within(rows[3]).getByText('Approves when its guards raise no warning')).toBeInTheDocument()
     expect(screen.getByText(/Repos not in this list keep today’s behaviour/)).toBeInTheDocument()
   })
 
@@ -108,14 +107,11 @@ describe('AutoApproveRepos', () => {
     expect(state.updateDraft).not.toHaveBeenCalled()
   })
 
-  it('turns Jev off for a repo and removes a repo', async () => {
+  it('removes a repo', async () => {
     const state = reposState()
     const user = userEvent.setup()
 
     render(<AutoApproveRepos token="tok" state={state} onLogout={vi.fn()} />)
-    await user.click(screen.getByRole('checkbox', { name: 'Ask Jev about acme/web' }))
-    expect(lastRepos(state)[0].jev).toBe(false)
-
     await user.click(screen.getByRole('checkbox', { name: 'Select acme/docs' }))
     await user.click(screen.getByRole('button', { name: 'Remove acme/docs' }))
     expect(lastRepos(state)).toEqual([WEB])
@@ -127,56 +123,13 @@ describe('AutoApproveRepos', () => {
     const state = reposState()
     const user = userEvent.setup()
 
-    render(<AutoApproveRepos token="tok" state={state} keyConfigured onLogout={vi.fn()} />)
+    render(<AutoApproveRepos token="tok" state={state} onLogout={vi.fn()} />)
     await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/API')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
-    expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: true, denylist: [] })
+    expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off' })
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ name: 'acme/API' })
     expect(screen.getByRole('combobox', { name: 'Repository to add' })).toHaveValue('')
-  })
-
-  it('locks asking Jev about a repo, and adds repos with Jev off, until an API key is saved', async () => {
-    global.fetch = vi.fn().mockResolvedValue(respond(200, { fullName: 'acme/api' }))
-    const state = reposState([{ ...WEB, jev: false }, DOCS])
-    const user = userEvent.setup()
-
-    render(<AutoApproveRepos token="tok" state={state} onLogout={vi.fn()} />)
-
-    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/web' })).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/docs' })).toBeEnabled()
-    expect(
-      screen.getByText('Save the Jev API key in Admin → Guards before asking Jev about a repo.')
-    ).toBeInTheDocument()
-
-    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme/api')
-    await user.click(screen.getByRole('button', { name: 'Add repo' }))
-
-    expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: false, denylist: [] })
-  })
-
-  it('lets Jev be asked about any repo once an API key is saved', () => {
-    render(
-      <AutoApproveRepos token="tok" state={reposState([{ ...WEB, jev: false }])} keyConfigured onLogout={vi.fn()} />
-    )
-
-    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/web' })).toBeEnabled()
-    expect(screen.queryByText(/Save the Jev API key/)).not.toBeInTheDocument()
-  })
-
-  it('suggests, as you type, the repos the GitHub token can read that are not in the list yet', async () => {
-    const readableRepos = [{ fullName: 'acme/web' }, { fullName: 'acme/api' }, { fullName: 'Acme/Docs' }]
-    const user = userEvent.setup()
-
-    render(<AutoApproveRepos token="tok" state={reposState()} readableRepos={readableRepos} onLogout={vi.fn()} />)
-    await user.type(screen.getByRole('combobox', { name: 'Repository to add' }), 'acme')
-
-    const suggestions = within(screen.getByRole('listbox', { name: 'Repositories' })).getAllByRole('option')
-    expect(suggestions.map(option => option.textContent)).toEqual(['acme/api'])
-
-    await user.click(screen.getByRole('option', { name: 'acme/api' }))
-
-    expect(screen.getByRole('combobox', { name: 'Repository to add' })).toHaveValue('acme/api')
   })
 
   it.each([

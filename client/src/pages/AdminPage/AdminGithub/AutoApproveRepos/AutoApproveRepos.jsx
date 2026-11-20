@@ -4,23 +4,15 @@ import { useAutoApproveRepos } from '../hooks/useAutoApproveRepos/useAutoApprove
 import RepoOnModal from '../RepoOnModal/RepoOnModal.jsx'
 import RepoSearch from '../RepoSearch/RepoSearch.jsx'
 
-function countPatterns(denylist) {
-  const count = denylist.filter(pattern => pattern.trim()).length
-  if (count === 0) return <span className="admin__muted">none</span>
-
-  return `${count} pattern${count === 1 ? '' : 's'}`
-}
-
 function describeBehavior(repo) {
   if (repo.mode === AUTO_APPROVE_OFF) return <span className="admin__muted">Not evaluated</span>
-  if (!repo.jev) return <span className="badge">Decides as today (Jev off)</span>
   if (repo.mode === AUTO_APPROVE_SHADOW) return <span className="badge">Logs but does not decide</span>
 
-  return <span className="badge badge--success">Approves when every gate passes</span>
+  return <span className="badge badge--success">Approves when its guards raise no warning</span>
 }
 
-export default function AutoApproveRepos({ token, state, keyConfigured = false, readableRepos = [], onLogout }) {
-  const repos = useAutoApproveRepos(state, { token, onLogout, keyConfigured })
+export default function AutoApproveRepos({ token, state, readableRepos = [], onLogout }) {
+  const repos = useAutoApproveRepos(state, { token, onLogout })
   const [bulkMode, setBulkMode] = useState(AUTO_APPROVE_SHADOW)
   const [newRepo, setNewRepo] = useState('')
   const count = repos.repos.length
@@ -40,23 +32,19 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
     <>
       <p className="admin__muted">
         The mode of each repo decides whether the reviewer approves its PRs. <code>off</code>: not evaluated.{' '}
-        <code>shadow</code>: evaluated and logged, never approved. <code>on</code>: approved when no gate or question
-        vetoes it.
+        <code>shadow</code>: evaluated and logged, never approved. <code>on</code>: approved when the guards its{' '}
+        <code>REVIEW.md</code> names raise no warning.
       </p>
       <p className="admin__muted">
         Shadow first: a repo can be set to <code>on</code> only after it has been saved in <code>shadow</code>. Setting
         it to <code>on</code> then asks for confirmation with its shadow mode results. <code>off</code> and{' '}
-        <code>shadow</code> apply without confirmation. Every change is saved with the project below.
+        <code>shadow</code> apply without confirmation. Every change is saved with the bar below.
       </p>
       <p className="admin__muted">
-        Repos not in this list keep today’s behaviour: Soporti approves a PR when its review finds nothing blocking. A
-        repo with Jev off also decides as today.
+        Repos not in this list keep today’s behaviour: Soporti approves a PR when its review finds nothing blocking.
       </p>
 
-      <ReposTable repos={repos} keyConfigured={keyConfigured} />
-      {!keyConfigured && (
-        <p className="admin__muted">Save the Jev API key in Admin → Guards before asking Jev about a repo.</p>
-      )}
+      <ReposTable repos={repos} />
 
       <div className="admin__form admin__form--row">
         <span className="admin__muted">
@@ -115,7 +103,7 @@ export default function AutoApproveRepos({ token, state, keyConfigured = false, 
   )
 }
 
-function ReposTable({ repos, keyConfigured }) {
+function ReposTable({ repos }) {
   const count = repos.repos.length
   if (count === 0) return <p className="admin__muted">No repo has auto-approve yet.</p>
 
@@ -133,10 +121,6 @@ function ReposTable({ repos, keyConfigured }) {
     repos.requestMode([name], event.target.value)
   }
 
-  function handleJevChange(name, event) {
-    repos.updateRepo(name, { jev: event.target.checked })
-  }
-
   return (
     <div className="admin__table-wrap">
       <table className="admin__table">
@@ -147,8 +131,6 @@ function ReposTable({ repos, keyConfigured }) {
             </th>
             <th>Repository</th>
             <th>Mode</th>
-            <th>Jev</th>
-            <th>Own denylist</th>
             <th>Behavior</th>
             <th aria-label="Actions" />
           </tr>
@@ -181,16 +163,6 @@ function ReposTable({ repos, keyConfigured }) {
                   ))}
                 </select>
               </td>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={`Ask Jev about ${repo.name}`}
-                  checked={repo.jev}
-                  onChange={event => handleJevChange(repo.name, event)}
-                  disabled={!keyConfigured && !repo.jev}
-                />
-              </td>
-              <td>{countPatterns(repo.denylist)}</td>
               <td>{describeBehavior(repo)}</td>
               <td>
                 <button

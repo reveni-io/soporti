@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import QuestionForm from './QuestionForm.jsx'
 
 describe('QuestionForm', () => {
-  it('builds a choice question with an answer that vetoes the approval', async () => {
+  it('builds a choice question with an answer that warns', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
 
@@ -12,7 +12,7 @@ describe('QuestionForm', () => {
     await user.type(screen.getByPlaceholderText(/Does the change alter/), 'Does it touch refunds?')
     await user.type(screen.getByLabelText('Answer 1'), 'Yes')
     await user.type(screen.getByLabelText('Criteria of answer 1'), 'A refund path changes.')
-    await user.click(screen.getAllByRole('checkbox', { name: 'Veto approval' })[0])
+    await user.click(screen.getAllByRole('checkbox', { name: 'Warn' })[0])
     await user.type(screen.getByLabelText('Answer 2'), 'No')
     await user.click(screen.getByRole('button', { name: 'Save question' }))
 
@@ -28,7 +28,7 @@ describe('QuestionForm', () => {
         { label: 'No', criteria: '', flag: false },
       ],
     })
-    expect(screen.getByText(/Jev never approves: it can only veto/)).toBeInTheDocument()
+    expect(screen.getByText(/A guard never blocks anything: a person has the last word/)).toBeInTheDocument()
   })
 
   it('adds and removes answers', async () => {
@@ -82,7 +82,7 @@ describe('QuestionForm', () => {
     await user.selectOptions(screen.getByRole('combobox'), 'noul')
 
     expect(screen.queryByText('Write the question.')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Veto when the score is at least')).toBeInTheDocument()
+    expect(screen.getByLabelText('Warn when the score is at least')).toBeInTheDocument()
   })
 
   it('cancels without saving', async () => {

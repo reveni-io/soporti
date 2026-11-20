@@ -1,11 +1,11 @@
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_QUESTION_CHOICE, JEV_QUESTION_NOUL } from '../constants.js'
 import {
-  DEFAULT_GITHUB_RULES,
-  describeGithubChanges,
-  findGithubSaveError,
-  parseGithubRepos,
-  parseGithubRules,
-} from './github-project.js'
+  AUTO_APPROVE_DOCUMENT,
+  JEV_GITHUB_DOCUMENT,
+  JEV_LEGAL_DOCUMENT,
+  JEV_QUESTION_CHOICE,
+  JEV_QUESTION_NOUL,
+} from '../constants.js'
+import { describeGithubChanges, findGithubSaveError, parseGithubRepos } from './github-project.js'
 
 const DEFAULT_TIMEOUT_SECONDS = 30
 const DEFAULT_DAILY_LIMIT = 0
@@ -24,7 +24,8 @@ const CUSTOM_GUARD_RE = /^guard-[0-9a-f]{8}$/
 const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
-const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
+const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions']
+const LEGACY_GUARD_IDS = new Set([JEV_LEGAL_DOCUMENT, JEV_GITHUB_DOCUMENT])
 
 const DEFAULT_SET = {
   description: '',
@@ -32,15 +33,8 @@ const DEFAULT_SET = {
   minConfidence: null,
   timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
   dailyLimit: DEFAULT_DAILY_LIMIT,
+  maxCharacters: DEFAULT_MAX_CHARACTERS,
   questions: [],
-}
-
-const DEFAULT_DOCUMENTS = {
-  [JEV_GITHUB_DOCUMENT]: {
-    set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
-    repos: [],
-  },
-  [JEV_LEGAL_DOCUMENT]: { set: DEFAULT_SET },
 }
 
 const SCALAR_CHANGES = [
@@ -207,7 +201,7 @@ function parseDailyLimit(value) {
   })
 }
 
-function parseMaxCharacters(value) {
+function parseMaxCharacters(value = DEFAULT_MAX_CHARACTERS) {
   return parseWholeNumber(value, {
     min: 1,
     max: Number.MAX_SAFE_INTEGER,
@@ -221,10 +215,9 @@ const SET_PARSERS = [
   ['minConfidence', parseMinConfidence],
   ['timeoutSeconds', parseTimeoutSeconds],
   ['dailyLimit', parseDailyLimit],
+  ['maxCharacters', parseMaxCharacters],
   ['questions', parseQuestions],
 ]
-
-const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters], ['rules', parseGithubRules]]
 
 export function parseGuardName(value, { required = false } = {}) {
   if ((value === undefined || value === null) && !required) return { value: undefined }
@@ -232,38 +225,22 @@ export function parseGuardName(value, { required = false } = {}) {
   return parseText(value, { label: 'The name', max: MAX_NAME_CHARS, required: true })
 }
 
-function parseProject(data, setParsers, { nameRequired = false } = {}) {
+function parseGuard(data, { nameRequired }) {
   const name = parseGuardName(data?.name, { required: nameRequired })
   if (name.error) return name
 
-  const set = parseFields(data?.set, setParsers)
+  const set = parseFields(data?.set, SET_PARSERS)
   if (set.error) return set
 
   return { value: name.value === undefined ? { set: set.value } : { name: name.value, set: set.value } }
 }
 
-function parseLegalProject(data) {
-  return parseProject(data, SET_PARSERS)
-}
-
-function parseCustomGuard(data) {
-  return parseProject(data, SET_PARSERS, { nameRequired: true })
-}
-
-function parseGithubProject(data) {
-  const project = parseProject(data, GITHUB_SET_PARSERS)
-  if (project.error) return project
-
-  const repos = parseGithubRepos(data.repos)
+function parseAutoApprove(data) {
+  const repos = parseGithubRepos(data?.repos ?? [])
   if (repos.error) return repos
 
-  return { value: { ...project.value, repos: repos.value } }
+  return { value: { repos: repos.value } }
 }
-
-const DOCUMENT_PARSERS = new Map([
-  [JEV_GITHUB_DOCUMENT, parseGithubProject],
-  [JEV_LEGAL_DOCUMENT, parseLegalProject],
-])
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
@@ -306,9 +283,9 @@ function describeNameChange(previous, next) {
 }
 
 function describeChanges(previous, next) {
-  const setChanges = [...describeNameChange(previous, next), ...describeSetChanges(previous.set, next.set)]
+  if (next.repos) return describeGithubChanges(previous, next)
 
-  return next.repos ? [...describeGithubChanges(previous, next), ...setChanges] : setChanges
+  return [...describeNameChange(previous, next), ...describeSetChanges(previous.set, next.set)]
 }
 
 function versionedSet(data) {
@@ -325,21 +302,26 @@ export function isCustomGuardId(id) {
   return CUSTOM_GUARD_RE.test(id)
 }
 
+export function isGuardId(id) {
+  return LEGACY_GUARD_IDS.has(id) || isCustomGuardId(id)
+}
+
 export function isJevDocument(id) {
-  return DOCUMENT_PARSERS.has(id) || isCustomGuardId(id)
+  return id === AUTO_APPROVE_DOCUMENT || isGuardId(id)
 }
 
 export function defaultJevDocument(id) {
+  if (id === AUTO_APPROVE_DOCUMENT) return { repos: [] }
   if (isCustomGuardId(id)) return structuredClone({ name: '', set: DEFAULT_SET })
 
-  return structuredClone(DEFAULT_DOCUMENTS[id] ?? null)
+  return LEGACY_GUARD_IDS.has(id) ? structuredClone({ set: DEFAULT_SET }) : null
 }
 
 export function parseJevDocument(id, data) {
-  const parse = isCustomGuardId(id) ? parseCustomGuard : DOCUMENT_PARSERS.get(id)
-  if (typeof parse !== 'function') return { error: 'Unknown document.' }
+  if (id === AUTO_APPROVE_DOCUMENT) return parseAutoApprove(data)
+  if (!isGuardId(id)) return { error: 'Unknown document.' }
 
-  return parse(data)
+  return parseGuard(data, { nameRequired: isCustomGuardId(id) })
 }
 
 export function planJevSave(current, next, { restoredFrom = null } = {}) {

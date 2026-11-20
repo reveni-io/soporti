@@ -48,18 +48,6 @@ describe('useJevDocument', () => {
     expect(result.current.savedAt).toEqual(expect.any(Number))
   })
 
-  it('saves only the fields of the page when it edits part of the document', async () => {
-    const stored = { ...SAVED, data: { set: { description: 'Old' }, repos: [] } }
-    global.fetch = vi.fn().mockResolvedValueOnce(respond(200, stored)).mockResolvedValueOnce(respond(200, stored))
-
-    const { result } = renderHook(() => useJevDocument('tok', 'github', stableLogout, { fields: ['repos'] }))
-    await waitFor(() => expect(result.current.document).not.toBeNull())
-    act(() => result.current.updateDraft(draft => ({ ...draft, repos: [{ name: 'acme/web' }] })))
-    await act(() => result.current.save())
-
-    expect(JSON.parse(global.fetch.mock.calls[1][1].body).data).toEqual({ repos: [{ name: 'acme/web' }] })
-  })
-
   it('sends the restored version with the next save and forgets it after', async () => {
     const saved = { ...SAVED, rev: 3, setVersion: 2 }
     global.fetch = vi.fn().mockResolvedValueOnce(respond(200, SAVED)).mockResolvedValueOnce(respond(200, saved))

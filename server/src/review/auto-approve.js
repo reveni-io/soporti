@@ -1,27 +1,30 @@
+import path from 'node:path'
 import {
   AUTO_APPROVE_DECIDED_BY_JEV,
-  AUTO_APPROVE_INFO_ROLE,
+  AUTO_APPROVE_DECIDED_BY_NONE,
+  AUTO_APPROVE_DOCUMENT,
   AUTO_APPROVE_OFF,
   AUTO_APPROVE_ON,
   JEV_CHECK_ANSWERED,
-  JEV_GITHUB_DOCUMENT,
 } from '../constants.js'
 import { recordAutoApproveEvaluation } from '../db/auto-approve-evaluations.js'
 import { getJevDocument } from '../db/jev-documents.js'
+import { listGuards } from '../guards/registry.js'
 import { runJevCheck } from '../jev/check.js'
-import { GITHUB_RULES } from '../jev/github-project.js'
-import { buildRuleQuestions, checkRuleFact, collectReviewFacts, ruleIdOf } from './auto-approve-rules.js'
+import { collectReviewFacts } from './review-facts.js'
 
 const APPROVE = 'APPROVE'
 const COMMENT = 'COMMENT'
-const DECIDED_AS_TODAY = 'today'
-const CI_RULE = 'ci'
-const PENDING_ANSWER = 'Pending'
-const RULE_LABELS = new Map(GITHUB_RULES.map(rule => [rule.id, rule.label]))
+const REVIEW_FILENAME = 'review.md'
+const NO_REVIEW_MD = 'the repo has no REVIEW.md'
+const NO_GUARD_NAMED = 'its REVIEW.md names no guard'
+const GUARDS_FAILED = 'the guards could not run'
+const NAME_EDGE = '[^\\p{L}\\p{N}]'
+const REGEXP_SPECIAL_RE = /[.*+?^${}()|[\]\\]/g
 
 export async function loadAutoApproveRepo(repoFullName, { logger = console } = {}) {
   try {
-    const document = await getJevDocument(JEV_GITHUB_DOCUMENT)
+    const document = await getJevDocument(AUTO_APPROVE_DOCUMENT)
     const repos = document?.data?.repos ?? []
 
     return repos.find(repo => repo.name.toLowerCase() === repoFullName.toLowerCase()) ?? null
@@ -31,7 +34,33 @@ export async function loadAutoApproveRepo(repoFullName, { logger = console } = {
   }
 }
 
-function buildJevState({ pullRequest, review }, facts) {
+function reviewGuidelines(standards) {
+  return (standards?.documents ?? []).filter(doc => path.posix.basename(doc.path).toLowerCase() === REVIEW_FILENAME)
+}
+
+function namePattern(name) {
+  const escaped = name.replace(REGEXP_SPECIAL_RE, '\\$&')
+
+  return new RegExp(`(^|${NAME_EDGE})${escaped}(?=${NAME_EDGE}|$)`, 'giu')
+}
+
+export function findNamedGuards(guards, text) {
+  const longestFirst = [...guards].sort((a, b) => b.name.length - a.name.length)
+  const named = []
+  let remaining = text
+
+  for (const guard of longestFirst) {
+    const pattern = namePattern(guard.name)
+    if (!pattern.test(remaining)) continue
+
+    named.push(guard)
+    remaining = remaining.replace(pattern, '$1 ')
+  }
+
+  return guards.filter(guard => named.includes(guard))
+}
+
+function buildJevState({ pullRequest, review }) {
   return {
     pullRequest: {
       repository: pullRequest.repoFullName,
@@ -39,7 +68,7 @@ function buildJevState({ pullRequest, review }, facts) {
       title: pullRequest.title,
       description: pullRequest.body,
     },
-    review: facts,
+    review: collectReviewFacts(review),
     diff: review.files
       .filter(file => !file.generated && typeof file.patch === 'string')
       .map(file => `--- ${file.filename}\n${file.patch}`)
@@ -47,80 +76,48 @@ function buildJevState({ pullRequest, review }, facts) {
   }
 }
 
-function asToday(todayEvent, reason, result = null) {
-  return {
-    approve: todayEvent === APPROVE,
-    decidedBy: DECIDED_AS_TODAY,
-    reason,
-    pendingOnly: false,
-    setVersion: result?.setVersion ?? null,
-    model: result?.model ?? null,
-    minConfidence: null,
-    gates: [],
-    questions: [],
-  }
-}
-
-function toGate(row, rulesById, facts) {
-  const rule = rulesById.get(ruleIdOf(row.questionId))
-  const fact = checkRuleFact(rule, facts)
+async function checkGuard(guard, state) {
+  const result = await runJevCheck({ project: guard.id, state })
+  const answered = result.status === JEV_CHECK_ANSWERED
 
   return {
-    ...row,
-    label: RULE_LABELS.get(rule.id),
-    role: rule.role,
-    limit: rule.limit ?? null,
-    fact: fact.answer,
-    factVeto: fact.vetoed,
+    guard: guard.name,
+    answered,
+    reason: answered ? null : result.reason,
+    setVersion: result.setVersion ?? null,
+    model: result.model ?? null,
+    minConfidence: answered ? result.minConfidence : null,
+    rows: answered ? result.rows : [],
   }
 }
 
-function isBlocking(row) {
-  return row.flagged || row.unsure || row.factVeto === true
+function hasWarning(check) {
+  return check.rows.some(row => row.flagged || row.unsure)
 }
 
-function isPendingCi(row) {
-  return ruleIdOf(row.questionId) === CI_RULE && row.fact === PENDING_ANSWER
+function decide(checks) {
+  const unavailable = checks.find(check => !check.answered)
+  if (unavailable)
+    return { approve: false, reason: `the ${unavailable.guard} guard could not run (${unavailable.reason})` }
+
+  return { approve: !checks.some(hasWarning), reason: null }
 }
 
-function fromJev(result, rules, facts) {
-  const rulesById = new Map(rules.map(rule => [rule.id, rule]))
-  const gates = result.rows.filter(row => ruleIdOf(row.questionId)).map(row => toGate(row, rulesById, facts))
-  const questions = result.rows.filter(row => !ruleIdOf(row.questionId))
-  const blocking = [...gates.filter(gate => gate.role !== AUTO_APPROVE_INFO_ROLE), ...questions].filter(isBlocking)
-
-  return {
-    approve: blocking.length === 0,
-    decidedBy: AUTO_APPROVE_DECIDED_BY_JEV,
-    reason: null,
-    pendingOnly: blocking.length > 0 && blocking.every(isPendingCi),
-    setVersion: result.setVersion,
-    model: result.model,
-    minConfidence: result.minConfidence,
-    gates,
-    questions,
-  }
+function notEvaluated(reason) {
+  return { approve: false, decidedBy: AUTO_APPROVE_DECIDED_BY_NONE, reason, checks: [] }
 }
 
-function setRules(set) {
-  return set.rules ?? []
-}
+async function evaluate(context) {
+  const guidelines = reviewGuidelines(context.standards)
+  if (guidelines.length === 0) return notEvaluated(NO_REVIEW_MD)
 
-async function askJev(context, logger) {
-  try {
-    const facts = collectReviewFacts(context.review, context.repo.denylist)
-    const result = await runJevCheck({
-      project: JEV_GITHUB_DOCUMENT,
-      state: buildJevState(context, facts),
-      buildExtraQuestions: set => buildRuleQuestions(setRules(set)),
-    })
-    if (result.status !== JEV_CHECK_ANSWERED) return asToday(context.todayEvent, result.reason, result)
+  const guards = findNamedGuards(await listGuards(), guidelines.map(doc => doc.content).join('\n'))
+  if (guards.length === 0) return notEvaluated(NO_GUARD_NAMED)
 
-    return fromJev(result, setRules(result.set), facts)
-  } catch (err) {
-    logger.error(`[review] Could not ask Jev about ${context.pullRequest.repoFullName}:`, err)
-    return asToday(context.todayEvent, 'the Jev check failed')
-  }
+  const state = buildJevState(context)
+  const checks = await Promise.all(guards.map(guard => checkGuard(guard, state)))
+
+  return { decidedBy: AUTO_APPROVE_DECIDED_BY_JEV, checks, ...decide(checks) }
 }
 
 async function recordEvaluation({ repo, pullRequest }, outcome, logger) {
@@ -143,13 +140,17 @@ export async function decideAutoApprove(context, { logger = console } = {}) {
   if (!repo) return { event: todayEvent, autoApprove: null }
   if (repo.mode === AUTO_APPROVE_OFF) return { event: COMMENT, autoApprove: null }
 
-  const outcome = repo.jev ? await askJev(context, logger) : asToday(todayEvent, 'Jev is off for this repo')
+  let outcome
+  try {
+    outcome = await evaluate(context)
+  } catch (err) {
+    logger.error(`[review] Could not run the guards of ${context.pullRequest.repoFullName}:`, err)
+    outcome = notEvaluated(GUARDS_FAILED)
+  }
   await recordEvaluation(context, outcome, logger)
 
-  const isApproved = repo.mode === AUTO_APPROVE_ON && outcome.approve
-
   return {
-    event: isApproved ? APPROVE : COMMENT,
-    autoApprove: { repo: repo.name, mode: repo.mode, jevAsked: repo.jev, ...outcome },
+    event: repo.mode === AUTO_APPROVE_ON && outcome.approve ? APPROVE : COMMENT,
+    autoApprove: { repo: repo.name, mode: repo.mode, ...outcome },
   }
 }

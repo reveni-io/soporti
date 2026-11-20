@@ -3,13 +3,7 @@ import { getJevDocument, isUnauthorized, saveJevDocument } from '../../../../ser
 
 const CONFLICT_STATUS = 409
 
-function pickFields(draft, fields) {
-  if (!fields) return draft
-
-  return Object.fromEntries(fields.map(field => [field, draft[field]]))
-}
-
-export function useJevDocument(token, id, onLogout, { fields = null } = {}) {
+export function useJevDocument(token, id, onLogout) {
   const [document, setDocument] = useState(null)
   const [draft, setDraft] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -65,8 +59,7 @@ export function useJevDocument(token, id, onLogout, { fields = null } = {}) {
     setSaving(true)
     setSaveError(null)
     try {
-      const data = pickFields(draft, fields)
-      const saved = await saveJevDocument(token, id, { rev: document.rev, data, restoredFrom })
+      const saved = await saveJevDocument(token, id, { rev: document.rev, data: draft, restoredFrom })
       setDocument(saved)
       setDraft(saved.data)
       setRestoredFrom(null)

@@ -95,7 +95,7 @@ export function renderReviewBody({
   const sections = [
     renderHeader(event, findings, autoApprove),
     renderPartialNote(coverage.notReviewed, passes),
-    renderAutoApprove(autoApprove, { reviewerLogin: context.reviewerLogin }),
+    renderAutoApprove(autoApprove),
     renderJevAnswers(autoApprove),
     isInlineInBody && renderFindingsSection('💬 Actionable comments', inline, { open: true }),
     renderFindingsSection('⚠️ Outside diff range comments', outside, { open: outside.shown.some(isBlocking) }),

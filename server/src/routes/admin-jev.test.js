@@ -65,6 +65,7 @@ const LEGAL_SET = {
   minConfidence: 0.75,
   timeoutSeconds: 30,
   dailyLimit: 0,
+  maxCharacters: 100_000,
   questions: [{ id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }],
 }
 
@@ -581,43 +582,39 @@ describe('GET /api/admin/config/jev/guards', () => {
 })
 
 describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => {
-  const GITHUB_SET = { ...LEGAL_SET, minConfidence: null, maxCharacters: 100_000, rules: [] }
-  const REPO = { name: 'acme/web', mode: 'shadow', jev: false, denylist: [] }
-
-  it('saves the repos and keeps the guard settings that are stored', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+  it('saves the fields sent and keeps the rest of the stored document', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: { repos: [REPO] } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: 'Customer replies' } })
 
     expect(res.status).toBe(200)
     const [, options] = saveJevDocument.mock.calls[0]
-    const stored = { set: { ...GITHUB_SET, minConfidence: 0.8 }, repos: [] }
+    const stored = { set: { ...LEGAL_SET, minConfidence: 0.8 } }
     expect(options.plan({ rev: 1, data: stored }).data).toEqual({
-      ...stored,
+      name: 'Customer replies',
       set: { ...stored.set, questions: [{ ...LEGAL_SET.questions[0], instructions: '', criteria: '' }] },
-      repos: [REPO],
     })
   })
 
   it('checks the fields sent against the stored document', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
 
     await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: { repos: [REPO] } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: 'Customer replies' } })
 
     const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 1, data: { set: { ...GITHUB_SET, minConfidence: 2 } } })).toEqual({
+    expect(options.plan({ rev: 1, data: { set: { ...LEGAL_SET, minConfidence: 2 } } })).toEqual({
       error: 'Min confidence must be a number between 0 and 1.',
     })
   })
 
   it('rejects data that is not an object', async () => {
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: ['repos'] })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: ['set'] })
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error: '"data" must be an object.' })

@@ -42,7 +42,7 @@ describe('VersionsTable', () => {
       set: { minConfidence: 0.75, questions: [], description: 'Kept' },
       repos: [],
     })
-    expect(screen.getByText(/questions, rules, model and min confidence/)).toBeInTheDocument()
+    expect(screen.getByText(/questions, model and min confidence/)).toBeInTheDocument()
   })
 
   it('says which version is loaded in the editor', async () => {

@@ -1,24 +1,21 @@
 import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT } from '../constants.js'
 import { listJevDocuments } from '../db/jev-documents.js'
-import { defaultJevDocument, isCustomGuardId } from '../jev/documents.js'
+import { isGuardId } from '../jev/documents.js'
 import { areJevCallsEnabled, isConfigured } from '../jev/settings.js'
 
-const BUILT_IN_GUARDS = [
-  { id: JEV_LEGAL_DOCUMENT, name: 'Legal' },
-  { id: JEV_GITHUB_DOCUMENT, name: 'GitHub PRs' },
-]
+const LEGACY_NAMES = new Map([
+  [JEV_LEGAL_DOCUMENT, 'Legal'],
+  [JEV_GITHUB_DOCUMENT, 'GitHub PRs'],
+])
 
-function toGuard({ id, name, builtIn }, document) {
-  const data = document?.data ?? defaultJevDocument(id)
-
+function toGuard({ id, data, setVersion }) {
   return {
     id,
-    name: data.name || name,
-    builtIn,
+    name: data.name || LEGACY_NAMES.get(id) || id,
     description: data.set.description,
     questions: data.set.questions.length,
     model: data.set.model,
-    setVersion: document?.setVersion ?? 0,
+    setVersion,
   }
 }
 
@@ -28,13 +25,11 @@ function byName(a, b) {
 
 export async function listGuards() {
   const documents = await listJevDocuments()
-  const stored = new Map(documents.map(document => [document.id, document]))
-  const builtIns = BUILT_IN_GUARDS.map(guard => toGuard({ ...guard, builtIn: true }, stored.get(guard.id)))
-  const custom = documents
-    .filter(document => isCustomGuardId(document.id))
-    .map(document => toGuard({ id: document.id, name: '', builtIn: false }, document))
 
-  return [...builtIns, ...custom.sort(byName)]
+  return documents
+    .filter(document => isGuardId(document.id))
+    .map(toGuard)
+    .sort(byName)
 }
 
 export function findGuardByName(guards, name, { exceptId = null } = {}) {
@@ -43,9 +38,9 @@ export function findGuardByName(guards, name, { exceptId = null } = {}) {
   return guards.find(guard => guard.id !== exceptId && guard.name.toLowerCase() === wanted) ?? null
 }
 
-export async function listChatGuards() {
+export async function listUsableGuards() {
   const [keyConfigured, enabled, guards] = await Promise.all([isConfigured(), areJevCallsEnabled(), listGuards()])
   if (!keyConfigured || !enabled) return []
 
-  return guards.filter(guard => guard.id !== JEV_GITHUB_DOCUMENT && guard.questions > 0 && guard.model)
+  return guards.filter(guard => guard.questions > 0 && guard.model)
 }

@@ -1,7 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { AUTO_APPROVE_OFF, JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
-import { ROUTES } from '../../../../router/constants.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import ModalFrame from '../../../../common/ModalFrame/ModalFrame.jsx'
 import DeleteControl from '../../../../common/DeleteControl/DeleteControl.jsx'
@@ -12,17 +9,7 @@ import DocBar from '../../DocBar/DocBar.jsx'
 import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
-import ReviewRules from '../ReviewRules/ReviewRules.jsx'
 import './GuardEditor.css'
-
-function describeSetUsers({ set, repos }) {
-  if (!repos || set.questions.length === 0) return null
-
-  const users = repos.filter(repo => repo.mode !== AUTO_APPROVE_OFF).map(repo => repo.name)
-  if (users.length === 0) return null
-
-  return `Cannot delete the set: ${users.length} auto-approve repo${users.length === 1 ? '' : 's'} (${users.join(', ')}) use it. Set them to off in Admin → GitHub and save first.`
-}
 
 function DiscardConfirm({ onDiscard, onKeep }) {
   return (
@@ -61,7 +48,6 @@ function GuardDelete({ token, guard, onLogout, onDeleted }) {
 export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose, onDeleted }) {
   const project = useJevDocument(token, guard.id, onLogout)
   const [confirmingClose, setConfirmingClose] = useState(false)
-  const isGithub = guard.id === JEV_GITHUB_DOCUMENT
   const title = `${guard.name} guard`
 
   if (project.loadError) {
@@ -107,33 +93,15 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         <input className="input" value={project.draft.name ?? guard.name} onChange={handleNameChange} />
       </label>
 
-      {isGithub ? (
-        <p className="note">
-          Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos
-          and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in the chat.
-        </p>
-      ) : (
-        <p className="admin__muted">
-          The assistant uses this guard on its own when what it is about to deliver matches “When to use it”, and when a
-          chat, Slack, MCP, a scheduled query or a bot names it, for example “apply the {guard.name} guard”. A guard
-          never blocks anything: it warns, and a person has the last word.
-        </p>
-      )}
+      <p className="admin__muted">
+        The assistant uses this guard when a chat, Slack, MCP, a scheduled query or a bot asks for it, for example “use
+        the {guard.name} guards”, and the PR reviewer uses it when a repo’s <code>REVIEW.md</code> names it. A guard
+        never blocks anything on its own: it warns, and a person has the last word.
+      </p>
 
       <AdminSection title="Questions and answers">
-        <QuestionSetEditor
-          project={guard.id}
-          state={project}
-          catalog={catalog}
-          inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
-        />
+        <QuestionSetEditor project={guard.id} state={project} catalog={catalog} />
       </AdminSection>
-
-      {isGithub && (
-        <AdminSection title="Rules">
-          <ReviewRules state={project} />
-        </AdminSection>
-      )}
 
       <AdminSection title="Versions">
         <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
@@ -151,7 +119,7 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
       </AdminSection>
 
-      {!guard.builtIn && <GuardDelete token={token} guard={guard} onLogout={onLogout} onDeleted={onDeleted} />}
+      <GuardDelete token={token} guard={guard} onLogout={onLogout} onDeleted={onDeleted} />
 
       <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />
     </ModalFrame>

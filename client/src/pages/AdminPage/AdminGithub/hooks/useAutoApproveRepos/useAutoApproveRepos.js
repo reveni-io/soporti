@@ -11,7 +11,7 @@ function describeShadowFirst(blocked, othersCanGoOn) {
   return `Shadow first: ${blocked.join(', ')} ${one ? 'has' : 'have'} not been saved in shadow yet. Set ${one ? 'it' : 'them'} to shadow and save, then set ${one ? 'it' : 'them'} to on.${others}`
 }
 
-export function useAutoApproveRepos(state, { token, onLogout, keyConfigured }) {
+export function useAutoApproveRepos(state, { token, onLogout }) {
   const [selected, setSelected] = useState([])
   const [message, setMessage] = useState(null)
   const [confirming, setConfirming] = useState(null)
@@ -23,10 +23,6 @@ export function useAutoApproveRepos(state, { token, onLogout, keyConfigured }) {
 
   function updateRepos(update) {
     state.updateDraft(draft => ({ ...draft, repos: update(draft.repos) }))
-  }
-
-  function updateRepo(name, changes) {
-    updateRepos(current => current.map(repo => (repo.name === name ? { ...repo, ...changes } : repo)))
   }
 
   function canGoOn(name) {
@@ -83,7 +79,7 @@ export function useAutoApproveRepos(state, { token, onLogout, keyConfigured }) {
     setAdding(true)
     try {
       const { fullName } = await checkGithubAutoApproveRepo(token, name)
-      updateRepos(current => [...current, { name: fullName, mode: AUTO_APPROVE_OFF, jev: keyConfigured, denylist: [] }])
+      updateRepos(current => [...current, { name: fullName, mode: AUTO_APPROVE_OFF }])
       return true
     } catch (err) {
       if (isUnauthorized(err)) {
@@ -112,7 +108,6 @@ export function useAutoApproveRepos(state, { token, onLogout, keyConfigured }) {
     requestMode,
     confirmOn,
     cancelOn,
-    updateRepo,
     toggleSelected,
     toggleAll,
     removeRepo,

@@ -21,6 +21,7 @@ function legalSet(overrides = {}) {
     minConfidence: 0.75,
     timeoutSeconds: 30,
     dailyLimit: 0,
+    maxCharacters: 100_000,
     questions: [CHOICE, NOUL],
     ...overrides,
   }
@@ -48,11 +49,11 @@ describe('defaultJevDocument', () => {
       minConfidence: null,
       timeoutSeconds: 30,
       dailyLimit: 0,
+      maxCharacters: 100_000,
       questions: [],
     })
-    expect(defaultJevDocument('github').set.maxCharacters).toBe(100_000)
-    expect(defaultJevDocument('github').set.rules).toHaveLength(9)
-    expect(defaultJevDocument('github').repos).toEqual([])
+    expect(defaultJevDocument('github')).toEqual(defaultJevDocument('legal'))
+    expect(defaultJevDocument('auto-approve')).toEqual({ repos: [] })
   })
 
   it('returns a fresh copy every time', () => {
@@ -100,18 +101,16 @@ describe('parseJevDocument', () => {
     expect(parseJevDocument('jev', { enabled: true })).toEqual({ error: 'Unknown document.' })
   })
 
-  it('parses the GitHub project with its rules and repos', () => {
-    const github = { set: legalSet({ maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] }), repos: [] }
-
-    expect(parseJevDocument('github', github).value).toEqual({
-      set: { ...parseLegal().value.set, maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] },
-      repos: [],
+  it('parses the auto-approve repos, and the GitHub guard like any other guard', () => {
+    expect(parseJevDocument('auto-approve', { repos: [{ name: 'acme/web', mode: 'shadow' }] }).value).toEqual({
+      repos: [{ name: 'acme/web', mode: 'shadow' }],
     })
-    expect(parseJevDocument('github', { set: legalSet({ rules: [] }), repos: [] })).toEqual({
+    expect(parseJevDocument('auto-approve', { repos: 'none' })).toEqual({ error: 'Repos must be a list.' })
+    expect(parseJevDocument('github', { set: legalSet({ rules: [{ id: 'ci' }] }), repos: [] }).value).toEqual({
+      set: parseLegal().value.set,
+    })
+    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 0 }) })).toEqual({
       error: 'Max characters sent to Jev must be a positive whole number.',
-    })
-    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 1, rules: [] }), repos: 'none' })).toEqual({
-      error: 'Repos must be a list.',
     })
   })
 
@@ -231,58 +230,39 @@ describe('created guards', () => {
   })
 })
 
-describe('planJevSave for the GitHub project', () => {
-  const RULES = [{ id: 'merge-risk', role: 'veto', limit: 'Low' }]
+describe('planJevSave for the auto-approve repos', () => {
+  const shadow = { name: 'acme/web', mode: 'shadow' }
 
-  function github({ repos = [], rules = RULES, questions = [NOUL] } = {}) {
-    return { set: legalSet({ maxCharacters: 100_000, rules, questions }), repos }
-  }
-
-  it('bumps the set version when the rules change', () => {
+  it('describes the repo changes without a set version', () => {
     const plan = planJevSave(
-      { rev: 2, data: github() },
-      github({ rules: [{ id: 'merge-risk', role: 'veto', limit: 'Medium' }] })
-    )
-
-    expect(plan.change).toBe('Rules')
-    expect(plan.set.rules).toEqual([{ id: 'merge-risk', role: 'veto', limit: 'Medium' }])
-  })
-
-  it('keeps the set version for repo changes', () => {
-    const shadow = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
-    const plan = planJevSave(
-      { rev: 2, data: github({ repos: [shadow] }) },
-      github({
+      { rev: 2, data: { repos: [shadow] } },
+      {
         repos: [
           { ...shadow, mode: 'on' },
-          { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
+          { name: 'acme/docs', mode: 'off' },
         ],
-      })
+      }
     )
 
     expect(plan).toMatchObject({ change: 'acme/web shadow → on; Added acme/docs (off)', set: null })
   })
 
   it('refuses to turn on a repo that was not saved in shadow', () => {
-    const repo = { name: 'acme/web', mode: 'off', jev: true, denylist: [] }
+    const repo = { name: 'acme/web', mode: 'off' }
 
-    expect(
-      planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [{ ...repo, mode: 'on' }] }))
-    ).toEqual({
+    expect(planJevSave({ rev: 2, data: { repos: [repo] } }, { repos: [{ ...repo, mode: 'on' }] })).toEqual({
       error: 'Shadow first: acme/web must be saved in shadow before it can be set to on.',
     })
   })
 
-  it('refuses to delete the set while a repo uses it', () => {
-    const repo = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
-
-    expect(planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [repo], questions: [] }))).toEqual({
-      error: 'Cannot delete the set: 1 auto-approve repo (acme/web) use it. Set them to off and save first.',
-    })
-  })
-
-  it('records a restored version', () => {
-    const plan = planJevSave({ rev: 5, data: github() }, github({ questions: [CHOICE] }), { restoredFrom: 2 })
+  it('records a restored version of a guard', () => {
+    const plan = planJevSave(
+      { rev: 5, data: { set: legalSet() } },
+      { set: legalSet({ questions: [CHOICE] }) },
+      {
+        restoredFrom: 2,
+      }
+    )
 
     expect(plan.change).toBe('Restored v2; Questions')
   })

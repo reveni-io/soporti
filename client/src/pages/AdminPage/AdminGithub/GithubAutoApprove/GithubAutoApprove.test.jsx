@@ -5,29 +5,15 @@ import { MemoryRouter } from 'react-router-dom'
 import GithubAutoApprove from './GithubAutoApprove.jsx'
 
 const BASE = '/api/admin/config/jev'
-const SET = {
-  description: '',
-  model: '',
-  minConfidence: 0.75,
-  timeoutSeconds: 30,
-  dailyLimit: 0,
-  maxCharacters: 100_000,
-  questions: [],
-  rules: [],
-}
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
 }
 
-function mockApi(repos, overrides = {}, set = SET) {
-  const document = { id: 'github', rev: 2, data: { set, repos }, setVersion: 1, savedAt: null, savedBy: null }
-  const page = { entries: [], total: 0, page: 1, pageSize: 5 }
+function mockApi(repos, overrides = {}) {
+  const document = { id: 'auto-approve', rev: 2, data: { repos }, setVersion: 0, savedAt: null, savedBy: null }
   const responses = {
-    [BASE]: okResponse({ keyConfigured: false, models: [], scannedAt: null }),
-    [`${BASE}/documents/github`]: okResponse(document),
-    [`${BASE}/documents/github/versions?page=1`]: okResponse(page),
-    [`${BASE}/documents/github/history?page=1`]: okResponse(page),
+    [`${BASE}/documents/auto-approve`]: okResponse(document),
     '/api/repos': okResponse({ repos: [{ fullName: 'acme/api' }] }),
     ...overrides,
   }
@@ -39,7 +25,7 @@ beforeEach(() => {
 })
 
 describe('GithubAutoApprove', () => {
-  it('shows the repos and the save bar, and points to the GitHub PRs guard for the questions and rules', async () => {
+  it('shows the repos, the save bar and how REVIEW.md picks the guards', async () => {
     mockApi([])
 
     render(
@@ -48,18 +34,17 @@ describe('GithubAutoApprove', () => {
       </MemoryRouter>
     )
 
-    expect(await screen.findByText('Auto-approve repos')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'GitHub PRs guard' })).toHaveAttribute('href', '/admin/guards?guard=github')
-    expect(screen.getByText('GitHub review project')).toBeInTheDocument()
-    expect(screen.queryByText('Rules')).not.toBeInTheDocument()
-    expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
-    expect(await screen.findByText(/Save the Jev API key in Admin → Guards/)).toBeInTheDocument()
+    expect(await screen.findByText('Auto-approve repos', { selector: 'h2' })).toBeInTheDocument()
+    expect(screen.getByText(/A repo is checked by the guards its/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Admin → Guards' })).toHaveAttribute('href', '/admin/guards')
+    expect(screen.getByText('Auto-approve repos', { selector: 'strong' })).toBeInTheDocument()
+
     await userEvent.setup().type(screen.getByRole('combobox', { name: 'Repository to add' }), 'api')
     expect(await screen.findByRole('option', { name: 'acme/api' })).toBeInTheDocument()
   })
 
-  it('saves only the repos, leaving the guard settings to the Guards section', async () => {
-    mockApi([{ name: 'acme/web', mode: 'off', jev: false, denylist: [] }], {}, { ...SET, minConfidence: null })
+  it('saves the repos and their modes', async () => {
+    mockApi([{ name: 'acme/web', mode: 'off' }])
     const user = userEvent.setup()
 
     render(
@@ -71,14 +56,13 @@ describe('GithubAutoApprove', () => {
     await user.click(screen.getByRole('button', { name: /^Save/ }))
 
     const put = global.fetch.mock.calls.find(([, options]) => options?.method === 'PUT')
-    expect(JSON.parse(put[1].body).data).toEqual({
-      repos: [{ name: 'acme/web', mode: 'shadow', jev: false, denylist: [] }],
-    })
+    expect(put[0]).toBe(`${BASE}/documents/auto-approve`)
+    expect(JSON.parse(put[1].body).data).toEqual({ repos: [{ name: 'acme/web', mode: 'shadow' }] })
   })
 
-  it('shows why the project could not load', async () => {
+  it('shows why the repos could not load', async () => {
     mockApi([], {
-      [`${BASE}/documents/github`]: {
+      [`${BASE}/documents/auto-approve`]: {
         ok: false,
         status: 500,
         json: async () => ({ error: 'Failed to load the settings.' }),
