@@ -30,6 +30,8 @@ const getWebhookSecret = vi.fn()
 const setWebhookSecret = vi.fn()
 const getRepoCatalog = vi.fn()
 const setRepoCatalog = vi.fn()
+const getReviewerSuggestionsEnabled = vi.fn()
+const setReviewerSuggestionsEnabled = vi.fn()
 
 const getLlmProvider = vi.fn()
 const setLlmProvider = vi.fn()
@@ -248,6 +250,8 @@ vi.mock('../github/settings.js', () => ({
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
+  getReviewerSuggestionsEnabled,
+  setReviewerSuggestionsEnabled,
 }))
 vi.mock('../llm/settings.js', () => ({
   getLlmProvider,
@@ -2011,6 +2015,7 @@ describe('GET /api/admin/config/github', () => {
     getGithubToken.mockResolvedValue('ghp_secret')
     getWebhookSecret.mockResolvedValue('hook-secret')
     getRepoCatalog.mockResolvedValue('### org/api\nBackend.')
+    getReviewerSuggestionsEnabled.mockResolvedValue(true)
 
     const res = await request(app).get('/api/admin/config/github')
 
@@ -2019,6 +2024,7 @@ describe('GET /api/admin/config/github', () => {
       tokenConfigured: true,
       webhookSecretConfigured: true,
       repoCatalog: '### org/api\nBackend.',
+      reviewerSuggestionsEnabled: true,
     })
     expect(JSON.stringify(res.body)).not.toContain('ghp_secret')
     expect(JSON.stringify(res.body)).not.toContain('hook-secret')
@@ -2028,10 +2034,49 @@ describe('GET /api/admin/config/github', () => {
     getGithubToken.mockResolvedValue(null)
     getWebhookSecret.mockResolvedValue(null)
     getRepoCatalog.mockResolvedValue('')
+    getReviewerSuggestionsEnabled.mockResolvedValue(false)
 
     const res = await request(app).get('/api/admin/config/github')
 
-    expect(res.body).toEqual({ tokenConfigured: false, webhookSecretConfigured: false, repoCatalog: '' })
+    expect(res.body).toEqual({
+      tokenConfigured: false,
+      webhookSecretConfigured: false,
+      repoCatalog: '',
+      reviewerSuggestionsEnabled: false,
+    })
+  })
+})
+
+describe('PUT /api/admin/config/github/reviewer-suggestions', () => {
+  it('saves the switch', async () => {
+    setReviewerSuggestionsEnabled.mockResolvedValue(undefined)
+
+    const res = await request(app).put('/api/admin/config/github/reviewer-suggestions').send({ enabled: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reviewerSuggestionsEnabled: true })
+    expect(setReviewerSuggestionsEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('rejects anything but a boolean without saving', async () => {
+    setReviewerSuggestionsEnabled.mockClear()
+
+    const res = await request(app).put('/api/admin/config/github/reviewer-suggestions').send({ enabled: 'yes' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: '"enabled" must be a boolean.' })
+    expect(setReviewerSuggestionsEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not leak the error when the save fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    setReviewerSuggestionsEnabled.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/github/reviewer-suggestions').send({ enabled: false })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the reviewer suggestions.' })
+    spy.mockRestore()
   })
 })
 

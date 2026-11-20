@@ -21,6 +21,7 @@ const mockCompareCommitsWithBasehead = vi.fn()
 const mockListForRef = vi.fn()
 const mockGetCombinedStatusForRef = vi.fn()
 const mockReposGet = vi.fn()
+const mockGetCollaboratorPermissionLevel = vi.fn()
 
 vi.mock('@octokit/rest', () => ({
   Octokit: class {
@@ -30,6 +31,7 @@ vi.mock('@octokit/rest', () => ({
         compareCommitsWithBasehead: mockCompareCommitsWithBasehead,
         getCombinedStatusForRef: mockGetCombinedStatusForRef,
         get: mockReposGet,
+        getCollaboratorPermissionLevel: mockGetCollaboratorPermissionLevel,
       }
       this.checks = { listForRef: mockListForRef }
       this.graphql = mockGraphql
@@ -83,6 +85,10 @@ const {
   deleteIssueReaction,
   createIssueCommentReaction,
   createReviewCommentReaction,
+  listPathAuthors,
+  countReviewsSince,
+  canPushToRepository,
+  listOrganizationMembers,
 } = await import('./client.js')
 
 describe('listRepos', () => {
@@ -648,5 +654,130 @@ describe('getRepository', () => {
 
     expect(await getRepository('acme/docs')).toEqual({ fullName: 'acme/docs' })
     expect(mockReposGet).toHaveBeenCalledWith({ owner: 'acme', repo: 'docs' })
+  })
+})
+
+describe('listPathAuthors', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('reads the commit authors of every path in one query, skipping commits without a GitHub user', async () => {
+    mockGraphql.mockResolvedValue({
+      repository: {
+        object: {
+          f0: { nodes: [{ author: { user: { login: 'ana' } } }, { author: { user: null } }] },
+          f1: { nodes: [] },
+        },
+      },
+    })
+
+    const result = await listPathAuthors('acme-io/app', 'main', ['src/a.js', 'src/new.js'])
+
+    expect(result).toEqual([
+      { path: 'src/a.js', authors: ['ana'] },
+      { path: 'src/new.js', authors: [] },
+    ])
+    const [query, variables] = mockGraphql.mock.calls[0]
+    expect(query).toContain('f1: history(first: 20, path: $p1)')
+    expect(variables).toEqual({ owner: 'acme-io', repo: 'app', ref: 'main', p0: 'src/a.js', p1: 'src/new.js' })
+  })
+
+  it('returns no authors when the ref is missing', async () => {
+    mockGraphql.mockResolvedValue({ repository: { object: null } })
+
+    expect(await listPathAuthors('acme-io/app', 'gone', ['src/a.js'])).toEqual([{ path: 'src/a.js', authors: [] }])
+  })
+
+  it('does not query GitHub without paths', async () => {
+    expect(await listPathAuthors('acme-io/app', 'main', [])).toEqual([])
+    expect(mockGraphql).not.toHaveBeenCalled()
+  })
+})
+
+describe('countReviewsSince', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('counts the PRs each person reviewed since the date in one query', async () => {
+    mockGraphql.mockResolvedValue({ r0: { issueCount: 4 }, r1: null })
+
+    const counts = await countReviewsSince('acme-io', ['ana', 'luis'], '2026-10-21')
+
+    expect(counts).toEqual(
+      new Map([
+        ['ana', 4],
+        ['luis', 0],
+      ])
+    )
+    const [query, variables] = mockGraphql.mock.calls[0]
+    expect(query).toContain('r1: search(query: $q1, type: ISSUE, first: 1) { issueCount }')
+    expect(variables.q0).toBe('is:pr user:acme-io reviewed-by:ana -author:ana updated:>=2026-10-21')
+  })
+
+  it('does not query GitHub without people', async () => {
+    expect(await countReviewsSince('acme-io', [], '2026-10-21')).toEqual(new Map())
+    expect(mockGraphql).not.toHaveBeenCalled()
+  })
+})
+
+describe('canPushToRepository', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('is true for admin and write access', async () => {
+    mockGetCollaboratorPermissionLevel.mockResolvedValue({ data: { permission: 'write' } })
+
+    expect(await canPushToRepository('acme-io/app', 'ana')).toBe(true)
+    expect(mockGetCollaboratorPermissionLevel).toHaveBeenCalledWith({ owner: 'acme-io', repo: 'app', username: 'ana' })
+  })
+
+  it('is false for read access and for unknown people', async () => {
+    mockGetCollaboratorPermissionLevel.mockResolvedValueOnce({ data: { permission: 'read' } })
+    expect(await canPushToRepository('acme-io/app', 'ana')).toBe(false)
+
+    mockGetCollaboratorPermissionLevel.mockRejectedValueOnce(Object.assign(new Error('Not Found'), { status: 404 }))
+    expect(await canPushToRepository('acme-io/app', 'ghost')).toBe(false)
+  })
+
+  it('rethrows other errors', async () => {
+    mockGetCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }))
+
+    await expect(canPushToRepository('acme-io/app', 'ana')).rejects.toThrow('Forbidden')
+  })
+})
+
+describe('listOrganizationMembers', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('reads every page of members with the date their account was created', async () => {
+    mockGraphql
+      .mockResolvedValueOnce({
+        organization: {
+          membersWithRole: {
+            nodes: [{ login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z', name: 'Ana' }],
+            pageInfo: { hasNextPage: true, endCursor: 'c1' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        organization: {
+          membersWithRole: {
+            nodes: [{ login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' }],
+            pageInfo: { hasNextPage: false, endCursor: 'c2' },
+          },
+        },
+      })
+
+    expect(await listOrganizationMembers('acme-io')).toEqual([
+      { login: 'ana-reveni', createdAt: '2026-10-01T09:00:00Z' },
+      { login: 'luis-reveni', createdAt: '2021-03-02T09:00:00Z' },
+    ])
+    expect(mockGraphql.mock.calls.map(([, variables]) => variables)).toEqual([
+      { org: 'acme-io', cursor: null },
+      { org: 'acme-io', cursor: 'c1' },
+    ])
+  })
+
+  it('returns no members when the owner is not an organization', async () => {
+    mockGraphql.mockResolvedValue({ organization: null })
+
+    expect(await listOrganizationMembers('someone')).toEqual([])
   })
 })

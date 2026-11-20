@@ -747,6 +747,15 @@ export function saveGithubCatalog(token, catalog) {
   })
 }
 
+export function saveGithubReviewerSuggestions(token, enabled) {
+  return request('/api/admin/config/github/reviewer-suggestions', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the reviewer suggestions',
+  })
+}
+
 export function getGoogleDriveConfig(token) {
   return request('/api/admin/config/google-drive', {
     token,

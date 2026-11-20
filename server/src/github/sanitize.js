@@ -19,6 +19,10 @@ export function isSameLogin(login, other) {
   return normalizeLogin(login) === normalizeLogin(other)
 }
 
+export function isBotLogin(login) {
+  return BOT_SUFFIX.test(String(login ?? ''))
+}
+
 function normalizeLogin(login) {
   return String(login ?? '')
     .toLowerCase()
