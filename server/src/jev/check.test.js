@@ -7,8 +7,8 @@ const countJevCallsSince = vi.fn()
 const recordJevCall = vi.fn()
 vi.mock('../db/jev-calls.js', () => ({ countJevCallsSince, recordJevCall }))
 
-const getJevApiKey = vi.fn()
-vi.mock('./settings.js', () => ({ getJevApiKey }))
+const isConfigured = vi.fn()
+vi.mock('./settings.js', () => ({ isConfigured }))
 
 const askQuestions = vi.fn()
 vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), askQuestions }))
@@ -44,7 +44,7 @@ function mockDocuments({ enabled = true, set = SET } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockDocuments()
-  getJevApiKey.mockResolvedValue('jev-secret')
+  isConfigured.mockResolvedValue(true)
   countJevCallsSince.mockResolvedValue(0)
 })
 
@@ -118,7 +118,7 @@ describe('runJevCheck', () => {
 
   it.each([
     ['the calls are off', () => mockDocuments({ enabled: false }), 'Jev calls are off'],
-    ['no key is saved', () => getJevApiKey.mockResolvedValue(null), 'No API key saved'],
+    ['no key is saved', () => isConfigured.mockResolvedValue(false), 'No API key saved'],
     ['the project was never saved', () => mockDocuments({ set: null }), 'No questions in the set'],
     ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
   ])('does not call Jev when %s', async (_case, arrange, reason) => {
