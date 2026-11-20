@@ -4,12 +4,9 @@ const listLegalReplies = vi.fn()
 const saveLegalReply = vi.fn()
 vi.mock('../db/legal-replies.js', () => ({ listLegalReplies, saveLegalReply }))
 
-const isGuardSendingEnabled = vi.fn()
-vi.mock('../jev/settings.js', () => ({ isGuardSendingEnabled }))
-
 const findSendBlocker = vi.fn()
 const sendLegalReply = vi.fn()
-vi.mock('./replies.js', () => ({ GUARD_SEND_OFF: 'Sending is off.', findSendBlocker, sendLegalReply }))
+vi.mock('./replies.js', () => ({ findSendBlocker, sendLegalReply }))
 
 const { ALREADY_SENT, SENT_NOT_RECORDED, WARNINGS_NOT_READ, parseReplyText, sendCaseReply } = await import('./send.js')
 
@@ -20,7 +17,6 @@ const SENT_AT = '2026-11-20T10:00:00.000Z'
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  isGuardSendingEnabled.mockResolvedValue(true)
   listLegalReplies.mockResolvedValue([])
   findSendBlocker.mockResolvedValue(null)
   sendLegalReply.mockResolvedValue('zd-1')
@@ -51,13 +47,11 @@ describe('sendCaseReply', () => {
     expect(result).toEqual({ reply: { id: 7, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT } })
   })
 
-  it('does not send while sending is off, twice the same reply, or where the user cannot send', async () => {
-    isGuardSendingEnabled.mockResolvedValueOnce(false)
+  it('does not send the same reply twice or where the user cannot send', async () => {
     listLegalReplies.mockResolvedValueOnce([{ text: 'Hello' }])
     findSendBlocker.mockResolvedValueOnce('Connect Zendesk')
     const input = { legalCase: CASE, user: USER, text: 'Hello', warningsRead: true }
 
-    expect(await sendCaseReply(input)).toEqual({ blocker: 'Sending is off.' })
     expect(await sendCaseReply(input)).toEqual({ blocker: ALREADY_SENT })
     expect(await sendCaseReply(input)).toEqual({ blocker: 'Connect Zendesk' })
     expect(sendLegalReply).not.toHaveBeenCalled()

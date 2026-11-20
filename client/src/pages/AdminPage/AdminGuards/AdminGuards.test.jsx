@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import AdminGuards from './AdminGuards.jsx'
@@ -19,18 +19,14 @@ function documentRoutes(id, data) {
   return {
     [`GET ${BASE}/documents/${id}`]: [okResponse({ id, rev: 1, data, setVersion: 0, savedAt: null, savedBy: null })],
     [`GET ${BASE}/documents/${id}/versions?page=1`]: [okResponse(NO_ROWS)],
-    [`GET ${BASE}/documents/${id}/history?page=1`]: [okResponse(NO_ROWS)],
   }
 }
 
 function mockApi(routes = {}) {
   const handlers = {
-    [`GET ${BASE}`]: [
-      okResponse({ keyConfigured: true, models: [], scannedAt: null, callsEnabled: true, sendingEnabled: false }),
-    ],
+    [`GET ${BASE}`]: [okResponse({ keyConfigured: true })],
     [`GET ${BASE}/guards`]: [okResponse({ guards: [LEGAL, GITHUB] })],
     ...documentRoutes('legal', { set: SET }),
-    ...documentRoutes('jev', { enabled: true }),
     ...documentRoutes('github', { set: { ...SET, maxCharacters: 100_000, rules: [] }, repos: [] }),
     ...routes,
   }
@@ -50,7 +46,7 @@ beforeEach(() => {
 })
 
 describe('AdminGuards', () => {
-  it('starts with Jev, then the guards, with no guard open, and ends with the Jev history', async () => {
+  it('shows the Jev key and the guards, with no guard open and no history', async () => {
     mockApi()
 
     render(
@@ -72,7 +68,7 @@ describe('AdminGuards', () => {
     expect(await screen.findByRole('button', { name: 'Edit Legal' })).toBeEnabled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const titles = [...document.querySelectorAll('h2')].map(title => title.textContent)
-    expect(titles).toEqual(['Jev', 'Guards', 'Jev history'])
+    expect(titles).toEqual(['Jev', 'Guards'])
     expect(screen.getByRole('textbox', { name: 'Name of the new guard' })).toBeInTheDocument()
   })
 
@@ -142,8 +138,12 @@ describe('AdminGuards', () => {
     expect(screen.getByTestId('search')).toHaveTextContent('?guard=guard-0a1b2c3d')
   })
 
-  it('turns the sending of checked replies on for every guard', async () => {
-    mockApi({ [`PUT ${BASE}/sending`]: [okResponse({ enabled: true })] })
+  it('deletes a created guard after a confirmation and shows the list again', async () => {
+    const payments = { ...LEGAL, id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
+    mockApi({
+      [`GET ${BASE}/guards`]: [okResponse({ guards: [LEGAL, payments] }), okResponse({ guards: [LEGAL] })],
+      [`DELETE ${BASE}/guards/guard-0a1b2c3d`]: [{ ok: true, status: 204, json: async () => null }],
+    })
     const user = userEvent.setup()
 
     render(
@@ -151,53 +151,10 @@ describe('AdminGuards', () => {
         <AdminGuards token="tok" onLogout={vi.fn()} />
       </MemoryRouter>
     )
-    await user.click(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
-    const sendingSave = screen.getAllByRole('button', { name: 'Save' }).find(button => !button.disabled)
-    await user.click(sendingSave)
+    await user.click(await screen.findByRole('button', { name: 'Delete Payments' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
 
-    const put = global.fetch.mock.calls.find(
-      ([url, options = {}]) => options.method === 'PUT' && url.endsWith('/sending')
-    )
-    expect(JSON.parse(put[1].body)).toEqual({ enabled: true })
-    expect(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ })).toBeChecked()
-  })
-
-  it('reloads the Jev history once the key changes', async () => {
-    mockApi({
-      [`PUT ${BASE}/api-key`]: [okResponse({ keyConfigured: true })],
-      [`GET ${BASE}/documents/jev/history?page=1`]: [
-        okResponse(NO_ROWS),
-        okResponse({
-          entries: [
-            { at: '2026-11-20T10:00:00.000Z', author: 'ana@example.com', change: 'API key replaced', rev: null },
-          ],
-          total: 1,
-          page: 1,
-          pageSize: 5,
-        }),
-      ],
-    })
-    const user = userEvent.setup()
-
-    render(
-      <MemoryRouter initialEntries={['/admin/guards']}>
-        <Routes>
-          <Route
-            path="/admin/guards"
-            element={
-              <>
-                <AdminGuards token="tok" onLogout={vi.fn()} />
-                <SearchProbe />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
-    )
-    await user.type(await screen.findByPlaceholderText('Paste a new key to replace it'), 'jev-secret')
-    await user.click(screen.getByRole('button', { name: 'Save key' }))
-
-    expect(await screen.findByText('API key replaced')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Payments')).not.toBeInTheDocument())
   })
 
   it('shows why the guards could not load', async () => {

@@ -1,7 +1,6 @@
 import { LEGAL_CASE_CHECKED } from '../constants.js'
 import { listLegalReplies, saveLegalReply } from '../db/legal-replies.js'
-import { isGuardSendingEnabled } from '../jev/settings.js'
-import { GUARD_SEND_OFF, findSendBlocker, sendLegalReply } from './replies.js'
+import { findSendBlocker, sendLegalReply } from './replies.js'
 
 const MAX_REPLY_CHARS = 10_000
 
@@ -23,8 +22,6 @@ function needsCare(legalCase) {
 }
 
 async function findReplyBlocker(legalCase, { userId, text }) {
-  if (!(await isGuardSendingEnabled())) return GUARD_SEND_OFF
-
   const sent = await listLegalReplies([legalCase.id])
   if (sent.some(reply => reply.text === text)) return ALREADY_SENT
 

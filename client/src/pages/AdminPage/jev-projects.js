@@ -12,4 +12,4 @@ export function projectLabels() {
   return GUARD_LABELS
 }
 
-export const VERSIONED_SET_FIELDS = ['model', 'minConfidence', 'questions']
+export const VERSIONED_SET_FIELDS = ['minConfidence', 'questions']

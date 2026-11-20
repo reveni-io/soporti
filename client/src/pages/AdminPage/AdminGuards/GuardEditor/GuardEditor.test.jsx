@@ -5,7 +5,6 @@ import { MemoryRouter } from 'react-router-dom'
 import GuardEditor from './GuardEditor.jsx'
 
 const BASE = '/api/admin/config/jev'
-const CATALOG = { keyConfigured: true, models: [{ name: 'jev-latest', description: '' }], scannedAt: null }
 const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', instructions: '', criteria: '', flagAt: 60 }
 const SET = {
   description: 'Replies to customers',
@@ -51,7 +50,7 @@ describe('GuardEditor', () => {
 
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
@@ -71,7 +70,7 @@ describe('GuardEditor', () => {
     const onSaved = vi.fn()
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={onSaved} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={onSaved} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
@@ -83,36 +82,21 @@ describe('GuardEditor', () => {
     expect(JSON.parse(put[1].body).data.set.description).toBe('Replies to customers and emails')
   })
 
-  it('renames a created guard and deletes it after a confirmation', async () => {
-    mockApi(
-      'guard-0a1b2c3d',
-      { name: 'Payments', set: SET },
-      { [`DELETE ${BASE}/guards/guard-0a1b2c3d`]: [{ ok: true, status: 204, json: async () => null }] }
-    )
-    const onDeleted = vi.fn()
+  it('renames a guard', async () => {
+    mockApi('guard-0a1b2c3d', { name: 'Payments', set: SET })
     const user = userEvent.setup()
     render(
       <MemoryRouter>
-        <GuardEditor
-          token="tok"
-          guard={PAYMENTS}
-          catalog={CATALOG}
-          onSaved={vi.fn()}
-          onDeleted={onDeleted}
-          onLogout={vi.fn()}
-        />
+        <GuardEditor token="tok" guard={PAYMENTS} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
     const name = await screen.findByRole('textbox', { name: 'Name' })
     await user.clear(name)
     await user.type(name, 'Refunds')
+
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /Delete guard/ }))
-    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
-
-    expect(onDeleted).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: /Delete guard/ })).not.toBeInTheDocument()
   })
 
   it('closes at once without changes, and asks before dropping unsaved ones', async () => {
@@ -122,14 +106,7 @@ describe('GuardEditor', () => {
 
     render(
       <MemoryRouter>
-        <GuardEditor
-          token="tok"
-          guard={LEGAL}
-          catalog={CATALOG}
-          onSaved={vi.fn()}
-          onClose={onClose}
-          onLogout={vi.fn()}
-        />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onClose={onClose} onLogout={vi.fn()} />
       </MemoryRouter>
     )
     await user.click(await screen.findByRole('button', { name: 'Close' }))
@@ -156,7 +133,7 @@ describe('GuardEditor', () => {
 
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 

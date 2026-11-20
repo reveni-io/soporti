@@ -1,8 +1,7 @@
 import { Router } from 'express'
-import { isGuardSendingEnabled } from '../jev/settings.js'
 import { findOwnedLegalCases, getOwnedLegalCase } from '../db/legal-cases.js'
 import { listLegalReplies } from '../db/legal-replies.js'
-import { GUARD_SEND_OFF, LegalReplyError, findSendBlocker, readLegalConversation } from '../legal/replies.js'
+import { LegalReplyError, findSendBlocker, readLegalConversation } from '../legal/replies.js'
 
 const router = Router()
 
@@ -31,8 +30,6 @@ function toReply({ id, sentBy, text, sentAt }) {
 }
 
 async function describeSending(legalCases, userId) {
-  if (!(await isGuardSendingEnabled())) return new Map(legalCases.map(({ id }) => [id, GUARD_SEND_OFF]))
-
   const sources = [...new Set(legalCases.map(({ source }) => source))]
   const blockers = await Promise.all(sources.map(source => findSendBlocker(source, userId)))
   const bySource = new Map(sources.map((source, index) => [source, blockers[index]]))

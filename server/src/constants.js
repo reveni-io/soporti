@@ -26,7 +26,7 @@ export const ROUTINE_RESULT_MAX_LENGTH = 4000
 export const NOTHING_TO_REPORT = 'NOTHING_TO_REPORT'
 export const BOT_HISTORY_MAX_CHARS = 300_000
 
-export const JEV_SETTINGS_DOCUMENT = 'jev'
+export const JEV_LATEST_MODEL = 'jev-latest'
 export const JEV_GITHUB_DOCUMENT = 'github'
 export const JEV_LEGAL_DOCUMENT = 'legal'
 export const JEV_CHECK_ANSWERED = 'answered'
