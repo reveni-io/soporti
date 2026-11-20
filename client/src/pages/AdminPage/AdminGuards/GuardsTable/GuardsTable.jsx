@@ -31,7 +31,7 @@ export default function GuardsTable({ guards, selectedId, onSelect }) {
                 <td className="admin__nowrap">
                   <strong>{guard.name}</strong>
                 </td>
-                <td>{describeUse(guard)}</td>
+                <td className="admin__table-text">{describeUse(guard)}</td>
                 <td>
                   <span className={`badge${guard.enabled ? ' badge--success' : ''}`}>
                     {guard.enabled ? 'On' : 'Off'}

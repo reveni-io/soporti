@@ -13,3 +13,9 @@
 .video-composer__send {
   flex-shrink: 0;
 }
+
+@media (max-width: 768px) {
+  .video-composer__send {
+    min-height: var(--touch-target);
+  }
+}

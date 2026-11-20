@@ -86,3 +86,28 @@
   color: var(--text-muted);
   font-size: var(--fs-md);
 }
+
+@media (max-width: 768px) {
+  .repo-picker__selected .chip {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .repo-picker__remove {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--sp10);
+    height: var(--sp10);
+    margin: calc(var(--sp2) * -1) calc(var(--sp2) * -1) calc(var(--sp2) * -1) 0;
+  }
+
+  .repo-picker__list {
+    max-height: 13rem;
+  }
+
+  .repo-picker__option {
+    min-height: var(--sp10);
+  }
+}

@@ -1,7 +1,7 @@
 .update-toast {
   position: fixed;
   right: var(--sp4);
-  top: var(--sp4);
+  top: calc(var(--sp4) + var(--safe-top));
   left: var(--sp4);
   z-index: 250;
   display: flex;

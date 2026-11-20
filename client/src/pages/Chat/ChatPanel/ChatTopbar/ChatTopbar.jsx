@@ -10,6 +10,8 @@ const BACK_LABEL = 'Back to bots'
 const SHARE_ICON_STROKE = 1.5
 const TOUR_LABEL = 'What can I ask?'
 const SHARE_LABEL = 'Share conversation'
+const NEW_CHAT_LABEL = 'New chat'
+const NEW_CHAT_ICON_SIZE = 17
 
 export default function ChatTopbar({
   title,
@@ -21,6 +23,7 @@ export default function ChatTopbar({
   onExpandSidebar,
   onOpenTour,
   onShare,
+  onNewChat,
   onOpenRoutines,
   onEditBot,
   onBackToBots,
@@ -53,7 +56,13 @@ export default function ChatTopbar({
         {bot ? (
           <BotActions onOpenRoutines={onOpenRoutines} onEditBot={onEditBot} />
         ) : (
-          <ChatActions canShare={canShare} isLoading={isLoading} onOpenTour={onOpenTour} onShare={onShare} />
+          <ChatActions
+            canShare={canShare}
+            isLoading={isLoading}
+            onOpenTour={onOpenTour}
+            onShare={onShare}
+            onNewChat={onNewChat}
+          />
         )}
       </div>
     </header>
@@ -105,7 +114,7 @@ function BotActions({ onOpenRoutines, onEditBot }) {
   )
 }
 
-function ChatActions({ canShare, isLoading, onOpenTour, onShare }) {
+function ChatActions({ canShare, isLoading, onOpenTour, onShare, onNewChat }) {
   return (
     <>
       <button
@@ -133,6 +142,17 @@ function ChatActions({ canShare, isLoading, onOpenTour, onShare }) {
             className="chat-topbar__share-icon"
           />
           <span className="chat-topbar__label">Share</span>
+        </button>
+      )}
+      {onNewChat && (
+        <button
+          type="button"
+          className="chat-topbar__action chat-topbar__new"
+          onClick={onNewChat}
+          aria-label={NEW_CHAT_LABEL}
+          title={NEW_CHAT_LABEL}
+        >
+          <Icon name="compose" size={NEW_CHAT_ICON_SIZE} />
         </button>
       )}
     </>

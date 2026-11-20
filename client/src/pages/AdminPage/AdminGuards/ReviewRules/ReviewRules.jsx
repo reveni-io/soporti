@@ -75,7 +75,7 @@ export default function ReviewRules({ state }) {
               const definition = RULES_BY_ID.get(rule.id)
               return (
                 <tr key={rule.id}>
-                  <td>
+                  <td className="admin__table-text">
                     <span className="review-rules__name">{definition.label}</span>
                     {definition.checks}{' '}
                     <span className="admin__muted">{RULE_ROLES.find(role => role.value === rule.role).help}.</span>

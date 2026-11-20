@@ -61,3 +61,26 @@
   font-size: var(--fs-sm);
   color: var(--warning-text);
 }
+
+@media (max-width: 768px) {
+  .schedule-form__cadence {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+    align-items: end;
+  }
+
+  .schedule-form__label--inline {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp1);
+  }
+
+  .schedule-form__select {
+    width: 100%;
+    min-height: var(--touch-target);
+  }
+
+  .schedule-form .modal__actions .btn {
+    flex: 1;
+  }
+}

@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ArtifactBody from '../../common/ArtifactBody/ArtifactBody.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
+import Icon from '../../common/Icon/Icon.jsx'
 import ArtifactToolbar from '../../common/ArtifactToolbar/ArtifactToolbar.jsx'
 import ShareModal from '../../common/ShareModal/ShareModal.jsx'
 import Login from '../../common/Login/Login.jsx'
@@ -11,6 +12,8 @@ import { useArtifact } from '../../hooks/useArtifact/useArtifact.js'
 import { useArtifactShare } from '../../hooks/useArtifactShare/useArtifactShare.js'
 import { ROUTES } from '../../router/constants.js'
 import './ArtifactView.css'
+
+const BACK_ICON_SIZE = 18
 
 export default function ArtifactView({ id }) {
   const {
@@ -53,20 +56,25 @@ export default function ArtifactView({ id }) {
       <GridPattern variant="surface" />
 
       <header className="artifact-view__header">
-        <Link className="artifact-view__back" to={ROUTES.CHAT}>
+        <Link className="icon-btn artifact-view__back" to={ROUTES.CHAT} aria-label="Back to chat">
+          <Icon name="arrow-left" size={BACK_ICON_SIZE} />
+        </Link>
+        <Link className="artifact-view__brand" to={ROUTES.CHAT}>
           Soporti
         </Link>
         <h1 className="artifact-view__title">{artifact?.title ?? 'Artifact'}</h1>
 
-        <ArtifactToolbar
-          artifact={artifact}
-          version={version}
-          hasHtml={Boolean(html)}
-          onSelectVersion={selectVersion}
-          onShare={() => share(id, version)}
-          onExportPdf={handleExportPdf}
-          onDeleteVersion={removeVersion}
-        />
+        <div className="artifact-view__actions">
+          <ArtifactToolbar
+            artifact={artifact}
+            version={version}
+            hasHtml={Boolean(html)}
+            onSelectVersion={selectVersion}
+            onShare={() => share(id, version)}
+            onExportPdf={handleExportPdf}
+            onDeleteVersion={removeVersion}
+          />
+        </div>
       </header>
 
       {actionError && <p className="alert alert--error artifact-view__alert">{actionError}</p>}

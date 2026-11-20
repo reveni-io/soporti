@@ -13,7 +13,7 @@ describe('StudioHeader', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole('link', { name: /videos/i })).toHaveAttribute('href', '/videos')
+    expect(screen.getByRole('link', { name: 'Back to videos' })).toHaveAttribute('href', '/videos')
     expect(screen.getByRole('heading', { name: 'Liquid email templates' })).toBeInTheDocument()
     expect(screen.getByText('16:9 · ~30s')).toBeInTheDocument()
   })

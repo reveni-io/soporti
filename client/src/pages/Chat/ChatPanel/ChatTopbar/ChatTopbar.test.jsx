@@ -158,4 +158,20 @@ describe('ChatTopbar', () => {
       expect(onBackToBots).toHaveBeenCalledTimes(1)
     })
   })
+
+  it('starts a new chat from the top bar', async () => {
+    const onNewChat = vi.fn()
+    const user = userEvent.setup()
+    render(<ChatTopbar {...BASE_PROPS} onNewChat={onNewChat} />)
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }))
+
+    expect(onNewChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no new chat button without a handler', () => {
+    render(<ChatTopbar {...BASE_PROPS} />)
+
+    expect(screen.queryByRole('button', { name: 'New chat' })).toBeNull()
+  })
 })

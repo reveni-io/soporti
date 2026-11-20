@@ -222,6 +222,10 @@
 }
 
 @media (max-width: 768px) {
+  .agent-steps__header {
+    min-height: var(--sp10);
+  }
+
   .agent-steps__detail {
     max-width: 140px;
   }

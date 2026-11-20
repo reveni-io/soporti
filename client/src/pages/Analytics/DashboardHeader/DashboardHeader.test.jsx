@@ -22,7 +22,7 @@ describe('DashboardHeader', () => {
     )
 
     expect(screen.getByRole('heading', { level: 1, name: 'Analytics' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /chat/i })).toHaveAttribute('href', '/chat')
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
     expect(screen.queryByRole('button')).toBeNull()
   })
 
@@ -43,7 +43,7 @@ describe('DashboardHeader', () => {
     )
 
     expect(screen.getByRole('heading', { level: 1, name: 'Returns overview' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /chat/i })).toHaveAttribute('href', '/chat')
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
     expect(screen.getByText('3 charts')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rename or delete dashboard' })).toBeInTheDocument()

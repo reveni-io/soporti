@@ -47,3 +47,14 @@
   color: var(--text-secondary);
   font-size: var(--fs-md);
 }
+
+@media (max-width: 768px) {
+  .production-panel__tab {
+    min-width: var(--sp10);
+    min-height: var(--sp10);
+  }
+
+  .production-panel .btn {
+    min-height: var(--touch-target);
+  }
+}

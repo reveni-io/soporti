@@ -229,3 +229,9 @@
     animation: none;
   }
 }
+
+@media (max-width: 768px) {
+  .citations__header {
+    min-height: var(--sp10);
+  }
+}

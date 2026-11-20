@@ -37,3 +37,10 @@
   background-color: rgba(var(--green-inverse-rgb), 0.12);
   color: var(--green-inverse);
 }
+
+@media (max-width: 768px) {
+  .copy-button {
+    min-height: var(--sp10);
+    padding: var(--sp2) var(--sp3);
+  }
+}

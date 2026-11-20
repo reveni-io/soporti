@@ -3,9 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { useVideos } from '../../hooks/useVideos/useVideos.js'
 import { ROUTES } from '../../router/constants.js'
+import Icon from '../../common/Icon/Icon.jsx'
 import VideoGrid from './VideoGrid/VideoGrid.jsx'
 import NewVideoModal from './NewVideoModal/NewVideoModal.jsx'
 import './Videos.css'
+
+const BACK_ICON_SIZE = 20
 
 export default function Videos() {
   const { token, logout } = useAuth()
@@ -20,8 +23,9 @@ export default function Videos() {
   return (
     <div className="videos">
       <header className="videos__header">
-        <Link className="videos__back" to={ROUTES.CHAT}>
-          &larr; Chat
+        <Link className="videos__back page-back" to={ROUTES.CHAT} aria-label="Back to chat">
+          <Icon name="arrow-left" size={BACK_ICON_SIZE} className="page-back__icon" />
+          <span className="page-back__label">&larr; Chat</span>
         </Link>
         <h1 className="videos__title">Videos</h1>
         <button type="button" className="btn btn--primary" onClick={() => setIsCreating(true)}>

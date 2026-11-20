@@ -166,7 +166,12 @@
   }
 
   .bots-panel__header {
-    padding: 0 var(--sp3);
+    height: calc(var(--topbar-height) + var(--safe-top));
+    padding: var(--safe-top) var(--sp3) 0 var(--sp2);
+  }
+
+  .bots-panel__new {
+    min-height: var(--sp10);
   }
 }
 

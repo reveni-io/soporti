@@ -42,3 +42,9 @@
   gap: var(--sp2);
   list-style: none;
 }
+
+@media (max-width: 768px) {
+  .attachment-field__header .btn {
+    min-height: var(--sp10);
+  }
+}

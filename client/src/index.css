@@ -105,8 +105,15 @@
   --sidebar-width: 17.5rem;
   --sidebar-list-min-height: 14rem;
   --bots-panel-width: 17rem;
-  --sidebar-drawer-width: min(20rem, 86vw);
+  --sidebar-drawer-width: min(22rem, 88vw);
   --topbar-height: 3.5rem;
+  --touch-target: 2.75rem;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --sheet-max-height: calc(100dvh - var(--safe-top) - var(--sp8));
 
   --font-heading: 'Shippori Mincho', Georgia, serif;
   --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
@@ -188,6 +195,7 @@
   --shadow-card: 0 1px 2px rgba(var(--green-deep-rgb), 0.04);
   --shadow-drag: 0 18px 40px rgba(var(--green-deep-rgb), 0.18);
   --shadow-topbar: 0 10px 30px rgba(var(--green-deep-rgb), 0.06);
+  --shadow-sheet: 0 -12px 40px rgba(var(--green-deep-rgb), 0.18);
 }
 
 [data-theme='dark'] {
@@ -244,6 +252,7 @@
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-drag: 0 18px 40px rgba(0, 0, 0, 0.5);
   --shadow-topbar: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-sheet: 0 -16px 48px rgba(0, 0, 0, 0.6);
 }
 
 *,
@@ -268,6 +277,9 @@ body {
   background-color: var(--bg-app);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 ::selection {

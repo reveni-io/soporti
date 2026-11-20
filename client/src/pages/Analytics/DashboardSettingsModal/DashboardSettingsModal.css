@@ -20,3 +20,9 @@
 .dashboard-settings-modal__danger .alert {
   align-self: stretch;
 }
+
+@media (max-width: 768px) {
+  .dashboard-settings-modal__danger .btn {
+    min-height: var(--touch-target);
+  }
+}

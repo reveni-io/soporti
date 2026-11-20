@@ -89,7 +89,7 @@ export default function BentoSection() {
           icon="download"
           kicker="App"
           title="Soporti in your dock and in your pocket"
-          description="Install it on desktop or phone. Get notified when a bot reports, an answer lands or a video is ready, and share screenshots into a chat."
+          description="Install it on desktop or phone, laid out for one thumb. Get notified when a bot reports, an answer lands or a video is ready, and share screenshots into a chat."
           isLandscape
           index={6}
         >

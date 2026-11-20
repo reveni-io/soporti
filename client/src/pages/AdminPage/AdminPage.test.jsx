@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { ROUTES } from '../../router/constants.js'
 import AdminPage from './AdminPage.jsx'
 
 vi.mock('../../hooks/useAuth/useAuth.js', () => ({
@@ -109,6 +110,10 @@ function renderPage(initialPath = '/admin') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('AdminPage', () => {
@@ -325,6 +330,38 @@ describe('AdminPage', () => {
 
     expect(await screen.findByTestId('admin-authentication')).toBeInTheDocument()
     expect(screen.queryByTestId('admin-users')).not.toBeInTheDocument()
+  })
+
+  it('keeps a labelled way back to the chat and a labelled log out in the header', async () => {
+    const logout = vi.fn()
+    mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' }, logout })
+    mockStatus(true)
+    const user = userEvent.setup()
+
+    renderPage()
+    await screen.findByTestId('admin-stats')
+
+    expect(screen.getByRole('link', { name: 'Go to chat' })).toHaveAttribute('href', ROUTES.CHAT)
+
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+
+    expect(logout).toHaveBeenCalledTimes(1)
+    expect(logout).toHaveBeenCalledWith(expect.anything())
+  })
+
+  it('scrolls the section nav so a deep-linked section is in view', async () => {
+    mockAuth({ isAuthenticated: true, user: { email: 'boss@x.io', role: 'admin' } })
+    mockStatus(true)
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(300)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(function () {
+      return this.classList.contains('admin__nav-link--active') ? 900 : 0
+    })
+
+    renderPage('/admin/database')
+    await screen.findByTestId('admin-database')
+
+    expect(screen.getByRole('navigation').scrollLeft).toBe(800)
   })
 
   it('redirects unknown sections to the first one', async () => {
