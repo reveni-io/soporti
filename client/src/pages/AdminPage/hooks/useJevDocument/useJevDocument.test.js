@@ -70,6 +70,34 @@ describe('useJevDocument', () => {
     expect(result.current.draft).toEqual(SAVED.data)
   })
 
+  it('keeps the form and the conflict when reloading the latest version fails', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(200, SAVED))
+      .mockResolvedValueOnce(respond(409, { error: 'Someone else saved.' }))
+      .mockResolvedValueOnce(respond(500, { error: 'Failed to load the settings.' }))
+      .mockResolvedValueOnce(respond(200, { ...SAVED, rev: 3 }))
+
+    const { result } = renderHook(() => useJevDocument('tok', 'legal', stableLogout))
+    await waitFor(() => expect(result.current.document).not.toBeNull())
+    act(() => result.current.updateDraft({ set: { description: 'Mine' } }))
+    await act(() => result.current.save())
+
+    act(() => result.current.reload())
+    await waitFor(() => expect(result.current.saveError).toBe('Failed to load the settings.'))
+
+    expect(result.current.loadError).toBeNull()
+    expect(result.current.conflict).toBe(true)
+    expect(result.current.document.rev).toBe(2)
+    expect(result.current.draft).toEqual({ set: { description: 'Mine' } })
+
+    act(() => result.current.reload())
+    await waitFor(() => expect(result.current.document.rev).toBe(3))
+
+    expect(result.current.conflict).toBe(false)
+    expect(result.current.saveError).toBeNull()
+  })
+
   it('clears an ordinary save error on the next edit', async () => {
     global.fetch = vi
       .fn()
