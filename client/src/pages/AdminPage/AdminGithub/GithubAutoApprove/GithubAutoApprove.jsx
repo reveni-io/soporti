@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
 import { ROUTES } from '../../../../router/constants.js'
+import { useAuthedConfig } from '../../../../hooks/useAuthedConfig/useAuthedConfig.js'
+import { getJevConfig } from '../../../../services/services.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
@@ -8,6 +10,7 @@ import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
 
 export default function GithubAutoApprove({ token, onLogout }) {
   const project = useJevDocument(token, JEV_GITHUB_DOCUMENT, onLogout)
+  const { config: catalog } = useAuthedConfig(getJevConfig, token, onLogout)
 
   if (project.loadError) {
     return (
@@ -32,7 +35,13 @@ export default function GithubAutoApprove({ token, onLogout }) {
           <Link to={`${ROUTES.ADMIN_GUARDS}?guard=${JEV_GITHUB_DOCUMENT}`}>GitHub PRs guard</Link>. Jev can only veto,
           never approve.
         </p>
-        <AutoApproveRepos key={project.document.rev} token={token} state={project} onLogout={onLogout} />
+        <AutoApproveRepos
+          key={project.document.rev}
+          token={token}
+          state={project}
+          keyConfigured={catalog?.keyConfigured === true}
+          onLogout={onLogout}
+        />
       </AdminSection>
 
       <DocBar label="GitHub review project" state={project} />

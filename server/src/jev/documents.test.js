@@ -120,7 +120,7 @@ describe('parseJevDocument', () => {
   })
 
   it.each([
-    [{ minConfidence: null }, 'Min confidence must be a number between 0 and 1.'],
+    [{ minConfidence: '0.5' }, 'Min confidence must be a number between 0 and 1.'],
     [{ minConfidence: 1.5 }, 'Min confidence must be a number between 0 and 1.'],
     [{ timeoutSeconds: 0 }, 'Timeout must be a whole number of seconds.'],
     [{ dailyLimit: -1 }, 'Daily limit must be a whole number. Use 0 for no limit.'],
@@ -221,6 +221,28 @@ describe('planJevSave', () => {
       error: 'Save the API key before turning Jev calls on.',
     })
     expect(planJevSave({ rev: 2, data: on }, off, { keyConfigured: false }).change).toBe('Jev calls off')
+  })
+
+  it('saves a guard without a min confidence while its calls are off', () => {
+    const empty = parseLegal({ minConfidence: null }).value
+
+    expect(empty.set.minConfidence).toBeNull()
+    expect(planJevSave({ rev: 1, data: parseLegal().value }, empty).error).toBeUndefined()
+  })
+
+  it('refuses to turn the calls on, or to clear the min confidence while they are on, without a min confidence', () => {
+    const off = parseLegal({ minConfidence: null }).value
+    const on = { ...parseLegal().value, enabled: true }
+    const error = { error: 'Jev calls need a min confidence: set one or turn the calls off.' }
+
+    expect(planJevSave({ rev: 1, data: off }, { ...off, enabled: true })).toEqual(error)
+    expect(planJevSave({ rev: 2, data: on }, { ...on, set: off.set })).toEqual(error)
+  })
+
+  it('still saves a guard that already had its calls on without a min confidence', () => {
+    const saved = { ...parseLegal({ minConfidence: null }).value, enabled: true }
+
+    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
   })
 })
 

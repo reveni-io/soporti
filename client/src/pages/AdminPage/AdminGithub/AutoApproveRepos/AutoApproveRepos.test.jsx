@@ -127,13 +127,41 @@ describe('AutoApproveRepos', () => {
     const state = reposState()
     const user = userEvent.setup()
 
-    render(<AutoApproveRepos token="tok" state={state} onLogout={vi.fn()} />)
+    render(<AutoApproveRepos token="tok" state={state} keyConfigured onLogout={vi.fn()} />)
     await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/API')
     await user.click(screen.getByRole('button', { name: 'Add repo' }))
 
     expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: true, denylist: [] })
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ name: 'acme/API' })
     expect(screen.getByRole('textbox', { name: 'Repository to add' })).toHaveValue('')
+  })
+
+  it('locks asking Jev about a repo, and adds repos with Jev off, until an API key is saved', async () => {
+    global.fetch = vi.fn().mockResolvedValue(respond(200, { fullName: 'acme/api' }))
+    const state = reposState([{ ...WEB, jev: false }, DOCS])
+    const user = userEvent.setup()
+
+    render(<AutoApproveRepos token="tok" state={state} onLogout={vi.fn()} />)
+
+    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/web' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/docs' })).toBeEnabled()
+    expect(
+      screen.getByText('Save the Jev API key in Admin → Guards before asking Jev about a repo.')
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: 'Repository to add' }), 'acme/api')
+    await user.click(screen.getByRole('button', { name: 'Add repo' }))
+
+    expect(lastRepos(state).at(-1)).toEqual({ name: 'acme/api', mode: 'off', jev: false, denylist: [] })
+  })
+
+  it('lets Jev be asked about any repo once an API key is saved', () => {
+    render(
+      <AutoApproveRepos token="tok" state={reposState([{ ...WEB, jev: false }])} keyConfigured onLogout={vi.fn()} />
+    )
+
+    expect(screen.getByRole('checkbox', { name: 'Ask Jev about acme/web' })).toBeEnabled()
+    expect(screen.queryByText(/Save the Jev API key/)).not.toBeInTheDocument()
   })
 
   it.each([

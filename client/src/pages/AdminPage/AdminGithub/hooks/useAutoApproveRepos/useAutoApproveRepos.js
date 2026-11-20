@@ -11,7 +11,7 @@ function describeShadowFirst(blocked, othersCanGoOn) {
   return `Shadow first: ${blocked.join(', ')} ${one ? 'has' : 'have'} not been saved in shadow yet. Set ${one ? 'it' : 'them'} to shadow and save, then set ${one ? 'it' : 'them'} to on.${others}`
 }
 
-export function useAutoApproveRepos(state, { token, onLogout }) {
+export function useAutoApproveRepos(state, { token, onLogout, keyConfigured }) {
   const [selected, setSelected] = useState([])
   const [message, setMessage] = useState(null)
   const [confirming, setConfirming] = useState(null)
@@ -83,7 +83,7 @@ export function useAutoApproveRepos(state, { token, onLogout }) {
     setAdding(true)
     try {
       const { fullName } = await checkGithubAutoApproveRepo(token, name)
-      updateRepos(current => [...current, { name: fullName, mode: AUTO_APPROVE_OFF, jev: true, denylist: [] }])
+      updateRepos(current => [...current, { name: fullName, mode: AUTO_APPROVE_OFF, jev: keyConfigured, denylist: [] }])
       return true
     } catch (err) {
       if (isUnauthorized(err)) {

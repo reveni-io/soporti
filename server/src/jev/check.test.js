@@ -144,6 +144,11 @@ describe('runJevCheck', () => {
     ['the guard was never saved', () => mockDocuments({ set: null }), 'Jev calls are off for this guard'],
     ['the guard has no questions', () => mockDocuments({ set: { ...SET, questions: [] } }), 'No questions in the set'],
     ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
+    [
+      'no min confidence is set',
+      () => mockDocuments({ set: { ...SET, minConfidence: null } }),
+      'No min confidence set',
+    ],
   ])('does not call Jev when %s', async (_case, arrange, reason) => {
     arrange()
 

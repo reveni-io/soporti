@@ -23,6 +23,7 @@ const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
 const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
+const NO_MIN_CONFIDENCE_CALLS_MESSAGE = 'Jev calls need a min confidence: set one or turn the calls off.'
 const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
 
 const DEFAULT_SET = {
@@ -76,6 +77,7 @@ function parseModel(value) {
 }
 
 function parseMinConfidence(value) {
+  if (value === undefined || value === null) return { value: null }
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
     return { error: 'Min confidence must be a number between 0 and 1.' }
   }
@@ -322,8 +324,15 @@ function versionedSet(data) {
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
 }
 
+function lacksMinConfidence(data) {
+  return Boolean(data.enabled) && data.set?.minConfidence === null
+}
+
 function findSaveError(previous, next, keyConfigured) {
   if (next.enabled && !previous.enabled && !keyConfigured) return NO_KEY_CALLS_MESSAGE
+  if (next.enabled && next.set.minConfidence === null && !lacksMinConfidence(previous)) {
+    return NO_MIN_CONFIDENCE_CALLS_MESSAGE
+  }
 
   return next.repos ? findGithubSaveError(previous, next) : null
 }

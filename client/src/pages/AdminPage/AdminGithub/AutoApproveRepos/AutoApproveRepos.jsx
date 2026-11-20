@@ -18,8 +18,8 @@ function describeBehavior(repo) {
   return <span className="badge badge--success">Approves when every gate passes</span>
 }
 
-export default function AutoApproveRepos({ token, state, onLogout }) {
-  const repos = useAutoApproveRepos(state, { token, onLogout })
+export default function AutoApproveRepos({ token, state, keyConfigured = false, onLogout }) {
+  const repos = useAutoApproveRepos(state, { token, onLogout, keyConfigured })
   const [bulkMode, setBulkMode] = useState(AUTO_APPROVE_SHADOW)
   const [newRepo, setNewRepo] = useState('')
   const count = repos.repos.length
@@ -54,7 +54,10 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
         repo with Jev off also decides as today.
       </p>
 
-      <ReposTable repos={repos} />
+      <ReposTable repos={repos} keyConfigured={keyConfigured} />
+      {!keyConfigured && (
+        <p className="admin__muted">Save the Jev API key in Admin → Guards before asking Jev about a repo.</p>
+      )}
 
       <div className="admin__form admin__form--row">
         <span className="admin__muted">
@@ -118,7 +121,7 @@ export default function AutoApproveRepos({ token, state, onLogout }) {
   )
 }
 
-function ReposTable({ repos }) {
+function ReposTable({ repos, keyConfigured }) {
   const count = repos.repos.length
   if (count === 0) return <p className="admin__muted">No repo has auto-approve yet.</p>
 
@@ -190,6 +193,7 @@ function ReposTable({ repos }) {
                   aria-label={`Ask Jev about ${repo.name}`}
                   checked={repo.jev}
                   onChange={event => handleJevChange(repo.name, event)}
+                  disabled={!keyConfigured && !repo.jev}
                 />
               </td>
               <td>{countPatterns(repo.denylist)}</td>
