@@ -19,6 +19,8 @@ const MAX_DESCRIPTION_CHARS = 500
 const MAX_QUESTION_CHARS = 500
 const MAX_GUIDANCE_CHARS = 4_000
 const MAX_LABEL_CHARS = 200
+const MAX_NAME_CHARS = 60
+const CUSTOM_GUARD_RE = /^guard-[0-9a-f]{8}$/
 const MAX_ID_CHARS = 64
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
@@ -224,15 +226,28 @@ const SET_PARSERS = [
 
 const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters], ['rules', parseGithubRules]]
 
-function parseProject(data, setParsers) {
+export function parseGuardName(value, { required = false } = {}) {
+  if ((value === undefined || value === null) && !required) return { value: undefined }
+
+  return parseText(value, { label: 'The name', max: MAX_NAME_CHARS, required: true })
+}
+
+function parseProject(data, setParsers, { nameRequired = false } = {}) {
+  const name = parseGuardName(data?.name, { required: nameRequired })
+  if (name.error) return name
+
   const set = parseFields(data?.set, setParsers)
   if (set.error) return set
 
-  return { value: { set: set.value } }
+  return { value: name.value === undefined ? { set: set.value } : { name: name.value, set: set.value } }
 }
 
 function parseLegalProject(data) {
   return parseProject(data, SET_PARSERS)
+}
+
+function parseCustomGuard(data) {
+  return parseProject(data, SET_PARSERS, { nameRequired: true })
 }
 
 function parseGithubProject(data) {
@@ -286,8 +301,12 @@ function describeSetChanges(previous, next) {
   return [...changes, ...scalars]
 }
 
+function describeNameChange(previous, next) {
+  return next.name !== undefined && previous.name !== next.name ? [`Name ${next.name}`] : []
+}
+
 function describeChanges(previous, next) {
-  const setChanges = describeSetChanges(previous.set, next.set)
+  const setChanges = [...describeNameChange(previous, next), ...describeSetChanges(previous.set, next.set)]
 
   return next.repos ? [...describeGithubChanges(previous, next), ...setChanges] : setChanges
 }
@@ -302,16 +321,22 @@ function findSaveError(previous, next) {
   return next.repos ? findGithubSaveError(previous, next) : null
 }
 
+export function isCustomGuardId(id) {
+  return CUSTOM_GUARD_RE.test(id)
+}
+
 export function isJevDocument(id) {
-  return DOCUMENT_PARSERS.has(id)
+  return DOCUMENT_PARSERS.has(id) || isCustomGuardId(id)
 }
 
 export function defaultJevDocument(id) {
+  if (isCustomGuardId(id)) return structuredClone({ name: '', set: DEFAULT_SET })
+
   return structuredClone(DEFAULT_DOCUMENTS[id] ?? null)
 }
 
 export function parseJevDocument(id, data) {
-  const parse = DOCUMENT_PARSERS.get(id)
+  const parse = isCustomGuardId(id) ? parseCustomGuard : DOCUMENT_PARSERS.get(id)
   if (typeof parse !== 'function') return { error: 'Unknown document.' }
 
   return parse(data)

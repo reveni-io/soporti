@@ -13,7 +13,7 @@ const POINTS = [
   {
     icon: 'check',
     title: 'A guard for each job',
-    text: 'Replies to customers and pull request approvals each have their own guard: the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
+    text: 'Create a guard for anything you want checked, like replies to customers or pull request approvals, each with the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
   },
   {
     icon: 'shield',

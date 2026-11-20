@@ -17,3 +17,9 @@
 .guard-modal__confirm span {
   flex: 1;
 }
+
+.guard-modal__name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+}

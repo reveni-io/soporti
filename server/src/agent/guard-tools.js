@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { tool } from '@openai/agents'
 import { GUARD_RESULT_CASE, GUARD_RESULT_CHECK } from '../constants.js'
 import { checkContent, checkTicketReply } from '../guards/check.js'
+import { findGuardByName } from '../guards/registry.js'
 import { LEGAL_SOURCES } from '../legal/tickets.js'
 
 const CONFIDENCE_DIGITS = 2
@@ -30,12 +31,6 @@ function describeResult(result) {
       : `The ${result.guard} guard raised ${result.warnings} warning${result.warnings === 1 ? '' : 's'}.`
 
   return [summary, ...result.review.rows.map(describeRow)].join('\n')
-}
-
-function findGuard(guards, name) {
-  const wanted = name.trim().toLowerCase()
-
-  return guards.find(guard => guard.name.toLowerCase() === wanted) ?? null
 }
 
 async function checkTicket(guard, { ticket, userId, cases }) {
@@ -98,7 +93,7 @@ export function buildGuardTools({ guards, userId, guardCases = null }) {
         ticket: ticketParam,
       }),
       execute: async input => {
-        const guard = findGuard(guards, input.guard)
+        const guard = findGuardByName(guards, input.guard)
         if (!guard)
           return `There is no guard called "${input.guard}". Guards: ${guards.map(({ name }) => name).join(', ')}.`
 

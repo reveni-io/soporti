@@ -4,6 +4,9 @@ import { AUTO_APPROVE_OFF, JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
 import { ROUTES } from '../../../../router/constants.js'
 import { useJevDocument } from '../../hooks/useJevDocument/useJevDocument.js'
 import ModalFrame from '../../../../common/ModalFrame/ModalFrame.jsx'
+import DeleteControl from '../../../../common/DeleteControl/DeleteControl.jsx'
+import { deleteGuard } from '../../../../services/services.js'
+import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
 import JevHistory from '../../JevHistory/JevHistory.jsx'
@@ -35,7 +38,27 @@ function DiscardConfirm({ onDiscard, onKeep }) {
   )
 }
 
-export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose }) {
+function GuardDelete({ token, guard, onLogout, onDeleted }) {
+  const { saving, error, save } = useSaveField(onLogout)
+
+  async function handleDelete() {
+    if (await save(() => deleteGuard(token, guard.id))) onDeleted()
+  }
+
+  return (
+    <AdminSection title="Delete guard">
+      {error && <p className="alert alert--error">{error}</p>}
+      <DeleteControl
+        label="Delete guard"
+        question={`Delete the ${guard.name} guard? Its questions, versions and history go with it.`}
+        busy={saving}
+        onDelete={handleDelete}
+      />
+    </AdminSection>
+  )
+}
+
+export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose, onDeleted }) {
   const project = useJevDocument(token, guard.id, onLogout)
   const [confirmingClose, setConfirmingClose] = useState(false)
   const isGithub = guard.id === JEV_GITHUB_DOCUMENT
@@ -65,6 +88,11 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
     setConfirmingClose(false)
   }
 
+  function handleNameChange(event) {
+    const name = event.target.value
+    project.updateDraft(draft => ({ ...draft, name }))
+  }
+
   async function saveAndRefresh() {
     await project.save()
     onSaved()
@@ -73,6 +101,11 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
   return (
     <ModalFrame title={title} className="guard-modal" onClose={requestClose}>
       {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
+
+      <label className="guard-modal__name">
+        Name
+        <input className="input" value={project.draft.name ?? guard.name} onChange={handleNameChange} />
+      </label>
 
       {isGithub ? (
         <p className="note">
@@ -117,6 +150,8 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
       <AdminSection title="Change history">
         <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
       </AdminSection>
+
+      {!guard.builtIn && <GuardDelete token={token} guard={guard} onLogout={onLogout} onDeleted={onDeleted} />}
 
       <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />
     </ModalFrame>

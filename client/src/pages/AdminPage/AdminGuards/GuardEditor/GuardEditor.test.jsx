@@ -16,8 +16,9 @@ const SET = {
   questions: [QUESTION],
 }
 const NO_ROWS = { entries: [], total: 0, page: 1, pageSize: 5 }
-const LEGAL = { id: 'legal', name: 'Legal' }
-const GITHUB = { id: 'github', name: 'GitHub PRs' }
+const LEGAL = { id: 'legal', name: 'Legal', builtIn: true }
+const GITHUB = { id: 'github', name: 'GitHub PRs', builtIn: true }
+const PAYMENTS = { id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -60,7 +61,8 @@ describe('GuardEditor', () => {
     expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Legal')
+    expect(screen.queryByRole('button', { name: /Delete guard/ })).not.toBeInTheDocument()
   })
 
   it('saves the guard and refreshes the list of guards', async () => {
@@ -108,6 +110,38 @@ describe('GuardEditor', () => {
     await user.click(screen.getByRole('button', { name: 'Delete set' }))
 
     expect(screen.getByText(/Cannot delete the set: 1 auto-approve repo \(acme\/web\) use it/)).toBeInTheDocument()
+  })
+
+  it('renames a created guard and deletes it after a confirmation', async () => {
+    mockApi(
+      'guard-0a1b2c3d',
+      { name: 'Payments', set: SET },
+      { [`DELETE ${BASE}/guards/guard-0a1b2c3d`]: [{ ok: true, status: 204, json: async () => null }] }
+    )
+    const onDeleted = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <GuardEditor
+          token="tok"
+          guard={PAYMENTS}
+          catalog={CATALOG}
+          onSaved={vi.fn()}
+          onDeleted={onDeleted}
+          onLogout={vi.fn()}
+        />
+      </MemoryRouter>
+    )
+
+    const name = await screen.findByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Refunds')
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Delete guard/ }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+
+    expect(onDeleted).toHaveBeenCalledTimes(1)
   })
 
   it('closes at once without changes, and asks before dropping unsaved ones', async () => {

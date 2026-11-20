@@ -15,7 +15,9 @@ const saveJevDocument = vi.fn()
 const addJevHistoryEntry = vi.fn()
 const listJevHistory = vi.fn()
 const listJevSetVersions = vi.fn()
+const deleteJevDocument = vi.fn()
 vi.mock('../db/jev-documents.js', () => ({
+  deleteJevDocument,
   getJevDocument,
   getLatestJevSave,
   saveJevDocument,
@@ -39,7 +41,7 @@ const countSentRepliesByGuardSince = vi.fn()
 vi.mock('../db/legal-cases.js', () => ({ countCasesByGuardSince, countSentRepliesByGuardSince }))
 
 const listGuards = vi.fn()
-vi.mock('../guards/registry.js', () => ({ listGuards }))
+vi.mock('../guards/registry.js', async importOriginal => ({ ...(await importOriginal()), listGuards }))
 
 const { JevApiError } = await import('../jev/client.js')
 const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
@@ -304,6 +306,81 @@ describe('POST /api/admin/config/jev/models/scan', () => {
     expect(res.status).toBe(502)
     expect(res.body).toEqual({ error: 'Could not scan the Jev models: Jev error (HTTP 529).' })
     expect(stored[JEV_MODEL_CATALOG_KEY]).toBe(saved)
+  })
+})
+
+describe('POST and DELETE /api/admin/config/jev/guards', () => {
+  it('creates a guard with its name and records it', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'x', rev: 0, data: {}, setVersion: 0 } })
+
+    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: '  Payments ' })
+
+    expect(res.status).toBe(201)
+    expect(res.body).toEqual({ id: expect.stringMatching(/^guard-[0-9a-f]{8}$/), name: 'Payments' })
+    const [id, options] = saveJevDocument.mock.calls[0]
+    expect(id).toBe(res.body.id)
+    expect(options).toMatchObject({ expectedRev: 0, author: 'ana@example.com' })
+    expect(options.defaults).toMatchObject({ name: 'Payments', set: { questions: [] } })
+    expect(options.plan()).toBeNull()
+    expect(addJevHistoryEntry).toHaveBeenCalledWith(id, { author: 'ana@example.com', change: 'Created Payments' })
+  })
+
+  it.each([
+    [{}, 400, 'The name is required.'],
+    [{ name: 'n'.repeat(61) }, 400, 'The name is too long (max 60 characters).'],
+    [{ name: 'legal' }, 409, 'There is already a guard called "legal". Pick another name.'],
+  ])('refuses to create the guard %j', async (body, status, error) => {
+    const res = await request(app).post('/api/admin/config/jev/guards').send(body)
+
+    expect(res.status).toBe(status)
+    expect(res.body).toEqual({ error })
+    expect(saveJevDocument).not.toHaveBeenCalled()
+  })
+
+  it('refuses to rename a guard to the name of another one', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/guard-0a1b2c3d')
+      .send({ rev: 1, data: { name: 'GitHub PRs', set: LEGAL_SET } })
+
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'There is already a guard called "GitHub PRs". Pick another name.' })
+  })
+
+  it('deletes a created guard and records it in the Jev history', async () => {
+    getJevDocument.mockResolvedValue({ id: 'guard-0a1b2c3d', rev: 2, data: { name: 'Payments', set: LEGAL_SET } })
+
+    const res = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
+
+    expect(res.status).toBe(204)
+    expect(deleteJevDocument).toHaveBeenCalledWith('guard-0a1b2c3d')
+    expect(addJevHistoryEntry).toHaveBeenCalledWith('jev', {
+      author: 'ana@example.com',
+      change: 'Deleted the Payments guard',
+    })
+  })
+
+  it('cannot delete a built-in guard or one that does not exist', async () => {
+    getJevDocument.mockResolvedValue(null)
+
+    const builtIn = await request(app).delete('/api/admin/config/jev/guards/legal')
+    const missing = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
+
+    expect(builtIn.status).toBe(404)
+    expect(missing.status).toBe(404)
+    expect(deleteJevDocument).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the guard cannot be created or deleted', async () => {
+    saveJevDocument.mockRejectedValue(new Error('db down'))
+    getJevDocument.mockRejectedValue(new Error('db down'))
+
+    const created = await request(app).post('/api/admin/config/jev/guards').send({ name: 'Payments' })
+    const deleted = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
+
+    expect(created.status).toBe(500)
+    expect(created.body).toEqual({ error: 'Failed to create the guard.' })
+    expect(deleted.status).toBe(500)
+    expect(deleted.body).toEqual({ error: 'Failed to delete the guard.' })
   })
 })
 
@@ -683,10 +760,15 @@ describe('GET /api/admin/config/jev/github/shadow-stats', () => {
 })
 
 describe('Guards in the Jev admin routes', () => {
-  it('has no document for other guards', async () => {
-    const res = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
+  it('has a document for each created guard and none for other ids', async () => {
+    getJevDocument.mockResolvedValue({ id: 'guard-0a1b2c3d', rev: 2, data: { name: 'Payments', set: LEGAL_SET } })
 
-    expect(res.status).toBe(404)
+    const created = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
+    const unknown = await request(app).get('/api/admin/config/jev/documents/payments')
+
+    expect(created.status).toBe(200)
+    expect(created.body.data.name).toBe('Payments')
+    expect(unknown.status).toBe(404)
   })
 
   it('adds the calls of each version of a guard', async () => {

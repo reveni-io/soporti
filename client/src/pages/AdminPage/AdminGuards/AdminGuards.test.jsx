@@ -73,7 +73,7 @@ describe('AdminGuards', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const titles = [...document.querySelectorAll('h2')].map(title => title.textContent)
     expect(titles).toEqual(['Jev', 'Guards', 'Jev history'])
-    expect(screen.queryByRole('textbox', { name: 'Name of the new guard' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Name of the new guard' })).toBeInTheDocument()
   })
 
   it('opens the guard named in the address in a modal, closes it and opens another', async () => {
@@ -106,6 +106,40 @@ describe('AdminGuards', () => {
 
     expect(screen.getByTestId('search')).toHaveTextContent('?guard=legal')
     expect(await screen.findByRole('dialog', { name: 'Legal guard' })).toBeInTheDocument()
+  })
+
+  it('creates a guard and opens it', async () => {
+    const payments = { ...LEGAL, id: 'guard-0a1b2c3d', name: 'Payments', builtIn: false }
+    mockApi({
+      [`GET ${BASE}/guards`]: [
+        okResponse({ guards: [LEGAL, GITHUB] }),
+        okResponse({ guards: [LEGAL, GITHUB, payments] }),
+      ],
+      [`POST ${BASE}/guards`]: [okResponse({ id: 'guard-0a1b2c3d', name: 'Payments' })],
+      ...documentRoutes('guard-0a1b2c3d', { name: 'Payments', set: SET }),
+    })
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/admin/guards']}>
+        <Routes>
+          <Route
+            path="/admin/guards"
+            element={
+              <>
+                <AdminGuards token="tok" onLogout={vi.fn()} />
+                <SearchProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
+    await user.type(await screen.findByRole('textbox', { name: 'Name of the new guard' }), 'Payments')
+    await user.click(screen.getByRole('button', { name: 'New guard' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Payments guard' })).toBeInTheDocument()
+    expect(screen.getByTestId('search')).toHaveTextContent('?guard=guard-0a1b2c3d')
   })
 
   it('turns the sending of checked replies on for every guard', async () => {

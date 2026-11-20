@@ -10,6 +10,7 @@ import ToggleField from '../ToggleField/ToggleField.jsx'
 import GuardEditor from './GuardEditor/GuardEditor.jsx'
 import GuardsTable from './GuardsTable/GuardsTable.jsx'
 import JevConnection from './JevConnection/JevConnection.jsx'
+import NewGuardForm from './NewGuardForm/NewGuardForm.jsx'
 
 const GUARD_PARAM = 'guard'
 
@@ -30,6 +31,16 @@ export default function AdminGuards({ token, onLogout }) {
 
   function closeGuard() {
     setParams({})
+  }
+
+  function handleCreated(id) {
+    reload()
+    openGuard(id)
+  }
+
+  function handleDeleted() {
+    closeGuard()
+    reload()
   }
 
   function handleSettingsChanged() {
@@ -59,6 +70,7 @@ export default function AdminGuards({ token, onLogout }) {
           Guards warn: they never send, approve or block anything on their own. Press Edit to change a guard.
         </p>
         <GuardsTable guards={list.guards} onEdit={openGuard} />
+        <NewGuardForm token={token} onLogout={onLogout} onCreated={handleCreated} />
         <ToggleField
           enabled={catalog.sendingEnabled}
           label="Allow sending replies from Soporti"
@@ -77,6 +89,7 @@ export default function AdminGuards({ token, onLogout }) {
           onLogout={onLogout}
           onSaved={reload}
           onClose={closeGuard}
+          onDeleted={handleDeleted}
         />
       )}
 

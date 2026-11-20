@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
+import { defaultJevDocument, isCustomGuardId, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
 
 const CHOICE = {
   id: 'q1',
@@ -206,6 +206,28 @@ describe('planJevSave', () => {
 
     expect(empty.set.minConfidence).toBeNull()
     expect(planJevSave({ rev: 1, data: parseLegal().value }, empty).error).toBeUndefined()
+  })
+})
+
+describe('created guards', () => {
+  it('know their ids, start empty and need a name', () => {
+    expect(isCustomGuardId('guard-0a1b2c3d')).toBe(true)
+    expect(isCustomGuardId('guard-0A1B2C3D')).toBe(false)
+    expect(isJevDocument('guard-0a1b2c3d')).toBe(true)
+    expect(defaultJevDocument('guard-0a1b2c3d')).toMatchObject({ name: '', set: { questions: [] } })
+    expect(parseJevDocument('guard-0a1b2c3d', { name: ' Payments ', set: legalSet() }).value.name).toBe('Payments')
+    expect(parseJevDocument('guard-0a1b2c3d', { set: legalSet() })).toEqual({ error: 'The name is required.' })
+    expect(parseJevDocument('guard-0a1b2c3d', { name: 7, set: legalSet() })).toEqual({
+      error: 'The name must be text.',
+    })
+  })
+
+  it('record a new name in the change history, and let the built-in ones be renamed too', () => {
+    const saved = parseJevDocument('guard-0a1b2c3d', { name: 'Payments', set: legalSet() }).value
+
+    expect(planJevSave({ rev: 2, data: saved }, { ...saved, name: 'Refunds' }).change).toBe('Name Refunds')
+    expect(parseLegal().value).not.toHaveProperty('name')
+    expect(parseJevDocument('legal', { name: 'Customer replies', set: legalSet() }).value.name).toBe('Customer replies')
   })
 })
 

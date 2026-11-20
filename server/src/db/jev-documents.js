@@ -32,6 +32,17 @@ export async function getJevDocument(id) {
   return row ?? null
 }
 
+export async function listJevDocuments() {
+  return getDb().select(documentColumns).from(jevDocuments)
+}
+
+export async function deleteJevDocument(id) {
+  await getDb().transaction(async tx => {
+    await tx.delete(jevHistory).where(eq(jevHistory.documentId, id))
+    await tx.delete(jevDocuments).where(eq(jevDocuments.id, id))
+  })
+}
+
 export async function getLatestJevSave(documentId) {
   const [row] = await getDb()
     .select(historyColumns)

@@ -587,6 +587,23 @@ export function getJevConfig(token) {
   return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
 }
 
+export function createGuard(token, name) {
+  return request('/api/admin/config/jev/guards', {
+    method: 'POST',
+    token,
+    body: { name },
+    errorMessage: 'Failed to create the guard',
+  })
+}
+
+export function deleteGuard(token, id) {
+  return request(`/api/admin/config/jev/guards/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the guard',
+  })
+}
+
 export function saveJevCalls(token, enabled) {
   return request('/api/admin/config/jev/calls', {
     method: 'PUT',

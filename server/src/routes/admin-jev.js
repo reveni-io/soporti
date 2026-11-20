@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { Router } from 'express'
 import { JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
 import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
@@ -5,6 +6,7 @@ import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
 import {
   addJevHistoryEntry,
+  deleteJevDocument,
   getJevDocument,
   getLatestJevSave,
   listJevHistory,
@@ -14,8 +16,15 @@ import {
 import { getRepository } from '../github/client.js'
 import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
-import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
-import { listGuards } from '../guards/registry.js'
+import {
+  defaultJevDocument,
+  isCustomGuardId,
+  isJevDocument,
+  parseGuardName,
+  parseJevDocument,
+  planJevSave,
+} from '../jev/documents.js'
+import { findGuardByName, listGuards } from '../guards/registry.js'
 import {
   areJevCallsEnabled,
   getJevModelCatalog,
@@ -27,6 +36,8 @@ import {
   setJevModelCatalog,
 } from '../jev/settings.js'
 
+const CUSTOM_GUARD_PREFIX = 'guard-'
+const CUSTOM_GUARD_ID_BYTES = 4
 const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
@@ -288,6 +299,58 @@ async function listGuardsWithUsage() {
   }))
 }
 
+function describeNameClash(name) {
+  return `There is already a guard called "${name}". Pick another name.`
+}
+
+async function findNameClash(id, name) {
+  if (name === undefined) return null
+
+  return findGuardByName(await listGuards(), name, { exceptId: id }) ? describeNameClash(name) : null
+}
+
+router.post('/guards', async (req, res) => {
+  const { error, value: name } = parseGuardName(req.body?.name, { required: true })
+  if (error) return res.status(400).json({ error })
+
+  try {
+    if (await findNameClash(null, name)) return res.status(409).json({ error: describeNameClash(name) })
+
+    const id = `${CUSTOM_GUARD_PREFIX}${randomBytes(CUSTOM_GUARD_ID_BYTES).toString('hex')}`
+    await saveJevDocument(id, {
+      expectedRev: 0,
+      author: req.user.email,
+      defaults: { ...defaultJevDocument(id), name },
+      plan: () => null,
+    })
+    await addJevHistoryEntry(id, { author: req.user.email, change: `Created ${name}` })
+
+    res.status(201).json({ id, name })
+  } catch (err) {
+    console.error('Failed to create the guard:', err)
+    res.status(500).json({ error: 'Failed to create the guard.' })
+  }
+})
+
+router.delete('/guards/:guardId', async (req, res) => {
+  const { guardId } = req.params
+  if (!isCustomGuardId(guardId)) return res.status(404).json({ error: 'Unknown guard.' })
+
+  try {
+    const document = await getJevDocument(guardId)
+    if (!document) return res.status(404).json({ error: 'Unknown guard.' })
+
+    await deleteJevDocument(guardId)
+    const change = `Deleted the ${document.data.name} guard`
+    await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
+
+    res.status(204).end()
+  } catch (err) {
+    console.error('Failed to delete the guard:', err)
+    res.status(500).json({ error: 'Failed to delete the guard.' })
+  }
+})
+
 router.get('/guards', async (_req, res) => {
   try {
     res.json({ guards: await listGuardsWithUsage() })
@@ -315,6 +378,9 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
+    const clash = await findNameClash(id, value.data.name)
+    if (clash) return res.status(409).json({ error: clash })
+
     const {
       conflict,
       error: saveError,
