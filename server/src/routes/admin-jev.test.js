@@ -455,6 +455,51 @@ describe('GET /api/admin/config/jev/guards', () => {
   })
 })
 
+describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => {
+  const GITHUB_SET = { ...LEGAL_SET, minConfidence: null, maxCharacters: 100_000, rules: [] }
+  const REPO = { name: 'acme/web', mode: 'shadow', jev: false, denylist: [] }
+
+  it('saves the repos and keeps the guard settings that are stored', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/github')
+      .send({ rev: 1, data: { repos: [REPO] } })
+
+    expect(res.status).toBe(200)
+    const [, options] = saveJevDocument.mock.calls[0]
+    const stored = { enabled: false, set: { ...GITHUB_SET, minConfidence: 0.8 }, repos: [] }
+    expect(options.plan({ rev: 1, data: stored }).data).toEqual({
+      ...stored,
+      set: { ...stored.set, questions: [{ ...LEGAL_SET.questions[0], instructions: '', criteria: '' }] },
+      repos: [REPO],
+    })
+  })
+
+  it('checks the fields sent against the stored document', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+
+    await request(app)
+      .put('/api/admin/config/jev/documents/github')
+      .send({ rev: 1, data: { repos: [REPO] } })
+
+    const [, options] = saveJevDocument.mock.calls[0]
+    expect(options.plan({ rev: 1, data: { enabled: 'on', set: GITHUB_SET } })).toEqual({
+      error: '"enabled" must be true or false.',
+    })
+  })
+
+  it('rejects data that is not an object', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/github')
+      .send({ rev: 1, data: ['repos'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: '"data" must be an object.' })
+    expect(saveJevDocument).not.toHaveBeenCalled()
+  })
+})
+
 describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
   it('passes the restored version to the plan', async () => {
     saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 5, data: {}, setVersion: 4 } })

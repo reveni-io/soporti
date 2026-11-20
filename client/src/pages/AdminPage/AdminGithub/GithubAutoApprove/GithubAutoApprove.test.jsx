@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import GithubAutoApprove from './GithubAutoApprove.jsx'
 
@@ -54,6 +55,24 @@ describe('GithubAutoApprove', () => {
     expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
     expect(await screen.findByText(/Save the Jev API key in Admin → Guards/)).toBeInTheDocument()
     await waitFor(() => expect(document.querySelector('option[value="acme/api"]')).toBeInTheDocument())
+  })
+
+  it('saves only the repos, leaving the guard settings to the Guards section', async () => {
+    mockApi([{ name: 'acme/web', mode: 'off', jev: false, denylist: [] }], {}, { ...SET, minConfidence: null })
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter>
+        <GithubAutoApprove token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Mode of acme/web' }), 'shadow')
+    await user.click(screen.getByRole('button', { name: /^Save/ }))
+
+    const put = global.fetch.mock.calls.find(([, options]) => options?.method === 'PUT')
+    expect(JSON.parse(put[1].body).data).toEqual({
+      repos: [{ name: 'acme/web', mode: 'shadow', jev: false, denylist: [] }],
+    })
   })
 
   it('shows why the project could not load', async () => {

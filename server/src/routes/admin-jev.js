@@ -55,10 +55,23 @@ function parseSaveRequest(id, body) {
   const restoredFrom = parseRestoredFrom(body.restoredFrom)
   if (restoredFrom.error) return restoredFrom
 
-  const data = parseJevDocument(id, body.data)
+  if (!isPlainObject(body.data)) return { error: '"data" must be an object.' }
+
+  const data = parseJevDocument(id, { ...defaultJevDocument(id), ...body.data })
   if (data.error) return data
 
-  return { value: { rev: body.rev, data: data.value, restoredFrom: restoredFrom.value } }
+  return { value: { rev: body.rev, data: body.data, restoredFrom: restoredFrom.value } }
+}
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function planMergedSave(id, current, { data, restoredFrom, keyConfigured }) {
+  const next = parseJevDocument(id, { ...current.data, ...data })
+  if (next.error) return next
+
+  return planJevSave(current, next.value, { restoredFrom, keyConfigured })
 }
 
 function parsePage(value) {
@@ -253,9 +266,7 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => {
-        return planJevSave(current, value.data, { restoredFrom: value.restoredFrom, keyConfigured })
-      },
+      plan: current => planMergedSave(id, current, { ...value, keyConfigured }),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
