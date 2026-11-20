@@ -1,11 +1,16 @@
 import { useRef, useState } from 'react'
+import { formatTime } from './format-time.js'
 import { useCopyReply } from './hooks/useCopyReply/useCopyReply.js'
+import { useLegalCases } from './hooks/useLegalCases/useLegalCases.js'
+import { useSendReply } from './hooks/useSendReply/useSendReply.js'
+import SendConfirm from './SendConfirm/SendConfirm.jsx'
+import TicketConversation from './TicketConversation/TicketConversation.jsx'
 import './LegalRun.css'
 
 const CHECKED = 'checked'
 const SOURCE_LABELS = { zendesk: 'Zendesk', hubspot: 'HubSpot' }
 const CONFIDENCE_DIGITS = 2
-const SEND_UNAVAILABLE = 'Sending from Soporti isn’t available yet'
+const OLD_RUN = 'This run is older than sending from Soporti: copy the reply and send it from the ticket.'
 
 function ticketLabel({ source, ticketId }) {
   return `${SOURCE_LABELS[source] ?? source} ticket ${ticketId}`
@@ -15,14 +20,29 @@ function needsCare(legalCase) {
   return legalCase.status !== CHECKED || legalCase.warnings > 0
 }
 
-function nextStep(legalCase) {
+function nextStep(legalCase, state) {
+  if (state?.replies.length > 0) return 'Sent'
   if (legalCase.status !== CHECKED) return 'Check it yourself, then decide'
   if (legalCase.warnings > 0) return 'Read the warnings, then decide'
 
-  return 'Check it, copy it, send it from the ticket'
+  return 'Check it, then send it'
 }
 
-export default function LegalRun({ cases }) {
+function describeSent([reply]) {
+  return `Sent by ${reply.sentBy} · ${formatTime(reply.sentAt)}`
+}
+
+function describeSending({ legalCase, state, copyStatus }) {
+  if (copyStatus) return copyStatus
+  if (!legalCase.id) return OLD_RUN
+  if (state?.replies.length > 0) return describeSent(state.replies)
+
+  return state?.send.reason ?? ''
+}
+
+export default function LegalRun({ cases, token = null }) {
+  const status = useLegalCases(token, cases.map(legalCase => legalCase.id).filter(Boolean))
+
   return (
     <div className="legal-run">
       <div className="legal-run__table-wrap">
@@ -45,15 +65,24 @@ export default function LegalRun({ cases }) {
                 <td>
                   <CheckBadge legalCase={legalCase} />
                 </td>
-                <td>{nextStep(legalCase)}</td>
+                <td>{nextStep(legalCase, status.cases.get(legalCase.id))}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {status.error && <p className="alert alert--error">{status.error}</p>}
+
       {cases.map((legalCase, index) => (
-        <LegalCase key={`${legalCase.source}-${legalCase.ticketId}`} number={index + 1} legalCase={legalCase} />
+        <LegalCase
+          key={`${legalCase.source}-${legalCase.ticketId}`}
+          number={index + 1}
+          legalCase={legalCase}
+          state={status.cases.get(legalCase.id)}
+          token={token}
+          onSent={status.addReply}
+        />
       ))}
     </div>
   )
@@ -72,11 +101,22 @@ function CheckBadge({ legalCase }) {
   )
 }
 
-function LegalCase({ number, legalCase }) {
+function LegalCase({ number, legalCase, state, token, onSent }) {
   const [reply, setReply] = useState(legalCase.draft?.body ?? '')
   const textareaRef = useRef(null)
-  const { status, copy } = useCopyReply()
+  const { status: copyStatus, copy } = useCopyReply()
+  const sender = useSendReply(token, legalCase.id, handleSent)
   const label = ticketLabel(legalCase)
+  const isSent = state?.replies.length > 0
+  const canSend = Boolean(state?.send.allowed && legalCase.draft && !isSent && !sender.confirming && reply.trim())
+
+  function handleSent(sent) {
+    onSent(legalCase.id, sent)
+  }
+
+  function handleSend(warningsRead) {
+    sender.send(reply, warningsRead)
+  }
 
   return (
     <section className="legal-run__case">
@@ -100,7 +140,7 @@ function LegalCase({ number, legalCase }) {
 
       <p className="legal-run__heading">Draft reply</p>
       <DraftReply legalCase={legalCase} label={label} reply={reply} textareaRef={textareaRef} onChange={setReply} />
-      <p className="legal-run__muted">Edit the reply if needed, copy it and send it from the ticket.</p>
+      <p className="legal-run__muted">Edit the reply if needed, then send it from here or copy it to the ticket.</p>
 
       <ReviewCheck legalCase={legalCase} />
 
@@ -113,11 +153,35 @@ function LegalCase({ number, legalCase }) {
         >
           Copy reply
         </button>
-        <button className="btn btn--secondary btn--sm" type="button" disabled title={SEND_UNAVAILABLE}>
-          Send
+        <button className="btn btn--secondary btn--sm" type="button" onClick={sender.start} disabled={!canSend}>
+          {isSent ? 'Sent' : 'Send'}
         </button>
-        <span className="legal-run__muted">{status ?? `${SEND_UNAVAILABLE}.`}</span>
+        <span className="legal-run__muted">{describeSending({ legalCase, state, copyStatus })}</span>
       </div>
+
+      {sender.confirming && (
+        <SendConfirm
+          recipient={legalCase.customer}
+          label={label}
+          needsCare={needsCare(legalCase)}
+          edited={reply !== legalCase.draft?.body}
+          sending={sender.sending}
+          error={sender.error}
+          onCancel={sender.cancel}
+          onSend={handleSend}
+        />
+      )}
+
+      {legalCase.id && state && (
+        <TicketConversation
+          token={token}
+          legalCase={legalCase}
+          label={label}
+          send={state.send}
+          needsCare={needsCare(legalCase)}
+          onSent={handleSent}
+        />
+      )}
     </section>
   )
 }

@@ -87,7 +87,7 @@ function MessagePart({ part, isStreaming, isActive, token, onOpenArtifact, citat
   }
 
   if (part.type === 'legal-run') {
-    return <LegalRun cases={part.cases} />
+    return <LegalRun cases={part.cases} token={token} />
   }
 
   if (part.type === 'error') {
