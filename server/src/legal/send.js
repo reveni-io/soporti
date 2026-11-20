@@ -5,11 +5,13 @@ import { findSendBlocker, sendLegalReply } from './replies.js'
 const MAX_REPLY_CHARS = 10_000
 
 export const WARNINGS_NOT_READ = 'Confirm that you read the warnings of this case before sending.'
-export const ALREADY_SENT = 'This reply was already sent to the ticket. Change it to send something new.'
+export const ALREADY_SENT = 'This reply was already sent to the ticket.'
+export const NOT_SHOWN_YET =
+  'The user has not seen this case yet. Show it to them and send it only when they ask for it in a new message.'
 export const SENT_NOT_RECORDED =
   'The reply was sent, but Soporti could not record it. Check the ticket before sending it again.'
 
-export function parseReplyText(value) {
+function parseReplyText(value) {
   const text = typeof value === 'string' ? value.trim() : ''
   if (!text) return { error: 'The reply is empty.' }
   if (text.length > MAX_REPLY_CHARS) return { error: `The reply is too long (max ${MAX_REPLY_CHARS} characters).` }
@@ -37,7 +39,16 @@ async function recordReply({ legalCase, user, text, externalId }) {
   }
 }
 
-export async function sendCaseReply({ legalCase, user, text, warningsRead }) {
+function isFromThisTurn(legalCase, turnStartedAt) {
+  return new Date(legalCase.createdAt) >= turnStartedAt
+}
+
+export async function sendCaseReply({ legalCase, user, warningsRead, turnStartedAt }) {
+  const draft = parseReplyText(legalCase.draft?.body)
+  if (draft.error) return { blocker: draft.error }
+  if (isFromThisTurn(legalCase, turnStartedAt)) return { blocker: NOT_SHOWN_YET }
+
+  const text = draft.value
   const blocker = await findReplyBlocker(legalCase, { userId: user.id, text })
   if (blocker) return { blocker }
   if (needsCare(legalCase) && !warningsRead) return { unconfirmed: WARNINGS_NOT_READ }

@@ -212,13 +212,20 @@ describe('POST and DELETE /api/admin/config/jev/guards', () => {
     expect(deleteJevDocument).toHaveBeenCalledWith('guard-0a1b2c3d')
   })
 
-  it('cannot delete a built-in guard or one that does not exist', async () => {
+  it('deletes the Legal and GitHub PRs guards like any other', async () => {
+    getJevDocument.mockResolvedValue({ id: 'legal', rev: 3, data: { set: LEGAL_SET }, setVersion: 2 })
+
+    const res = await request(app).delete('/api/admin/config/jev/guards/legal')
+
+    expect(res.status).toBe(204)
+    expect(deleteJevDocument).toHaveBeenCalledWith('legal')
+  })
+
+  it('cannot delete a guard that does not exist', async () => {
     getJevDocument.mockResolvedValue(null)
 
-    const builtIn = await request(app).delete('/api/admin/config/jev/guards/legal')
     const missing = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
 
-    expect(builtIn.status).toBe(404)
     expect(missing.status).toBe(404)
     expect(deleteJevDocument).not.toHaveBeenCalled()
   })

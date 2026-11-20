@@ -42,8 +42,9 @@ export default function GuardEditor({ token, guard, onLogout, onSaved, onClose }
   }
 
   function requestClose() {
-    if (project.dirty) setConfirmingClose(true)
-    else onClose()
+    if (!project.dirty) return onClose()
+
+    setConfirmingClose(true)
   }
 
   function handleKeepEditing() {

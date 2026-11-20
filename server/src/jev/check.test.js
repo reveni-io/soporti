@@ -16,17 +16,8 @@ vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), a
 const { JevApiError } = await import('./client.js')
 const { runJevCheck } = await import('./check.js')
 
-const QUESTION = {
-  id: 'q1',
-  type: 'noul',
-  text: 'The reply promises a refund',
-  instructions: '',
-  criteria: '',
-  flagAt: 60,
-}
+const QUESTION = { id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }
 const SET = {
-  description: '',
-  model: 'jev-latest',
   minConfidence: 0.75,
   timeoutSeconds: 45,
   dailyLimit: 0,
@@ -70,7 +61,7 @@ describe('runJevCheck', () => {
           unsure: false,
         },
       ],
-      set: SET,
+      set: { ...SET, maxCharacters: 100_000 },
     })
     expect(askQuestions).toHaveBeenCalledTimes(1)
     expect(askQuestions).toHaveBeenCalledWith({
@@ -86,29 +77,6 @@ describe('runJevCheck', () => {
       answeredModel: 'jev-1.14.0',
       status: 'answered',
     })
-  })
-
-  it('asks the extra questions built from the saved set first', async () => {
-    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
-    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
-    const buildExtraQuestions = vi.fn().mockReturnValue([rule])
-
-    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions })
-
-    expect(buildExtraQuestions).toHaveBeenCalledWith(SET)
-    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci', 'q1'])
-    expect(result.rows.map(row => row.questionId)).toEqual(['rule:ci', 'q1'])
-  })
-
-  it('asks a set with no questions of its own when the rules add some', async () => {
-    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
-    mockDocuments({ set: { ...SET, questions: [] } })
-    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
-
-    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions: () => [rule] })
-
-    expect(result.status).toBe('answered')
-    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci'])
   })
 
   it('records a failed call and reports why', async () => {
@@ -155,6 +123,13 @@ describe('runJevCheck', () => {
     expect(result).toMatchObject({ status: 'unavailable', reason })
     expect(askQuestions).not.toHaveBeenCalled()
     expect(recordJevCall).not.toHaveBeenCalled()
+  })
+
+  it('caps a guard saved before it had max characters at the default', async () => {
+    const result = await runJevCheck({ project: 'legal', state: { diff: 'x'.repeat(100_000) } })
+
+    expect(result.reason).toBe('Too large for Jev (100,011 characters, max 100,000)')
+    expect(askQuestions).not.toHaveBeenCalled()
   })
 
   it('does not call Jev with a document over the max characters', async () => {

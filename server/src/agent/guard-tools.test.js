@@ -203,9 +203,14 @@ describe('ask_guard', () => {
 describe('send_case_reply', () => {
   const CASE = { id: 41, source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
   const USER = { id: 3, email: 'ana@example.com' }
+  const TURN_STARTED_AT = new Date('2026-11-20T09:05:00.000Z')
 
   function sendTool() {
-    return buildGuardTools({ guards: GUARDS, userId: 3, guardCases: { sendable: true } })[1]
+    return buildGuardTools({
+      guards: GUARDS,
+      userId: 3,
+      guardCases: { sendable: true, turnStartedAt: TURN_STARTED_AT },
+    })[1]
   }
 
   beforeEach(() => {
@@ -214,18 +219,25 @@ describe('send_case_reply', () => {
     sendCaseReply.mockResolvedValue({ reply: { id: 7 } })
   })
 
-  it('asks to be used only when the user asks to send, after confirming any warning', () => {
-    const { description } = sendTool()
+  it('asks to be used only when the user asks to send in a later message, after confirming any warning', () => {
+    const { description, parameters } = sendTool()
 
-    expect(description).toContain('only when the user asks you in this conversation to send it')
+    expect(description).toContain('in a message after the one that showed them the case; never on your own')
+    expect(description).toContain('Only the draft the guards checked goes out')
     expect(description).toContain('send it only after they confirm they read them')
+    expect(Object.keys(parameters.shape)).toEqual(['caseId', 'warningsConfirmed'])
   })
 
-  it('sends the reply the user approved as the user, through the ticket of the case', async () => {
-    const answer = await sendTool().execute({ caseId: 41, text: ' Hello ', warningsConfirmed: false })
+  it('sends the checked draft of the case as the user, through the ticket of the case', async () => {
+    const answer = await sendTool().execute({ caseId: 41, warningsConfirmed: false })
 
     expect(getOwnedLegalCase).toHaveBeenCalledWith(41, 3)
-    expect(sendCaseReply).toHaveBeenCalledWith({ legalCase: CASE, user: USER, text: 'Hello', warningsRead: false })
+    expect(sendCaseReply).toHaveBeenCalledWith({
+      legalCase: CASE,
+      user: USER,
+      warningsRead: false,
+      turnStartedAt: TURN_STARTED_AT,
+    })
     expect(answer).toBe('Sent to the Zendesk ticket 48213 as ana@example.com.')
   })
 
@@ -233,23 +245,22 @@ describe('send_case_reply', () => {
     sendCaseReply.mockResolvedValueOnce({ blocker: 'Sending from Soporti is off.' })
     sendCaseReply.mockResolvedValueOnce({ unconfirmed: 'Confirm' })
     sendCaseReply.mockRejectedValueOnce(new LegalReplyError('Zendesk did not take the reply.'))
-    const input = { caseId: 41, text: 'Hello', warningsConfirmed: false }
+    const input = { caseId: 41, warningsConfirmed: false }
 
     expect(await sendTool().execute(input)).toBe('Not sent: Sending from Soporti is off.')
     expect(await sendTool().execute(input)).toMatch(/^Not sent: this case has warnings or was not checked/)
     expect(await sendTool().execute(input)).toBe('Not sent: Zendesk did not take the reply.')
-    expect(await sendTool().execute({ ...input, text: ' ' })).toBe('Not sent: The reply is empty.')
   })
 
   it('says when the reply went out but could not be recorded, and when the case is not there', async () => {
     sendCaseReply.mockResolvedValueOnce({ reply: { id: null }, warning: 'Check the ticket.' })
 
-    expect(await sendTool().execute({ caseId: 41, text: 'Hello', warningsConfirmed: true })).toBe(
+    expect(await sendTool().execute({ caseId: 41, warningsConfirmed: true })).toBe(
       'Sent to the Zendesk ticket 48213 as ana@example.com. Check the ticket.'
     )
 
     getOwnedLegalCase.mockResolvedValueOnce(null)
-    expect(await sendTool().execute({ caseId: 99, text: 'Hello', warningsConfirmed: true })).toBe(
+    expect(await sendTool().execute({ caseId: 99, warningsConfirmed: true })).toBe(
       'There is no case with that id in this conversation.'
     )
   })

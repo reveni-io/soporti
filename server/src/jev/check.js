@@ -13,7 +13,7 @@ async function loadProject(project) {
 
   return {
     keyConfigured,
-    set: document?.data?.set ?? defaultJevDocument(project).set,
+    set: { ...defaultJevDocument(project).set, ...document?.data?.set },
     setVersion: document?.setVersion ?? 0,
   }
 }
@@ -80,9 +80,9 @@ async function callJev(project, loaded, { state, questions }) {
   }
 }
 
-export async function runJevCheck({ project, state, buildExtraQuestions = () => [] }) {
+export async function runJevCheck({ project, state }) {
   const loaded = await loadProject(project)
-  const questions = [...buildExtraQuestions(loaded.set), ...loaded.set.questions]
+  const { questions } = loaded.set
   const blocker = await findBlocker(project, loaded, {
     stateChars: JSON.stringify(state).length,
     questionCount: questions.length,

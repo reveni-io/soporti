@@ -8,11 +8,31 @@ const findSendBlocker = vi.fn()
 const sendLegalReply = vi.fn()
 vi.mock('./replies.js', () => ({ findSendBlocker, sendLegalReply }))
 
-const { ALREADY_SENT, SENT_NOT_RECORDED, WARNINGS_NOT_READ, parseReplyText, sendCaseReply } = await import('./send.js')
+const { ALREADY_SENT, NOT_SHOWN_YET, SENT_NOT_RECORDED, WARNINGS_NOT_READ, sendCaseReply } = await import('./send.js')
 
-const CASE = { id: 41, source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
+const CHECKED_AT = '2026-11-20T09:00:00.000Z'
+const TURN_STARTED_AT = new Date('2026-11-20T09:05:00.000Z')
+const CASE = {
+  id: 41,
+  source: 'zendesk',
+  ticketId: '48213',
+  status: 'checked',
+  warnings: 0,
+  draft: { subject: 'Your refund', body: ' Hello ' },
+  createdAt: CHECKED_AT,
+}
 const USER = { id: 3, email: 'ana@example.com' }
 const SENT_AT = '2026-11-20T10:00:00.000Z'
+
+function send(overrides = {}) {
+  return sendCaseReply({
+    legalCase: CASE,
+    user: USER,
+    warningsRead: false,
+    turnStartedAt: TURN_STARTED_AT,
+    ...overrides,
+  })
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -23,18 +43,9 @@ beforeEach(() => {
   saveLegalReply.mockResolvedValue({ id: 7, caseId: 41, sentBy: USER.email, text: 'Hello', sentAt: SENT_AT })
 })
 
-describe('parseReplyText', () => {
-  it('trims the reply and refuses an empty or too long one', () => {
-    expect(parseReplyText(' Hello ')).toEqual({ value: 'Hello' })
-    expect(parseReplyText(' ')).toEqual({ error: 'The reply is empty.' })
-    expect(parseReplyText(7)).toEqual({ error: 'The reply is empty.' })
-    expect(parseReplyText('x'.repeat(10_001))).toEqual({ error: 'The reply is too long (max 10000 characters).' })
-  })
-})
-
 describe('sendCaseReply', () => {
-  it('sends the reply as the user through the ticket and records it', async () => {
-    const result = await sendCaseReply({ legalCase: CASE, user: USER, text: 'Hello', warningsRead: false })
+  it('sends the draft the guards checked as the user through the ticket and records it', async () => {
+    const result = await send()
 
     expect(sendLegalReply).toHaveBeenCalledWith(CASE, { userId: 3, text: 'Hello' })
     expect(saveLegalReply).toHaveBeenCalledWith({
@@ -47,13 +58,28 @@ describe('sendCaseReply', () => {
     expect(result).toEqual({ reply: { id: 7, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT } })
   })
 
+  it('sends nothing in the same turn that checked the case, whatever the warnings confirmation says', async () => {
+    const result = await send({ warningsRead: true, turnStartedAt: new Date('2026-11-20T08:59:00.000Z') })
+
+    expect(result).toEqual({ blocker: NOT_SHOWN_YET })
+    expect(sendLegalReply).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ subject: 'Your refund', body: '  ' }, 'The reply is empty.'],
+    [null, 'The reply is empty.'],
+    [{ subject: 'Your refund', body: 'x'.repeat(10_001) }, 'The reply is too long (max 10000 characters).'],
+  ])('refuses the draft %#', async (draft, blocker) => {
+    expect(await send({ legalCase: { ...CASE, draft } })).toEqual({ blocker })
+    expect(sendLegalReply).not.toHaveBeenCalled()
+  })
+
   it('does not send the same reply twice or where the user cannot send', async () => {
     listLegalReplies.mockResolvedValueOnce([{ text: 'Hello' }])
     findSendBlocker.mockResolvedValueOnce('Connect Zendesk')
-    const input = { legalCase: CASE, user: USER, text: 'Hello', warningsRead: true }
 
-    expect(await sendCaseReply(input)).toEqual({ blocker: ALREADY_SENT })
-    expect(await sendCaseReply(input)).toEqual({ blocker: 'Connect Zendesk' })
+    expect(await send({ warningsRead: true })).toEqual({ blocker: ALREADY_SENT })
+    expect(await send({ warningsRead: true })).toEqual({ blocker: 'Connect Zendesk' })
     expect(sendLegalReply).not.toHaveBeenCalled()
   })
 
@@ -61,23 +87,15 @@ describe('sendCaseReply', () => {
     const careful = { ...CASE, warnings: 2 }
     const unchecked = { ...CASE, status: 'not_checked' }
 
-    expect(await sendCaseReply({ legalCase: careful, user: USER, text: 'Hi', warningsRead: false })).toEqual({
-      unconfirmed: WARNINGS_NOT_READ,
-    })
-    expect(await sendCaseReply({ legalCase: unchecked, user: USER, text: 'Hi', warningsRead: false })).toEqual({
-      unconfirmed: WARNINGS_NOT_READ,
-    })
-    expect(
-      (await sendCaseReply({ legalCase: careful, user: USER, text: 'Hi', warningsRead: true })).reply
-    ).toBeDefined()
+    expect(await send({ legalCase: careful })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
+    expect(await send({ legalCase: unchecked })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
+    expect((await send({ legalCase: careful, warningsRead: true })).reply).toBeDefined()
   })
 
   it('says when the reply went out but could not be recorded', async () => {
     saveLegalReply.mockRejectedValue(new Error('db down'))
 
-    const result = await sendCaseReply({ legalCase: CASE, user: USER, text: 'Hello', warningsRead: false })
-
-    expect(result).toEqual({
+    expect(await send()).toEqual({
       reply: { id: null, sentBy: 'ana@example.com', text: 'Hello', sentAt: expect.any(String) },
       warning: SENT_NOT_RECORDED,
     })

@@ -6,7 +6,7 @@ import { findGuardByName } from '../guards/registry.js'
 import { getOwnedLegalCase } from '../db/legal-cases.js'
 import { findUserById } from '../db/users.js'
 import { LegalReplyError } from '../legal/replies.js'
-import { parseReplyText, sendCaseReply } from '../legal/send.js'
+import { sendCaseReply } from '../legal/send.js'
 import { LEGAL_SOURCES } from '../legal/tickets.js'
 
 const CONFIDENCE_DIGITS = 2
@@ -50,15 +50,12 @@ function describeCaseShown(caseId) {
   return `The user sees case ${caseId} with the draft and the review of each guard. When the user asks you to send it, call send_case_reply with case ${caseId}; to change it or add data first, check the new draft again with the same guards.`
 }
 
-async function sendFromChat(userId, { caseId, text, warningsConfirmed }) {
-  const reply = parseReplyText(text)
-  if (reply.error) return `Not sent: ${reply.error}`
-
+async function sendFromChat({ userId, turnStartedAt }, { caseId, warningsConfirmed }) {
   const [legalCase, user] = await Promise.all([getOwnedLegalCase(caseId, userId), findUserById(userId)])
   if (!legalCase || !user) return CASE_NOT_FOUND
 
   try {
-    const sent = await sendCaseReply({ legalCase, user, text: reply.value, warningsRead: warningsConfirmed })
+    const sent = await sendCaseReply({ legalCase, user, warningsRead: warningsConfirmed, turnStartedAt })
     if (sent.blocker) return `Not sent: ${sent.blocker}`
     if (sent.unconfirmed) return CASE_NEEDS_CONFIRMATION
 
@@ -70,22 +67,21 @@ async function sendFromChat(userId, { caseId, text, warningsConfirmed }) {
   }
 }
 
-function buildSendTool(userId) {
+function buildSendTool(sender) {
   return tool({
     name: 'send_case_reply',
     description: [
-      'Send the reply of a case shown in this conversation to the customer, through the Zendesk or HubSpot ticket it came from, as the user.',
-      'Call it only when the user asks you in this conversation to send it, in their own words; never on your own. Send the reply as the user approved it: the draft of the case, or the text they asked for.',
+      'Send the draft of a case shown in this conversation to the customer, through the Zendesk or HubSpot ticket it came from, as the user.',
+      'Call it only when the user asks you to send it, in their own words, in a message after the one that showed them the case; never on your own. Only the draft the guards checked goes out: to change it, check the new draft with the same guards and send that case.',
       'If the case has warnings or was not checked, tell the user what they are and send it only after they confirm they read them.',
     ].join(' '),
     parameters: z.object({
       caseId: z.number().int().describe('The id of the case, as ask_guard returned it.'),
-      text: z.string().describe('The reply to send, exactly as the user approved it.'),
       warningsConfirmed: z
         .boolean()
         .describe('True only when the user confirmed in this conversation that they read the warnings of the case.'),
     }),
-    execute: input => sendFromChat(userId, input),
+    execute: input => sendFromChat(sender, input),
   })
 }
 
@@ -151,7 +147,7 @@ const ticketParam = z
   .describe('A reply to a customer ticket. Null when checking `content`.')
 
 export function buildGuardTools({ guards, userId = null, guardCases = null, review = null }) {
-  const sendTools = guardCases?.sendable ? [buildSendTool(userId)] : []
+  const sendTools = guardCases?.sendable ? [buildSendTool({ userId, turnStartedAt: guardCases.turnStartedAt })] : []
   const reviewNote = review ? [REVIEW_NOTE] : []
 
   return [
