@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Background,
   Controls,
@@ -123,13 +123,12 @@ function Flow({ subagents, toolGroups, mainAgentTools, globalProvider, globalMod
   const rendered = useMemo(() => mergeNodeData(nodes, fresh), [nodes, fresh])
   const initialized = useNodesInitialized()
   const { fitView } = useReactFlow()
-  const positioned = useRef(false)
+  const [isLaidOut, setIsLaidOut] = useState(false)
 
   useEffect(() => {
-    if (!initialized || positioned.current) return
+    if (!initialized || isLaidOut) return
     if (nodes.some(node => !node.measured)) return
 
-    positioned.current = true
     setNodes(current => {
       const parent = current.find(node => node.id === PARENT_NODE)
       const children = current.filter(node => node.id !== PARENT_NODE)
@@ -141,8 +140,14 @@ function Flow({ subagents, toolGroups, mainAgentTools, globalProvider, globalMod
 
       return current.map(node => ({ ...node, position: byId.get(node.id) ?? positions.parent }))
     })
+    setIsLaidOut(true)
+  }, [initialized, isLaidOut, nodes, setNodes])
+
+  useEffect(() => {
+    if (!isLaidOut) return
+
     fitView(FIT_VIEW_OPTIONS)
-  }, [initialized, nodes, setNodes, fitView])
+  }, [isLaidOut, fitView])
 
   return (
     <ReactFlow
