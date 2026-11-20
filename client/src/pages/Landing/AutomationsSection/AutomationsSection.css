@@ -1,7 +1,7 @@
 .lp-automations {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
-  align-items: start;
+  align-items: center;
   gap: clamp(var(--sp8), 5vw, var(--sp16));
 }
 
@@ -16,7 +16,7 @@
   overflow: hidden;
   display: flex;
   gap: var(--sp4);
-  padding: var(--sp3) var(--sp5);
+  padding: var(--sp5);
   border: 1px solid transparent;
   border-radius: var(--radius-xl);
   background: transparent;
