@@ -49,7 +49,7 @@ const AUTOMATIONS = [
     id: 'legal',
     icon: <Icon name="shield" size={ICON_SIZE} />,
     title: 'Drafts replies for Legal',
-    text: 'A scheduled query reads the customer tickets in Zendesk and HubSpot, drafts each reply from your data and flags what needs a second look. Nothing is sent: Legal has the last word.',
+    text: 'A scheduled query reads the customer tickets in Zendesk and HubSpot, drafts each reply from your data and flags what needs a second look. Nothing goes out until Legal sends it, from Soporti or from the ticket.',
     Demo: LegalRepliesDemo,
   },
 ]
