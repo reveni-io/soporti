@@ -33,8 +33,6 @@ export const ATTACHMENT_MIME_TYPES = { ...DOCUMENT_MIME_TYPES, ...IMAGE_MIME_TYP
 
 export const ATTACHMENT_ACCEPT = Object.keys(ATTACHMENT_MIME_TYPES).join(',')
 
-export const IMAGE_RETENTION_DAYS = 30
-
 export const THUMBNAIL_MAX_PIXELS = 96
 export const THUMBNAIL_MIME_TYPE = 'image/webp'
 export const THUMBNAIL_QUALITY = 0.7
@@ -173,3 +171,5 @@ export const ANALYTICS_PROMPT_MAX_LENGTH = 2000
 export const ANALYTICS_TITLE_MAX_LENGTH = 120
 export const ANALYTICS_SQL_MAX_LENGTH = 20_000
 export const ANALYTICS_DASHBOARD_NAME_MAX_LENGTH = 80
+
+export const THEME = { LIGHT: 'light', DARK: 'dark' }

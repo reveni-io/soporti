@@ -27,7 +27,7 @@
 }
 
 .production-panel__tab--selected {
-  border-color: var(--green-chart);
+  border-color: var(--accent-strong);
   background: rgba(var(--green-chart-rgb), 0.08);
   color: var(--text-primary);
 }

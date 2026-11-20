@@ -62,9 +62,9 @@
 }
 
 .settings-modal__error {
-  color: var(--orange-900);
+  color: var(--warning-text);
 }
 
 .settings-modal__saved {
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }

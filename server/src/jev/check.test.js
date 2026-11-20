@@ -73,6 +73,7 @@ describe('runJevCheck', () => {
           unsure: false,
         },
       ],
+      set: SET,
     })
     expect(askQuestions).toHaveBeenCalledTimes(1)
     expect(askQuestions).toHaveBeenCalledWith({

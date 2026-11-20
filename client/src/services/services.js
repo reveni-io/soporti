@@ -976,6 +976,45 @@ export function testHubspotConnection(token) {
   })
 }
 
+export function getAwsConfig(token) {
+  return request('/api/admin/config/aws', { token, errorMessage: 'Failed to load the AWS settings' })
+}
+
+export function saveAwsEnabled(token, enabled) {
+  return request('/api/admin/config/aws/enabled', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the AWS switch',
+  })
+}
+
+export function saveAwsRegion(token, region) {
+  return request('/api/admin/config/aws/region', {
+    method: 'PUT',
+    token,
+    body: { region },
+    errorMessage: 'Failed to save the region',
+  })
+}
+
+export function saveAwsAccessKey(token, { accessKeyId, secretAccessKey }) {
+  return request('/api/admin/config/aws/access-key', {
+    method: 'PUT',
+    token,
+    body: { accessKeyId, secretAccessKey },
+    errorMessage: 'Failed to save the access key',
+  })
+}
+
+export function testAwsConnection(token) {
+  return request('/api/admin/config/aws/test', {
+    method: 'POST',
+    token,
+    errorMessage: 'Failed to test the AWS connection',
+  })
+}
+
 export function getLangfuseConfig(token) {
   return request('/api/admin/config/langfuse', { token, errorMessage: 'Failed to load the Langfuse settings' })
 }

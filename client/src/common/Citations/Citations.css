@@ -2,7 +2,7 @@
   margin: var(--sp3) 0 var(--sp2);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   overflow: hidden;
   transition:
     border-color 0.24s ease,
@@ -44,7 +44,7 @@
 
 .citations__header:hover .citations__header-icon {
   transform: rotate(-12deg);
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }
 
 .citations__title {
@@ -63,7 +63,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-2xs);
   font-variant-numeric: tabular-nums;
-  color: var(--green-chart);
+  color: var(--accent-strong);
   animation: citationCountIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -137,7 +137,7 @@
 }
 
 .citations__row:hover {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
 }
 
 .citations__row--selected {
@@ -191,7 +191,7 @@
 }
 
 .citations__row:hover .citations__label {
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }
 
 .citations__host {

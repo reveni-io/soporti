@@ -43,7 +43,7 @@
 }
 
 .btn--secondary:hover:not(:disabled) {
-  border-color: var(--green-mid);
+  border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
@@ -93,7 +93,7 @@
 }
 
 .icon-btn:hover {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   color: var(--text-primary);
 }
 
@@ -206,7 +206,7 @@
   max-width: 560px;
   margin: 0 var(--sp4);
   padding: var(--sp6);
-  background-color: var(--bg-surface);
+  background-color: var(--bg-surface-raised);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-modal);
@@ -254,16 +254,16 @@
 
 .alert--error,
 .alert--warning {
-  color: var(--orange-900);
-  background-color: var(--orange-50);
-  border-color: var(--orange-300);
+  color: var(--warning-text);
+  background-color: var(--warning-bg);
+  border-color: var(--warning-border);
 }
 
 .note {
   padding: var(--sp2) var(--sp4);
   font-size: var(--fs-md);
   color: var(--text-secondary);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }
@@ -273,15 +273,15 @@
   padding: 0 var(--sp2);
   font-size: var(--fs-sm);
   color: var(--text-secondary);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }
 
 .badge--success {
-  color: var(--green-deep);
-  background-color: var(--success-low);
-  border-color: var(--green-chart);
+  color: var(--success-text);
+  background-color: var(--success-bg);
+  border-color: var(--success-border);
 }
 
 .badge--warning {
@@ -297,7 +297,7 @@
   padding: var(--sp1) var(--sp2);
   font-size: var(--fs-md);
   color: var(--text-secondary);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }

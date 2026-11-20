@@ -1,32 +1,66 @@
-.lp-mcp__routes {
+.lp-mcp {
   display: grid;
-  gap: var(--sp6);
-  margin: var(--sp6) auto 0;
-  max-width: 42rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(var(--sp10), 6vw, var(--sp20));
 }
 
-.lp-mcp__route-label {
-  margin: 0;
+.lp-mcp__copy .lp-heading {
+  margin-bottom: var(--sp8);
+}
+
+.lp-mcp__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp5);
+  list-style: none;
+}
+
+.lp-mcp__point {
+  display: flex;
+  gap: var(--sp4);
   font-size: var(--fs-base);
-  font-weight: 600;
-  color: var(--text-primary);
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.64);
 }
 
-.lp-mcp__route-description {
-  margin: var(--sp1) 0 0;
-  font-size: var(--fs-md);
-  color: var(--text-secondary);
+.lp-mcp__point strong {
+  display: block;
+  margin-bottom: var(--sp1);
+  font-size: var(--fs-lg);
+  color: var(--green-inverse);
+}
+
+.lp-mcp__visual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  min-width: 0;
+}
+
+.lp-mcp__install {
+  display: flex;
+  align-items: center;
+  gap: var(--sp3);
+  padding: var(--sp2) var(--sp2) var(--sp2) var(--sp4);
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--green-inverse-rgb), 0.04);
 }
 
 .lp-mcp__command {
-  margin: var(--sp3) 0 0;
-  padding: var(--sp3) var(--sp4);
-  background: rgba(var(--green-deep-rgb), 0.06);
-  border: 1px solid rgba(var(--green-deep-rgb), 0.12);
-  border-radius: var(--radius-md);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
-  color: var(--text-muted);
-  overflow-x: auto;
-  white-space: pre;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(var(--green-inverse-rgb), 0.78);
+}
+
+@media (max-width: 960px) {
+  .lp-mcp {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

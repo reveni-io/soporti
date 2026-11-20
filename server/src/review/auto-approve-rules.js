@@ -122,10 +122,14 @@ function describeSpec(findings, passes) {
   return specPasses.some(pass => pass.status === FAILED_PASS) ? UNKNOWN : 'no blocking finding'
 }
 
+function changedPaths(file) {
+  return file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]
+}
+
 function matchDenylist(files, denylist) {
   const matchers = denylist.map(pattern => globToRegExp(pattern, { isAnchored: pattern.includes('/') }))
 
-  return files.map(file => file.filename).filter(filename => matchers.some(matcher => matcher.test(filename)))
+  return files.flatMap(changedPaths).filter(path => matchers.some(matcher => matcher.test(path)))
 }
 
 export function collectReviewFacts(review, denylist) {

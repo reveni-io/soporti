@@ -39,8 +39,8 @@
 }
 
 .message__bubble--user {
-  background-color: var(--green-deep);
-  color: var(--green-inverse);
+  background-color: var(--bg-emphasis);
+  color: var(--text-on-emphasis);
   border-bottom-right-radius: var(--radius-sm);
   white-space: pre-wrap;
   font-family: var(--font-body);
@@ -142,7 +142,7 @@
 }
 
 .message__bubble--assistant th {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   font-family: var(--font-body);
   font-weight: 600;
 }
@@ -165,7 +165,7 @@
 }
 
 .inline-code {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   color: var(--text-primary);
   border: 1px solid var(--border-default);
   padding: 1px 5px;
@@ -189,7 +189,7 @@
   justify-content: space-between;
   gap: var(--sp2);
   padding: var(--sp1) var(--sp2) var(--sp1) var(--sp3);
-  background-color: var(--green-deep-soft);
+  background-color: var(--bg-code-header);
 }
 
 .code-block__lang {
@@ -208,11 +208,11 @@
 }
 
 .message__error {
-  color: var(--orange-900);
-  background-color: var(--orange-50);
+  color: var(--warning-text);
+  background-color: var(--warning-bg);
   padding: var(--sp2) var(--sp2);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--orange-300);
+  border: 1px solid var(--warning-border);
   margin: var(--sp1) 0;
   font-family: var(--font-body);
   font-size: var(--fs-xs);
@@ -243,7 +243,7 @@
 }
 
 .mermaid-diagram {
-  background-color: var(--white);
+  background-color: var(--bg-paper);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--sp3);
@@ -280,7 +280,7 @@
   width: 100px;
   height: 32px;
   border-radius: var(--radius-md);
-  background: linear-gradient(90deg, rgba(var(--green-deep-rgb), 0.05) 25%, rgba(var(--green-deep-rgb), 0.1) 50%, rgba(var(--green-deep-rgb), 0.05) 75%);
+  background: linear-gradient(90deg, rgba(var(--ink-rgb), 0.05) 25%, rgba(var(--ink-rgb), 0.1) 50%, rgba(var(--ink-rgb), 0.05) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -293,7 +293,7 @@
 .mermaid-skeleton__connector {
   width: 2px;
   height: 20px;
-  background: rgba(var(--green-deep-rgb), 0.08);
+  background: rgba(var(--ink-rgb), 0.08);
 }
 
 .mermaid-skeleton__row {
@@ -302,7 +302,7 @@
 }
 
 .chart-block {
-  background-color: var(--white);
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--sp3);
@@ -339,7 +339,7 @@
   width: 40%;
   height: 12px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, rgba(var(--green-deep-rgb), 0.05) 25%, rgba(var(--green-deep-rgb), 0.1) 50%, rgba(var(--green-deep-rgb), 0.05) 75%);
+  background: linear-gradient(90deg, rgba(var(--ink-rgb), 0.05) 25%, rgba(var(--ink-rgb), 0.1) 50%, rgba(var(--ink-rgb), 0.05) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   align-self: center;
@@ -356,7 +356,7 @@
 .chart-skeleton__bar {
   flex: 1;
   border-radius: 3px 3px 0 0;
-  background: linear-gradient(90deg, rgba(var(--green-deep-rgb), 0.05) 25%, rgba(var(--green-deep-rgb), 0.1) 50%, rgba(var(--green-deep-rgb), 0.05) 75%);
+  background: linear-gradient(90deg, rgba(var(--ink-rgb), 0.05) 25%, rgba(var(--ink-rgb), 0.1) 50%, rgba(var(--ink-rgb), 0.05) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -367,7 +367,7 @@
 }
 
 .csv-block {
-  background-color: var(--white);
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   margin: var(--sp2) 0;
@@ -381,7 +381,7 @@
   gap: var(--sp2);
   padding: var(--sp2) var(--sp3);
   border-bottom: 1px solid var(--border-default);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
 }
 
 .csv-block__meta {
@@ -398,8 +398,8 @@
   padding: var(--sp1) var(--sp2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background-color: var(--green-deep);
-  color: var(--green-inverse);
+  background-color: var(--bg-emphasis);
+  color: var(--text-on-emphasis);
   font-family: var(--font-body);
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -437,7 +437,7 @@
 .csv-block__table th {
   position: sticky;
   top: 0;
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   font-family: var(--font-body);
   font-weight: 600;
   z-index: 1;

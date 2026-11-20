@@ -52,7 +52,7 @@
 
 .chat__jump:hover {
   border-color: var(--green-bright);
-  background-color: var(--green-inverse);
+  background-color: var(--bg-accent-subtle);
 }
 
 @keyframes chatJumpIn {
@@ -146,7 +146,7 @@
 
 .chat__examples button:hover {
   border-color: var(--green-bright);
-  background-color: var(--green-inverse);
+  background-color: var(--bg-accent-subtle);
   color: var(--text-primary);
 }
 
@@ -214,7 +214,7 @@
 }
 
 .chat__skill-menu-item--active {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .chat__skill-menu-name {

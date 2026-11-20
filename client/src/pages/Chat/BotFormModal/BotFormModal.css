@@ -56,8 +56,8 @@
 
 .bot-form-modal__profile--selected,
 .bot-form-modal__profile--selected:hover {
-  border-color: var(--green-chart);
-  background-color: var(--success-low);
+  border-color: var(--accent-strong);
+  background-color: var(--success-bg);
 }
 
 .bot-form-modal__profile:has(:focus-visible) {
@@ -65,7 +65,7 @@
 }
 
 .bot-form-modal__radio {
-  accent-color: var(--green-chart);
+  accent-color: var(--accent-strong);
 }
 
 .bot-form-modal__profile-hint {

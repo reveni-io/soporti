@@ -6,7 +6,7 @@ import CopyButton from '../../CopyButton/CopyButton.jsx'
 import MermaidDiagram from '../../MermaidDiagram/MermaidDiagram.jsx'
 
 const LANGUAGE_RE = /language-(\w+)/
-const CODE_STYLE = { margin: 0, borderRadius: 0, fontSize: '13px', background: '#042503' }
+const CODE_STYLE = { margin: 0, borderRadius: 0, fontSize: '13px', background: 'var(--bg-code)' }
 const CODE_TAG_PROPS = { style: { background: 'transparent' } }
 const CHART_SKELETON_HEIGHTS = ['60%', '85%', '45%', '70%', '55%']
 

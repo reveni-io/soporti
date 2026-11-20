@@ -33,6 +33,14 @@ describe('describeToolCall', () => {
     expect(step.detail).toBe('"from:acme.com newer_than:7d"')
   })
 
+  it('labels the AWS tools', () => {
+    expect(describeToolCall({ tool: 'aws_list_alarms', input: {} }).label).toBe('Checking AWS alarms')
+    expect(describeToolCall({ tool: 'aws_get_ecs_service', input: { service: 'api' } }).label).toBe(
+      'Inspecting ECS service'
+    )
+    expect(describeToolCall({ tool: 'aws_get_metric_data', input: {} }).label).toBe('Reading CloudWatch metric')
+  })
+
   it('labels the Sendcloud tools', () => {
     expect(describeToolCall({ tool: 'sendcloud_get_tracking', input: {} }).label).toBe('Tracking Sendcloud parcel')
     expect(describeToolCall({ tool: 'sendcloud_list_returns', input: {} }).label).toBe('Listing Sendcloud returns')

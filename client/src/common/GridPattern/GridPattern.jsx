@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { useTheme } from '../../hooks/useTheme/useTheme.js'
+import { THEME } from '../../constants.js'
 import { createWalker, drawGrid, drawGridHighlight, drawWalker, updateWalker } from './grid-pattern-engine.js'
 import './GridPattern.css'
 
@@ -7,17 +9,18 @@ const MIN_WALKERS = 4
 const MAX_WALKERS = 8
 const AREA_PER_WALKER = 220000
 
-const VARIANTS = {
-  dark: {
-    bg: '#042503',
-    line: '#556654',
-    lineAlpha: 0.8,
-    dotAlpha: 0.4,
-    trail: '167, 181, 166',
-    trailMax: 0.8,
-    hoverMax: 0.9,
-  },
-  light: {
+const BRAND_PALETTE = {
+  bg: '#042503',
+  line: '#556654',
+  lineAlpha: 0.8,
+  dotAlpha: 0.4,
+  trail: '167, 181, 166',
+  trailMax: 0.8,
+  hoverMax: 0.9,
+}
+
+const SURFACE_PALETTES = {
+  [THEME.LIGHT]: {
     bg: '#faf4f0',
     line: '#bfc9bf',
     lineAlpha: 0.7,
@@ -26,17 +29,29 @@ const VARIANTS = {
     trailMax: 0.4,
     hoverMax: 0.6,
   },
+  [THEME.DARK]: {
+    bg: '#0b130b',
+    line: '#2b3c2b',
+    lineAlpha: 0.75,
+    dotAlpha: 0.5,
+    trail: '150, 170, 148',
+    trailMax: 0.35,
+    hoverMax: 0.5,
+  },
 }
+
+const SURFACE_VARIANT = 'surface'
 
 export default function GridPattern({ variant = 'dark' }) {
   const canvasRef = useRef(null)
+  const { theme } = useTheme()
+  const cfg = variant === SURFACE_VARIANT ? SURFACE_PALETTES[theme] : BRAND_PALETTE
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx) return
 
-    const cfg = VARIANTS[variant] ?? VARIANTS.dark
     let width = 0
     let height = 0
     let walkers = []
@@ -114,7 +129,7 @@ export default function GridPattern({ variant = 'dark' }) {
       window.removeEventListener('mousemove', onMouseMove)
       document.documentElement.removeEventListener('mouseleave', onMouseLeave)
     }
-  }, [variant])
+  }, [cfg])
 
   return <canvas ref={canvasRef} className="grid-pattern" aria-hidden="true" />
 }

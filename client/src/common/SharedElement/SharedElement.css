@@ -1,0 +1,5 @@
+::view-transition-group(.morph) {
+  z-index: 1;
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease-out-expo);
+}

@@ -40,7 +40,7 @@ Platform and Render — see [One-click deploys](#one-click-deploys) below.
    default model, the chat refuses to run until both are set.
 5. Optionally configure the rest from the panel: GitHub (token, repo catalog,
    PR-review webhook secret), Slack, Notion, Google Drive, Helpjuice, the
-   read-only query Database, Shopify, sign-in methods and Google domains.
+   read-only query Database, Shopify, AWS, sign-in methods and Google domains.
 6. Create regular users in `/admin` → Users (there is no self-registration).
    Password sign-in is ON and Google sign-in is OFF by default.
 
@@ -239,6 +239,57 @@ from any browser origin (the server logs a warning).
 First run: open the server service → **Logs**, copy the one-time setup code,
 then visit `https://<client>.onrender.com/admin` and follow the
 [first-run flow](#first-run-flow-both-shapes).
+
+## AWS access
+
+`/admin` → AWS lets the assistant read CloudWatch alarms, ECS services and
+CloudWatch metrics. It uses the AWS SDK's default credential chain, so where
+Soporti runs decides what you configure:
+
+- **On AWS (ECS, EC2, EKS)** — attach the policy below to the task role,
+  instance profile or service account Soporti runs with, then turn the switch
+  on. No key is stored and the region comes from the environment (ECS and
+  Lambda set `AWS_REGION`). Prefer a role of its own over one shared by other
+  services.
+- **Anywhere else** — create an IAM user with the policy below, save its
+  long-term access key and the region in `/admin` → AWS, and turn the switch
+  on. The secret is stored encrypted and never returned.
+
+**Test connection** in the same section shows the identity AWS sees and which
+of the reads it allows.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SoportiReadAlarmsAndMetrics",
+      "Effect": "Allow",
+      "Action": ["cloudwatch:DescribeAlarms", "cloudwatch:ListMetrics", "cloudwatch:GetMetricData"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SoportiListEcs",
+      "Effect": "Allow",
+      "Action": ["ecs:ListClusters", "ecs:ListServices", "ecs:ListTasks"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SoportiDescribeEcs",
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeClusters", "ecs:DescribeServices", "ecs:DescribeTasks"],
+      "Resource": [
+        "arn:aws:ecs:<region>:<account-id>:cluster/*",
+        "arn:aws:ecs:<region>:<account-id>:service/*/*",
+        "arn:aws:ecs:<region>:<account-id>:task/*/*"
+      ]
+    }
+  ]
+}
+```
+
+To limit it to some clusters, replace the cluster wildcard with their names
+(`cluster/prod-cluster`, `service/prod-cluster/*`, `task/prod-cluster/*`).
 
 ## Video rendering
 

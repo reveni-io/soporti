@@ -1,0 +1,83 @@
+.lp-approve-demo .lp-preview-window {
+  height: 28rem;
+}
+
+.lp-approve-demo__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp3);
+  padding: var(--sp5);
+}
+
+.lp-approve-demo__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.lp-approve-demo__title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lp-approve-demo__mode {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.lp-approve-demo__checks {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.lp-approve-demo__check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp3);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  transition: background-color var(--motion-base) ease;
+}
+
+.lp-approve-demo__check + .lp-approve-demo__check {
+  border-top: 1px solid var(--border-default);
+}
+
+.lp-approve-demo__check--question {
+  background: var(--bg-cool);
+}
+
+.lp-approve-demo__check--done {
+  color: var(--text-primary);
+}
+
+.lp-approve-demo__label {
+  min-width: 0;
+  flex: 1;
+}
+
+.lp-approve-demo__value {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.lp-approve-demo__verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+  padding: var(--sp3);
+  border: 1px solid rgba(var(--green-chart-rgb), 0.4);
+  border-radius: var(--radius-md);
+  background: var(--success-low);
+  font-size: var(--fs-sm);
+  animation: lp-pop-in var(--motion-slow) var(--ease-spring);
+}

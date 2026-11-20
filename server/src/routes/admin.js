@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { createSession, requireAdmin } from '../middleware/auth.js'
 import adminStatsRouter from './admin-stats.js'
 import adminSendcloudRouter from './admin-sendcloud.js'
+import adminAwsRouter from './admin-aws.js'
 import adminPostgresRouter from './admin-postgres.js'
 import adminHubspotRouter from './admin-hubspot.js'
 import adminVideoRouter from './admin-video.js'
@@ -120,6 +121,7 @@ import { isNotionConfigured } from '../notion/settings.js'
 import { isHelpjuiceConfigured } from '../helpjuice/settings.js'
 import { isPostgresConfigured } from '../postgres/settings.js'
 import { isBetterstackConfigured } from '../betterstack/settings.js'
+import { isAwsConfigured } from '../aws/settings.js'
 import { isGranolaConfigured } from '../granola/settings.js'
 import { isGmailConfigured, isGoogleCalendarConfigured } from '../google-workspace/settings.js'
 import { isZendeskConfigured } from '../zendesk/settings.js'
@@ -161,6 +163,7 @@ const INTEGRATION_CHECKS = {
   postgres: isPostgresConfigured,
   sentry: isSentryConfigured,
   betterstack: isBetterstackConfigured,
+  aws: isAwsConfigured,
   helpjuice: isHelpjuiceConfigured,
   shopify: isShopifyConfigured,
   granola: isGranolaConfigured,
@@ -331,6 +334,7 @@ router.use('/stats', adminStatsRouter)
 router.use('/config/sendcloud', adminSendcloudRouter)
 router.use('/config/postgres', adminPostgresRouter)
 router.use('/config/hubspot', adminHubspotRouter)
+router.use('/config/aws', adminAwsRouter)
 router.use('/config/video', adminVideoRouter)
 router.use('/config/jev', adminJevRouter)
 

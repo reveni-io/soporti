@@ -1,73 +1,53 @@
+import { useRef } from 'react'
+import './Landing.css'
 import { readStoredToken } from '../../context/AuthContext.jsx'
 import { ROUTES } from '../../router/constants.js'
-import AnalyticsSection from './AnalyticsSection/AnalyticsSection.jsx'
-import AskSection from './AskSection/AskSection.jsx'
-import ArtifactsSection from './ArtifactsSection/ArtifactsSection.jsx'
-import AttachmentsSection from './AttachmentsSection/AttachmentsSection.jsx'
+import { THEME } from '../../constants.js'
+import AnswersSection from './AnswersSection/AnswersSection.jsx'
 import AutomationsSection from './AutomationsSection/AutomationsSection.jsx'
-import BotsSection from './BotsSection/BotsSection.jsx'
-import CustomerRepliesSection from './CustomerRepliesSection/CustomerRepliesSection.jsx'
-import HubspotSection from './HubspotSection/HubspotSection.jsx'
-import McpSection from './McpSection/McpSection.jsx'
+import BentoSection from './BentoSection/BentoSection.jsx'
 import IntegrationsSection from './IntegrationsSection/IntegrationsSection.jsx'
-import InstructionsSection from './InstructionsSection/InstructionsSection.jsx'
-import AutoApproveSection from './AutoApproveSection/AutoApproveSection.jsx'
 import LandingCta from './LandingCta/LandingCta.jsx'
 import LandingFooter from './LandingFooter/LandingFooter.jsx'
 import LandingHero from './LandingHero/LandingHero.jsx'
+import LandingIntro from './LandingIntro/LandingIntro.jsx'
 import LandingNav from './LandingNav/LandingNav.jsx'
-import LmstfySection from './LmstfySection/LmstfySection.jsx'
-import ParallelSection from './ParallelSection/ParallelSection.jsx'
-import ProfilesSection from './ProfilesSection/ProfilesSection.jsx'
-import ProvidersSection from './ProvidersSection/ProvidersSection.jsx'
-import RendersSection from './RendersSection/RendersSection.jsx'
-import SafetySection from './SafetySection/SafetySection.jsx'
-import SendcloudSection from './SendcloudSection/SendcloudSection.jsx'
-import SearchSection from './SearchSection/SearchSection.jsx'
-import SkillsSection from './SkillsSection/SkillsSection.jsx'
-import SlackSection from './SlackSection/SlackSection.jsx'
-import SubagentsSection from './SubagentsSection/SubagentsSection.jsx'
-import StatsSection from './StatsSection/StatsSection.jsx'
-import VideosSection from './VideosSection/VideosSection.jsx'
-import './Landing.css'
+import McpSection from './McpSection/McpSection.jsx'
+import QuestionsMarquee from './QuestionsMarquee/QuestionsMarquee.jsx'
+import SecuritySection from './SecuritySection/SecuritySection.jsx'
+import { INTRO_PHASES, useIntro } from './hooks/useIntro/useIntro.js'
 
 const LOGGED_IN_CTA = { href: ROUTES.CHAT, label: 'Open Soporti' }
 const LOGGED_OUT_CTA = { href: ROUTES.LOGIN, label: 'Log in' }
+const INTRO_CLASSES = {
+  [INTRO_PHASES.PLAYING]: ' lp--intro-playing',
+  [INTRO_PHASES.LEAVING]: ' lp--intro-leaving',
+  [INTRO_PHASES.DONE]: '',
+}
 
 export default function Landing({ hideCta = false }) {
+  const brandRef = useRef(null)
+  const intro = useIntro()
   const cta = readStoredToken() ? LOGGED_IN_CTA : LOGGED_OUT_CTA
   const visibleCta = hideCta ? null : cta
 
   return (
-    <div className="lp">
-      <LandingNav cta={visibleCta} />
-      <LandingHero cta={visibleCta} />
-      <StatsSection />
-      <AskSection />
-      <ParallelSection />
-      <SearchSection />
-      <RendersSection />
-      <ArtifactsSection />
-      <VideosSection />
-      <AnalyticsSection />
-      <IntegrationsSection />
-      <SendcloudSection />
-      <HubspotSection />
-      <SlackSection />
-      <AttachmentsSection />
-      <ProvidersSection />
-      <SubagentsSection />
-      <ProfilesSection />
-      <InstructionsSection />
-      <SkillsSection />
-      <AutomationsSection />
-      <BotsSection />
-      <AutoApproveSection />
-      <CustomerRepliesSection />
-      <McpSection />
-      <LmstfySection />
-      <SafetySection />
-      <LandingCta cta={visibleCta} />
+    <div className={`lp${INTRO_CLASSES[intro.phase]}`} data-theme={THEME.LIGHT}>
+      {intro.phase !== INTRO_PHASES.DONE && (
+        <LandingIntro isLeaving={intro.phase === INTRO_PHASES.LEAVING} targetRef={brandRef} onSkip={intro.skip} />
+      )}
+      <LandingNav cta={visibleCta} brandRef={brandRef} />
+      <main>
+        <LandingHero cta={visibleCta} isIntroPlaying={intro.phase === INTRO_PHASES.PLAYING} />
+        <QuestionsMarquee />
+        <AnswersSection />
+        <BentoSection />
+        <IntegrationsSection />
+        <AutomationsSection />
+        <McpSection />
+        <SecuritySection />
+        <LandingCta cta={visibleCta} />
+      </main>
       <LandingFooter />
     </div>
   )

@@ -11,7 +11,7 @@
   right: 0;
   bottom: 100%;
   height: var(--sp8);
-  background: linear-gradient(to bottom, rgba(var(--bg-warm-rgb), 0), var(--bg-app));
+  background: linear-gradient(to bottom, rgba(var(--bg-app-rgb), 0), var(--bg-app));
   pointer-events: none;
 }
 
@@ -38,7 +38,7 @@
 }
 
 .composer__card--locked {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -102,7 +102,7 @@
 }
 
 .composer__command {
-  color: var(--green-chart);
+  color: var(--accent-strong);
 }
 
 .composer__toolbar {
@@ -135,7 +135,7 @@
 }
 
 .composer__btn--attach:hover:not(:disabled) {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   color: var(--text-secondary);
 }
 

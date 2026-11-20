@@ -67,7 +67,7 @@
 
 .chart-settings__check input {
   flex-shrink: 0;
-  accent-color: var(--green-chart);
+  accent-color: var(--accent-strong);
 }
 
 .chart-settings__check:has(input:disabled) {

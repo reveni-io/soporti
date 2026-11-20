@@ -1,0 +1,210 @@
+.lp-intro {
+  --brand-scale: 4;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+}
+
+.lp-intro__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--green-night);
+}
+
+.lp-intro__backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(60rem, 120vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(var(--green-bright-rgb), 0.22),
+    color-mix(in srgb, var(--chart-4) 12%, transparent) 40%,
+    transparent 68%
+  );
+  opacity: 0;
+  scale: 0.6;
+  animation: lp-intro-bloom 1.6s var(--ease-out-expo) 0.9s forwards;
+}
+
+.lp-intro__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp8);
+}
+
+.lp-intro__brand {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp2) * var(--brand-scale));
+  transform-origin: center;
+  will-change: transform;
+}
+
+.lp-intro__brand--flying {
+  transition: transform 0.9s var(--ease-out-expo);
+}
+
+.lp-intro__logo {
+  width: auto;
+  height: calc(var(--lp-mark-height) * var(--brand-scale));
+  color: var(--green-bright);
+  filter: drop-shadow(0 0 22px rgba(var(--green-bright-rgb), 0.7));
+  animation: lp-intro-logo-pop 0.7s var(--ease-spring) 1s both;
+}
+
+.lp-intro__logo .lp-logo__stroke {
+  stroke-width: 0.28;
+  animation:
+    lp-intro-draw 1.15s cubic-bezier(0.65, 0, 0.35, 1) 0.1s forwards,
+    lp-intro-fade-out 0.5s ease 1.25s forwards;
+}
+
+.lp-intro__logo .lp-logo__fill {
+  opacity: 0;
+  animation: lp-intro-fade-in 0.55s ease 1s forwards;
+}
+
+.lp-intro__word {
+  display: flex;
+  font-family: var(--font-heading);
+  font-size: calc(var(--fs-2xl) * var(--brand-scale));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--green-inverse);
+}
+
+.lp-intro__letter {
+  display: inline-block;
+  opacity: 0;
+  animation: lp-intro-letter 0.8s var(--ease-out-expo) forwards;
+  animation-delay: calc(0.8s + var(--i, 0) * 55ms);
+}
+
+.lp-intro__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp3);
+  opacity: 0;
+  animation: lp-intro-fade-in 0.6s ease 1.35s forwards;
+}
+
+.lp-intro__by {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(var(--green-inverse-rgb), 0.55);
+}
+
+.lp-intro__progress {
+  position: relative;
+  overflow: hidden;
+  width: 9rem;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-inverse-rgb), 0.12);
+}
+
+.lp-intro__progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--green-bright);
+  box-shadow: 0 0 10px var(--green-bright);
+  transform-origin: left center;
+  animation: lp-progress 2.1s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+}
+
+.lp-intro--leaving .lp-intro__backdrop {
+  animation: lp-intro-fade-out 0.9s var(--ease-out-expo) 0.15s forwards;
+}
+
+.lp-intro--leaving .lp-intro__footer {
+  animation: lp-intro-fade-out 0.25s ease forwards;
+}
+
+.lp-intro--leaving .lp-intro__letter,
+.lp-intro--leaving .lp-intro__logo .lp-logo__fill {
+  opacity: 1;
+  animation: none;
+}
+
+.lp-intro--leaving .lp-intro__logo .lp-logo__stroke {
+  opacity: 0;
+  animation: none;
+}
+
+.lp-intro--leaving .lp-intro__logo {
+  filter: none;
+  animation: none;
+}
+
+.lp-intro--leaving .lp-intro__brand:not(.lp-intro__brand--flying) {
+  animation: lp-intro-fade-out 0.5s ease forwards;
+}
+
+@keyframes lp-intro-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes lp-intro-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lp-intro-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-intro-bloom {
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes lp-intro-logo-pop {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.12;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@keyframes lp-intro-letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) rotate(6deg);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .lp-intro {
+    --brand-scale: 2.6;
+  }
+}

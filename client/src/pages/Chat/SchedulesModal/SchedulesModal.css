@@ -22,7 +22,7 @@
 .schedules-modal__error {
   font-family: var(--font-body);
   font-size: var(--fs-sm);
-  color: var(--orange-900);
+  color: var(--warning-text);
 }
 
 .schedules-modal__list {

@@ -21,6 +21,6 @@
 }
 
 .feedback__btn:hover {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   border-color: var(--border-strong);
 }

@@ -1,0 +1,78 @@
+.lp-footer {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid rgba(var(--green-inverse-rgb), 0.08);
+}
+
+.lp-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp6);
+  padding-block: var(--sp10) var(--sp6);
+}
+
+.lp-footer__brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+}
+
+.lp-footer__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  font-family: var(--font-heading);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lp-footer__mark {
+  width: auto;
+  height: var(--lp-mark-height);
+  color: var(--green-bright);
+}
+
+.lp-footer__small {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: rgba(var(--green-inverse-rgb), 0.5);
+}
+
+.lp-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp2) var(--sp6);
+}
+
+.lp-footer__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-base);
+  color: rgba(var(--green-inverse-rgb), 0.62);
+  transition: color var(--motion-fast) ease;
+}
+
+.lp-footer__link:hover {
+  color: var(--green-inverse);
+}
+
+.lp-footer__wordmark {
+  margin-bottom: -0.22em;
+  font-family: var(--font-heading);
+  font-size: var(--fs-display-xl);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-align: center;
+  white-space: nowrap;
+  background: linear-gradient(180deg, rgba(var(--green-inverse-rgb), 0.14), transparent 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  user-select: none;
+}

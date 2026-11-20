@@ -21,6 +21,13 @@ describe('PreviewWindow', () => {
     expect(container.querySelector('.lp-preview-window__badge')).not.toBeInTheDocument()
   })
 
+  it('shows the title it is given instead of the app name', () => {
+    render(<PreviewWindow title="#support">Body</PreviewWindow>)
+
+    expect(screen.getByText('#support')).toBeInTheDocument()
+    expect(screen.queryByText('Soporti')).not.toBeInTheDocument()
+  })
+
   it('adds the given class to the window', () => {
     const { container } = render(<PreviewWindow className="hero-chat__window">Body</PreviewWindow>)
 

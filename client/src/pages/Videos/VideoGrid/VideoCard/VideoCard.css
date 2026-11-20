@@ -28,7 +28,7 @@
 
 .video-card__thumbnail {
   aspect-ratio: 16 / 9;
-  background: linear-gradient(135deg, var(--bg-cool), var(--border-default));
+  background: linear-gradient(135deg, var(--bg-subtle), var(--border-default));
 }
 
 .video-card__image {

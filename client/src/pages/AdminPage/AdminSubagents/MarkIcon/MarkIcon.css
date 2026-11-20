@@ -7,7 +7,7 @@
   font-weight: 600;
   line-height: 1;
   color: var(--text-secondary);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }

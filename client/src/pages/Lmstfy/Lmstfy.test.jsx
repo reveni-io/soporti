@@ -59,7 +59,7 @@ describe('Lmstfy', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByTestId('grid-pattern')).toHaveAttribute('data-variant', 'light')
+    expect(screen.getByTestId('grid-pattern')).toHaveAttribute('data-variant', 'surface')
 
     unmount()
 
@@ -69,7 +69,7 @@ describe('Lmstfy', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByTestId('grid-pattern')).toHaveAttribute('data-variant', 'light')
+    expect(screen.getByTestId('grid-pattern')).toHaveAttribute('data-variant', 'surface')
   })
 
   it('needs no session and no request to render', () => {

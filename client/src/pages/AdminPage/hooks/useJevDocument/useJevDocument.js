@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getJevDocument, isUnauthorized, saveJevDocument } from '../../../../services/services.js'
 
 const CONFLICT_STATUS = 409
@@ -13,6 +13,7 @@ export function useJevDocument(token, id, onLogout) {
   const [savedAt, setSavedAt] = useState(null)
   const [restoredFrom, setRestoredFrom] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const loadedRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -20,8 +21,10 @@ export function useJevDocument(token, id, onLogout) {
       try {
         const data = await getJevDocument(token, id)
         if (!active) return
+        loadedRef.current = true
         setDocument(data)
         setDraft(data.data)
+        setLoadError(null)
         setSaveError(null)
         setConflict(false)
         setRestoredFrom(null)
@@ -30,7 +33,9 @@ export function useJevDocument(token, id, onLogout) {
           onLogout?.()
           return
         }
-        if (active) setLoadError(err.message)
+        if (!active) return
+        if (loadedRef.current) setSaveError(err.message)
+        else setLoadError(err.message)
       }
     }
     load()

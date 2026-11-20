@@ -46,8 +46,9 @@ function row(questionId, answer, { flagged = false, unsure = false } = {}) {
 
 function answered(rows, rules = RULES) {
   runJevCheck.mockImplementation(async ({ buildExtraQuestions }) => {
-    buildExtraQuestions({ rules })
-    return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', minConfidence: 0.75, rows }
+    const set = { rules }
+    buildExtraQuestions(set)
+    return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', minConfidence: 0.75, rows, set }
   })
 }
 

@@ -14,6 +14,7 @@ describe('IntegrationIcon', () => {
     'shortcut',
     'sentry',
     'betterstack',
+    'aws',
     'figma',
     'zendesk',
     'sendcloud',

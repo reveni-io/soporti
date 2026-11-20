@@ -29,7 +29,7 @@
 
 .dashboard-switcher__button:hover,
 .dashboard-switcher__button[aria-expanded='true'] {
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
 }
 
 .dashboard-switcher__button:focus-visible {
@@ -106,7 +106,7 @@
 .dashboard-switcher__item:hover,
 .dashboard-switcher__item:focus-visible {
   color: var(--text-primary);
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   outline: none;
 }
 

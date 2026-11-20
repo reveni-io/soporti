@@ -137,6 +137,12 @@ function toActiveConversations(chats) {
     .reverse()
 }
 
+function toBusyBotIds(chats) {
+  return Object.values(chats)
+    .filter(chat => chat.botId && chat.isLoading)
+    .map(chat => chat.botId)
+}
+
 function chatRequestBody(chat, text, { selectedSources, profile, skills, attachments }) {
   const body = {
     sessionId: chat.sessionId,
@@ -367,6 +373,7 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
     sessionId: activeChat.sessionId,
     conversationKey: displayedKey,
     activeConversations: toActiveConversations(chats),
+    busyBotIds: toBusyBotIds(chats),
     completedRuns,
     sendMessage,
     stopGeneration,

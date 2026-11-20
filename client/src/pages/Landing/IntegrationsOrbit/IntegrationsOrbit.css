@@ -1,0 +1,181 @@
+.lp-orbit {
+  --orbit-size: min(34rem, 86vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp8);
+}
+
+.lp-orbit__stage {
+  position: relative;
+  width: var(--orbit-size);
+  aspect-ratio: 1;
+}
+
+.lp-orbit__stage::before {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--green-bright-rgb), 0.16), transparent 65%);
+  filter: blur(var(--blur-glass));
+}
+
+.lp-orbit__ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border: 1px dashed rgba(var(--green-inverse-rgb), 0.16);
+  border-radius: 50%;
+  list-style: none;
+  pointer-events: none;
+  animation: lp-orbit-spin 90s linear infinite;
+}
+
+.lp-orbit__ring--inner {
+  --radius: calc(var(--orbit-size) * 0.29);
+  width: 58%;
+  height: 58%;
+  animation-duration: 60s;
+  animation-direction: reverse;
+}
+
+.lp-orbit__ring--outer {
+  --radius: calc(var(--orbit-size) * 0.5);
+  width: 100%;
+  height: 100%;
+}
+
+.lp-orbit__slot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--angle)) translateX(var(--radius)) rotate(calc(-1 * var(--angle)));
+}
+
+.lp-orbit__logo {
+  position: absolute;
+  pointer-events: auto;
+  top: -1.5rem;
+  left: -1.5rem;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.16);
+  border-radius: 50%;
+  background: var(--green-night);
+  color: rgba(var(--green-inverse-rgb), 0.82);
+  cursor: pointer;
+  animation: lp-orbit-spin 90s linear infinite reverse;
+  transition:
+    scale var(--motion-base) var(--ease-spring),
+    color var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    box-shadow var(--motion-base) ease;
+}
+
+.lp-orbit__ring--inner .lp-orbit__logo {
+  animation-duration: 60s;
+  animation-direction: normal;
+}
+
+.lp-orbit__logo:hover,
+.lp-orbit__logo--active {
+  scale: 1.18;
+  border-color: var(--green-bright);
+  color: var(--green-bright);
+  box-shadow:
+    0 0 0 4px rgba(var(--green-bright-rgb), 0.14),
+    0 0 28px rgba(var(--green-bright-rgb), 0.45);
+}
+
+.lp-orbit__stage:hover :is(.lp-orbit__ring, .lp-orbit__logo),
+.lp-orbit__stage:focus-within :is(.lp-orbit__ring, .lp-orbit__logo) {
+  animation-play-state: paused;
+}
+
+@keyframes lp-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lp-orbit__core {
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 32%;
+  aspect-ratio: 1;
+  margin: auto;
+  border: 1px solid rgba(var(--green-bright-rgb), 0.45);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, rgba(var(--green-bright-rgb), 0.24), var(--green-night) 72%);
+  text-align: center;
+  box-shadow:
+    0 0 0 10px rgba(var(--green-bright-rgb), 0.04),
+    0 0 80px rgba(var(--green-bright-rgb), 0.28);
+}
+
+.lp-orbit__core::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid rgba(var(--green-bright-rgb), 0.4);
+  border-radius: 50%;
+  animation: lp-ping 3.2s ease-out infinite;
+}
+
+.lp-orbit__count,
+.lp-orbit__active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp1);
+}
+
+.lp-orbit__number {
+  font-family: var(--font-heading);
+  font-size: var(--fs-display-md);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--green-inverse);
+}
+
+.lp-orbit__unit {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green-bright);
+}
+
+.lp-orbit__active {
+  color: var(--green-bright);
+  animation: lp-pop-in var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-orbit__name {
+  font-family: var(--font-heading);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--green-inverse);
+}
+
+.lp-orbit__caption {
+  max-width: 26rem;
+  min-height: 3.2em;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  text-align: center;
+  color: rgba(var(--green-inverse-rgb), 0.62);
+}
+
+.lp-orbit__caption strong {
+  color: var(--green-inverse);
+}

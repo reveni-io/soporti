@@ -97,22 +97,21 @@ function fromJev(result, rules, facts) {
   }
 }
 
-async function askJev(context, logger) {
-  let rules = []
+function setRules(set) {
+  return set.rules ?? []
+}
 
+async function askJev(context, logger) {
   try {
     const facts = collectReviewFacts(context.review, context.repo.denylist)
     const result = await runJevCheck({
       project: JEV_GITHUB_DOCUMENT,
       state: buildJevState(context, facts),
-      buildExtraQuestions: set => {
-        rules = set.rules ?? []
-        return buildRuleQuestions(rules)
-      },
+      buildExtraQuestions: set => buildRuleQuestions(setRules(set)),
     })
     if (result.status !== JEV_CHECK_ANSWERED) return asToday(context.todayEvent, result.reason, result)
 
-    return fromJev(result, rules, facts)
+    return fromJev(result, setRules(result.set), facts)
   } catch (err) {
     logger.error(`[review] Could not ask Jev about ${context.pullRequest.repoFullName}:`, err)
     return asToday(context.todayEvent, 'the Jev check failed')

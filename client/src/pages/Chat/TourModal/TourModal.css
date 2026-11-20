@@ -80,7 +80,7 @@
 
 .tour-modal__example:hover {
   border-color: var(--green-bright);
-  background-color: var(--green-inverse);
+  background-color: var(--bg-accent-subtle);
   color: var(--text-primary);
 }
 
@@ -111,7 +111,7 @@
   border-radius: 50%;
   border: none;
   padding: 0;
-  background-color: var(--border-high);
+  background-color: var(--border-strong);
   cursor: pointer;
   transition: background 0.15s;
 }

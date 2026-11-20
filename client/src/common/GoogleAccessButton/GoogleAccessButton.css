@@ -3,12 +3,12 @@
   padding: var(--sp2) var(--sp5);
   gap: var(--sp3);
   color: var(--text-primary);
-  background-color: var(--white);
+  background-color: var(--bg-surface);
   border-radius: var(--radius-pill);
 }
 
 .btn.google-access-button:hover:not(:disabled) {
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
 }
 
 .btn.google-access-button:focus-visible {

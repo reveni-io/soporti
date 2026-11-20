@@ -144,5 +144,18 @@ describe('ChatTopbar', () => {
 
       expect(onEditBot).toHaveBeenCalledTimes(1)
     })
+
+    it('goes back to the bots instead of offering the sidebar toggles', async () => {
+      const onBackToBots = vi.fn()
+      const user = userEvent.setup()
+      render(<ChatTopbar {...BASE_PROPS} bot={BOT} isSidebarCollapsed onBackToBots={onBackToBots} />)
+
+      expect(screen.queryByRole('button', { name: 'Open sidebar' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Expand sidebar' })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Back to bots' }))
+
+      expect(onBackToBots).toHaveBeenCalledTimes(1)
+    })
   })
 })
