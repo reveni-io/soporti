@@ -52,16 +52,16 @@
 .lp-app-tile__app--soporti {
   box-shadow:
     inset 0 0 0 1px rgba(var(--green-bright-rgb), 0.35),
-    0 0 24px rgba(var(--green-bright-rgb), 0.25);
+    0 0 var(--sp6) rgba(var(--green-bright-rgb), 0.25);
 }
 
 .lp-app-tile__app--soporti::after {
   content: '';
   position: absolute;
   top: 50%;
-  left: calc(var(--lp-dock-pad) / -2 - 2px);
-  width: 4px;
-  height: 4px;
+  left: calc(var(--lp-dock-pad) / -2 - var(--sp1) / 2);
+  width: var(--sp1);
+  height: var(--sp1);
   border-radius: 50%;
   background: rgba(var(--green-inverse-rgb), 0.7);
   transform: translateY(-50%);
@@ -71,15 +71,15 @@
   position: absolute;
   top: calc(var(--sp2) * -1);
   right: calc(var(--sp2) * -1);
-  min-width: 1.25rem;
-  height: 1.25rem;
+  min-width: var(--sp5);
+  height: var(--sp5);
   padding: 0 var(--sp1);
   border-radius: var(--radius-pill);
   background: var(--chart-5);
   box-shadow: 0 0 0 2px var(--green-night);
   font-size: var(--fs-xs);
   font-weight: 600;
-  line-height: 1.25rem;
+  line-height: var(--sp5);
   text-align: center;
   color: var(--white);
   animation: lp-app-tile-badge var(--motion-slow) var(--ease-spring);
@@ -113,7 +113,7 @@
 
 .lp-app-tile__island {
   width: 4.5rem;
-  height: 1.25rem;
+  height: var(--sp5);
   margin-bottom: var(--sp4);
   border-radius: var(--radius-pill);
   background: var(--green-night);
@@ -160,8 +160,8 @@
   grid-row: span 2;
   align-self: center;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: var(--sp8);
+  height: var(--sp8);
   border-radius: var(--radius-md);
 }
 
@@ -196,17 +196,17 @@
     margin-bottom: 0;
     padding-block: 0;
     opacity: 0;
-    transform: translateY(-12px) scale(0.94);
+    transform: translateY(calc(var(--sp3) * -1)) scale(0.94);
   }
   to {
-    max-height: 5rem;
+    max-height: var(--sp20);
   }
 }
 
 @keyframes lp-app-tile-clear {
   to {
     opacity: 0;
-    transform: translateY(-12px) scale(0.96);
+    transform: translateY(calc(var(--sp3) * -1)) scale(0.96);
     filter: blur(var(--blur-enter));
   }
 }
@@ -225,8 +225,8 @@
   }
 
   .lp-app-tile__app {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--sp10);
+    height: var(--sp10);
   }
 
   .lp-app-tile__dock {

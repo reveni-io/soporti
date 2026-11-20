@@ -122,6 +122,15 @@ export async function streamChat(token, body, signal) {
   return response
 }
 
+export function stopChat(token, requestId) {
+  return request('/api/chat/stop', {
+    method: 'POST',
+    token,
+    body: { requestId },
+    errorMessage: 'Failed to stop the answer',
+  })
+}
+
 export function uploadAttachment(token, file, contentType, name) {
   return request(`/api/attachments?name=${encodeURIComponent(name)}`, {
     method: 'POST',

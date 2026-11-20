@@ -1086,3 +1086,74 @@ describe('useChat notifications', () => {
     expect(registration.showNotification).not.toHaveBeenCalled()
   })
 })
+
+describe('useChat stop signal', () => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  function chatRequests() {
+    return global.fetch.mock.calls.filter(([url]) => url === '/api/chat').map(([, options]) => JSON.parse(options.body))
+  }
+
+  function stopRequests() {
+    return global.fetch.mock.calls.filter(([url]) => url === '/api/chat/stop')
+  }
+
+  it('sends a new request id with every message', async () => {
+    global.fetch = vi.fn().mockImplementation(() => Promise.resolve(createSSEResponse([{ type: 'done' }])))
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('first', { selectedSources: [], profile: 'support' })
+    })
+    await act(async () => {
+      await result.current.sendMessage('second', { selectedSources: [], profile: 'support' })
+    })
+
+    const [first, second] = chatRequests()
+    expect(first.requestId).toMatch(UUID_RE)
+    expect(second.requestId).toMatch(UUID_RE)
+    expect(second.requestId).not.toBe(first.requestId)
+  })
+
+  it('tells the server the user stopped the answer it is generating', async () => {
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation(url => {
+      if (url === '/api/chat/stop') return Promise.resolve({ ok: true, status: 204, json: async () => ({}) })
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    act(() => {
+      result.current.sendMessage('long research', { selectedSources: [], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      result.current.stopGeneration()
+    })
+
+    await waitFor(() => expect(stopRequests()).toHaveLength(1))
+    const [, options] = stopRequests()[0]
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ requestId: chatRequests()[0].requestId })
+  })
+
+  it('logs the user out when stopping answers unauthorized', async () => {
+    const onAuthError = vi.fn()
+    const stream = createManualStream()
+    global.fetch = vi.fn().mockImplementation(url => {
+      if (url === '/api/chat/stop') return Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+      return Promise.resolve(stream.response)
+    })
+    const { result } = renderHook(() => useChat('token', onAuthError))
+
+    act(() => {
+      result.current.sendMessage('long research', { selectedSources: [], profile: 'support' })
+    })
+    await waitFor(() => expect(result.current.isLoading).toBe(true))
+    act(() => {
+      result.current.stopGeneration()
+    })
+
+    await waitFor(() => expect(onAuthError).toHaveBeenCalledTimes(1))
+  })
+})

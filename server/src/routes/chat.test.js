@@ -72,6 +72,7 @@ import { getAttachmentImages } from '../db/attachment-images.js'
 import { getBot } from '../db/bots.js'
 import { withConversationLock } from '../sessions/conversation-lock.js'
 import { notifyUser } from '../push/notify.js'
+import { _countTrackedTurnsForTests } from '../sessions/turn-stops.js'
 import chatRoute from './chat.js'
 
 function createStreamMock(events, { history, lastResponseId, usage } = {}) {
@@ -1334,6 +1335,42 @@ describe('POST /api/chat', () => {
     })
   })
 
+  describe('request IDs', () => {
+    it.each([['not-a-uuid'], [42]])('rejects the request id %s', async requestId => {
+      const res = await request(app).post('/').send({ message: 'hello', requestId })
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('Invalid request ID.')
+      expect(run).not.toHaveBeenCalled()
+    })
+
+    it('forgets the request once the answer is finished', async () => {
+      run.mockResolvedValue(
+        createStreamMock([{ type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Done.' } }])
+      )
+
+      const res = await request(app)
+        .post('/')
+        .send({ message: 'hello', requestId: '0b6f3c2a-5d4e-4f61-8a7b-9c0d1e2f3a4b' })
+
+      expect(res.status).toBe(200)
+      expect(_countTrackedTurnsForTests()).toBe(0)
+    })
+
+    it.each([[{}], [{ requestId: 'not-a-uuid' }]])('rejects a stop without a valid request id: %j', async body => {
+      const res = await request(app).post('/stop').send(body)
+
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('Invalid request ID.')
+    })
+
+    it('accepts a stop for a request it is not running', async () => {
+      const res = await request(app).post('/stop').send({ requestId: '0b6f3c2a-5d4e-4f61-8a7b-9c0d1e2f3a4b' })
+
+      expect(res.status).toBe(204)
+    })
+  })
+
   describe('when the browser leaves before the answer is finished', () => {
     const TEXT_EVENT = { type: 'raw_model_stream_event', data: { type: 'output_text_delta', delta: 'Two refunds ' } }
     const MORE_TEXT_EVENT = {
@@ -1344,6 +1381,11 @@ describe('POST /api/chat', () => {
       type: 'run_item_stream_event',
       item: { type: 'tool_call_item', rawItem: { name: 'search_notion_pages', arguments: '{}' } },
     }
+    const CONCLUSION_EVENT = {
+      type: 'raw_model_stream_event',
+      data: { type: 'output_text_delta', delta: 'Both are waiting for the bank.' },
+    }
+    const REQUEST_ID = '0b6f3c2a-5d4e-4f61-8a7b-9c0d1e2f3a4b'
 
     function gatedStream(afterGate) {
       let openGate
@@ -1371,7 +1413,7 @@ describe('POST /api/chat', () => {
       })
     }
 
-    async function postThenLeave(body, openGate) {
+    async function postThenLeave(body, openGate, beforeAnswerEnds = async () => {}) {
       const server = app.listen(0)
       await once(server, 'listening')
 
@@ -1387,16 +1429,17 @@ describe('POST /api/chat', () => {
       await once(response, 'data')
       req.destroy()
       await vi.waitFor(async () => expect(await countConnections(server)).toBe(0))
+      await beforeAnswerEnds()
 
       openGate()
       await vi.waitFor(() => expect(recordAgentRun).toHaveBeenCalledTimes(1))
       server.close()
     }
 
-    it('notifies the user with the answer, without its sources footer, and a link to the conversation', async () => {
+    it('notifies the user with the text after the last tool call, without its sources footer, and a link to the conversation', async () => {
       const { stream, openGate } = gatedStream(function* () {
         yield NOTION_CALL_EVENT
-        yield MORE_TEXT_EVENT
+        yield CONCLUSION_EVENT
       })
       run.mockResolvedValue(stream)
 
@@ -1409,7 +1452,7 @@ describe('POST /api/chat', () => {
       expect(notifyUser).toHaveBeenCalledTimes(1)
       expect(notifyUser).toHaveBeenCalledWith(1, {
         title: 'Your answer is ready',
-        body: 'Two refunds are pending.',
+        body: 'Both are waiting for the bank.',
         url: `/chat?conversation=${TEST_CONVERSATION_ID}`,
         tag: `conversation-${TEST_CONVERSATION_ID}`,
       })
@@ -1432,6 +1475,36 @@ describe('POST /api/chat', () => {
         url: '/bots/4',
         tag: 'bot-4',
       })
+    })
+
+    it('does not notify when the user stopped the answer', async () => {
+      const { stream, openGate } = gatedStream(function* () {
+        yield MORE_TEXT_EVENT
+      })
+      run.mockResolvedValue(stream)
+
+      await postThenLeave({ message: 'pending refunds?', requestId: REQUEST_ID }, openGate, async () => {
+        const stopped = await request(app).post('/stop').send({ requestId: REQUEST_ID })
+        expect(stopped.status).toBe(204)
+      })
+
+      expect(conversationStore.saveTurn).toHaveBeenCalledTimes(1)
+      expect(notifyUser).not.toHaveBeenCalled()
+      expect(_countTrackedTurnsForTests()).toBe(0)
+    })
+
+    it('still notifies when the stop names another request', async () => {
+      const { stream, openGate } = gatedStream(function* () {
+        yield MORE_TEXT_EVENT
+      })
+      run.mockResolvedValue(stream)
+
+      await postThenLeave({ message: 'pending refunds?', requestId: REQUEST_ID }, openGate, async () => {
+        await request(app).post('/stop').send({ requestId: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' })
+      })
+
+      expect(notifyUser).toHaveBeenCalledTimes(1)
+      expect(notifyUser.mock.calls[0][1].body).toBe('Two refunds are pending.')
     })
 
     it('does not notify when the turn fails after the browser left', async () => {

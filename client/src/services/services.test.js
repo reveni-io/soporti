@@ -97,6 +97,7 @@ import {
   savePushSubscription,
   deletePushSubscription,
   sendTestPush,
+  stopChat,
 } from './services.js'
 
 const ORIGINAL_BASE = import.meta.env.VITE_API_URL
@@ -1113,5 +1114,25 @@ describe('push notifications', () => {
     global.fetch = vi.fn().mockResolvedValue(fail(500))
 
     await expect(sendTestPush('tok')).rejects.toThrow('Failed to send the test notification')
+  })
+})
+
+describe('stopChat', () => {
+  it('tells the server which answer the user stopped', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => Promise.reject(new Error()) })
+
+    await expect(stopChat('tok', 'req-1')).resolves.toEqual({})
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [url, options] = lastCall()
+    expect(url).toBe('/api/chat/stop')
+    expect(options.method).toBe('POST')
+    expect(options.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(options.body)).toEqual({ requestId: 'req-1' })
+  })
+
+  it('falls back to a readable message when the stop fails without one', async () => {
+    global.fetch = vi.fn().mockResolvedValue(fail(500))
+
+    await expect(stopChat('tok', 'req-1')).rejects.toThrow('Failed to stop the answer')
   })
 })
