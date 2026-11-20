@@ -44,6 +44,26 @@ describe('JevHistory', () => {
     expect(global.fetch.mock.calls[1][0]).toContain('/api/admin/config/jev/documents/legal/history?page=2')
   })
 
+  it('keeps the table when a page fails and retries it on the next click', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(page(1, [{ at: AT, author: 'ana@example.com', change: 'Questions', rev: 6 }]))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'Failed.' }) })
+      .mockResolvedValueOnce(page(2, [{ at: AT, author: 'ana@example.com', change: 'Created', rev: 1 }]))
+    const user = userEvent.setup()
+
+    render(<JevHistory token="tok" documentId="legal" onLogout={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByText('Failed.')).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'Questions' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByRole('cell', { name: 'Created' })).toBeInTheDocument()
+    expect(screen.queryByText('Failed.')).not.toBeInTheDocument()
+  })
+
   it('shows why the history could not load', async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'Failed.' }) })
 

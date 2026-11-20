@@ -19,21 +19,24 @@ function toRow(entry, index) {
 }
 
 export default function JevHistory({ token, documentId, onLogout }) {
-  const [page, setPage] = useState(1)
-  const { result: history, error } = useJevPage(getJevHistory, { token, documentId, page }, onLogout)
+  const [request, setRequest] = useState({ page: 1 })
+  const { result: history, error } = useJevPage(getJevHistory, { token, documentId, request }, onLogout)
 
-  if (error) return <p className="alert alert--error">{error}</p>
+  if (error && !history) return <p className="alert alert--error">{error}</p>
   if (!history) return <p className="admin__muted">Loading...</p>
 
   return (
-    <PaginatedTable
-      headers={HEADERS}
-      rows={history.entries.map(toRow)}
-      page={history.page}
-      pageSize={history.pageSize}
-      total={history.total}
-      onPage={setPage}
-      empty="No changes yet."
-    />
+    <>
+      {error && <p className="alert alert--error">{error}</p>}
+      <PaginatedTable
+        headers={HEADERS}
+        rows={history.entries.map(toRow)}
+        page={history.page}
+        pageSize={history.pageSize}
+        total={history.total}
+        onPage={page => setRequest({ page })}
+        empty="No changes yet."
+      />
+    </>
   )
 }

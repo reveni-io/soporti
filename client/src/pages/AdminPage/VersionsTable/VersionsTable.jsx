@@ -8,15 +8,15 @@ import { formatDateTime } from '../dates.js'
 const HEADERS = ['Version', 'Date', 'Author', 'Change', '']
 
 export default function VersionsTable({ token, project, state, onLogout }) {
-  const [page, setPage] = useState(1)
-  const { result, error } = useJevPage(getJevVersions, { token, documentId: project, page }, onLogout)
+  const [request, setRequest] = useState({ page: 1 })
+  const { result, error } = useJevPage(getJevVersions, { token, documentId: project, request }, onLogout)
   const currentVersion = state.document.setVersion
 
   function handleRestore(entry) {
     state.restore(entry.version, draft => ({ ...draft, set: { ...draft.set, ...entry.set } }))
   }
 
-  if (error) return <p className="alert alert--error">{error}</p>
+  if (error && !result) return <p className="alert alert--error">{error}</p>
   if (!result) return <p className="admin__muted">Loading...</p>
 
   const rows = result.entries.map(entry => ({
@@ -38,13 +38,14 @@ export default function VersionsTable({ token, project, state, onLogout }) {
 
   return (
     <>
+      {error && <p className="alert alert--error">{error}</p>}
       <PaginatedTable
         headers={HEADERS}
         rows={rows}
         page={result.page}
         pageSize={result.pageSize}
         total={result.total}
-        onPage={setPage}
+        onPage={page => setRequest({ page })}
         empty="No versions yet. The first save creates version 1."
       />
       {state.restoredFrom && (
