@@ -10,7 +10,9 @@ import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
 import AutoApproveRepos from '../AutoApproveRepos/AutoApproveRepos.jsx'
 import ReviewRules from '../ReviewRules/ReviewRules.jsx'
 
-function describeSetUsers(repos) {
+function describeSetUsers({ set, repos }) {
+  if (set.questions.length === 0) return null
+
   const users = repos.filter(repo => repo.mode !== AUTO_APPROVE_OFF).map(repo => repo.name)
   if (users.length === 0) return null
 
@@ -53,7 +55,7 @@ export default function GithubAutoApprove({ token, onLogout }) {
           project={JEV_GITHUB_DOCUMENT}
           state={project}
           catalog={catalog}
-          inUseMessage={describeSetUsers(project.document.data.repos)}
+          inUseMessage={describeSetUsers(project.document.data)}
         />
       </AdminSection>
 
