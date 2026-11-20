@@ -177,8 +177,9 @@ export default function AdminGithub({ token, onLogout }) {
         </p>
         <p className="admin__muted">
           People who joined recently are the organization members with <code>-reveni</code> in their username whose
-          account is less than 90 days old. Listing the members needs the <code>read:org</code> scope on a classic
-          token, or <strong>Members: read</strong> on a fine-grained one; without it, only the reviewer is suggested.
+          account is less than 180 days old, the six-month trial period. Listing the members needs the{' '}
+          <code>read:org</code> scope on a classic token, or <strong>Members: read</strong> on a fine-grained one;
+          without it, only the reviewer is suggested.
         </p>
 
         <ToggleField

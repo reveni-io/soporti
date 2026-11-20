@@ -164,11 +164,11 @@ describe('suggestReviewers', () => {
     expect(listPathAuthors).not.toHaveBeenCalled()
   })
 
-  it('suggests, among the -reveni accounts created in the last 90 days, the one with fewer recent reviews', async () => {
+  it('suggests, among the -reveni accounts created in the last 180 days, the one with fewer recent reviews', async () => {
     members(
       ['nueva-reveni', '2026-10-01T09:00:00Z'],
-      ['nuevo-Reveni', '2026-08-23T10:00:00Z'],
-      ['antigua-reveni', '2026-08-22T09:00:00Z'],
+      ['nuevo-Reveni', '2026-05-25T10:00:00Z'],
+      ['antigua-reveni', '2026-05-24T09:00:00Z'],
       ['personal-account', '2026-11-01T09:00:00Z'],
       ['author-reveni', '2026-11-01T09:00:00Z']
     )

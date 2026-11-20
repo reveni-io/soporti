@@ -11,7 +11,7 @@ import { isBotLogin, isSameLogin, parseRepo } from '../github/sanitize.js'
 const MAX_PATHS = 10
 const MAX_EXPERTS = 5
 const LOAD_WINDOW_DAYS = 30
-const NEWCOMER_DAYS = 90
+const NEWCOMER_DAYS = 180
 const NEWCOMER_MARK = '-reveni'
 const DAY_MS = 86_400_000
 const LEARNING_RISKS = new Set(['Low', 'Medium'])
