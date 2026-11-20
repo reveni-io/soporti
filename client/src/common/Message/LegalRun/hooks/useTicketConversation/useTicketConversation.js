@@ -3,6 +3,7 @@ import { getLegalConversation, isUnauthorized } from '../../../../../services/se
 
 export function useTicketConversation(token, caseId, onLogout) {
   const [messages, setMessages] = useState(null)
+  const [notice, setNotice] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -12,6 +13,7 @@ export function useTicketConversation(token, caseId, onLogout) {
     try {
       const data = await getLegalConversation(token, caseId)
       setMessages(data.messages)
+      setNotice(data.notice ?? null)
     } catch (err) {
       if (isUnauthorized(err)) {
         onLogout?.()
@@ -23,5 +25,5 @@ export function useTicketConversation(token, caseId, onLogout) {
     }
   }
 
-  return { messages, loading, error, load }
+  return { messages, notice, loading, error, load }
 }
