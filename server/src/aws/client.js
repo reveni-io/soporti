@@ -13,12 +13,14 @@ import {
   ListServicesCommand,
   ListTasksCommand,
 } from '@aws-sdk/client-ecs'
-import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
-import { getAwsAccessKey, getAwsRegion, isAwsConfigured } from './settings.js'
+import { AssumeRoleCommand, GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
+import { getAwsAccessKey, getAwsAccounts, getAwsRegion, getAwsRoleArn, isAwsConfigured } from './settings.js'
 
 export const AWS_REQUEST_FAILED = 'AWS_REQUEST_FAILED'
 
 const MAX_ATTEMPTS = 3
+const ROLE_SESSION_NAME = 'soporti'
+const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000
 const ALARM_STATES = ['ALARM', 'INSUFFICIENT_DATA', 'OK']
 const ANY_STATE = 'ANY'
 const AUTOSCALING_ALARM_PREFIX = 'TargetTracking-'
@@ -76,7 +78,7 @@ const CONNECTION_CHECKS = [
   { id: 'ecs', label: 'ECS clusters', action: 'ecs:ListClusters' },
 ]
 
-let cachedClients = null
+let cachedContext = null
 
 function awsError(message) {
   const error = new Error(message)
@@ -94,11 +96,14 @@ function isAccessDenied(err) {
 }
 
 function toAwsError(err, action) {
+  if (err.code === AWS_REQUEST_FAILED) return err
   if (err.name === 'CredentialsProviderError') return awsError(NO_CREDENTIALS_MESSAGE)
   if (isMissingRegion(err)) return awsError(NO_REGION_MESSAGE)
   if (REJECTED_CREDENTIAL_NAMES.has(err.name)) return awsError(REJECTED_CREDENTIALS_MESSAGE)
   if (isAccessDenied(err)) {
-    return awsError(`AWS denied ${action}. Add it to the IAM policy of the role or user Soporti runs with.`)
+    return awsError(
+      `AWS denied ${action}. Add it to the IAM policy of the role or user Soporti reads this account with.`
+    )
   }
   if (NOT_FOUND_NAMES.has(err.name)) return awsError(err.message)
   if (INVALID_INPUT_NAMES.has(err.name)) return awsError(`AWS ${action} rejected the request: ${err.message}`)
@@ -106,39 +111,145 @@ function toAwsError(err, action) {
   return awsError(`AWS ${action} failed (${err.name}).`)
 }
 
-async function resolveClientConfig() {
-  const [region, accessKey] = await Promise.all([getAwsRegion(), getAwsAccessKey()])
+async function resolveSettings() {
+  const [region, accessKey, roleArn, accounts] = await Promise.all([
+    getAwsRegion(),
+    getAwsAccessKey(),
+    getAwsRoleArn(),
+    getAwsAccounts(),
+  ])
+
+  return { region: region ?? undefined, accessKey: accessKey ?? undefined, roleArn, accounts }
+}
+
+function settingsSignature({ region, accessKey, roleArn, accounts }) {
+  return JSON.stringify([
+    region ?? null,
+    accessKey?.accessKeyId ?? null,
+    accessKey?.secretAccessKey ?? null,
+    roleArn,
+    accounts,
+  ])
+}
+
+function isAssumeRoleRefused(err) {
+  return isAccessDenied(err) && !REJECTED_CREDENTIAL_NAMES.has(err.name)
+}
+
+function toAssumeRoleError(err, roleArn) {
+  if (!isAssumeRoleRefused(err)) return toAwsError(err, `sts:AssumeRole on ${roleArn}`)
+
+  return awsError(
+    `AWS did not let Soporti assume ${roleArn}. The role's trust policy must allow the identity Soporti runs with, and that identity needs sts:AssumeRole on the role.`
+  )
+}
+
+async function requestRoleCredentials(sts, roleArn) {
+  try {
+    const { Credentials } = await sts.send(
+      new AssumeRoleCommand({ RoleArn: roleArn, RoleSessionName: ROLE_SESSION_NAME })
+    )
+    return {
+      accessKeyId: Credentials.AccessKeyId,
+      secretAccessKey: Credentials.SecretAccessKey,
+      sessionToken: Credentials.SessionToken,
+      expiration: Credentials.Expiration,
+    }
+  } catch (err) {
+    throw toAssumeRoleError(err, roleArn)
+  }
+}
+
+function isFresh(credentials) {
+  return credentials && credentials.expiration.getTime() - Date.now() > CREDENTIAL_REFRESH_MARGIN_MS
+}
+
+function assumeRole(roleArn, { region, credentials }) {
+  const sts = new STSClient({ region, credentials, maxAttempts: MAX_ATTEMPTS })
+  let current = null
+  let pending = null
+
+  return async function provideRoleCredentials() {
+    if (isFresh(current)) return current
+
+    pending ??= requestRoleCredentials(sts, roleArn).finally(() => {
+      pending = null
+    })
+    current = await pending
+    return current
+  }
+}
+
+function buildClients({ region, credentials }) {
+  const config = { region, credentials, maxAttempts: MAX_ATTEMPTS }
+
+  return { cloudwatch: new CloudWatchClient(config), ecs: new ECSClient(config), sts: new STSClient(config) }
+}
+
+function buildTargets({ region, accounts }, homeCredentials) {
+  if (accounts.length === 0) return [{ name: null, clients: buildClients({ region, credentials: homeCredentials }) }]
+
+  return accounts.map(account => {
+    const credentials = assumeRole(account.roleArn, { region, credentials: homeCredentials })
+    return { name: account.name, clients: buildClients({ region, credentials }) }
+  })
+}
+
+function buildContext(settings) {
+  const { region, accessKey, roleArn } = settings
+  const homeCredentials = roleArn ? assumeRole(roleArn, { region, credentials: accessKey }) : accessKey
 
   return {
-    region: region ?? undefined,
-    credentials: accessKey ?? undefined,
-    maxAttempts: MAX_ATTEMPTS,
+    own: { sts: new STSClient({ region, credentials: accessKey, maxAttempts: MAX_ATTEMPTS }) },
+    targets: buildTargets(settings, homeCredentials),
   }
 }
 
-function clientSignature({ region, credentials }) {
-  return JSON.stringify([region ?? null, credentials?.accessKeyId ?? null, credentials?.secretAccessKey ?? null])
+async function getContext() {
+  const settings = await resolveSettings()
+  const signature = settingsSignature(settings)
+
+  if (cachedContext?.signature !== signature) cachedContext = { signature, ...buildContext(settings) }
+
+  return cachedContext
 }
 
-async function getClients() {
-  const clientConfig = await resolveClientConfig()
-  const signature = clientSignature(clientConfig)
+function accountNames(targets) {
+  return targets.map(target => `"${target.name}"`).join(', ')
+}
 
-  if (cachedClients?.signature === signature) return cachedClients
+function pickTarget(targets, name) {
+  const wanted = String(name ?? '')
+    .trim()
+    .toLowerCase()
+  const [first] = targets
 
-  cachedClients = {
-    signature,
-    cloudwatch: new CloudWatchClient(clientConfig),
-    ecs: new ECSClient(clientConfig),
-    sts: new STSClient(clientConfig),
+  if (first.name === null) {
+    if (wanted) throw awsError(`No AWS accounts are configured, so there is no "${wanted}": leave out "account".`)
+    return first
   }
+  if (!wanted && targets.length === 1) return first
+  if (!wanted) throw awsError(`Several AWS accounts are configured (${accountNames(targets)}): pass one as "account".`)
 
-  return cachedClients
+  const match = targets.find(target => target.name === wanted)
+  if (!match) throw awsError(`There is no AWS account named "${wanted}". Configured: ${accountNames(targets)}.`)
+
+  return match
 }
 
-async function send(service, command, action) {
-  const clients = await getClients()
+async function resolveTarget(account) {
+  if (!(await isAwsConfigured())) throw awsError(NOT_ENABLED_MESSAGE)
 
+  const { targets } = await getContext()
+
+  return pickTarget(targets, account)
+}
+
+function withAccount(target, result) {
+  return target.name ? { account: target.name, ...result } : result
+}
+
+async function send(clients, service, command, action) {
   try {
     return await clients[service].send(command)
   } catch (err) {
@@ -194,10 +305,6 @@ export async function isConfigured() {
   return isAwsConfigured()
 }
 
-async function assertEnabled() {
-  if (!(await isAwsConfigured())) throw awsError(NOT_ENABLED_MESSAGE)
-}
-
 function resolveAlarmState(state) {
   const normalized = String(state ?? 'ALARM').toUpperCase()
   if (normalized === ANY_STATE) return null
@@ -232,8 +339,9 @@ function describeAlarm(alarm, type) {
   }
 }
 
-async function fetchAlarmPage({ stateValue, namePrefix }, nextToken) {
+async function fetchAlarmPage(clients, { stateValue, namePrefix }, nextToken) {
   const response = await send(
+    clients,
     'cloudwatch',
     new DescribeAlarmsCommand({
       StateValue: stateValue ?? undefined,
@@ -250,27 +358,32 @@ async function fetchAlarmPage({ stateValue, namePrefix }, nextToken) {
   return { items: [...metricAlarms, ...compositeAlarms], nextToken: response.NextToken }
 }
 
-export async function listAlarms({ state, namePrefix } = {}) {
-  await assertEnabled()
-
+export async function listAlarms({ account, state, namePrefix } = {}) {
+  const target = await resolveTarget(account)
   const stateValue = resolveAlarmState(state)
-  const { items, truncated } = await collectPages(nextToken => fetchAlarmPage({ stateValue, namePrefix }, nextToken), {
-    maxPages: MAX_ALARM_PAGES,
-  })
+  const { items, truncated } = await collectPages(
+    nextToken => fetchAlarmPage(target.clients, { stateValue, namePrefix }, nextToken),
+    { maxPages: MAX_ALARM_PAGES }
+  )
   const alarms = items.filter(alarm => !alarm.name.startsWith(AUTOSCALING_ALARM_PREFIX))
   const newestFirst = alarms.toSorted((a, b) => String(b.since).localeCompare(String(a.since)))
 
-  return {
+  return withAccount(target, {
     state: stateValue ?? ANY_STATE,
     count: alarms.length,
     truncated: truncated || alarms.length > MAX_ALARMS,
     hiddenAutoscalingAlarms: items.length - alarms.length,
     alarms: newestFirst.slice(0, MAX_ALARMS),
-  }
+  })
 }
 
-async function listClusterArns() {
-  const response = await send('ecs', new ListClustersCommand({ maxResults: CLUSTER_PAGE_SIZE }), 'ecs:ListClusters')
+async function listClusterArns(clients) {
+  const response = await send(
+    clients,
+    'ecs',
+    new ListClustersCommand({ maxResults: CLUSTER_PAGE_SIZE }),
+    'ecs:ListClusters'
+  )
 
   return response.clusterArns ?? []
 }
@@ -285,22 +398,26 @@ function describeCluster(cluster) {
   }
 }
 
-export async function listEcsClusters() {
-  await assertEnabled()
+export async function listEcsClusters({ account } = {}) {
+  const target = await resolveTarget(account)
+  const arns = await listClusterArns(target.clients)
+  if (arns.length === 0) return withAccount(target, { clusters: [] })
 
-  const arns = await listClusterArns()
-  if (arns.length === 0) return { clusters: [] }
+  const response = await send(
+    target.clients,
+    'ecs',
+    new DescribeClustersCommand({ clusters: arns }),
+    'ecs:DescribeClusters'
+  )
 
-  const response = await send('ecs', new DescribeClustersCommand({ clusters: arns }), 'ecs:DescribeClusters')
-
-  return { clusters: (response.clusters ?? []).map(describeCluster) }
+  return withAccount(target, { clusters: (response.clusters ?? []).map(describeCluster) })
 }
 
-async function resolveCluster(cluster) {
+async function resolveCluster(clients, cluster) {
   const requested = typeof cluster === 'string' ? cluster.trim() : ''
   if (requested) return requested
 
-  const names = (await listClusterArns()).map(lastSegment)
+  const names = (await listClusterArns(clients)).map(lastSegment)
   if (names.length === 1) return names[0]
   if (names.length === 0) throw awsError('There are no ECS clusters in this account and region.')
 
@@ -335,23 +452,23 @@ function summarizeService(service) {
   }
 }
 
-async function describeServices(cluster, names) {
+async function describeServices(clients, cluster, names) {
   const batches = await Promise.all(
     chunk(names, DESCRIBE_SERVICES_BATCH).map(batch => {
-      return send('ecs', new DescribeServicesCommand({ cluster, services: batch }), 'ecs:DescribeServices')
+      return send(clients, 'ecs', new DescribeServicesCommand({ cluster, services: batch }), 'ecs:DescribeServices')
     })
   )
 
   return batches.flatMap(response => response.services ?? [])
 }
 
-export async function listEcsServices({ cluster } = {}) {
-  await assertEnabled()
-
-  const clusterName = await resolveCluster(cluster)
+export async function listEcsServices({ account, cluster } = {}) {
+  const target = await resolveTarget(account)
+  const clusterName = await resolveCluster(target.clients, cluster)
   const { items: arns, truncated } = await collectPages(
     async nextToken => {
       const response = await send(
+        target.clients,
         'ecs',
         new ListServicesCommand({ cluster: clusterName, maxResults: SERVICE_PAGE_SIZE, nextToken }),
         'ecs:ListServices'
@@ -360,16 +477,16 @@ export async function listEcsServices({ cluster } = {}) {
     },
     { maxPages: MAX_SERVICE_PAGES }
   )
-  const services = (await describeServices(clusterName, arns)).map(summarizeService)
+  const services = (await describeServices(target.clients, clusterName, arns)).map(summarizeService)
   const unhealthyFirst = services.toSorted((a, b) => a.healthy - b.healthy || a.name.localeCompare(b.name))
 
-  return {
+  return withAccount(target, {
     cluster: clusterName,
     count: services.length,
     unhealthy: services.filter(service => !service.healthy).length,
     truncated,
     services: unhealthyFirst,
-  }
+  })
 }
 
 function describeDeployment(deployment) {
@@ -403,8 +520,9 @@ function describeStoppedTask(task) {
   }
 }
 
-async function listStoppedTasks(cluster, serviceName) {
+async function listStoppedTasks(clients, cluster, serviceName) {
   const listed = await send(
+    clients,
     'ecs',
     new ListTasksCommand({ cluster, serviceName, desiredStatus: 'STOPPED', maxResults: MAX_STOPPED_TASKS }),
     'ecs:ListTasks'
@@ -412,34 +530,38 @@ async function listStoppedTasks(cluster, serviceName) {
   const taskArns = listed.taskArns ?? []
   if (taskArns.length === 0) return []
 
-  const described = await send('ecs', new DescribeTasksCommand({ cluster, tasks: taskArns }), 'ecs:DescribeTasks')
+  const described = await send(
+    clients,
+    'ecs',
+    new DescribeTasksCommand({ cluster, tasks: taskArns }),
+    'ecs:DescribeTasks'
+  )
 
   return (described.tasks ?? [])
     .map(describeStoppedTask)
     .toSorted((a, b) => String(b.stoppedAt).localeCompare(String(a.stoppedAt)))
 }
 
-async function readStoppedTasks(cluster, serviceName) {
+async function readStoppedTasks(clients, cluster, serviceName) {
   try {
-    return { recentlyStoppedTasks: await listStoppedTasks(cluster, serviceName) }
+    return { recentlyStoppedTasks: await listStoppedTasks(clients, cluster, serviceName) }
   } catch (err) {
     return { recentlyStoppedTasks: null, stoppedTasksError: err.message }
   }
 }
 
-export async function getEcsService({ cluster, service } = {}) {
-  await assertEnabled()
-
+export async function getEcsService({ account, cluster, service } = {}) {
+  const target = await resolveTarget(account)
   const serviceName = typeof service === 'string' ? service.trim() : ''
   if (!serviceName) throw awsError('Pass the ECS service name as "service".')
 
-  const clusterName = await resolveCluster(cluster)
-  const [found] = await describeServices(clusterName, [serviceName])
+  const clusterName = await resolveCluster(target.clients, cluster)
+  const [found] = await describeServices(target.clients, clusterName, [serviceName])
   if (!found) throw awsError(`ECS service "${serviceName}" was not found in cluster "${clusterName}".`)
 
-  const stopped = await readStoppedTasks(clusterName, found.serviceName)
+  const stopped = await readStoppedTasks(target.clients, clusterName, found.serviceName)
 
-  return {
+  return withAccount(target, {
     cluster: clusterName,
     ...summarizeService(found),
     launchType: found.launchType ?? null,
@@ -449,11 +571,12 @@ export async function getEcsService({ cluster, service } = {}) {
       message: event.message,
     })),
     ...stopped,
-  }
+  })
 }
 
-async function fetchMetricsPage(input, nextToken) {
+async function fetchMetricsPage(clients, input, nextToken) {
   const response = await send(
+    clients,
     'cloudwatch',
     new ListMetricsCommand({ ...input, RecentlyActive: RECENTLY_ACTIVE, NextToken: nextToken }),
     'cloudwatch:ListMetrics'
@@ -461,8 +584,8 @@ async function fetchMetricsPage(input, nextToken) {
   return { items: response.Metrics ?? [], nextToken: response.NextToken }
 }
 
-async function listNamespaces() {
-  const { items, truncated } = await collectPages(nextToken => fetchMetricsPage({}, nextToken), {
+async function listNamespaces(clients) {
+  const { items, truncated } = await collectPages(nextToken => fetchMetricsPage(clients, {}, nextToken), {
     maxPages: MAX_NAMESPACE_PAGES,
   })
   const namespaces = [...new Set(items.map(metric => metric.Namespace))].toSorted()
@@ -470,21 +593,20 @@ async function listNamespaces() {
   return { namespaces, truncated }
 }
 
-export async function listMetrics({ namespace, metricName, dimensions } = {}) {
-  await assertEnabled()
-
-  if (!namespace) return listNamespaces()
+export async function listMetrics({ account, namespace, metricName, dimensions } = {}) {
+  const target = await resolveTarget(account)
+  if (!namespace) return withAccount(target, await listNamespaces(target.clients))
 
   const input = {
     Namespace: namespace,
     MetricName: metricName || undefined,
     Dimensions: dimensions ? toAwsDimensions(dimensions) : undefined,
   }
-  const { items, truncated } = await collectPages(nextToken => fetchMetricsPage(input, nextToken), {
+  const { items, truncated } = await collectPages(nextToken => fetchMetricsPage(target.clients, input, nextToken), {
     maxPages: MAX_METRIC_PAGES,
   })
 
-  return {
+  return withAccount(target, {
     namespace,
     count: items.length,
     truncated: truncated || items.length > MAX_METRICS,
@@ -492,7 +614,7 @@ export async function listMetrics({ namespace, metricName, dimensions } = {}) {
       name: metric.MetricName,
       dimensions: fromAwsDimensions(metric.Dimensions),
     })),
-  }
+  })
 }
 
 function parseInstant(value, fallback, field) {
@@ -554,9 +676,8 @@ function toDatapoints(results) {
   })
 }
 
-export async function getMetricData({ namespace, metricName, dimensions, stat, from, to, period } = {}) {
-  await assertEnabled()
-
+export async function getMetricData({ account, namespace, metricName, dimensions, stat, from, to, period } = {}) {
+  const target = await resolveTarget(account)
   if (!namespace || !metricName) throw awsError('Pass both "namespace" and "metricName" (see aws_list_metrics).')
 
   const window = resolveMetricWindow(from, to)
@@ -574,6 +695,7 @@ export async function getMetricData({ namespace, metricName, dimensions, stat, f
   const { items } = await collectPages(
     async nextToken => {
       const response = await send(
+        target.clients,
         'cloudwatch',
         new GetMetricDataCommand({
           MetricDataQueries: [query],
@@ -590,7 +712,7 @@ export async function getMetricData({ namespace, metricName, dimensions, stat, f
   )
   const datapoints = toDatapoints(items)
 
-  return {
+  return withAccount(target, {
     namespace,
     metricName,
     dimensions: dimensions ?? [],
@@ -600,7 +722,7 @@ export async function getMetricData({ namespace, metricName, dimensions, stat, f
     to: window.end.toISOString(),
     datapoints,
     summary: summarizeDatapoints(datapoints),
-  }
+  })
 }
 
 const CHECK_COMMANDS = {
@@ -609,26 +731,58 @@ const CHECK_COMMANDS = {
   ecs: () => ['ecs', new ListClustersCommand({ maxResults: 1 })],
 }
 
-async function runCheck({ id, label, action }) {
+async function runCheck(clients, { id, label, action }) {
   const [service, command] = CHECK_COMMANDS[id]()
 
   try {
-    await send(service, command, action)
+    await send(clients, service, command, action)
     return { id, label, action, ok: true }
   } catch (err) {
     return { id, label, action, ok: false, error: err.message }
   }
 }
 
-export async function testConnection() {
-  const identity = await send('sts', new GetCallerIdentityCommand({}), 'sts:GetCallerIdentity')
-  const clients = await getClients()
-  const region = await clients.sts.config.region()
-  const checks = await Promise.all(CONNECTION_CHECKS.map(runCheck))
+async function readIdentity(clients) {
+  try {
+    const identity = await send(clients, 'sts', new GetCallerIdentityCommand({}), 'sts:GetCallerIdentity')
+    return { account: identity.Account, arn: identity.Arn }
+  } catch (err) {
+    return { error: err.message }
+  }
+}
 
-  return { account: identity.Account, arn: identity.Arn, region, checks }
+async function testTarget(target) {
+  const identity = await readIdentity(target.clients)
+  if (identity.error) return { name: target.name, ...identity }
+
+  const checks = await Promise.all(CONNECTION_CHECKS.map(check => runCheck(target.clients, check)))
+
+  return { name: target.name, ...identity, checks }
+}
+
+async function resolveRegion(sts) {
+  try {
+    return await sts.config.region()
+  } catch {
+    throw awsError(NO_REGION_MESSAGE)
+  }
+}
+
+export async function listAccounts() {
+  const { targets } = await getContext()
+  if (targets[0].name === null) return { accounts: [] }
+
+  return { accounts: targets.map(target => ({ name: target.name })) }
+}
+
+export async function testConnection() {
+  const { own, targets } = await getContext()
+  const region = await resolveRegion(own.sts)
+  const [runsAs, accounts] = await Promise.all([readIdentity(own), Promise.all(targets.map(testTarget))])
+
+  return { region, runsAs, accounts }
 }
 
 export function _resetAwsClientsForTests() {
-  cachedClients = null
+  cachedContext = null
 }

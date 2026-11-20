@@ -67,6 +67,9 @@ vi.mock('./auto-approve.js', () => ({
 mockLoadAutoApproveRepo.mockResolvedValue(null)
 mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
 
+const mockSuggestReviewers = vi.fn(async () => null)
+vi.mock('./reviewer-suggestions.js', () => ({ suggestReviewers: mockSuggestReviewers }))
+
 const mockAcquireWorktree = vi.fn()
 const mockWorktreeRelease = vi.fn()
 const mockGitDiffAt = vi.fn()
@@ -1603,6 +1606,27 @@ describe('walkthrough comment', () => {
     expect(walkthrough).toContain('Last reviewed commit: `deadbee`')
     expect(mockCreateIssueComment.mock.invocationCallOrder[0]).toBeLessThan(
       mockCreatePullRequestReview.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('suggests reviewers in the walkthrough from the PR, its files, the merge risk and the effort', async () => {
+    setupHappyPath()
+    mockSuggestReviewers.mockResolvedValueOnce({ expert: 'ana', learner: 'nueva' })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    const [context] = mockSuggestReviewers.mock.calls[0]
+    expect(context).toMatchObject({
+      trigger: { repoFullName: 'acme-io/app', prNumber: 7, authorLogin: 'dev', baseRef: 'main' },
+      pr: { user: { login: 'dev' } },
+      files: [expect.objectContaining({ filename: 'src/checkout.js', generated: false })],
+      reviewerLogin: 'soporti-bot',
+      risk: 'Low',
+      effort: 2,
+      approved: false,
+    })
+    expect(postedWalkthrough()).toContain(
+      '👥 @ana could be a good reviewer.\n🌱 @nueva could review it to learn this part of the code.'
     )
   })
 

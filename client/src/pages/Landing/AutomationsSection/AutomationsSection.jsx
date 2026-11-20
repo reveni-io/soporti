@@ -21,7 +21,7 @@ const AUTOMATIONS = [
     id: 'reviews',
     icon: <IntegrationIcon id="github" size={ICON_SIZE} />,
     title: 'Reviews every pull request',
-    text: 'Request a review, add a label or comment “@soporti review”. Agents hunt bugs, security holes and broken standards in parallel, and a verifier tries to refute every finding before it is posted.',
+    text: 'Request a review, add a label or comment “@soporti review”. Agents hunt bugs, security holes and broken standards in parallel, a verifier tries to refute every finding before it is posted, and it can suggest who should review it.',
     Demo: PrReviewDemo,
   },
   {

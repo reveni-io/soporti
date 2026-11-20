@@ -74,6 +74,7 @@ export const INTEGRATION_TOOL_NAMES = {
   sentry: ['get_sentry_issue', 'search_sentry_issues'],
   betterstack: ['list_log_sources', 'describe_log_source', 'search_logs', 'query_logs'],
   aws: [
+    'aws_list_accounts',
     'aws_list_alarms',
     'aws_list_ecs_clusters',
     'aws_list_ecs_services',

@@ -751,6 +751,15 @@ export function saveGithubCatalog(token, catalog) {
   })
 }
 
+export function saveGithubReviewerSuggestions(token, enabled) {
+  return request('/api/admin/config/github/reviewer-suggestions', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the reviewer suggestions',
+  })
+}
+
 export function getGoogleDriveConfig(token) {
   return request('/api/admin/config/google-drive', {
     token,
@@ -1008,6 +1017,24 @@ export function saveAwsAccessKey(token, { accessKeyId, secretAccessKey }) {
     token,
     body: { accessKeyId, secretAccessKey },
     errorMessage: 'Failed to save the access key',
+  })
+}
+
+export function saveAwsRoleArn(token, roleArn) {
+  return request('/api/admin/config/aws/role-arn', {
+    method: 'PUT',
+    token,
+    body: { roleArn },
+    errorMessage: 'Failed to save the role',
+  })
+}
+
+export function saveAwsAccounts(token, accounts) {
+  return request('/api/admin/config/aws/accounts', {
+    method: 'PUT',
+    token,
+    body: { accounts },
+    errorMessage: 'Failed to save the accounts',
   })
 }
 
