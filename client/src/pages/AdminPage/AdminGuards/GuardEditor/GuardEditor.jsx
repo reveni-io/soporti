@@ -71,46 +71,48 @@ export default function GuardEditor({ token, guard, onLogout, onSaved, onClose }
 
   return (
     <ModalFrame title={title} className="guard-modal" onClose={requestClose}>
-      {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
+      <div className="guard-modal__body">
+        {confirmingClose && <DiscardConfirm onDiscard={onClose} onKeep={handleKeepEditing} />}
 
-      {isGithub ? (
-        <p className="note">
-          Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos
-          and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in the chat.
-        </p>
-      ) : (
-        <p className="admin__muted">
-          Ask for it in any chat, in Slack or over MCP, and in a scheduled query, by its name: for example “pass the
-          reply through the {guard.name} guard”. A guard never blocks anything: it warns, and a person has the last
-          word.
-        </p>
-      )}
+        {isGithub ? (
+          <p className="note">
+            Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos
+            and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in the chat.
+          </p>
+        ) : (
+          <p className="admin__muted">
+            Ask for it in any chat, in Slack or over MCP, and in a scheduled query, by its name: for example “pass the
+            reply through the {guard.name} guard”. A guard never blocks anything: it warns, and a person has the last
+            word.
+          </p>
+        )}
 
-      <AdminSection title="Questions and answers">
-        <QuestionSetEditor
-          project={guard.id}
-          state={project}
-          inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
-        />
-      </AdminSection>
-
-      {isGithub && (
-        <AdminSection title="Rules">
-          <ReviewRules state={project} />
+        <AdminSection title="Questions and answers">
+          <QuestionSetEditor
+            project={guard.id}
+            state={project}
+            inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
+          />
         </AdminSection>
-      )}
 
-      <AdminSection title="Versions">
-        <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
-        <VersionsTable
-          key={project.document.setVersion}
-          token={token}
-          project={guard.id}
-          state={project}
-          onLogout={onLogout}
-          withCalls
-        />
-      </AdminSection>
+        {isGithub && (
+          <AdminSection title="Rules">
+            <ReviewRules state={project} />
+          </AdminSection>
+        )}
+
+        <AdminSection title="Versions">
+          <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
+          <VersionsTable
+            key={project.document.setVersion}
+            token={token}
+            project={guard.id}
+            state={project}
+            onLogout={onLogout}
+            withCalls
+          />
+        </AdminSection>
+      </div>
 
       <DocBar label={title} state={{ ...project, save: saveAndRefresh }} />
     </ModalFrame>
