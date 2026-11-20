@@ -103,6 +103,17 @@ describe('runJevCheck', () => {
     expect(result.rows.map(row => row.questionId)).toEqual(['rule:ci', 'q1'])
   })
 
+  it('asks a set with no questions of its own when the rules add some', async () => {
+    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
+    mockDocuments({ set: { ...SET, questions: [] } })
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+
+    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions: () => [rule] })
+
+    expect(result.status).toBe('answered')
+    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci'])
+  })
+
   it('records a failed call and reports why', async () => {
     askQuestions.mockRejectedValue(new JevApiError('Jev error (HTTP 502)', 502))
 
