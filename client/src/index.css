@@ -103,6 +103,7 @@
 
   --artifact-panel-width: 30rem;
   --sidebar-width: 17.5rem;
+  --sidebar-list-min-height: 14rem;
   --bots-panel-width: 17rem;
   --sidebar-drawer-width: min(20rem, 86vw);
   --topbar-height: 3.5rem;

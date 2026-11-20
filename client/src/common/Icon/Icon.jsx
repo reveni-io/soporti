@@ -169,6 +169,14 @@ const ICON_SHAPES = {
       <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </>
   ),
+  headset: (
+    <>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="3" y="14" width="4" height="6" rx="1.5" />
+      <rect x="17" y="14" width="4" height="6" rx="1.5" />
+      <path d="M19 20v.5a2.5 2.5 0 0 1-2.5 2.5H13" />
+    </>
+  ),
   code: (
     <>
       <polyline points="16 18 22 12 16 6" />

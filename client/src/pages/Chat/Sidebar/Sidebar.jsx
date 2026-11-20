@@ -75,52 +75,54 @@ export default function Sidebar({
           </button>
         </div>
 
-        <SidebarNav
-          isVideoGenerating={isVideoGenerating}
-          hasUnreadBots={hasUnreadBots}
-          onNavigate={onClose}
-          onOpenArtifacts={onOpenArtifacts}
-          onOpenSchedules={onOpenSchedules}
-        />
+        <div className="sidebar__body">
+          <SidebarNav
+            isVideoGenerating={isVideoGenerating}
+            hasUnreadBots={hasUnreadBots}
+            onNavigate={onClose}
+            onOpenArtifacts={onOpenArtifacts}
+            onOpenSchedules={onOpenSchedules}
+          />
 
-        <ConversationList
-          conversations={conversations}
-          query={conversationQuery}
-          searchedQuery={searchedConversationQuery}
-          onQueryChange={setConversationQuery}
-          selectedId={selectedConversationId}
-          onSelect={onLoadConversation}
-          onDelete={remove}
-        />
+          <ConversationList
+            conversations={conversations}
+            query={conversationQuery}
+            searchedQuery={searchedConversationQuery}
+            onQueryChange={setConversationQuery}
+            selectedId={selectedConversationId}
+            onSelect={onLoadConversation}
+            onDelete={remove}
+          />
 
-        <ProfileToggle selectedProfile={selectedProfile} onSelectProfile={onSelectProfile} />
+          <ProfileToggle selectedProfile={selectedProfile} onSelectProfile={onSelectProfile} />
 
-        <div className="sidebar__section sidebar__section--grow">
-          <h2 className="sidebar__section-title">
-            Sources{' '}
-            {specificSelectedCount > 0 && (
-              <span key={specificSelectedCount} className="sidebar__count">
-                {specificSelectedCount}
-              </span>
-            )}
-          </h2>
+          <div className="sidebar__section sidebar__section--list sidebar__section--grow">
+            <h2 className="sidebar__section-title">
+              Sources{' '}
+              {specificSelectedCount > 0 && (
+                <span key={specificSelectedCount} className="sidebar__count">
+                  {specificSelectedCount}
+                </span>
+              )}
+            </h2>
 
-          <SidebarSearch value={search} label="Search sources" placeholder="Search sources..." onChange={setSearch} />
+            <SidebarSearch value={search} label="Search sources" placeholder="Search sources..." onChange={setSearch} />
 
-          <div className="sidebar__scroll">
-            <SourceList
-              repos={filteredRepos}
-              integrations={filteredIntegrations}
-              yoloMatches={yoloMatches}
-              selectedSources={selectedSources}
-              onToggleSource={onToggleSource}
-              loadingRepos={loading}
-              reposError={error}
-            />
+            <div className="sidebar__scroll">
+              <SourceList
+                repos={filteredRepos}
+                integrations={filteredIntegrations}
+                yoloMatches={yoloMatches}
+                selectedSources={selectedSources}
+                onToggleSource={onToggleSource}
+                loadingRepos={loading}
+                reposError={error}
+              />
 
-            {!loading && repos.length === 0 && !error && (
-              <p className="sidebar__info">No repos found for this GitHub token.</p>
-            )}
+              {!loading && repos.length === 0 && !error && (
+                <p className="sidebar__info">No repos found for this GitHub token.</p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -89,8 +89,8 @@ export const SCHEDULE_STATUS_ERROR = 'error'
 export const DEFAULT_PROFILE = 'support'
 
 export const PROFILE_OPTIONS = [
-  { id: 'support', label: 'Support', hint: 'Simplified explanations focused on behavior' },
-  { id: 'tech', label: 'Tech', hint: 'Detailed code, architecture, and file paths' },
+  { id: 'support', label: 'Support', icon: 'headset', hint: 'Simplified explanations focused on behavior' },
+  { id: 'tech', label: 'Tech', icon: 'code', hint: 'Detailed code, architecture, and file paths' },
 ]
 
 export const BOT_NAME_MAX_LENGTH = 50

@@ -24,7 +24,7 @@ export default function ConversationList({
   if (conversations.length === 0 && !query && !searchedQuery) return null
 
   return (
-    <div className="sidebar__section conversation-list">
+    <div className="sidebar__section sidebar__section--list conversation-list">
       <h2 className="sidebar__section-title">Conversations</h2>
       <SidebarSearch
         value={query}
