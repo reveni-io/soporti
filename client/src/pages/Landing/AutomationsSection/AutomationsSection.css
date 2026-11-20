@@ -16,7 +16,7 @@
   overflow: hidden;
   display: flex;
   gap: var(--sp4);
-  padding: var(--sp5);
+  padding: var(--sp3) var(--sp5);
   border: 1px solid transparent;
   border-radius: var(--radius-xl);
   background: transparent;

@@ -1,6 +1,7 @@
 import Icon from '../../../common/Icon/Icon.jsx'
 import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
 import AutoApproveDemo from '../AutoApproveDemo/AutoApproveDemo.jsx'
+import LegalRepliesDemo from '../LegalRepliesDemo/LegalRepliesDemo.jsx'
 import PrReviewDemo from '../PrReviewDemo/PrReviewDemo.jsx'
 import ScheduleDemo from '../ScheduleDemo/ScheduleDemo.jsx'
 import Section from '../Section/Section.jsx'
@@ -44,6 +45,13 @@ const AUTOMATIONS = [
     text: 'Save a question with a cadence, hourly to monthly in your own time zone. Each run lands as a conversation you can continue, or as a post in the channel you named.',
     Demo: ScheduleDemo,
   },
+  {
+    id: 'legal',
+    icon: <Icon name="shield" size={ICON_SIZE} />,
+    title: 'Drafts replies for Legal',
+    text: 'A scheduled query reads the customer tickets in Zendesk and HubSpot, drafts each reply from your data and flags what needs a second look. Nothing is sent: Legal has the last word.',
+    Demo: LegalRepliesDemo,
+  },
 ]
 
 export default function AutomationsSection() {
@@ -59,7 +67,7 @@ export default function AutomationsSection() {
             It keeps working <em>when nobody is asking</em>.
           </>
         }
-        lead="The same brain that answers in the chat reviews your pull requests and approves the safe ones, replies in Slack threads and runs your questions on a schedule."
+        lead="The same brain that answers in the chat reviews your pull requests and approves the safe ones, replies in Slack threads, runs your questions on a schedule and drafts the replies Legal has to send."
       />
 
       <div className="lp-automations lp-rise" style={staggerStyle(3)} ref={cycle.ref} {...cycle.hoverProps}>
