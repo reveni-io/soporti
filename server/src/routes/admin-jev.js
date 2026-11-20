@@ -1,8 +1,6 @@
 import { Router } from 'express'
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
-import { countLegalRuns, listUncheckedLegalRuns } from '../db/legal-cases.js'
-import { countLegalReplies } from '../db/legal-replies.js'
-import { countLegalSchedules } from '../db/schedules.js'
+import { JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
 import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
 import {
@@ -16,7 +14,15 @@ import {
 import { getRepository } from '../github/client.js'
 import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
-import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
+import {
+  defaultJevDocument,
+  isCustomGuard,
+  isJevDocument,
+  parseGuardName,
+  parseJevDocument,
+  planJevSave,
+} from '../jev/documents.js'
+import { createGuard, deleteGuard, listGuards } from '../guards/registry.js'
 import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
 
 const MAX_API_KEY_LENGTH = 300
@@ -30,7 +36,7 @@ const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again
 const NO_MODELS_MESSAGE = 'Jev returned no models'
 const CALLS_OFF_MESSAGE = 'Jev calls are off. Turn them on and save before testing.'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-const PROJECTS = [JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT]
+const MAX_GUARDS = 20
 
 const router = Router()
 
@@ -199,15 +205,74 @@ router.post('/models/scan', async (_req, res) => {
   }
 })
 
-router.get('/usage', async (_req, res) => {
-  try {
-    const counts = await countJevCallsByProjectSince(new Date(Date.now() - USAGE_WINDOW_MS))
-    const callsOf = project => counts.find(row => row.project === project)?.calls ?? 0
+function countOf(rows, guardId, field) {
+  return rows.find(row => row.guardId === guardId || row.project === guardId)?.[field] ?? 0
+}
 
-    res.json({ projects: PROJECTS.map(id => ({ id, calls: callsOf(id) })) })
+async function listGuardsWithUsage() {
+  const since = new Date(Date.now() - USAGE_WINDOW_MS)
+  const [guards, calls, cases, replies] = await Promise.all([
+    listGuards(),
+    countJevCallsByProjectSince(since),
+    countCasesByGuardSince(since),
+    countSentRepliesByGuardSince(since),
+  ])
+
+  return guards.map(guard => ({
+    ...guard,
+    usage: {
+      calls: countOf(calls, guard.id, 'calls'),
+      cases: countOf(cases, guard.id, 'cases'),
+      sentReplies: countOf(replies, guard.id, 'replies'),
+    },
+  }))
+}
+
+function findNameClash(guards, name, id = null) {
+  const wanted = name.toLowerCase()
+  const clash = guards.find(guard => guard.id !== id && guard.name.toLowerCase() === wanted)
+
+  return clash ? `There is already a guard called ${clash.name}.` : null
+}
+
+router.get('/guards', async (_req, res) => {
+  try {
+    res.json({ guards: await listGuardsWithUsage() })
   } catch (err) {
-    console.error('Failed to load the Jev usage:', err)
-    res.status(500).json({ error: 'Failed to load the Jev usage.' })
+    console.error('Failed to load the guards:', err)
+    res.status(500).json({ error: 'Failed to load the guards.' })
+  }
+})
+
+router.post('/guards', async (req, res) => {
+  const name = parseGuardName(req.body?.name)
+  if (name.error) return res.status(400).json({ error: name.error })
+
+  try {
+    const guards = await listGuards()
+    const clash = findNameClash(guards, name.value)
+    if (clash) return res.status(422).json({ error: clash })
+    if (guards.filter(guard => !guard.builtIn).length >= MAX_GUARDS) {
+      return res.status(422).json({ error: `There can be at most ${MAX_GUARDS} guards of your own.` })
+    }
+
+    res.status(201).json({ guard: await createGuard(name.value, req.user.email) })
+  } catch (err) {
+    console.error('Failed to create a guard:', err)
+    res.status(500).json({ error: 'Failed to create the guard.' })
+  }
+})
+
+router.delete('/guards/:guardId', async (req, res) => {
+  if (!isCustomGuard(req.params.guardId)) return res.status(404).json({ error: 'Guard not found.' })
+
+  try {
+    if (!(await deleteGuard(req.params.guardId))) return res.status(404).json({ error: 'Guard not found.' })
+
+    res.status(204).end()
+  } catch (err) {
+    console.error('Failed to delete a guard:', err)
+    res.status(500).json({ error: 'Failed to delete the guard.' })
   }
 })
 
@@ -229,7 +294,11 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const inUseQueries = id === JEV_LEGAL_DOCUMENT ? await countLegalSchedules() : 0
+    if (isCustomGuard(id)) {
+      const clash = findNameClash(await listGuards(), value.data.name, id)
+      if (clash) return res.status(422).json({ error: clash })
+    }
+
     const {
       conflict,
       error: saveError,
@@ -238,7 +307,7 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom, inUseQueries }),
+      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom }),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
@@ -270,7 +339,7 @@ router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history
 
 async function listVersionsWithCalls(id, page) {
   const versions = await listJevSetVersions(id, page)
-  if (id !== JEV_LEGAL_DOCUMENT) return versions
+  if (id === JEV_SETTINGS_DOCUMENT) return versions
 
   const calls = await countJevCallsBySetVersion(id)
   const callsOf = version => calls.find(row => row.setVersion === version)?.calls ?? 0
@@ -310,24 +379,6 @@ router.get('/github/shadow-stats', async (req, res) => {
   } catch (err) {
     console.error('Failed to load the shadow results:', err)
     res.status(500).json({ error: 'Failed to load the shadow results.' })
-  }
-})
-
-router.get('/legal/usage', async (req, res) => {
-  const { error, value: page } = parsePage(req.query.page)
-  if (error) return res.status(400).json({ error })
-
-  try {
-    const [queriesOn, runs, unchecked, sentReplies] = await Promise.all([
-      countLegalSchedules(),
-      countLegalRuns(),
-      listUncheckedLegalRuns(page),
-      countLegalReplies(),
-    ])
-    res.json({ queriesOn, checkedRuns: runs.checked, uncheckedRuns: runs.notChecked, sentReplies, unchecked })
-  } catch (err) {
-    console.error('Failed to load the Legal usage:', err)
-    res.status(500).json({ error: 'Failed to load the Legal usage.' })
   }
 })
 

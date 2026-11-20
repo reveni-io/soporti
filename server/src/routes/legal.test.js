@@ -11,22 +11,23 @@ const saveLegalReply = vi.fn()
 vi.mock('../db/legal-replies.js', () => ({ listLegalReplies, saveLegalReply }))
 
 const findSendBlocker = vi.fn()
-const isLegalSendAllowed = vi.fn()
 const readLegalConversation = vi.fn()
 const sendLegalReply = vi.fn()
 vi.mock('../legal/replies.js', async importOriginal => ({
   ...(await importOriginal()),
   findSendBlocker,
-  isLegalSendAllowed,
   readLegalConversation,
   sendLegalReply,
 }))
 
-const { LEGAL_SEND_OFF, LegalReplyError } = await import('../legal/replies.js')
+const isGuardSendAllowed = vi.fn()
+vi.mock('../guards/registry.js', () => ({ isGuardSendAllowed }))
+
+const { GUARD_SEND_OFF, LegalReplyError } = await import('../legal/replies.js')
 const { default: legalRouter } = await import('./legal.js')
 
-const CHECKED = { id: 41, source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
-const CAREFUL = { id: 42, source: 'hubspot', ticketId: '9312', status: 'checked', warnings: 2 }
+const CHECKED = { id: 41, guardId: 'legal', source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
+const CAREFUL = { id: 42, guardId: 'legal', source: 'hubspot', ticketId: '9312', status: 'checked', warnings: 2 }
 const SENT_AT = '2026-11-20T10:00:00.000Z'
 const REPLY = { id: 7, caseId: 41, sentBy: 'ana@example.com', text: 'Hello', sentAt: SENT_AT }
 
@@ -35,7 +36,7 @@ let app
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  isLegalSendAllowed.mockResolvedValue(true)
+  isGuardSendAllowed.mockResolvedValue(true)
   findSendBlocker.mockResolvedValue(null)
   app = express()
   app.use(express.json())
@@ -67,15 +68,20 @@ describe('GET /cases', () => {
     ])
   })
 
-  it('says sending is off without asking the sources', async () => {
-    isLegalSendAllowed.mockResolvedValue(false)
-    findOwnedLegalCases.mockResolvedValue([CHECKED])
+  it('says sending is off for the cases of a guard that does not allow it, without asking their sources', async () => {
+    const payments = { ...CAREFUL, id: 43, guardId: 'guard-0a1b2c3d' }
+    isGuardSendAllowed.mockImplementation(async guardId => guardId === 'legal')
+    findOwnedLegalCases.mockResolvedValue([CHECKED, payments])
     listLegalReplies.mockResolvedValue([])
 
-    const res = await request(app).get('/cases?ids=41')
+    const res = await request(app).get('/cases?ids=41,43')
 
-    expect(res.body.cases[0].send).toEqual({ allowed: false, reason: LEGAL_SEND_OFF })
-    expect(findSendBlocker).not.toHaveBeenCalled()
+    expect(res.body.cases.map(legalCase => legalCase.send)).toEqual([
+      { allowed: true, reason: null },
+      { allowed: false, reason: GUARD_SEND_OFF },
+    ])
+    expect(findSendBlocker).toHaveBeenCalledTimes(1)
+    expect(findSendBlocker).toHaveBeenCalledWith('zendesk', 3)
   })
 
   it.each(['', 'abc', Array.from({ length: 51 }, (_, index) => index + 1).join(',')])(
@@ -137,14 +143,14 @@ describe('POST /cases/:id/replies', () => {
 
   it('does not send when sending is off or the user cannot send from that source', async () => {
     getOwnedLegalCase.mockResolvedValue(CHECKED)
-    isLegalSendAllowed.mockResolvedValueOnce(false)
+    isGuardSendAllowed.mockResolvedValueOnce(false)
 
     const off = await request(app).post('/cases/41/replies').send({ text: 'Hello' })
     findSendBlocker.mockResolvedValueOnce('Connect Zendesk')
     const blocked = await request(app).post('/cases/41/replies').send({ text: 'Hello' })
 
     expect(off.status).toBe(403)
-    expect(off.body).toEqual({ error: LEGAL_SEND_OFF })
+    expect(off.body).toEqual({ error: GUARD_SEND_OFF })
     expect(blocked.status).toBe(403)
     expect(blocked.body).toEqual({ error: 'Connect Zendesk' })
     expect(sendLegalReply).not.toHaveBeenCalled()

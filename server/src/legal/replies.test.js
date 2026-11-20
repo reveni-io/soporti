@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getJevDocument = vi.fn()
-vi.mock('../db/jev-documents.js', () => ({ getJevDocument }))
-
 const getConversation = vi.fn()
 const getRecord = vi.fn()
 const replyToConversation = vi.fn()
@@ -21,7 +18,7 @@ const isConfigured = vi.fn()
 const postPublicReply = vi.fn()
 vi.mock('../zendesk/client.js', () => ({ getTicket, isConfigured, postPublicReply }))
 
-const { LEGAL_SEND_OFF, LegalReplyError, findSendBlocker, isLegalSendAllowed, readLegalConversation, sendLegalReply } =
+const { GUARD_SEND_OFF, LegalReplyError, findSendBlocker, readLegalConversation, sendLegalReply } =
   await import('./replies.js')
 
 const ZENDESK_CASE = { id: 41, source: 'zendesk', ticketId: '48213' }
@@ -39,18 +36,9 @@ beforeEach(() => {
   getRecord.mockResolvedValue({ id: '9312', properties: { hs_conversations_originating_thread_id: 'thread-1' } })
 })
 
-describe('isLegalSendAllowed', () => {
-  it('follows the switch of the Legal project, off until it is saved on', async () => {
-    getJevDocument.mockResolvedValueOnce(null)
-    getJevDocument.mockResolvedValueOnce({ data: { set: {}, allowSend: true } })
-
-    expect(await isLegalSendAllowed()).toBe(false)
-    expect(await isLegalSendAllowed()).toBe(true)
-    expect(getJevDocument).toHaveBeenCalledWith('legal')
-  })
-
-  it('names the switch in its message', () => {
-    expect(LEGAL_SEND_OFF).toMatch(/Legal section of the admin/)
+describe('GUARD_SEND_OFF', () => {
+  it('points to the Guards section', () => {
+    expect(GUARD_SEND_OFF).toMatch(/Guards section of the admin/)
   })
 })
 

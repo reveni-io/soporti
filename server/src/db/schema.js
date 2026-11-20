@@ -83,7 +83,6 @@ export const schedules = pgTable(
     lastStatus: text('last_status'),
     lastError: text('last_error'),
     lastResult: text('last_result'),
-    legal: boolean('legal').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -647,9 +646,11 @@ export const legalCases = pgTable(
   'legal_cases',
   {
     id: serial('id').primaryKey(),
-    scheduleId: integer('schedule_id')
+    userId: integer('user_id')
       .notNull()
-      .references(() => schedules.id, { onDelete: 'cascade' }),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    guardId: text('guard_id').notNull(),
+    scheduleId: integer('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
     conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
     source: text('source').notNull(),
     ticketId: text('ticket_id').notNull(),
@@ -668,12 +669,7 @@ export const legalCases = pgTable(
     warnings: integer('warnings').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [
-    uniqueIndex('legal_cases_ticket_message_idx')
-      .on(table.scheduleId, table.source, table.ticketId, table.messageHash)
-      .where(sql`${table.draft} is not null`),
-    index('legal_cases_created_idx').on(table.createdAt),
-  ]
+  table => [index('legal_cases_user_idx').on(table.userId), index('legal_cases_created_idx').on(table.createdAt)]
 )
 
 export const legalReplies = pgTable(

@@ -1,12 +1,12 @@
 import { Router } from 'express'
+import { isGuardSendAllowed } from '../guards/registry.js'
 import { LEGAL_CASE_CHECKED } from '../constants.js'
 import { findOwnedLegalCases, getOwnedLegalCase } from '../db/legal-cases.js'
 import { listLegalReplies, saveLegalReply } from '../db/legal-replies.js'
 import {
-  LEGAL_SEND_OFF,
+  GUARD_SEND_OFF,
   LegalReplyError,
   findSendBlocker,
-  isLegalSendAllowed,
   readLegalConversation,
   sendLegalReply,
 } from '../legal/replies.js'
@@ -53,13 +53,26 @@ function toReply({ id, sentBy, text, sentAt }) {
   return { id, sentBy, text, sentAt }
 }
 
+async function findAllowedGuards(legalCases) {
+  const guardIds = [...new Set(legalCases.map(({ guardId }) => guardId))]
+  const allowed = await Promise.all(guardIds.map(isGuardSendAllowed))
+
+  return new Set(guardIds.filter((_, index) => allowed[index]))
+}
+
 async function describeSending(legalCases, userId) {
-  if (!(await isLegalSendAllowed())) return new Map(legalCases.map(({ source }) => [source, LEGAL_SEND_OFF]))
-
-  const sources = [...new Set(legalCases.map(({ source }) => source))]
+  const allowedGuards = await findAllowedGuards(legalCases)
+  const sendable = legalCases.filter(({ guardId }) => allowedGuards.has(guardId))
+  const sources = [...new Set(sendable.map(({ source }) => source))]
   const blockers = await Promise.all(sources.map(source => findSendBlocker(source, userId)))
+  const bySource = new Map(sources.map((source, index) => [source, blockers[index]]))
 
-  return new Map(sources.map((source, index) => [source, blockers[index]]))
+  return new Map(
+    legalCases.map(({ id, guardId, source }) => [
+      id,
+      allowedGuards.has(guardId) ? bySource.get(source) : GUARD_SEND_OFF,
+    ])
+  )
 }
 
 async function recordReply({ legalCase, user, text, externalId }) {
@@ -72,7 +85,7 @@ async function recordReply({ legalCase, user, text, externalId }) {
 }
 
 async function findReplyBlocker(legalCase, userId) {
-  if (!(await isLegalSendAllowed())) return LEGAL_SEND_OFF
+  if (!(await isGuardSendAllowed(legalCase.guardId))) return GUARD_SEND_OFF
 
   return findSendBlocker(legalCase.source, userId)
 }
@@ -92,7 +105,7 @@ router.get('/cases', async (req, res) => {
       cases: legalCases.map(legalCase => ({
         id: legalCase.id,
         replies: replies.filter(reply => reply.caseId === legalCase.id).map(toReply),
-        send: { allowed: !blockers.get(legalCase.source), reason: blockers.get(legalCase.source) ?? null },
+        send: { allowed: !blockers.get(legalCase.id), reason: blockers.get(legalCase.id) ?? null },
       })),
     })
   } catch (err) {
