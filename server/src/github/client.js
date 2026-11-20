@@ -268,10 +268,9 @@ export async function listPathAuthors(repoFullName, ref, paths) {
   const { owner, repo } = parseRepo(repoFullName)
   const definitions = paths.map((_, index) => `$p${index}: String!`).join(', ')
   const fields = paths
-    .map(
-      (_, index) =>
-        `f${index}: history(first: ${PATH_HISTORY_LIMIT}, path: $p${index}) { nodes { author { user { login } } } }`
-    )
+    .map((_, index) => {
+      return `f${index}: history(first: ${PATH_HISTORY_LIMIT}, path: $p${index}) { nodes { author { user { login } } } }`
+    })
     .join('\n')
   const query = `query ($owner: String!, $repo: String!, $ref: String!, ${definitions}) {
   repository(owner: $owner, name: $repo) { object(expression: $ref) { ... on Commit { ${fields} } } }

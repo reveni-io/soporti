@@ -36,6 +36,7 @@ async function pickReviewers(context, logger) {
   const newcomers = isLearningPr(context) ? await findNewcomers(owner, logger) : []
   const learners = newcomers.filter(login => !taken.logins.has(login.toLowerCase()))
   const candidates = await keepPushers(repoFullName, [...new Set([...experts, ...learners])])
+
   if (candidates.size === 0) return null
 
   const load = await countReviewsSince(owner, [...candidates], daysAgo(LOAD_WINDOW_DAYS).toISOString().slice(0, 10))
@@ -54,15 +55,15 @@ async function findNewcomers(org, logger) {
     const joinedAfter = daysAgo(NEWCOMER_DAYS).getTime()
     const members = await listOrganizationMembers(org)
 
-    return members
-      .filter(
-        ({ login, createdAt }) => login.toLowerCase().includes(NEWCOMER_MARK) && Date.parse(createdAt) >= joinedAfter
-      )
-      .map(({ login }) => login)
+    return members.filter(member => isNewcomer(member, joinedAfter)).map(({ login }) => login)
   } catch (err) {
     logger.warn(`[review] Could not list the members of ${org} to find newcomers: ${err.message}`)
     return []
   }
+}
+
+function isNewcomer({ login, createdAt }, joinedAfter) {
+  return login.toLowerCase().includes(NEWCOMER_MARK) && Date.parse(createdAt) >= joinedAfter
 }
 
 async function listTakenReviewers({ trigger, pr, reviewerLogin }) {
