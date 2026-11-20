@@ -63,6 +63,7 @@ describe('ask_guard', () => {
       'Use guards only when the user, a scheduled query or the instructions of a bot ask for them'
     )
     expect(description).toContain('Never use a guard on your own.')
+    expect(description).toContain('If no guard has the name they used, pass none: ask them whether they want the guard')
     expect(description).toContain('Pass in `request` what was asked, quoting the words of the person')
     expect(description).toContain('Guards:\n- "Legal"\n- "Refunds"')
   })
@@ -162,7 +163,9 @@ describe('ask_guard', () => {
     )
     expect(
       await askGuard().execute({ request: REQUEST, guards: ['Legal', 'Payments'], content: 'x', ticket: null })
-    ).toBe('There is no guard called "Payments". Guards: Legal, Refunds.')
+    ).toBe(
+      'There is no guard called "Payments". Nothing was checked. Ask the user whether they want the closest of these instead, or tell them none is close: Legal, Refunds.'
+    )
     expect(checkContent).not.toHaveBeenCalled()
   })
 
