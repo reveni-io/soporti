@@ -1,4 +1,5 @@
 import { JEV_QUESTION_CHOICE } from '../constants.js'
+
 const SCORE_SCALE = 100
 
 function describeQuestion({ text, instructions, criteria }) {
