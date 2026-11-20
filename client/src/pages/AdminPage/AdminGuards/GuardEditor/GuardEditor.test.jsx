@@ -124,11 +124,11 @@ describe('GuardEditor', () => {
     expect(JSON.parse(put[1].body).data.allowSend).toBe(true)
   })
 
-  it('shows the GitHub guard without sending, pointing to the repos and naming the repos that use its set', async () => {
+  it('shows the GitHub guard with its rules and denylists, without sending, and names the repos that use its set', async () => {
     mockApi('github', {
-      set: { ...SET, maxCharacters: 100_000, rules: [] },
+      set: { ...SET, maxCharacters: 100_000, rules: [{ id: 'denylist', role: 'veto' }] },
       repos: [
-        { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] },
+        { name: 'acme/web', mode: 'shadow', jev: true, denylist: ['src/payments/**'] },
         { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
       ],
     })
@@ -144,6 +144,9 @@ describe('GuardEditor', () => {
     expect(screen.getByText(/only a trivial PR with nothing blocking is approved/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Allow sending/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Set description')).toBeInTheDocument()
+    expect(screen.getByText('Rules', { selector: 'h2' })).toBeInTheDocument()
+    expect(screen.getByText('Denylist', { selector: '.review-rules__name' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('src/payments/**')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Delete set' }))
 

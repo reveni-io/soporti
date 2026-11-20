@@ -7,6 +7,7 @@ import DocBar from '../../DocBar/DocBar.jsx'
 import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
+import ReviewRules from '../ReviewRules/ReviewRules.jsx'
 
 function describeSetUsers({ set, repos }) {
   if (!repos || set.questions.length === 0) return null
@@ -77,9 +78,8 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
 
         {isGithub ? (
           <p className="note">
-            Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos,
-            their modes and the rules are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in
-            the chat.
+            Soporti asks this guard about the PRs of the repos set to <code>shadow</code> or <code>on</code>. The repos
+            and their modes are in <Link to={ROUTES.ADMIN_GITHUB}>Admin → GitHub</Link>. It is not offered in the chat.
           </p>
         ) : (
           <p className="admin__muted">
@@ -116,6 +116,12 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved }
           inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
         />
       </AdminSection>
+
+      {isGithub && (
+        <AdminSection title="Rules">
+          <ReviewRules state={project} />
+        </AdminSection>
+      )}
 
       <AdminSection title="Versions">
         <p className="admin__muted">Versions of the questions of this guard and how many calls used each one.</p>
