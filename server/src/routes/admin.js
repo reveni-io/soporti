@@ -81,6 +81,9 @@ import {
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
+  getReviewerSuggestions,
+  setReviewerSuggestions,
+  parseReviewerSuggestions,
 } from '../github/settings.js'
 import {
   getLlmProvider,
@@ -490,15 +493,17 @@ router.put('/config/auth/google-client-secret', async (req, res) => {
 
 router.get('/config/github', async (_req, res) => {
   try {
-    const [token, webhookSecret, repoCatalog] = await Promise.all([
+    const [token, webhookSecret, repoCatalog, reviewerSuggestions] = await Promise.all([
       getGithubToken(),
       getWebhookSecret(),
       getRepoCatalog(),
+      getReviewerSuggestions(),
     ])
     res.json({
       tokenConfigured: Boolean(token),
       webhookSecretConfigured: Boolean(webhookSecret),
       repoCatalog,
+      reviewerSuggestions,
     })
   } catch (err) {
     console.error('Admin get github config error:', err)
@@ -562,6 +567,18 @@ router.put('/config/github/catalog', async (req, res) => {
   } catch (err) {
     console.error('Admin set repo catalog error:', err)
     res.status(500).json({ error: 'Failed to save the repository catalog.' })
+  }
+})
+
+router.put('/config/github/reviewer-suggestions', async (req, res) => {
+  const parsed = parseReviewerSuggestions(req.body ?? {})
+  if (parsed.error) return res.status(400).json({ error: parsed.error })
+
+  try {
+    res.json({ reviewerSuggestions: await setReviewerSuggestions(parsed.value) })
+  } catch (err) {
+    console.error('Admin set reviewer suggestions error:', err)
+    res.status(500).json({ error: 'Failed to save the reviewer suggestions.' })
   }
 })
 

@@ -1,5 +1,6 @@
 const SHORT_SHA_LENGTH = 7
 const BOT_SUFFIX = /\[bot\]$/i
+const LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
 
 export const BLOCKED_PATHS = ['.git', '.env', '.env.local', '.env.production', 'node_modules', '.aws', '.ssh']
 
@@ -17,6 +18,14 @@ export function shortSha(sha) {
 
 export function isSameLogin(login, other) {
   return normalizeLogin(login) === normalizeLogin(other)
+}
+
+export function isGithubLogin(login) {
+  return typeof login === 'string' && LOGIN_RE.test(login)
+}
+
+export function isBotLogin(login) {
+  return BOT_SUFFIX.test(String(login ?? ''))
 }
 
 function normalizeLogin(login) {

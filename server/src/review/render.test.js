@@ -622,6 +622,25 @@ describe('renderWalkthrough', () => {
     ).toBe(true)
   })
 
+  it('suggests reviewers right after the merge risk, without any data about them', () => {
+    const comment = renderWalkthrough(walkthrough({ reviewers: { expert: 'ana', learner: 'nueva' } }))
+
+    expect(comment).toContain(
+      '⏱️ ~15 minutes\n\n👥 @ana could be a good reviewer.\n🌱 @nueva could review it to learn this part of the code.\n\n'
+    )
+  })
+
+  it('renders only the suggestion it has', () => {
+    const expertOnly = renderWalkthrough(walkthrough({ reviewers: { expert: 'ana', learner: null } }))
+    const learnerOnly = renderWalkthrough(walkthrough({ reviewers: { expert: null, learner: 'nueva' } }))
+
+    expect(expertOnly).toContain('👥 @ana could be a good reviewer.')
+    expect(expertOnly).not.toContain('🌱')
+    expect(learnerOnly).toContain('🌱 @nueva could review it to learn this part of the code.')
+    expect(learnerOnly).not.toContain('👥')
+    expect(renderWalkthrough(walkthrough({ reviewers: { expert: null, learner: null } }))).not.toContain('👥')
+  })
+
   it('leaves the review command out of the footer when the reviewer login is unknown', () => {
     const comment = renderWalkthrough(walkthrough({ reviewerLogin: null }))
 

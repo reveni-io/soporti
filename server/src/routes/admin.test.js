@@ -30,6 +30,8 @@ const getWebhookSecret = vi.fn()
 const setWebhookSecret = vi.fn()
 const getRepoCatalog = vi.fn()
 const setRepoCatalog = vi.fn()
+const getReviewerSuggestions = vi.fn()
+const setReviewerSuggestions = vi.fn()
 
 const getLlmProvider = vi.fn()
 const setLlmProvider = vi.fn()
@@ -241,13 +243,16 @@ vi.mock('../slack/settings.js', () => ({
   isSlackConfigured,
 }))
 vi.mock('../slack/bot.js', () => ({ restartSlackBot }))
-vi.mock('../github/settings.js', () => ({
+vi.mock('../github/settings.js', async importOriginal => ({
   getGithubToken,
   setGithubToken,
   getWebhookSecret,
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
+  getReviewerSuggestions,
+  setReviewerSuggestions,
+  parseReviewerSuggestions: (await importOriginal()).parseReviewerSuggestions,
 }))
 vi.mock('../llm/settings.js', () => ({
   getLlmProvider,
@@ -2007,6 +2012,7 @@ describe('GET /api/admin/config/github', () => {
     getGithubToken.mockResolvedValue('ghp_secret')
     getWebhookSecret.mockResolvedValue('hook-secret')
     getRepoCatalog.mockResolvedValue('### org/api\nBackend.')
+    getReviewerSuggestions.mockResolvedValue({ enabled: true, newcomers: ['ana'] })
 
     const res = await request(app).get('/api/admin/config/github')
 
@@ -2015,6 +2021,7 @@ describe('GET /api/admin/config/github', () => {
       tokenConfigured: true,
       webhookSecretConfigured: true,
       repoCatalog: '### org/api\nBackend.',
+      reviewerSuggestions: { enabled: true, newcomers: ['ana'] },
     })
     expect(JSON.stringify(res.body)).not.toContain('ghp_secret')
     expect(JSON.stringify(res.body)).not.toContain('hook-secret')
@@ -2024,10 +2031,55 @@ describe('GET /api/admin/config/github', () => {
     getGithubToken.mockResolvedValue(null)
     getWebhookSecret.mockResolvedValue(null)
     getRepoCatalog.mockResolvedValue('')
+    getReviewerSuggestions.mockResolvedValue({ enabled: false, newcomers: [] })
 
     const res = await request(app).get('/api/admin/config/github')
 
-    expect(res.body).toEqual({ tokenConfigured: false, webhookSecretConfigured: false, repoCatalog: '' })
+    expect(res.body).toEqual({
+      tokenConfigured: false,
+      webhookSecretConfigured: false,
+      repoCatalog: '',
+      reviewerSuggestions: { enabled: false, newcomers: [] },
+    })
+  })
+})
+
+describe('PUT /api/admin/config/github/reviewer-suggestions', () => {
+  it('saves the switch and the cleaned list of newcomers', async () => {
+    setReviewerSuggestions.mockImplementation(async settings => settings)
+
+    const res = await request(app)
+      .put('/api/admin/config/github/reviewer-suggestions')
+      .send({ enabled: true, newcomers: ['@ana', 'ana', 'luis'] })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ reviewerSuggestions: { enabled: true, newcomers: ['ana', 'luis'] } })
+    expect(setReviewerSuggestions).toHaveBeenCalledWith({ enabled: true, newcomers: ['ana', 'luis'] })
+  })
+
+  it('rejects an invalid body without saving', async () => {
+    setReviewerSuggestions.mockClear()
+
+    const res = await request(app)
+      .put('/api/admin/config/github/reviewer-suggestions')
+      .send({ enabled: true, newcomers: ['not a login'] })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: '"not a login" is not a GitHub username.' })
+    expect(setReviewerSuggestions).not.toHaveBeenCalled()
+  })
+
+  it('does not leak the error when the save fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    setReviewerSuggestions.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app)
+      .put('/api/admin/config/github/reviewer-suggestions')
+      .send({ enabled: false, newcomers: [] })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the reviewer suggestions.' })
+    spy.mockRestore()
   })
 })
 

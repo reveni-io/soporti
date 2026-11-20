@@ -19,7 +19,8 @@ import { loadReviewHistory } from './history.js'
 import { loadCiStatus } from './ci-status.js'
 import { loadStandards } from './standards.js'
 import { loadSpec } from './spec.js'
-import { renderInlineComment, renderReviewBody, renderWalkthrough } from './render.js'
+import { classifyMergeRisk, renderInlineComment, renderReviewBody, renderWalkthrough } from './render.js'
+import { suggestReviewers } from './reviewer-suggestions.js'
 import { upsertWalkthrough } from './walkthrough.js'
 import { resolveFixedThreads, selectFixedThreads } from './fixed-threads.js'
 import { decideAutoApprove, loadAutoApproveRepo } from './auto-approve.js'
@@ -158,7 +159,19 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       context: { trigger: current, history, headSha: reviewedSha, standards, spec, reviewerLogin },
     }
 
-    const walkthrough = renderWalkthrough({ ...review, ciStatus, reviewerLogin })
+    const reviewers = await suggestReviewers(
+      {
+        trigger: current,
+        pr: latest ?? pr,
+        files: classifiedFiles,
+        reviewerLogin,
+        risk: classifyMergeRisk(findings, notReviewed, team.passes).level,
+        effort: team.overview?.effort,
+        approved: event === 'APPROVE',
+      },
+      { logger }
+    )
+    const walkthrough = renderWalkthrough({ ...review, ciStatus, reviewerLogin, reviewers })
     await upsertWalkthrough({ repoFullName, prNumber, reviewerLogin, body: walkthrough }, { logger })
 
     signal?.throwIfAborted()
