@@ -78,6 +78,12 @@ describe('collectReviewFacts', () => {
     })
   })
 
+  it('matches the old path of a file moved out of the denylist', () => {
+    const files = [{ filename: 'src/misc/fees.js', previous_filename: 'src/payments/fees.js' }]
+
+    expect(factsOf({ files }, ['src/payments/**']).denylistMatches).toEqual(['src/payments/fees.js'])
+  })
+
   it('matches unanchored denylist patterns at any depth', () => {
     expect(factsOf({}, ['*.py']).denylistMatches).toEqual(['apps/billing/models.py'])
     expect(factsOf({}, ['billing/**']).denylistMatches).toEqual([])
