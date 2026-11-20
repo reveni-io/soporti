@@ -148,13 +148,22 @@ describe('readLegalConversation', () => {
     expect(getTicket).toHaveBeenCalledWith(3, '48213')
   })
 
-  it('reads the messages of the HubSpot ticket conversation', async () => {
+  it('reads the public messages of the HubSpot ticket conversation, leaving the internal comments out', async () => {
     getConversation.mockResolvedValue({
       messages: [
-        { id: 'm-1', direction: 'INCOMING', createdAt: AT, from: [{ address: 'c@example.com' }], text: 'Hi' },
-        { id: 'm-2', direction: 'OUTGOING', createdAt: AT, from: [{ name: 'Ana' }], text: 'Hello' },
-        { id: 'm-3', direction: 'OUTGOING', createdAt: AT, from: [], text: 'Bot' },
+        {
+          id: 'm-1',
+          type: 'MESSAGE',
+          direction: 'INCOMING',
+          createdAt: AT,
+          from: [{ address: 'c@example.com' }],
+          text: 'Hi',
+        },
+        { id: 'm-2', type: 'MESSAGE', direction: 'OUTGOING', createdAt: AT, from: [{ name: 'Ana' }], text: 'Hello' },
+        { id: 'm-3', type: 'MESSAGE', direction: 'OUTGOING', createdAt: AT, from: [], text: 'Bot' },
+        { id: 'm-4', type: 'COMMENT', direction: null, createdAt: AT, from: [{ name: 'Ana' }], text: 'Internal note' },
       ],
+      after: null,
     })
 
     expect(await readLegalConversation(HUBSPOT_CASE, 3)).toEqual([
@@ -162,7 +171,25 @@ describe('readLegalConversation', () => {
       { id: 'm-2', author: 'Ana', fromCustomer: false, at: AT, text: 'Hello' },
       { id: 'm-3', author: '', fromCustomer: false, at: AT, text: 'Bot' },
     ])
-    expect(getConversation).toHaveBeenCalledWith('thread-1')
+    expect(getConversation).toHaveBeenCalledWith('thread-1', { after: undefined })
+  })
+
+  it('reads every page of the HubSpot conversation, up to 10 pages', async () => {
+    getConversation.mockImplementation(async (_threadId, { after }) => {
+      const page = Number(after ?? 0)
+      return {
+        messages: [
+          { id: `m-${page}`, type: 'MESSAGE', direction: 'INCOMING', createdAt: AT, from: [], text: `Page ${page}` },
+        ],
+        after: String(page + 1),
+      }
+    })
+
+    const messages = await readLegalConversation(HUBSPOT_CASE, 3)
+
+    expect(messages.map(message => message.text)).toEqual(Array.from({ length: 10 }, (_, page) => `Page ${page}`))
+    expect(getConversation).toHaveBeenCalledTimes(10)
+    expect(getConversation).toHaveBeenNthCalledWith(2, 'thread-1', { after: '1' })
   })
 
   it('shows no messages for a HubSpot ticket without a conversation', async () => {

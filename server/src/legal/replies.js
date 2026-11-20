@@ -9,6 +9,8 @@ const THREAD_PROPERTY = 'hs_conversations_originating_thread_id'
 const END_USER_ROLE = 'end-user'
 const CUSTOMER_DIRECTION = 'INCOMING'
 const READ_LEVEL = 'read'
+const PUBLIC_MESSAGE_TYPE = 'MESSAGE'
+const MAX_CONVERSATION_PAGES = 10
 
 export const LEGAL_SEND_OFF = 'Sending from Soporti is off. An admin can turn it on in the Legal section of the admin.'
 const ZENDESK_NOT_CONNECTED = 'Connect your Zendesk account in Settings to send replies and read tickets from Soporti.'
@@ -141,9 +143,23 @@ async function readHubspotConversation(userId, ticketId) {
   const threadId = await hubspotThreadId(ticketId, access.permissions)
   if (!threadId) return []
 
-  const { messages } = await getConversation(threadId)
+  const messages = await readHubspotMessages(threadId)
 
-  return messages.map(fromHubspotMessage)
+  return messages.filter(message => message.type === PUBLIC_MESSAGE_TYPE).map(fromHubspotMessage)
+}
+
+async function readHubspotMessages(threadId) {
+  const messages = []
+  let after
+
+  for (let page = 0; page < MAX_CONVERSATION_PAGES; page++) {
+    const result = await getConversation(threadId, { after })
+    messages.push(...result.messages)
+    if (!result.after) break
+    after = result.after
+  }
+
+  return messages
 }
 
 const READERS = new Map([
