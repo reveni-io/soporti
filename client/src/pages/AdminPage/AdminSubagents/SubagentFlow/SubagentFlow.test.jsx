@@ -3,12 +3,23 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SubagentFlow from './SubagentFlow.jsx'
 
+const { fitView } = vi.hoisted(() => ({ fitView: vi.fn() }))
+const MEASURED = { width: 240, height: 120 }
+
+function positionsOf(nodes) {
+  return nodes.map(node => `${node.id}@${node.position.x},${node.position.y}`).join(' ')
+}
+
 vi.mock('@xyflow/react', async () => {
   const { useState } = await import('react')
 
   return {
     ReactFlow: ({ nodes, nodeTypes, edges }) => (
-      <div data-testid="flow" data-edges={(edges ?? []).map(edge => `${edge.target}:${edge.animated}`).join(',')}>
+      <div
+        data-testid="flow"
+        data-edges={(edges ?? []).map(edge => `${edge.target}:${edge.animated}`).join(',')}
+        data-positions={positionsOf(nodes)}
+      >
         {nodes.map(node => {
           const NodeComponent = nodeTypes[node.type]
 
@@ -23,12 +34,12 @@ vi.mock('@xyflow/react', async () => {
     Position: { Top: 'top', Bottom: 'bottom' },
     MarkerType: { ArrowClosed: 'arrowclosed' },
     useNodesState: initial => {
-      const [nodes, setNodes] = useState(initial)
+      const [nodes, setNodes] = useState(() => initial.map(node => ({ ...node, measured: MEASURED })))
 
       return [nodes, setNodes, vi.fn()]
     },
     useNodesInitialized: () => true,
-    useReactFlow: () => ({ fitView: vi.fn() }),
+    useReactFlow: () => ({ fitView }),
   }
 })
 
@@ -62,6 +73,29 @@ function subagent(overrides) {
 }
 
 describe('SubagentFlow', () => {
+  it('frames the diagram only once its nodes are laid out', () => {
+    let positionsWhenFramed = null
+    fitView.mockImplementation(() => {
+      positionsWhenFramed = screen.getByTestId('flow').dataset.positions
+    })
+
+    render(
+      <SubagentFlow
+        subagents={[subagent(), subagent({ id: 2, name: 'data_analyst' })]}
+        toolGroups={TOOL_GROUPS}
+        globalProvider="openai"
+        globalModel="gpt-5"
+        pendingDeleteId={null}
+        actions={ACTIONS}
+      />
+    )
+
+    const laidOut = screen.getByTestId('flow').dataset.positions
+    expect(laidOut).not.toBe('parent@0,0 1@0,0 2@0,0')
+    expect(fitView).toHaveBeenCalledTimes(1)
+    expect(positionsWhenFramed).toBe(laidOut)
+  })
+
   it('renders the main agent with everything it holds when there are no subagents', () => {
     render(
       <SubagentFlow
