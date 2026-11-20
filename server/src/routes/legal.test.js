@@ -239,3 +239,30 @@ describe('GET /cases/:id/conversation', () => {
     expect(unknown.body).toEqual({ error: 'Failed to read the conversation.' })
   })
 })
+
+describe('API keys', () => {
+  it('cannot list, send or read Legal replies', async () => {
+    const keyApp = express()
+    keyApp.use(express.json())
+    keyApp.use((req, _res, next) => {
+      req.user = { id: 3, email: 'ana@example.com' }
+      req.apiKey = { id: 9, sources: ['integration:notion'] }
+      next()
+    })
+    keyApp.use('/', legalRouter)
+
+    const responses = await Promise.all([
+      request(keyApp).get('/cases?ids=41'),
+      request(keyApp).post('/cases/41/replies').send({ text: 'Hello', warningsRead: true }),
+      request(keyApp).get('/cases/41/conversation'),
+    ])
+
+    for (const res of responses) {
+      expect(res.status).toBe(403)
+      expect(res.body).toEqual({ error: 'API keys cannot send or read Legal replies.' })
+    }
+    expect(findOwnedLegalCases).not.toHaveBeenCalled()
+    expect(sendLegalReply).not.toHaveBeenCalled()
+    expect(readLegalConversation).not.toHaveBeenCalled()
+  })
+})

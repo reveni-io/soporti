@@ -13,6 +13,11 @@ import {
 
 const router = Router()
 
+router.use((req, res, next) => {
+  if (req.apiKey) return res.status(403).json({ error: 'API keys cannot send or read Legal replies.' })
+  next()
+})
+
 const ID_RE = /^\d{1,9}$/
 const MAX_IDS = 50
 const MAX_REPLY_CHARS = 10_000
