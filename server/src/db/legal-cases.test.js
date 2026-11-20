@@ -30,12 +30,18 @@ function makeChain(op) {
   return chain
 }
 
-const db = { select: () => makeChain('select'), insert: () => makeChain('insert') }
+const db = { select: () => makeChain('select'), insert: () => makeChain('insert'), delete: () => makeChain('delete') }
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { legalCases, legalReplies } = await import('./schema.js')
-const { countCasesByGuardSince, countSentRepliesByGuardSince, findOwnedLegalCases, getOwnedLegalCase, saveLegalCase } =
-  await import('./legal-cases.js')
+const {
+  countCasesByGuardSince,
+  countSentRepliesByGuardSince,
+  deleteLegalCases,
+  findOwnedLegalCases,
+  getOwnedLegalCase,
+  saveLegalCase,
+} = await import('./legal-cases.js')
 
 const SINCE = new Date('2026-10-21T00:00:00.000Z')
 
@@ -104,5 +110,14 @@ describe('countSentRepliesByGuardSince', () => {
     expect(await countSentRepliesByGuardSince(SINCE)).toEqual([{ guardId: 'legal', replies: 2 }])
     expect(calls[0].steps.from).toBe(legalReplies)
     expect(calls[0].steps.where).toEqual({ op: 'gte', col: legalReplies.createdAt, val: SINCE })
+  })
+})
+
+describe('deleteLegalCases', () => {
+  it('deletes the cases of a conversation', async () => {
+    await deleteLegalCases('conv-1')
+
+    expect(calls[0].op).toBe('delete')
+    expect(calls[0].steps.where).toEqual({ op: 'eq', col: legalCases.conversationId, val: 'conv-1' })
   })
 })

@@ -34,6 +34,10 @@ export async function getOwnedLegalCase(id, userId) {
   return row ?? null
 }
 
+export async function deleteLegalCases(conversationId) {
+  await getDb().delete(legalCases).where(eq(legalCases.conversationId, conversationId))
+}
+
 export async function countCasesByGuardSince(since) {
   return getDb()
     .select({ guardId: legalCases.guardId, cases: count() })

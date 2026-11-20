@@ -1,4 +1,5 @@
 import { buildUserTurn } from '../agent/user-turn.js'
+import { deleteLegalCases } from '../db/legal-cases.js'
 import { toGuardPart } from '../guards/check.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { loadCustomInstructions, runUnattended } from './unattended-run.js'
@@ -39,9 +40,16 @@ export async function runSchedule(schedule, conversationStore) {
 
     return { conversationId }
   } catch (err) {
-    await conversationStore.deleteWeb(conversationId, schedule.userId).catch(deleteErr => {
-      console.error('[schedules] Failed to clean up a failed run:', deleteErr.message)
-    })
+    await discardRun(conversationStore, { conversationId, userId: schedule.userId })
     throw err
+  }
+}
+
+async function discardRun(conversationStore, { conversationId, userId }) {
+  try {
+    await deleteLegalCases(conversationId)
+    await conversationStore.deleteWeb(conversationId, userId)
+  } catch (cleanupErr) {
+    console.error('[schedules] Failed to clean up a failed run:', cleanupErr.message)
   }
 }
