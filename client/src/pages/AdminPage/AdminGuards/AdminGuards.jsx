@@ -1,12 +1,8 @@
-import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { JEV_SETTINGS_DOCUMENT } from '../../../constants.js'
-import { getGuards, getJevConfig, saveGuardSending } from '../../../services/services.js'
+import { getGuards, getJevConfig } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
-import JevHistory from '../JevHistory/JevHistory.jsx'
-import ToggleField from '../ToggleField/ToggleField.jsx'
 import GuardEditor from './GuardEditor/GuardEditor.jsx'
 import GuardsTable from './GuardsTable/GuardsTable.jsx'
 import JevConnection from './JevConnection/JevConnection.jsx'
@@ -16,7 +12,6 @@ const GUARD_PARAM = 'guard'
 
 export default function AdminGuards({ token, onLogout }) {
   const [params, setParams] = useSearchParams()
-  const [settingsRevision, setSettingsRevision] = useState(0)
   const { config: catalog, error: catalogError, patchConfig } = useAuthedConfig(getJevConfig, token, onLogout)
   const { config: list, error: listError, reload } = useAuthedConfig(getGuards, token, onLogout)
 
@@ -43,25 +38,9 @@ export default function AdminGuards({ token, onLogout }) {
     reload()
   }
 
-  function handleSettingsChanged() {
-    setSettingsRevision(revision => revision + 1)
-  }
-
-  async function saveSending(enabled) {
-    const data = await saveGuardSending(token, enabled)
-    patchConfig({ sendingEnabled: data.enabled })
-    handleSettingsChanged()
-  }
-
   return (
     <>
-      <JevConnection
-        token={token}
-        onLogout={onLogout}
-        config={catalog}
-        onConfigChange={patchConfig}
-        onChanged={handleSettingsChanged}
-      />
+      <JevConnection token={token} onLogout={onLogout} config={catalog} onConfigChange={patchConfig} />
 
       <AdminSection title="Guards">
         <p className="admin__muted">
@@ -71,13 +50,6 @@ export default function AdminGuards({ token, onLogout }) {
         </p>
         <GuardsTable guards={list.guards} onEdit={openGuard} />
         <NewGuardForm token={token} onLogout={onLogout} onCreated={handleCreated} />
-        <ToggleField
-          enabled={catalog.sendingEnabled}
-          label="Allow sending replies from Soporti"
-          hint="When on, a reply to a Zendesk or HubSpot ticket checked by a guard can be sent from its case in the chat, by the person who sends it, after a confirmation."
-          onSave={saveSending}
-          onLogout={onLogout}
-        />
       </AdminSection>
 
       {selected && (
@@ -85,17 +57,12 @@ export default function AdminGuards({ token, onLogout }) {
           key={selected.id}
           token={token}
           guard={selected}
-          catalog={catalog}
           onLogout={onLogout}
           onSaved={reload}
           onClose={closeGuard}
           onDeleted={handleDeleted}
         />
       )}
-
-      <AdminSection title="Jev history">
-        <JevHistory key={settingsRevision} token={token} documentId={JEV_SETTINGS_DOCUMENT} onLogout={onLogout} />
-      </AdminSection>
     </>
   )
 }

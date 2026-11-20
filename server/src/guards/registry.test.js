@@ -4,15 +4,13 @@ const listJevDocuments = vi.fn()
 vi.mock('../db/jev-documents.js', () => ({ listJevDocuments }))
 
 const isConfigured = vi.fn()
-const areJevCallsEnabled = vi.fn()
-vi.mock('../jev/settings.js', () => ({ isConfigured, areJevCallsEnabled }))
+vi.mock('../jev/settings.js', () => ({ isConfigured }))
 
 const { findGuardByName, listChatGuards, listGuards } = await import('./registry.js')
 
 function set(overrides = {}) {
   return {
     description: '',
-    model: 'jev-latest',
     minConfidence: 0.7,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -40,7 +38,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   listJevDocuments.mockResolvedValue([PAYMENTS, LEGAL, GITHUB, ANALYTICS, { id: 'jev', rev: 1, data: {} }])
   isConfigured.mockResolvedValue(true)
-  areJevCallsEnabled.mockResolvedValue(true)
 })
 
 describe('listGuards', () => {
@@ -52,7 +49,6 @@ describe('listGuards', () => {
         builtIn: true,
         description: 'Customer replies',
         questions: 1,
-        model: 'jev-latest',
         setVersion: 3,
       },
       {
@@ -61,7 +57,6 @@ describe('listGuards', () => {
         builtIn: true,
         description: '',
         questions: 1,
-        model: 'jev-latest',
         setVersion: 1,
       },
       {
@@ -70,7 +65,6 @@ describe('listGuards', () => {
         builtIn: false,
         description: '',
         questions: 1,
-        model: 'jev-latest',
         setVersion: 1,
       },
       {
@@ -79,7 +73,6 @@ describe('listGuards', () => {
         builtIn: false,
         description: '',
         questions: 0,
-        model: 'jev-latest',
         setVersion: 0,
       },
     ])
@@ -89,7 +82,7 @@ describe('listGuards', () => {
     listJevDocuments.mockResolvedValue([])
 
     expect(await listGuards()).toEqual([
-      expect.objectContaining({ id: 'legal', name: 'Legal', questions: 0, model: '', setVersion: 0 }),
+      expect.objectContaining({ id: 'legal', name: 'Legal', questions: 0, setVersion: 0 }),
       expect.objectContaining({ id: 'github', name: 'GitHub PRs' }),
     ])
   })
@@ -105,14 +98,11 @@ describe('findGuardByName', () => {
 })
 
 describe('listChatGuards', () => {
-  it('offers the guards with questions and a model, never the GitHub one', async () => {
+  it('offers the guards with questions, never the GitHub one', async () => {
     expect((await listChatGuards()).map(guard => guard.name)).toEqual(['Legal', 'Analytics'])
   })
 
-  it('offers none while the Jev calls are off or there is no key', async () => {
-    areJevCallsEnabled.mockResolvedValueOnce(false)
-    expect(await listChatGuards()).toEqual([])
-
+  it('offers none while there is no key', async () => {
     isConfigured.mockResolvedValueOnce(false)
     expect(await listChatGuards()).toEqual([])
   })

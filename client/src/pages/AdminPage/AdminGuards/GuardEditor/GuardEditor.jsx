@@ -9,7 +9,6 @@ import { deleteGuard } from '../../../../services/services.js'
 import { useSaveField } from '../../../../hooks/useSaveField/useSaveField.js'
 import AdminSection from '../../AdminSection/AdminSection.jsx'
 import DocBar from '../../DocBar/DocBar.jsx'
-import JevHistory from '../../JevHistory/JevHistory.jsx'
 import QuestionSetEditor from '../../QuestionSetEditor/QuestionSetEditor.jsx'
 import VersionsTable from '../../VersionsTable/VersionsTable.jsx'
 import ReviewRules from '../ReviewRules/ReviewRules.jsx'
@@ -50,7 +49,7 @@ function GuardDelete({ token, guard, onLogout, onDeleted }) {
       {error && <p className="alert alert--error">{error}</p>}
       <DeleteControl
         label="Delete guard"
-        question={`Delete the ${guard.name} guard? Its questions, versions and history go with it.`}
+        question={`Delete the ${guard.name} guard? Its questions and versions go with it.`}
         busy={saving}
         onDelete={handleDelete}
       />
@@ -58,7 +57,7 @@ function GuardDelete({ token, guard, onLogout, onDeleted }) {
   )
 }
 
-export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, onClose, onDeleted }) {
+export default function GuardEditor({ token, guard, onLogout, onSaved, onClose, onDeleted }) {
   const project = useJevDocument(token, guard.id, onLogout)
   const [confirmingClose, setConfirmingClose] = useState(false)
   const isGithub = guard.id === JEV_GITHUB_DOCUMENT
@@ -124,7 +123,6 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
         <QuestionSetEditor
           project={guard.id}
           state={project}
-          catalog={catalog}
           inUseMessage={isGithub ? describeSetUsers(project.draft) : null}
         />
       </AdminSection>
@@ -145,10 +143,6 @@ export default function GuardEditor({ token, guard, catalog, onLogout, onSaved, 
           onLogout={onLogout}
           withCalls
         />
-      </AdminSection>
-
-      <AdminSection title="Change history">
-        <JevHistory key={project.document.rev} token={token} documentId={guard.id} onLogout={onLogout} />
       </AdminSection>
 
       {!guard.builtIn && <GuardDelete token={token} guard={guard} onLogout={onLogout} onDeleted={onDeleted} />}

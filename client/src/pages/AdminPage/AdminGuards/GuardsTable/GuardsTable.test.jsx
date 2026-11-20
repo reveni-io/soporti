@@ -34,7 +34,7 @@ describe('GuardsTable', () => {
   })
 
   it.each([
-    ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions and a model'],
+    ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions'],
     ['it has no description', { description: '' }, 'No description'],
   ])('says what the Legal guard is used for when %s', (_case, overrides, text) => {
     render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} onEdit={vi.fn()} />)

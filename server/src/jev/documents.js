@@ -22,13 +22,11 @@ const MAX_LABEL_CHARS = 200
 const MAX_NAME_CHARS = 60
 const CUSTOM_GUARD_RE = /^guard-[0-9a-f]{8}$/
 const MAX_ID_CHARS = 64
-const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
-const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
+const VERSIONED_FIELDS = ['minConfidence', 'questions', 'rules']
 
 const DEFAULT_SET = {
   description: '',
-  model: '',
   minConfidence: null,
   timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
   dailyLimit: DEFAULT_DAILY_LIMIT,
@@ -44,7 +42,6 @@ const DEFAULT_DOCUMENTS = {
 }
 
 const SCALAR_CHANGES = [
-  ['model', 'Model'],
   ['minConfidence', 'Min confidence'],
   ['timeoutSeconds', 'Timeout'],
   ['dailyLimit', 'Daily limit'],
@@ -64,13 +61,6 @@ function parseText(value, { label, max, required = false }) {
 
 function parseWholeNumber(value, { min, max, error }) {
   if (!Number.isInteger(value) || value < min || value > max) return { error }
-
-  return { value }
-}
-
-function parseModel(value) {
-  if (value === undefined || value === null || value === '') return { value: '' }
-  if (typeof value !== 'string' || !MODEL_RE.test(value)) return { error: 'That does not look like a Jev model name.' }
 
   return { value }
 }
@@ -217,7 +207,6 @@ function parseMaxCharacters(value) {
 
 const SET_PARSERS = [
   ['description', value => parseText(value, { label: 'The set description', max: MAX_DESCRIPTION_CHARS })],
-  ['model', parseModel],
   ['minConfidence', parseMinConfidence],
   ['timeoutSeconds', parseTimeoutSeconds],
   ['dailyLimit', parseDailyLimit],
