@@ -70,6 +70,11 @@ import {
   signInWithPassword,
   streamChat,
   testHubspotConnection,
+  getAwsConfig,
+  saveAwsEnabled,
+  saveAwsRegion,
+  saveAwsAccessKey,
+  testAwsConnection,
   updateBot,
   updateDatabaseConnection,
   updateSchedule,
@@ -503,6 +508,46 @@ describe('endpoints', () => {
     global.fetch.mockResolvedValueOnce(fail(500))
 
     await expect(testHubspotConnection('tok')).rejects.toThrow('Failed to test the HubSpot connection')
+  })
+
+  it('loads and saves the AWS settings', async () => {
+    global.fetch
+      .mockResolvedValueOnce(ok({ enabled: false, region: '', accessKeyConfigured: false }))
+      .mockResolvedValueOnce(ok({ enabled: true }))
+      .mockResolvedValueOnce(ok({ region: 'eu-central-1' }))
+      .mockResolvedValueOnce(ok({ accessKeyConfigured: true }))
+
+    expect(await getAwsConfig('tok')).toEqual({ enabled: false, region: '', accessKeyConfigured: false })
+    await saveAwsEnabled('tok', true)
+    await saveAwsRegion('tok', 'eu-central-1')
+    await saveAwsAccessKey('tok', { accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'secret' })
+
+    const calls = global.fetch.mock.calls
+    expect(calls).toHaveLength(4)
+    expect(calls[0][0]).toBe('/api/admin/config/aws')
+    expect(calls[1][0]).toBe('/api/admin/config/aws/enabled')
+    expect(calls[1][1].method).toBe('PUT')
+    expect(JSON.parse(calls[1][1].body)).toEqual({ enabled: true })
+    expect(calls[2][0]).toBe('/api/admin/config/aws/region')
+    expect(JSON.parse(calls[2][1].body)).toEqual({ region: 'eu-central-1' })
+    expect(calls[3][0]).toBe('/api/admin/config/aws/access-key')
+    expect(JSON.parse(calls[3][1].body)).toEqual({ accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'secret' })
+  })
+
+  it('tests the AWS connection and surfaces why it failed', async () => {
+    global.fetch
+      .mockResolvedValueOnce(ok({ account: '1', arn: 'arn:aws:sts::1:assumed-role/soporti/x', checks: [] }))
+      .mockResolvedValueOnce(fail(422, { error: 'No AWS region is set.' }))
+
+    const report = await testAwsConnection('tok')
+    const error = await testAwsConnection('tok').catch(err => err)
+
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('/api/admin/config/aws/test')
+    expect(options.method).toBe('POST')
+    expect(report.arn).toBe('arn:aws:sts::1:assumed-role/soporti/x')
+    expect(error.status).toBe(422)
+    expect(error.message).toBe('No AWS region is set.')
   })
 
   it('adds a database connection', async () => {

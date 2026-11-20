@@ -70,6 +70,16 @@ vi.mock('../betterstack/client.js', () => ({
   isConfigured: vi.fn(() => true),
 }))
 
+vi.mock('../aws/client.js', () => ({
+  listAlarms: vi.fn(),
+  listEcsClusters: vi.fn(),
+  listEcsServices: vi.fn(),
+  getEcsService: vi.fn(),
+  listMetrics: vi.fn(),
+  getMetricData: vi.fn(),
+  isConfigured: vi.fn(() => true),
+}))
+
 vi.mock('../helpjuice/client.js', () => ({
   searchArticles: vi.fn(),
   getArticle: vi.fn(),
@@ -698,6 +708,24 @@ describe('buildAgentTools', () => {
     const yolo = { unrestricted: true, repos: [], integrations: [] }
     expect(names(buildAgentTools(yolo, { betterstackConfigured: false }))).not.toContain('search_logs')
     expect(names(buildAgentTools(yolo, { betterstackConfigured: true }))).toContain('query_logs')
+  })
+
+  it('gates the AWS tools on awsConfigured', () => {
+    const selection = { unrestricted: false, repos: [], integrations: ['aws'] }
+    expect(names(buildAgentTools(selection, { awsConfigured: false }))).not.toContain('aws_list_alarms')
+    expect(names(buildAgentTools(selection, { awsConfigured: true }))).toEqual([
+      'aws_list_alarms',
+      'aws_list_ecs_clusters',
+      'aws_list_ecs_services',
+      'aws_get_ecs_service',
+      'aws_list_metrics',
+      'aws_get_metric_data',
+      ...TIME_TOOL_NAMES,
+    ])
+
+    const yolo = { unrestricted: true, repos: [], integrations: [] }
+    expect(names(buildAgentTools(yolo, { awsConfigured: false }))).not.toContain('aws_get_ecs_service')
+    expect(names(buildAgentTools(yolo, { awsConfigured: true }))).toContain('aws_get_ecs_service')
   })
 
   it('does not register the Better Stack tools for another selected integration', () => {

@@ -1,10 +1,10 @@
 .lp-artifacts-preview {
   width: 100%;
-  max-width: 520px;
+  max-width: 40rem;
 }
 
 .lp-artifacts-preview__window {
-  height: 340px;
+  height: 19.5rem;
 }
 
 .lp-artifacts-preview__stage {
@@ -200,11 +200,21 @@
 }
 
 @media (max-width: 640px) {
-  .lp-artifacts-preview__window {
-    height: 380px;
+  .lp-artifacts-preview__panel {
+    width: 52%;
   }
 
-  .lp-artifacts-preview__panel {
-    width: 60%;
+  .lp-artifacts-preview__chat {
+    padding: var(--sp2);
+  }
+
+  .lp-artifacts-preview__chat .message__bubble--user {
+    max-width: 100%;
+    padding: var(--sp1) var(--sp2);
+    font-size: var(--fs-xs);
+  }
+
+  .lp-artifacts-preview__card {
+    padding: var(--sp2);
   }
 }

@@ -40,6 +40,7 @@ export default function ChatPanel({
   fetchError = null,
   onOpenRoutines,
   onEditBot,
+  onBackToBots,
 }) {
   const [tourOpen, setTourOpen] = useState(() => !localStorage.getItem(TOUR_SEEN_KEY))
 
@@ -95,6 +96,7 @@ export default function ChatPanel({
         onShare={onShare}
         onOpenRoutines={onOpenRoutines}
         onEditBot={onEditBot}
+        onBackToBots={onBackToBots}
       />
 
       <div className="chat__body">

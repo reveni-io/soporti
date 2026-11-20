@@ -13,11 +13,13 @@ import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
 import ArtifactPanel from './ArtifactPanel/ArtifactPanel.jsx'
 import Login from '../../common/Login/Login.jsx'
+import ScreenTransition from '../../common/ScreenTransition/ScreenTransition.jsx'
 import ShareModal from '../../common/ShareModal/ShareModal.jsx'
 import SettingsModal from './SettingsModal/SettingsModal.jsx'
 import SchedulesModal from './SchedulesModal/SchedulesModal.jsx'
 import ArtifactsModal from './ArtifactsModal/ArtifactsModal.jsx'
 import BotsPanel from './BotsPanel/BotsPanel.jsx'
+import BotsIntro from './BotsIntro/BotsIntro.jsx'
 import BotNotFound from './BotNotFound/BotNotFound.jsx'
 import BotFormModal from './BotFormModal/BotFormModal.jsx'
 import RoutinesModal from './RoutinesModal/RoutinesModal.jsx'
@@ -80,6 +82,7 @@ export default function Chat({ initialQuestion = '' }) {
     fetchError,
     conversationKey,
     activeConversations,
+    busyBotIds,
     completedRuns,
     sendMessage,
     stopGeneration,
@@ -213,42 +216,63 @@ export default function Chat({ initialQuestion = '' }) {
         onClose={() => setSidebarOpen(false)}
         onCollapse={() => handleSidebarCollapsed(true)}
       />
-      {view.isBotsView && (
-        <BotsPanel
-          bots={bots.bots}
-          loading={bots.loading}
-          error={bots.error}
-          onCreate={() => setBotForm(BOT_FORM_CREATE)}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          onExpandSidebar={() => handleSidebarCollapsed(false)}
-        />
+      {!view.isChatView && (
+        <ScreenTransition>
+          <BotsPanel
+            bots={bots.bots}
+            busyBotIds={busyBotIds}
+            loading={bots.loading}
+            error={bots.error}
+            isBotOpen={view.isBotView}
+            onCreate={() => setBotForm(BOT_FORM_CREATE)}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onOpenSidebar={() => setSidebarOpen(true)}
+            onExpandSidebar={() => handleSidebarCollapsed(false)}
+          />
+        </ScreenTransition>
       )}
-      {view.isBotView && !bot && <BotNotFound loading={bots.loading} />}
+      {view.isBotsView && (
+        <ScreenTransition>
+          <BotsIntro
+            bots={bots.bots}
+            loading={bots.loading}
+            error={bots.error}
+            onCreate={() => setBotForm(BOT_FORM_CREATE)}
+          />
+        </ScreenTransition>
+      )}
+      {view.isBotView && !bot && (
+        <ScreenTransition>
+          <BotNotFound loading={bots.loading} />
+        </ScreenTransition>
+      )}
       {(view.isChatView || bot) && (
-        <ChatPanel
-          messages={messages}
-          isLoading={isLoading}
-          conversationKey={conversationKey}
-          onSend={handleSend}
-          onStop={stopGeneration}
-          hasSourcesSelected={Boolean(bot) || selectedSources.length > 0}
-          onOpenSidebar={() => setSidebarOpen(true)}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onExpandSidebar={() => handleSidebarCollapsed(false)}
-          onShare={handleShare}
-          onLogout={logout}
-          integrations={integrations}
-          token={token}
-          skills={skills.skills}
-          initialQuestion={initialQuestion}
-          onOpenArtifact={artifacts.openArtifact}
-          bot={bot}
-          isFetching={isFetching}
-          fetchError={fetchError}
-          onOpenRoutines={() => setRoutinesOpen(true)}
-          onEditBot={() => setBotForm(BOT_FORM_EDIT)}
-        />
+        <ScreenTransition animatesUpdates>
+          <ChatPanel
+            messages={messages}
+            isLoading={isLoading}
+            conversationKey={conversationKey}
+            onSend={handleSend}
+            onStop={stopGeneration}
+            hasSourcesSelected={Boolean(bot) || selectedSources.length > 0}
+            onOpenSidebar={() => setSidebarOpen(true)}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onExpandSidebar={() => handleSidebarCollapsed(false)}
+            onShare={handleShare}
+            onLogout={logout}
+            integrations={integrations}
+            token={token}
+            skills={skills.skills}
+            initialQuestion={initialQuestion}
+            onOpenArtifact={artifacts.openArtifact}
+            bot={bot}
+            isFetching={isFetching}
+            fetchError={fetchError}
+            onOpenRoutines={() => setRoutinesOpen(true)}
+            onEditBot={() => setBotForm(BOT_FORM_EDIT)}
+            onBackToBots={view.showBots}
+          />
+        </ScreenTransition>
       )}
       {artifacts.openId && (
         <ArtifactPanel

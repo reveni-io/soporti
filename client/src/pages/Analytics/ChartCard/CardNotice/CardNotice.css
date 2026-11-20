@@ -13,7 +13,7 @@
 
 .card-notice__icon {
   flex-shrink: 0;
-  color: var(--orange-700);
+  color: var(--warning-text);
 }
 
 .card-notice__heading {
@@ -36,7 +36,7 @@
   font-size: var(--fs-sm);
   text-align: left;
   white-space: pre-wrap;
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   border-radius: var(--radius-md);
   user-select: text;
 }

@@ -1,0 +1,37 @@
+.lp-integrations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(var(--sp10), 6vw, var(--sp20));
+}
+
+.lp-integrations__copy .lp-heading {
+  margin-bottom: var(--sp8);
+}
+
+.lp-integrations__points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp4);
+  list-style: none;
+}
+
+.lp-integrations__points li {
+  display: flex;
+  gap: var(--sp3);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.74);
+}
+
+.lp-integrations__points svg {
+  flex-shrink: 0;
+  margin-top: var(--sp1);
+  color: var(--green-bright);
+}
+
+@media (max-width: 960px) {
+  .lp-integrations {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

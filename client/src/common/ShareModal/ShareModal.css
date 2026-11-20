@@ -10,7 +10,7 @@
 .share-modal__url-input {
   flex: 1;
   min-width: 0;
-  background: var(--bg-cool);
+  background: var(--bg-subtle);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
 }

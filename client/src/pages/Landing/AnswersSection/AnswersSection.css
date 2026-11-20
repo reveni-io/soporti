@@ -1,0 +1,108 @@
+.lp-answers {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp8);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.lp-answers__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp1);
+  padding: var(--sp1);
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.1);
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-inverse-rgb), 0.04);
+}
+
+.lp-answers__tab {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp2) var(--sp5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: rgba(var(--green-inverse-rgb), 0.62);
+  cursor: pointer;
+  transition:
+    color var(--motion-base) ease,
+    background-color var(--motion-base) ease;
+}
+
+.lp-answers__tab:hover {
+  color: var(--green-inverse);
+}
+
+.lp-answers__tab--active {
+  background: rgba(var(--green-bright-rgb), 0.14);
+  color: var(--green-inverse);
+}
+
+.lp-answers__tab--active svg {
+  color: var(--green-bright);
+}
+
+.lp-answers__window {
+  width: 100%;
+  height: 34rem;
+  box-shadow:
+    var(--shadow-window),
+    0 0 120px rgba(var(--green-bright-rgb), 0.12);
+}
+
+.lp-answers__panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--sp6);
+  animation: lp-pop-in 0.7s var(--ease-out-expo);
+}
+
+.lp-answers__reply {
+  animation: lp-pop-in 0.8s var(--ease-out-expo) 0.25s both;
+}
+
+.lp-answers__panel .chart-block,
+.lp-answers__panel .csv-block,
+.lp-answers__panel pre {
+  margin: 0;
+}
+
+.lp-answers__panel .mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.lp-answers__panel .mermaid-diagram svg {
+  max-height: 20rem;
+  width: auto;
+}
+
+@media (max-width: 640px) {
+  .lp-answers__window {
+    height: 38rem;
+  }
+
+  .lp-answers__panel {
+    padding: var(--sp3);
+  }
+
+  .lp-answers__tab {
+    padding: var(--sp2) var(--sp3);
+  }
+}

@@ -1,0 +1,29 @@
+import './ReveniLogo.css'
+
+const VIEW_BOX_WIDTH = 19
+const VIEW_BOX_HEIGHT = 27
+const OUTER_CONTOUR =
+  'M18.8254 8.52461V10.9577C18.8254 16.915 7.06815 26.3739 2.31098 26.3734C1.35423 26.3734 0.545776 25.5665 0.545776 24.6114V22.179C0.545776 20.9462 1.95701 19.5688 3.62523 17.9404C5.47967 16.1303 7.65183 14.01 8.55622 11.4337C7.80638 9.8205 6.10912 8.8548 4.57089 7.97964C2.96472 7.06572 1.53192 6.25047 1.53192 4.89962V2.46653C1.53192 1.5665 2.28775 0.635498 3.55235 0.635498C5.83523 0.635498 18.8254 2.51415 18.8254 8.52461Z'
+const INNER_CONTOUR =
+  'M17.5656 8.52488C17.5656 3.87508 5.86841 1.90598 3.5557 1.90598C3.08265 1.90598 2.79864 2.2044 2.79891 2.4668C2.79891 3.0508 3.79015 3.62073 5.03954 4.33916C7.16884 5.56354 10.0479 7.21909 10.0479 10.1097C10.0479 13.365 6.74393 16.6481 4.32147 19.0552C2.91948 20.4484 1.81276 21.5482 1.81276 22.1792C1.81276 22.4365 2.04898 22.6711 2.31433 22.6711C6.35853 22.6711 17.5656 13.6829 17.5656 8.52488Z'
+const CONTOURS = [OUTER_CONTOUR, INNER_CONTOUR]
+
+export default function ReveniLogo({ className = '', height = VIEW_BOX_HEIGHT }) {
+  const width = (height * VIEW_BOX_WIDTH) / VIEW_BOX_HEIGHT
+
+  return (
+    <svg
+      className={`lp-logo ${className}`.trim()}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`}
+      aria-hidden="true"
+      data-logo="reveni"
+    >
+      <path className="lp-logo__fill" d={CONTOURS.join('')} fillRule="evenodd" clipRule="evenodd" />
+      {CONTOURS.map(contour => (
+        <path key={contour} className="lp-logo__stroke" d={contour} pathLength="1" />
+      ))}
+    </svg>
+  )
+}

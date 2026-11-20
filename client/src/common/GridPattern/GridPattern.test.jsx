@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent } from '@testing-library/react'
+import { act, render, cleanup, fireEvent } from '@testing-library/react'
 import GridPattern from './GridPattern.jsx'
 
 function createFakeContext() {
@@ -96,6 +96,7 @@ describe('GridPattern', () => {
     vi.restoreAllMocks()
     delete HTMLCanvasElement.prototype.clientWidth
     delete HTMLCanvasElement.prototype.clientHeight
+    document.documentElement.removeAttribute('data-theme')
   })
 
   it('renders an aria-hidden canvas backdrop', () => {
@@ -253,10 +254,40 @@ describe('GridPattern', () => {
     expect(removeDocListener.mock.calls.map(call => call[0])).toContain('mouseleave')
   })
 
-  it('paints the light variant background color', () => {
-    render(<GridPattern variant="light" />)
+  it('paints the light app surface while the app is light', () => {
+    render(<GridPattern variant="surface" />)
     runFrames(1)
     expect(fakeCtx.fillRectStyles).toContain('#faf4f0')
+  })
+
+  it('paints the dark app surface while the app is dark', () => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+
+    render(<GridPattern variant="surface" />)
+    runFrames(1)
+
+    expect(fakeCtx.fillRectStyles).toContain('#0b130b')
+    expect(fakeCtx.fillRectStyles).not.toContain('#faf4f0')
+  })
+
+  it('repaints the app surface when the theme changes', async () => {
+    render(<GridPattern variant="surface" />)
+    runFrames(1)
+
+    await act(async () => document.documentElement.setAttribute('data-theme', 'dark'))
+    fakeCtx.fillRectStyles.length = 0
+    runFrames(2)
+
+    expect(fakeCtx.fillRectStyles).toContain('#0b130b')
+  })
+
+  it('keeps the brand palette whatever the theme', () => {
+    document.documentElement.setAttribute('data-theme', 'dark')
+
+    render(<GridPattern variant="dark" />)
+    runFrames(1)
+
+    expect(fakeCtx.fillRectStyles).toContain('#042503')
   })
 
   it('falls back to the dark palette for unknown variants', () => {

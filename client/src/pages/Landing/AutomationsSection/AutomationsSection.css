@@ -1,0 +1,107 @@
+.lp-automations {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: clamp(var(--sp8), 5vw, var(--sp16));
+}
+
+.lp-automations__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+}
+
+.lp-automations__tab {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  gap: var(--sp4);
+  padding: var(--sp5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  font-family: var(--font-body);
+  text-align: left;
+  color: var(--green-inverse);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) ease,
+    border-color var(--motion-base) ease;
+}
+
+.lp-automations__tab:hover {
+  background: rgba(var(--green-inverse-rgb), 0.03);
+}
+
+.lp-automations__tab--active {
+  border-color: rgba(var(--green-inverse-rgb), 0.1);
+  background: linear-gradient(180deg, rgba(var(--green-inverse-rgb), 0.06), rgba(var(--green-inverse-rgb), 0.02));
+}
+
+.lp-automations__icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.14);
+  border-radius: var(--radius-md);
+  color: rgba(var(--green-inverse-rgb), 0.7);
+  transition:
+    color var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    background-color var(--motion-base) ease;
+}
+
+.lp-automations__tab--active .lp-automations__icon {
+  border-color: rgba(var(--green-bright-rgb), 0.45);
+  background: rgba(var(--green-bright-rgb), 0.1);
+  color: var(--green-bright);
+}
+
+.lp-automations__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lp-automations__title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(var(--green-inverse-rgb), 0.62);
+  transition: color var(--motion-base) ease;
+}
+
+.lp-automations__tab--active .lp-automations__title {
+  color: var(--green-inverse);
+}
+
+.lp-automations__text {
+  display: grid;
+  grid-template-rows: 0fr;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: rgba(var(--green-inverse-rgb), 0.64);
+  transition: grid-template-rows var(--motion-slow) var(--ease-out-expo);
+}
+
+.lp-automations__text span {
+  overflow: hidden;
+}
+
+.lp-automations__tab--active .lp-automations__text {
+  grid-template-rows: 1fr;
+  margin-top: var(--sp2);
+}
+
+.lp-automations__stage {
+  animation: lp-pop-in 0.7s var(--ease-out-expo);
+}
+
+@media (max-width: 960px) {
+  .lp-automations {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

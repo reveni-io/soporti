@@ -1,4 +1,5 @@
 import PreviewWindow from '../PreviewWindow/PreviewWindow.jsx'
+import { frameLoop } from '../frameLoop.js'
 import { usePlayOnView } from '../hooks/usePlayOnView/usePlayOnView.js'
 import './ArtifactsPreview.css'
 
@@ -15,24 +16,12 @@ const SECOND_QUESTION = 'Add the per-channel volume too'
 const V1_BARS = [35, 60, 45, 75, 55]
 const V2_BARS = [35, 60, 45, 75, 95]
 
-async function playStory({ show, sleep, isCancelled }) {
-  while (!isCancelled()) {
-    show(STAGE_IDLE)
-    await sleep(1100)
-    if (isCancelled()) return
-
-    show(STAGE_ASKED)
-    await sleep(1500)
-    if (isCancelled()) return
-
-    show(STAGE_PUBLISHED)
-    await sleep(3200)
-    if (isCancelled()) return
-
-    show(STAGE_ITERATED)
-    await sleep(4200)
-  }
-}
+const playStory = frameLoop([
+  { frame: STAGE_IDLE, ms: 1100 },
+  { frame: STAGE_ASKED, ms: 1500 },
+  { frame: STAGE_PUBLISHED, ms: 3200 },
+  { frame: STAGE_ITERATED, ms: 4200 },
+])
 
 export default function ArtifactsPreview() {
   const { ref, frame: stage } = usePlayOnView({

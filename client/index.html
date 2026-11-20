@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Soporti</title>
+    <script>
+      ;(function () {
+        var root = document.documentElement
+        var darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+        function storedTheme() {
+          try {
+            var theme = localStorage.getItem('soporti_theme')
+            return theme === 'dark' || theme === 'light' ? theme : null
+          } catch (error) {
+            return null
+          }
+        }
+
+        function applyTheme() {
+          root.setAttribute('data-theme', storedTheme() || (darkQuery.matches ? 'dark' : 'light'))
+        }
+
+        applyTheme()
+        darkQuery.addEventListener('change', applyTheme)
+      })()
+    </script>
     <meta
       name="description"
       content="Soporti is an AI teammate for support and engineering teams — it reads the code, queries production data, and searches docs, tickets and errors, then explains what it finds in plain language."

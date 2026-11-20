@@ -17,7 +17,7 @@ export default function Lmstfy() {
       </header>
 
       <main className="lmstfy__body">
-        <GridPattern variant="light" />
+        <GridPattern variant="surface" />
         <div className="lmstfy__panel">{question ? <TypingReplay question={question} /> : <QuestionForm />}</div>
       </main>
     </div>

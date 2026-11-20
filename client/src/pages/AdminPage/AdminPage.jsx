@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
+import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth/useAuth.js'
 import { ROUTES } from '../../router/constants.js'
 import { getAdminStatus } from '../../services/services.js'
 import Login from '../../common/Login/Login.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
+import ScreenTransition from '../../common/ScreenTransition/ScreenTransition.jsx'
+import SharedElement from '../../common/SharedElement/SharedElement.jsx'
+import ThemeToggle from '../../common/ThemeToggle/ThemeToggle.jsx'
 import AdminNavIcon from './AdminNavIcon/AdminNavIcon.jsx'
 import AdminNotice from './AdminNotice/AdminNotice.jsx'
 import BootstrapForm from './BootstrapForm/BootstrapForm.jsx'
 import { SECTIONS } from './sections.js'
 import './AdminPage.css'
+
+const NAV_INDICATOR_TRANSITION_NAME = 'admin-nav-indicator'
 
 export default function AdminPage() {
   const {
@@ -22,6 +27,7 @@ export default function AdminPage() {
     error: authError,
     isLoggingIn,
   } = useAuth()
+  const location = useLocation()
   const [adminExists, setAdminExists] = useState(null)
   const [statusError, setStatusError] = useState(null)
 
@@ -84,7 +90,7 @@ export default function AdminPage() {
 
   return (
     <div className="admin">
-      <GridPattern variant="light" />
+      <GridPattern variant="surface" />
       <header className="admin__header">
         <h1 className="admin__title">Administration</h1>
         <div className="admin__header-actions">
@@ -92,6 +98,7 @@ export default function AdminPage() {
           <a className="admin__link" href={ROUTES.CHAT}>
             Go to chat
           </a>
+          <ThemeToggle />
           <button className="btn btn--secondary" onClick={logout}>
             Log out
           </button>
@@ -107,27 +114,42 @@ export default function AdminPage() {
               to={`/admin/${section.path}`}
               className={({ isActive }) => `admin__nav-link${isActive ? ' admin__nav-link--active' : ''}`}
             >
-              <span className="admin__nav-icon">
-                <AdminNavIcon id={section.icon} />
-              </span>
-              {section.label}
+              {({ isActive }) => <NavLinkContent section={section} isActive={isActive} />}
             </NavLink>
           ))}
         </nav>
 
         <main className="admin__content">
-          <Routes>
-            {SECTIONS.map(section => (
-              <Route
-                key={section.path}
-                path={section.path}
-                element={<section.Component token={token} onLogout={logout} />}
-              />
-            ))}
-            <Route path="*" element={<Navigate to={`/admin/${SECTIONS[0].path}`} replace />} />
-          </Routes>
+          <ScreenTransition key={location.pathname}>
+            <Routes>
+              {SECTIONS.map(section => (
+                <Route
+                  key={section.path}
+                  path={section.path}
+                  element={<section.Component token={token} onLogout={logout} />}
+                />
+              ))}
+              <Route path="*" element={<Navigate to={`/admin/${SECTIONS[0].path}`} replace />} />
+            </Routes>
+          </ScreenTransition>
         </main>
       </div>
     </div>
+  )
+}
+
+function NavLinkContent({ section, isActive }) {
+  return (
+    <>
+      {isActive && (
+        <SharedElement name={NAV_INDICATOR_TRANSITION_NAME}>
+          <span className="admin__nav-indicator" aria-hidden="true" />
+        </SharedElement>
+      )}
+      <span className="admin__nav-icon">
+        <AdminNavIcon id={section.icon} />
+      </span>
+      {section.label}
+    </>
   )
 }

@@ -1,0 +1,93 @@
+.lp-subagents-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.lp-subagents-tile__node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp2);
+  padding: var(--sp3) var(--sp4);
+  border: 1px solid rgba(var(--green-inverse-rgb), 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--green-night-rgb), 0.7);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+.lp-subagents-tile__node--main {
+  padding-inline: var(--sp8);
+  border-color: rgba(var(--green-bright-rgb), 0.6);
+  box-shadow:
+    0 0 0 4px rgba(var(--green-bright-rgb), 0.08),
+    0 0 40px rgba(var(--green-bright-rgb), 0.25);
+}
+
+.lp-subagents-tile__name {
+  font-family: var(--font-heading);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  color: var(--green-inverse);
+}
+
+.lp-subagents-tile__name--mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.lp-subagents-tile__model {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp1);
+  max-width: 100%;
+  padding: var(--sp1) var(--sp2);
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--green-inverse-rgb), 0.08);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: rgba(var(--green-inverse-rgb), 0.8);
+}
+
+.lp-subagents-tile__logos {
+  display: inline-flex;
+  gap: var(--sp2);
+  color: rgba(var(--green-inverse-rgb), 0.7);
+}
+
+.lp-subagents-tile__edges {
+  width: 100%;
+  height: 4.5rem;
+  overflow: visible;
+}
+
+.lp-subagents-tile__edge,
+.lp-subagents-tile__flow {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.lp-subagents-tile__edge {
+  stroke: rgba(var(--green-inverse-rgb), 0.18);
+  stroke-width: 1.5;
+}
+
+.lp-subagents-tile__flow {
+  stroke: var(--green-bright);
+  stroke-width: 2;
+  stroke-dasharray: 6 34;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px var(--green-bright));
+  animation: lp-dash 1.6s linear infinite;
+}
+
+.lp-subagents-tile__children {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp3);
+  width: 100%;
+}

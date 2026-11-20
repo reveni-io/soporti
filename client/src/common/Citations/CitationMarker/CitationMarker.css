@@ -7,7 +7,7 @@
   padding: 0 var(--sp1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background-color: var(--bg-cool);
+  background-color: var(--bg-subtle);
   vertical-align: super;
   cursor: pointer;
   font-family: var(--font-mono);
@@ -37,7 +37,7 @@
 .citation-marker:hover {
   border-color: rgba(var(--green-chart-rgb), 0.5);
   background-color: rgba(var(--green-chart-rgb), 0.12);
-  color: var(--green-chart);
+  color: var(--accent-strong);
   transform: translateY(-1px);
 }
 

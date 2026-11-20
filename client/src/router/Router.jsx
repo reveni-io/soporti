@@ -1,4 +1,4 @@
-import { Routes, Route, useParams, useSearchParams } from 'react-router-dom'
+import { Routes, Route, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import Chat from '../pages/Chat/Chat.jsx'
 import Landing from '../pages/Landing/Landing.jsx'
 import LoginPage from '../pages/LoginPage/LoginPage.jsx'
@@ -12,8 +12,10 @@ import Videos from '../pages/Videos/Videos.jsx'
 import VideoStudio from '../pages/VideoStudio/VideoStudio.jsx'
 import Analytics from '../pages/Analytics/Analytics.jsx'
 import AuthGate from '../common/AuthGate/AuthGate.jsx'
+import ScreenTransition from '../common/ScreenTransition/ScreenTransition.jsx'
 import { QUESTION_PARAM, SHARE_ID_RE, UUID_RE } from '../constants.js'
 import { ROUTES } from './constants.js'
+import { pageKey } from './page-key.js'
 
 function ChatRoute() {
   const [searchParams] = useSearchParams()
@@ -68,32 +70,36 @@ function AnalyticsRoute() {
 }
 
 export default function Router() {
+  const location = useLocation()
+
   return (
-    <Routes>
-      <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-      <Route element={<ChatRoute />}>
-        <Route path={ROUTES.CHAT} />
-        <Route path={ROUTES.BOTS} />
-        <Route path={ROUTES.BOT} />
-      </Route>
-      <Route path={`${ROUTES.ADMIN}/*`} element={<AdminPage />} />
-      <Route path={ROUTES.SHARE} element={<ShareRoute />} />
-      <Route path={ROUTES.OAUTH_CONSENT} element={<OAuthConsent />} />
-      <Route path={ROUTES.LMSTFY} element={<Lmstfy />} />
-      <Route path={ROUTES.ARTIFACT} element={<ArtifactRoute />} />
-      <Route path={ROUTES.ARTIFACT_SHARE} element={<SharedArtifactRoute />} />
-      <Route
-        path={ROUTES.VIDEOS}
-        element={
-          <AuthGate>
-            <Videos />
-          </AuthGate>
-        }
-      />
-      <Route path={ROUTES.VIDEO} element={<VideoRoute />} />
-      <Route path={ROUTES.ANALYTICS} element={<AnalyticsRoute />} />
-      <Route path={ROUTES.ANALYTICS_DASHBOARD} element={<AnalyticsRoute />} />
-      <Route path="*" element={<Landing />} />
-    </Routes>
+    <ScreenTransition key={pageKey(location.pathname)}>
+      <Routes>
+        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route element={<ChatRoute />}>
+          <Route path={ROUTES.CHAT} />
+          <Route path={ROUTES.BOTS} />
+          <Route path={ROUTES.BOT} />
+        </Route>
+        <Route path={`${ROUTES.ADMIN}/*`} element={<AdminPage />} />
+        <Route path={ROUTES.SHARE} element={<ShareRoute />} />
+        <Route path={ROUTES.OAUTH_CONSENT} element={<OAuthConsent />} />
+        <Route path={ROUTES.LMSTFY} element={<Lmstfy />} />
+        <Route path={ROUTES.ARTIFACT} element={<ArtifactRoute />} />
+        <Route path={ROUTES.ARTIFACT_SHARE} element={<SharedArtifactRoute />} />
+        <Route
+          path={ROUTES.VIDEOS}
+          element={
+            <AuthGate>
+              <Videos />
+            </AuthGate>
+          }
+        />
+        <Route path={ROUTES.VIDEO} element={<VideoRoute />} />
+        <Route path={ROUTES.ANALYTICS} element={<AnalyticsRoute />} />
+        <Route path={ROUTES.ANALYTICS_DASHBOARD} element={<AnalyticsRoute />} />
+        <Route path="*" element={<Landing />} />
+      </Routes>
+    </ScreenTransition>
   )
 }

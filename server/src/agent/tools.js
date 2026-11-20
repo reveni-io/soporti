@@ -41,6 +41,7 @@ import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
 import { parseTimeInput } from './clock.js'
 import { buildHubspotTools } from './hubspot-tools.js'
+import { AWS_TOOLS } from './aws-tools.js'
 import { buildRoutineTools } from './routine-tools.js'
 
 export const listReposTool = tool({
@@ -1577,6 +1578,7 @@ const INTEGRATION_TOOLS = {
   postgres: POSTGRES_TOOLS,
   sentry: SENTRY_TOOLS,
   betterstack: BETTERSTACK_TOOLS,
+  aws: AWS_TOOLS,
   helpjuice: HELPJUICE_TOOLS,
   shopify: SHOPIFY_TOOLS,
   granola: ({ userId }) => buildGranolaTools(userId),

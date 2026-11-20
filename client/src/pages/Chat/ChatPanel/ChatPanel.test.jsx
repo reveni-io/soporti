@@ -764,5 +764,15 @@ describe('ChatPanel', () => {
       expect(onOpenRoutines).toHaveBeenCalledTimes(1)
       expect(onEditBot).toHaveBeenCalledTimes(1)
     })
+
+    it('goes back to the bots from the topbar', async () => {
+      const onBackToBots = vi.fn()
+      const user = userEvent.setup()
+      render(<ChatPanel {...defaultProps} bot={BOT} onBackToBots={onBackToBots} />)
+
+      await user.click(screen.getByRole('button', { name: 'Back to bots' }))
+
+      expect(onBackToBots).toHaveBeenCalledTimes(1)
+    })
   })
 })

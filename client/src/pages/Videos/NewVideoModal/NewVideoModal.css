@@ -19,7 +19,7 @@
 }
 
 .new-video-modal__error {
-  color: var(--orange-900);
+  color: var(--warning-text);
   font-size: var(--fs-sm);
 }
 

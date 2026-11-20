@@ -1,0 +1,87 @@
+.lp-terminal {
+  width: 100%;
+}
+
+.lp-terminal__window {
+  height: 27rem;
+}
+
+.lp-terminal__screen {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--sp1);
+  overflow: hidden;
+  padding: var(--sp5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  line-height: 1.6;
+}
+
+.lp-terminal__line {
+  display: flex;
+  gap: var(--sp2);
+  animation: lp-pop-in var(--motion-base) var(--ease-out-expo);
+}
+
+.lp-terminal__marker {
+  flex-shrink: 0;
+  width: 1ch;
+  color: rgba(var(--green-inverse-rgb), 0.45);
+}
+
+.lp-terminal__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lp-terminal__line--command .lp-terminal__marker,
+.lp-terminal__line--prompt .lp-terminal__marker {
+  color: var(--green-bright);
+}
+
+.lp-terminal__line--prompt {
+  margin-top: var(--sp4);
+  font-weight: 500;
+}
+
+.lp-terminal__line--success {
+  color: var(--green-bright);
+}
+
+.lp-terminal__line--muted {
+  color: rgba(var(--green-inverse-rgb), 0.5);
+}
+
+.lp-terminal__line--tool {
+  margin-top: var(--sp2);
+  font-weight: 500;
+}
+
+.lp-terminal__line--tool .lp-terminal__marker {
+  color: var(--green-bright);
+}
+
+.lp-terminal__line--progress {
+  padding-left: var(--sp4);
+  color: rgba(var(--green-inverse-rgb), 0.6);
+}
+
+.lp-terminal__line--answer {
+  margin-top: var(--sp2);
+}
+
+.lp-terminal__line--answer .lp-terminal__marker {
+  color: var(--green-inverse);
+}
+
+.lp-terminal__caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  margin-left: var(--sp1);
+  vertical-align: text-bottom;
+  background: var(--green-bright);
+  animation: lp-blink 1s step-end infinite;
+}

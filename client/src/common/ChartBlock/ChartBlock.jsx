@@ -17,36 +17,35 @@ import {
   Legend,
 } from 'recharts'
 
-const DEFAULT_COLORS = ['#2f9e2c', '#3f7fbf', '#e07020', '#6f4fc0', '#b8952e', '#c85a94']
+const DEFAULT_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-6)',
+  'var(--chart-7)',
+  'var(--chart-8)',
+]
 const CHART_HEIGHT = 300
+const GRID_COLOR = 'var(--chart-grid)'
+const AXIS_TICK = { fill: 'var(--text-secondary)', fontSize: 12 }
+const AXIS_LINE = { stroke: 'var(--chart-axis)' }
 
 const TOOLTIP_STYLE = {
-  backgroundColor: '#ffffff',
-  border: '1px solid #e4eae3',
+  backgroundColor: 'var(--bg-surface)',
+  border: '1px solid var(--border-default)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: '#042503',
-  boxShadow: '0 4px 16px rgba(4, 37, 3, 0.1)',
+  color: 'var(--text-primary)',
+  boxShadow: 'var(--shadow-card-hover)',
 }
 
 function CartesianChart({ ChartComponent, ItemComponent, config, animate, width }) {
   const { data, xKey = 'name', series = [{ key: 'value' }] } = config
 
   const children = [
-    <CartesianGrid key="grid" strokeDasharray="3 3" stroke="rgba(4, 37, 3, 0.08)" />,
-    <XAxis
-      key="x"
-      dataKey={xKey}
-      tick={{ fill: '#556654', fontSize: 12 }}
-      axisLine={{ stroke: 'rgba(4, 37, 3, 0.15)' }}
-      tickLine={false}
-    />,
-    <YAxis
-      key="y"
-      tick={{ fill: '#556654', fontSize: 12 }}
-      axisLine={{ stroke: 'rgba(4, 37, 3, 0.15)' }}
-      tickLine={false}
-    />,
+    <CartesianGrid key="grid" strokeDasharray="3 3" stroke={GRID_COLOR} />,
+    <XAxis key="x" dataKey={xKey} tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />,
+    <YAxis key="y" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />,
     <Tooltip key="tooltip" contentStyle={TOOLTIP_STYLE} />,
     series.length > 1 && <Legend key="legend" />,
     ...series.map((s, i) => (

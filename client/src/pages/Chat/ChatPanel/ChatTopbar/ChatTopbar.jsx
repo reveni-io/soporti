@@ -4,7 +4,9 @@ import SidebarToggles from '../../SidebarToggles/SidebarToggles.jsx'
 import './ChatTopbar.css'
 
 const ACTION_ICON_SIZE = 15
+const BACK_ICON_SIZE = 18
 const BOT_AVATAR_SIZE = 32
+const BACK_LABEL = 'Back to bots'
 const SHARE_ICON_STROKE = 1.5
 const TOUR_LABEL = 'What can I ask?'
 const SHARE_LABEL = 'Share conversation'
@@ -21,15 +23,20 @@ export default function ChatTopbar({
   onShare,
   onOpenRoutines,
   onEditBot,
+  onBackToBots,
 }) {
   return (
     <header className="chat-topbar">
       <div className="chat-topbar__lead">
-        <SidebarToggles
-          isSidebarCollapsed={isSidebarCollapsed}
-          onOpenSidebar={onOpenSidebar}
-          onExpandSidebar={onExpandSidebar}
-        />
+        {bot ? (
+          <BackToBotsButton onClick={onBackToBots} />
+        ) : (
+          <SidebarToggles
+            isSidebarCollapsed={isSidebarCollapsed}
+            onOpenSidebar={onOpenSidebar}
+            onExpandSidebar={onExpandSidebar}
+          />
+        )}
         <div className="chat-topbar__heading">
           {isLoading && <span className="chat-topbar__live" aria-hidden="true" />}
           {bot ? (
@@ -50,6 +57,20 @@ export default function ChatTopbar({
         )}
       </div>
     </header>
+  )
+}
+
+function BackToBotsButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      className="icon-btn chat-topbar__back"
+      onClick={onClick}
+      aria-label={BACK_LABEL}
+      title={BACK_LABEL}
+    >
+      <Icon name="arrow-left" size={BACK_ICON_SIZE} />
+    </button>
   )
 }
 

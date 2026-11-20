@@ -3,7 +3,7 @@
 }
 
 .video-status-badge--failed {
-  color: var(--orange-900);
-  background-color: var(--orange-50);
-  border-color: var(--orange-300);
+  color: var(--warning-text);
+  background-color: var(--warning-bg);
+  border-color: var(--warning-border);
 }
