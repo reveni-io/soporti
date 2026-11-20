@@ -28,6 +28,10 @@ export async function getJevApiKey() {
   return typeof stored === 'string' && stored.length > 0 ? stored : null
 }
 
+export async function isConfigured() {
+  return (await getJevApiKey()) !== null
+}
+
 export async function setJevApiKey(apiKey) {
   await saveValue(JEV_API_KEY_KEY, apiKey)
 }

@@ -4,20 +4,20 @@ import { getJevDocument } from '../db/jev-documents.js'
 import { askQuestions, JevApiError } from './client.js'
 import { defaultJevDocument } from './documents.js'
 import { buildJevQuestions, readJevAnswers } from './questions.js'
-import { getJevApiKey } from './settings.js'
+import { isConfigured } from './settings.js'
 
 const CALL_FAILED = 'failed'
 
 async function loadProject(project) {
-  const [settings, document, apiKey] = await Promise.all([
+  const [settings, document, keyConfigured] = await Promise.all([
     getJevDocument(JEV_SETTINGS_DOCUMENT),
     getJevDocument(project),
-    getJevApiKey(),
+    isConfigured(),
   ])
 
   return {
     enabled: settings?.data?.enabled === true,
-    keyConfigured: Boolean(apiKey),
+    keyConfigured,
     set: document?.data?.set ?? defaultJevDocument(project).set,
     setVersion: document?.setVersion ?? 0,
   }

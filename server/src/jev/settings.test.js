@@ -6,6 +6,7 @@ vi.mock('../db/app-config.js', () => ({ getConfigValue, setConfigValue }))
 
 const {
   getJevApiKey,
+  isConfigured,
   setJevApiKey,
   getJevModelCatalog,
   setJevModelCatalog,
@@ -48,6 +49,17 @@ describe('getJevApiKey', () => {
     expect(setConfigValue).toHaveBeenCalledWith(JEV_API_KEY_KEY, 'jev-new')
     expect(await getJevApiKey()).toBe('jev-new')
     expect(getConfigValue).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('isConfigured', () => {
+  it('says whether a key is saved', async () => {
+    getConfigValue.mockResolvedValue('jev-secret')
+    expect(await isConfigured()).toBe(true)
+
+    _resetJevSettingsCacheForTests()
+    getConfigValue.mockResolvedValue('')
+    expect(await isConfigured()).toBe(false)
   })
 })
 
