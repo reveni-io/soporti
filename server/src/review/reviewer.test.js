@@ -58,6 +58,15 @@ vi.mock('./spec.js', () => ({
   loadSpec: mockLoadSpec,
 }))
 
+const mockLoadAutoApproveRepo = vi.fn()
+const mockDecideAutoApprove = vi.fn()
+vi.mock('./auto-approve.js', () => ({
+  loadAutoApproveRepo: mockLoadAutoApproveRepo,
+  decideAutoApprove: mockDecideAutoApprove,
+}))
+mockLoadAutoApproveRepo.mockResolvedValue(null)
+mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+
 const mockAcquireWorktree = vi.fn()
 const mockWorktreeRelease = vi.fn()
 const mockGitDiffAt = vi.fn()
@@ -307,6 +316,45 @@ describe('runReview', () => {
     await runReview(trigger(), { logger: silentLogger })
 
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
+  })
+
+  it('lets the auto-approve settings of the repo decide the event, with the mode read at the start', async () => {
+    const repo = { name: 'acme-io/app', mode: 'on', jev: true, denylist: [] }
+    const autoApprove = {
+      repo: 'acme-io/app',
+      mode: 'on',
+      jevAsked: true,
+      approve: true,
+      decidedBy: 'jev',
+      reason: null,
+      pendingOnly: false,
+      setVersion: 9,
+      model: 'jev-1.14.0',
+      minConfidence: 0.75,
+      gates: [],
+      questions: [],
+    }
+    mockLoadAutoApproveRepo.mockResolvedValueOnce(repo)
+    mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
+    setupHappyPath({ verdict: 'comment', findings: [] })
+
+    await runReview(trigger(), { logger: silentLogger })
+
+    expect(mockLoadAutoApproveRepo).toHaveBeenCalledWith('acme-io/app', { logger: silentLogger })
+    expect(mockDecideAutoApprove).toHaveBeenCalledTimes(1)
+    const [context] = mockDecideAutoApprove.mock.calls[0]
+    expect(context).toMatchObject({
+      repo,
+      todayEvent: 'COMMENT',
+      pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
+      review: { findings: [], notReviewed: [], fixedThreads: [] },
+    })
+    expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
+    const posted = mockCreatePullRequestReview.mock.calls[0][2]
+    expect(posted.event).toBe('APPROVE')
+    expect(posted.body).toContain('✅ Auto-approve · approved')
+    expect(posted.body).toContain('**Actionable comments posted: 0**')
+    expect(posted.body).toMatch(/\*\*Passes:\*\* .*, jev/)
   })
 
   it('downgrades an approve to COMMENT when a critical or major finding exists', async () => {

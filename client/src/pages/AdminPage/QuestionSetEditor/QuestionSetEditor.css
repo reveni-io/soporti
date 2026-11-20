@@ -1,0 +1,29 @@
+.question-set__label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp2);
+  font-size: var(--fs-base);
+}
+
+.question-set__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end;
+  gap: var(--sp3);
+}
+
+.question-set__item {
+  gap: var(--sp2);
+}
+
+.question-set__item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.question-set__item-title {
+  flex: 1;
+  min-width: 200px;
+}

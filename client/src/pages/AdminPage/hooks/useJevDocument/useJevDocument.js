@@ -11,6 +11,7 @@ export function useJevDocument(token, id, onLogout) {
   const [conflict, setConflict] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState(null)
+  const [restoredFrom, setRestoredFrom] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const loadedRef = useRef(false)
 
@@ -26,6 +27,7 @@ export function useJevDocument(token, id, onLogout) {
         setLoadError(null)
         setSaveError(null)
         setConflict(false)
+        setRestoredFrom(null)
       } catch (err) {
         if (isUnauthorized(err)) {
           onLogout?.()
@@ -48,13 +50,19 @@ export function useJevDocument(token, id, onLogout) {
     if (!conflict) setSaveError(null)
   }
 
+  function restore(version, update) {
+    updateDraft(update)
+    setRestoredFrom(version)
+  }
+
   async function save() {
     setSaving(true)
     setSaveError(null)
     try {
-      const saved = await saveJevDocument(token, id, { rev: document.rev, data: draft })
+      const saved = await saveJevDocument(token, id, { rev: document.rev, data: draft, restoredFrom })
       setDocument(saved)
       setDraft(saved.data)
+      setRestoredFrom(null)
       setConflict(false)
       setSavedAt(Date.now())
     } catch (err) {
@@ -75,5 +83,19 @@ export function useJevDocument(token, id, onLogout) {
 
   const dirty = Boolean(document) && JSON.stringify(document.data) !== JSON.stringify(draft)
 
-  return { document, draft, loadError, saveError, conflict, saving, savedAt, dirty, updateDraft, save, reload }
+  return {
+    document,
+    draft,
+    loadError,
+    saveError,
+    conflict,
+    saving,
+    savedAt,
+    dirty,
+    restoredFrom,
+    updateDraft,
+    restore,
+    save,
+    reload,
+  }
 }

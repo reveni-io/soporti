@@ -152,6 +152,7 @@ describe('loadReviewHistory', () => {
       { ref: 'T1', id: 'PRRT_open', commentId: '4000', body: 'comment 0 by soporti-bot' },
       { ref: 'T2', id: 'PRRT_long', commentId: '9001', body: longFinding },
     ])
+    expect(history.unresolvedThreads).toBe(4)
   })
 
   it('numbers only the threads it keeps, so every ref points to a thread the agents can read', async () => {

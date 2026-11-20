@@ -5,7 +5,7 @@ export default function ArtifactVersionSelect({ versions, value, onChange, class
 
   return (
     <select
-      className={`input artifact-version-select ${className}`.trim()}
+      className={`input input--select artifact-version-select ${className}`.trim()}
       value={value ?? ''}
       onChange={event => onChange(Number(event.target.value))}
       aria-label="Artifact version"

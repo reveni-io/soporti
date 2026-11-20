@@ -162,7 +162,7 @@ describe('AdminJev', () => {
     expect(screen.getByText(/version 1 · saved .* by ana@example\.com/)).toBeInTheDocument()
     expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
     const [[, options]] = requestsTo('PUT', `${BASE}/documents/jev`)
-    expect(JSON.parse(options.body)).toEqual({ rev: 0, data: { enabled: true } })
+    expect(JSON.parse(options.body)).toEqual({ rev: 0, data: { enabled: true }, restoredFrom: null })
   })
 
   it('offers to reload the latest version after a conflict', async () => {

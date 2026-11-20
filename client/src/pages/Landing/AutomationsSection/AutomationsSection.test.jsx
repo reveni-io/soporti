@@ -15,9 +15,12 @@ describe('AutomationsSection', () => {
     expect(screen.getByRole('tabpanel')).toHaveTextContent('Fix refund rounding for partial returns')
   })
 
-  it('shows the Slack thread and the scheduled query when they are picked', async () => {
+  it('shows the auto-approve, the Slack thread and the scheduled query when they are picked', async () => {
     const user = userEvent.setup()
     render(<AutomationsSection />)
+
+    await user.click(screen.getByRole('tab', { name: /approves the safe pull requests/i }))
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Clarify the return window on the help page')
 
     await user.click(screen.getByRole('tab', { name: /answers in slack threads/i }))
     expect(screen.getByRole('tabpanel')).toHaveTextContent('why are refunds failing for Acme since this morning?')
@@ -73,7 +76,10 @@ describe('AutomationsSection', () => {
         vi.advanceTimersByTime(10000)
       })
 
-      expect(screen.getByRole('tab', { name: /answers in slack threads/i })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('tab', { name: /approves the safe pull requests/i })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
     })
   })
 })

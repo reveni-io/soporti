@@ -1,13 +1,17 @@
 import { Router } from 'express'
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT } from '../constants.js'
+import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince } from '../db/jev-calls.js'
 import {
   addJevHistoryEntry,
   getJevDocument,
   getLatestJevSave,
   listJevHistory,
+  listJevSetVersions,
   saveJevDocument,
 } from '../db/jev-documents.js'
+import { getRepository } from '../github/client.js'
+import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
 import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
 import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
@@ -15,6 +19,9 @@ import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } fr
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
+const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
+const MAX_STATS_REPOS = 100
+const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
 const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
 const NO_MODELS_MESSAGE = 'Jev returned no models'
@@ -35,13 +42,23 @@ function parseApiKey(value) {
   return { value: apiKey }
 }
 
+function parseRestoredFrom(value) {
+  if (value === undefined || value === null) return { value: null }
+  if (!Number.isInteger(value) || value < 1) return { error: '"restoredFrom" must be a set version.' }
+
+  return { value }
+}
+
 function parseSaveRequest(id, body) {
   if (!Number.isInteger(body?.rev) || body.rev < 0) return { error: '"rev" must be the version you edited.' }
+
+  const restoredFrom = parseRestoredFrom(body.restoredFrom)
+  if (restoredFrom.error) return restoredFrom
 
   const data = parseJevDocument(id, body.data)
   if (data.error) return data
 
-  return { value: { rev: body.rev, data: data.value } }
+  return { value: { rev: body.rev, data: data.value, restoredFrom: restoredFrom.value } }
 }
 
 function parsePage(value) {
@@ -49,6 +66,24 @@ function parsePage(value) {
   if (typeof value !== 'string' || !PAGE_RE.test(value)) return { error: '"page" must be a positive whole number.' }
 
   return { value: Number(value) }
+}
+
+function parseRepoList(value) {
+  const repos = typeof value === 'string' ? value.split(',').map(name => name.trim()) : []
+  if (repos.length === 0 || repos.length > MAX_STATS_REPOS || !repos.every(name => REPO_NAME_RE.test(name))) {
+    return { error: '"repos" must be a comma-separated list of org/repo names.' }
+  }
+
+  return { value: repos }
+}
+
+function toShadowStats(repo, rows) {
+  const row = rows.find(stats => stats.repo === repo)
+  if (!row) return { repo, evaluated: 0, wouldApprove: 0, days: 0 }
+
+  const days = Math.max(1, Math.ceil((Date.now() - new Date(row.since).getTime()) / DAY_MS))
+
+  return { repo, evaluated: row.evaluated, wouldApprove: row.wouldApprove, days }
 }
 
 function describeKeyChange(hadKey, hasKey) {
@@ -191,12 +226,18 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const { conflict, document } = await saveJevDocument(id, {
+    const {
+      conflict,
+      error: saveError,
+      document,
+    } = await saveJevDocument(id, {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planJevSave(current, value.data),
+      plan: current => planJevSave(current, value.data, { restoredFrom: value.restoredFrom }),
     })
+    if (saveError) return res.status(422).json({ error: saveError })
+
     const latestSave = await getLatestJevSave(id)
     if (conflict) return res.status(409).json({ error: describeConflict(document, latestSave, value.rev) })
 
@@ -207,15 +248,54 @@ router.put('/documents/:id', async (req, res) => {
   }
 })
 
-router.get('/documents/:id/history', async (req, res) => {
-  const { error, value: page } = parsePage(req.query.page)
+function pageHandler(list, label) {
+  return async function handlePage(req, res) {
+    const { error, value: page } = parsePage(req.query.page)
+    if (error) return res.status(400).json({ error })
+
+    try {
+      res.json(await list(req.params.id, page))
+    } catch (err) {
+      console.error(`Failed to load the Jev ${label}:`, err)
+      res.status(500).json({ error: `Failed to load the ${label}.` })
+    }
+  }
+}
+
+router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history'))
+
+router.get('/documents/:id/versions', pageHandler(listJevSetVersions, 'versions'))
+
+router.post('/github/repos/check', async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  if (!REPO_NAME_RE.test(name)) return res.status(400).json({ error: 'Use the org/repo format, e.g. acme/docs.' })
+
+  try {
+    if (!(await getGithubToken())) return res.status(422).json({ error: 'Save the GitHub token first.' })
+
+    res.json(await getRepository(name))
+  } catch (err) {
+    if (!UNREADABLE_REPO_STATUSES.has(err.status)) {
+      console.error('Failed to check the GitHub repo:', err)
+      return res.status(500).json({ error: 'Failed to check the repo.' })
+    }
+
+    res.status(422).json({
+      error: `The CI token cannot read ${name}. Give the token read access to the repo, or check the name.`,
+    })
+  }
+})
+
+router.get('/github/shadow-stats', async (req, res) => {
+  const { error, value: repos } = parseRepoList(req.query.repos)
   if (error) return res.status(400).json({ error })
 
   try {
-    res.json(await listJevHistory(req.params.id, page))
+    const rows = await getShadowStats(repos)
+    res.json({ repos: repos.map(repo => toShadowStats(repo, rows)) })
   } catch (err) {
-    console.error('Failed to load the Jev change history:', err)
-    res.status(500).json({ error: 'Failed to load the change history.' })
+    console.error('Failed to load the shadow results:', err)
+    res.status(500).json({ error: 'Failed to load the shadow results.' })
   }
 })
 

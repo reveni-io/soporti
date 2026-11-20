@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useJevHistory } from '../hooks/useJevHistory/useJevHistory.js'
+import { getJevHistory } from '../../../services/services.js'
+import { useJevPage } from '../hooks/useJevPage/useJevPage.js'
 import PaginatedTable from '../PaginatedTable/PaginatedTable.jsx'
 import { formatDateTime } from '../dates.js'
 
@@ -19,7 +20,7 @@ function toRow(entry, index) {
 
 export default function JevHistory({ token, documentId, onLogout }) {
   const [request, setRequest] = useState({ page: 1 })
-  const { history, error } = useJevHistory(token, documentId, request, onLogout)
+  const { result: history, error } = useJevPage(getJevHistory, { token, documentId, request }, onLogout)
 
   if (error && !history) return <p className="alert alert--error">{error}</p>
   if (!history) return <p className="admin__muted">Loading...</p>

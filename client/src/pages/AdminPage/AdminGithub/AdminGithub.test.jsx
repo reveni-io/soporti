@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminGithub from './AdminGithub.jsx'
 
+vi.mock('./GithubAutoApprove/GithubAutoApprove.jsx', () => ({ default: () => null }))
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })

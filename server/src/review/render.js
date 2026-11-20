@@ -9,6 +9,8 @@ import {
   REVIEW_WALKTHROUGH_MARKER,
 } from '../constants.js'
 import { redactSecrets } from './output-guard.js'
+import { renderDetails, singleLine, tableCell } from './markdown.js'
+import { describeJevPass, renderAutoApprove, renderJevAnswers } from './render-auto-approve.js'
 
 const SEVERITIES = {
   critical: { icon: '🔴', label: 'Critical' },
@@ -25,6 +27,7 @@ const CATEGORY_LABELS = {
   standards: '📏 Standards',
   spec: '📋 Spec',
 }
+const MERGE_RISK_ICONS = { High: '🔴', Medium: '🟠', Unknown: '⚪' }
 const EFFORT_LABELS = ['Trivial', 'Simple', 'Moderate', 'Complex', 'Very complex']
 const CHECK_STATUSES = {
   passed: { icon: '✅', label: 'Passed' },
@@ -44,10 +47,8 @@ const MAX_POST_CHARS = 60_000
 const SECTION_SEPARATOR = '\n\n'
 const MIN_FENCE_LENGTH = 3
 const BACKTICK_RUN = /`+/g
-const WHITESPACE_RUN = /\s+/g
 const TRAILING_NEWLINES = /\n+$/
 const LINE_BREAK = /\r?\n/g
-const TABLE_SPECIAL_CHARACTER = /[\\|]/g
 const TRUNCATION_NOTE = "> ✂️ **Truncated**: some sections were left out to stay under GitHub's comment size limit."
 const REVIEW_FOOTER = '<sub>Automated review by Soporti</sub>'
 const MISSING_OVERVIEW_NOTE =
@@ -76,6 +77,7 @@ export function renderInlineComment(finding) {
 
 export function renderReviewBody({
   event,
+  autoApprove = null,
   findings,
   fixedThreads = [],
   isInlineInBody = false,
@@ -91,8 +93,10 @@ export function renderReviewBody({
   const inlineTitle = isInlineInBody ? 'Actionable comments' : 'Inline comments'
 
   const sections = [
-    renderHeader(event, findings),
+    renderHeader(event, findings, autoApprove),
     renderPartialNote(coverage.notReviewed, passes),
+    renderAutoApprove(autoApprove, { reviewerLogin: context.reviewerLogin }),
+    renderJevAnswers(autoApprove),
     isInlineInBody && renderFindingsSection('💬 Actionable comments', inline, { open: true }),
     renderFindingsSection('⚠️ Outside diff range comments', outside, { open: outside.shown.some(isBlocking) }),
     renderFindingsSection('🧹 Nitpick comments', nits),
@@ -102,20 +106,20 @@ export function renderReviewBody({
       { title: 'Outside diff range comments', findings: outside.shown },
       { title: 'Nitpick comments', findings: nits.shown },
     ]),
-    renderReviewInfo({ coverage, context, passes, verification }),
+    renderReviewInfo({ coverage, context, passes, verification, autoApprove }),
     REVIEW_FOOTER,
   ]
 
   return redactSecrets(fitSections(sections))
 }
 
-export function renderWalkthrough({ event, output, passes, coverage, context, ciStatus, reviewerLogin }) {
+export function renderWalkthrough({ event, autoApprove, output, passes, coverage, context, ciStatus, reviewerLogin }) {
   const { overview, findings } = output
   const sections = [
     `${REVIEW_WALKTHROUGH_MARKER}\n## 📝 Walkthrough`,
     overview ? overview.walkthrough.trim() : `**${singleLine(context.trigger.title)}**\n\n${MISSING_OVERVIEW_NOTE}`,
     [
-      `**Merge risk:** ${describeMergeRisk(findings, coverage.notReviewed, passes, event)}`,
+      `**Merge risk:** ${describeMergeRisk(findings, coverage.notReviewed, passes, autoApprove ? null : event)}`,
       overview && `**Estimated review effort:** ${describeEffort(overview)}`,
     ]
       .filter(Boolean)
@@ -191,8 +195,8 @@ function lineRange({ startLine, line }) {
   return { start: Number.isInteger(startLine) && startLine < line ? startLine : line, end: line }
 }
 
-function renderHeader(event, { inline, outside }) {
-  if (event === 'APPROVE') return '✅ **Approved**: trivial change, safe to merge'
+function renderHeader(event, { inline, outside }, autoApprove) {
+  if (event === 'APPROVE' && !autoApprove) return '✅ **Approved**: trivial change, safe to merge'
 
   const actionable = [...inline, ...outside]
   const rollup = REVIEW_SEVERITIES.map(severity => [severity, actionable.filter(f => f.severity === severity).length])
@@ -299,7 +303,7 @@ function renderAgentPromptItem(finding) {
   return `${lines.charAt(0).toUpperCase()}${lines.slice(1)}: ${prompt}`
 }
 
-function renderReviewInfo({ coverage, context, passes, verification }) {
+function renderReviewInfo({ coverage, context, passes, verification, autoApprove }) {
   const { trigger, history, headSha, standards, spec } = context
   const base = trigger.baseSha ? shortSha(trigger.baseSha) : trigger.baseRef
   const standardsPaths = [...standards.documents, ...standards.notInlined].map(document => codeSpan(document.path))
@@ -311,7 +315,7 @@ function renderReviewInfo({ coverage, context, passes, verification }) {
     `- **Trigger:** ${TRIGGER_LABELS[trigger.kind] ?? DEFAULT_TRIGGER_LABEL}`,
     `- **Standards:** ${standardsPaths.length > 0 ? standardsPaths.join(', ') : 'none found'}`,
     `- **Spec:** ${storyIds.length > 0 ? storyIds.map(id => `sc-${id}`).join(', ') : 'none'}`,
-    `- **Passes:** ${describePasses(passes)}`,
+    `- **Passes:** ${describePasses(passes)}${describeJevPass(autoApprove)}`,
     `- **Verification:** ${describeVerification(verification)}`,
   ]
   const fileLists = [
@@ -395,14 +399,22 @@ function renderFileList(title, entries) {
   return renderDetails(`${title} (${entries.length})`, lines.join('\n'))
 }
 
-function describeMergeRisk(findings, notReviewed, passes, event) {
+export function classifyMergeRisk(findings, notReviewed, passes) {
   const [mostSevere] = sortBySeverity(findings)
   const failedFinders = describeFailedFinders(passes)
 
-  if (mostSevere?.severity === 'critical') return `🔴 High · ${singleLine(mostSevere.title)}`
-  if (mostSevere?.severity === 'major') return `🟠 Medium · ${singleLine(mostSevere.title)}`
-  if (notReviewed.length > 0) return `⚪ Unknown · ${notReviewed.length} file(s) not reviewed`
-  if (failedFinders) return `⚪ Unknown · ${failedFinders}`
+  if (mostSevere?.severity === 'critical') return { level: 'High', detail: singleLine(mostSevere.title) }
+  if (mostSevere?.severity === 'major') return { level: 'Medium', detail: singleLine(mostSevere.title) }
+  if (notReviewed.length > 0) return { level: 'Unknown', detail: `${notReviewed.length} file(s) not reviewed` }
+  if (failedFinders) return { level: 'Unknown', detail: failedFinders }
+
+  return { level: 'Low', detail: null }
+}
+
+function describeMergeRisk(findings, notReviewed, passes, event) {
+  const { level, detail } = classifyMergeRisk(findings, notReviewed, passes)
+
+  if (detail) return `${MERGE_RISK_ICONS[level]} ${level} · ${detail}`
   if (event === 'APPROVE') return '🟢 Low · trivial change, approved'
 
   return '🟢 Low · no blocking issues found'
@@ -500,13 +512,6 @@ function renderWalkthroughFooter(headSha, reviewerLogin) {
   return `<sub>${parts.join(' · ')}</sub>`
 }
 
-function renderDetails(summary, content, { open = false, quoted = false } = {}) {
-  const tag = open ? '<details open>' : '<details>'
-  if (quoted) return `${tag}\n<summary>${summary}</summary><blockquote>\n\n${content}\n\n</blockquote></details>`
-
-  return `${tag}\n<summary>${summary}</summary>\n\n${content}\n\n</details>`
-}
-
 function fence(content, info = '') {
   const longestRun = Math.max(0, ...(content.match(BACKTICK_RUN) ?? []).map(run => run.length))
   const marker = '`'.repeat(Math.max(MIN_FENCE_LENGTH, longestRun + 1))
@@ -569,17 +574,4 @@ function groupBy(items, keyOf) {
   for (const item of items) groups.set(keyOf(item), [...(groups.get(keyOf(item)) ?? []), item])
 
   return [...groups]
-}
-
-function singleLine(text) {
-  return String(text ?? '')
-    .replace(WHITESPACE_RUN, ' ')
-    .trim()
-}
-
-function tableCell(text) {
-  return String(text ?? '')
-    .trim()
-    .replace(TABLE_SPECIAL_CHARACTER, '\\$&')
-    .replace(LINE_BREAK, '<br>')
 }

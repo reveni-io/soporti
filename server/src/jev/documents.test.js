@@ -49,6 +49,8 @@ describe('defaultJevDocument', () => {
       questions: [],
     })
     expect(defaultJevDocument('github').set.maxCharacters).toBe(100_000)
+    expect(defaultJevDocument('github').set.rules).toHaveLength(9)
+    expect(defaultJevDocument('github').repos).toEqual([])
   })
 
   it('returns a fresh copy every time', () => {
@@ -94,13 +96,19 @@ describe('parseJevDocument', () => {
     expect(parseJevDocument('jev', { enabled: 'yes' })).toEqual({ error: '"enabled" must be true or false.' })
   })
 
-  it('requires the max characters only in the GitHub project', () => {
-    expect(parseJevDocument('github', { set: legalSet() })).toEqual({
+  it('parses the GitHub project with its rules and repos', () => {
+    const github = { set: legalSet({ maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] }), repos: [] }
+
+    expect(parseJevDocument('github', github).value).toEqual({
+      set: { ...parseLegal().value.set, maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] },
+      repos: [],
+    })
+    expect(parseJevDocument('github', { set: legalSet({ rules: [] }), repos: [] })).toEqual({
       error: 'Max characters sent to Jev must be a positive whole number.',
     })
-    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 50_000 }) }).value.set.maxCharacters).toBe(
-      50_000
-    )
+    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 1, rules: [] }), repos: 'none' })).toEqual({
+      error: 'Repos must be a list.',
+    })
   })
 
   it.each([
@@ -190,5 +198,62 @@ describe('planJevSave', () => {
       set: null,
     })
     expect(planJevSave({ rev: 2, data: { enabled: true } }, { enabled: false }).change).toBe('Jev calls off')
+  })
+})
+
+describe('planJevSave for the GitHub project', () => {
+  const RULES = [{ id: 'merge-risk', role: 'veto', limit: 'Low' }]
+
+  function github({ repos = [], rules = RULES, questions = [NOUL] } = {}) {
+    return { set: legalSet({ maxCharacters: 100_000, rules, questions }), repos }
+  }
+
+  it('bumps the set version when the rules change', () => {
+    const plan = planJevSave(
+      { rev: 2, data: github() },
+      github({ rules: [{ id: 'merge-risk', role: 'veto', limit: 'Medium' }] })
+    )
+
+    expect(plan.change).toBe('Rules')
+    expect(plan.set.rules).toEqual([{ id: 'merge-risk', role: 'veto', limit: 'Medium' }])
+  })
+
+  it('keeps the set version for repo changes', () => {
+    const shadow = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
+    const plan = planJevSave(
+      { rev: 2, data: github({ repos: [shadow] }) },
+      github({
+        repos: [
+          { ...shadow, mode: 'on' },
+          { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
+        ],
+      })
+    )
+
+    expect(plan).toMatchObject({ change: 'acme/web shadow → on; Added acme/docs (off)', set: null })
+  })
+
+  it('refuses to turn on a repo that was not saved in shadow', () => {
+    const repo = { name: 'acme/web', mode: 'off', jev: true, denylist: [] }
+
+    expect(
+      planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [{ ...repo, mode: 'on' }] }))
+    ).toEqual({
+      error: 'Shadow first: acme/web must be saved in shadow before it can be set to on.',
+    })
+  })
+
+  it('refuses to delete the set while a repo uses it', () => {
+    const repo = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
+
+    expect(planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [repo], questions: [] }))).toEqual({
+      error: 'Cannot delete the set: 1 auto-approve repo (acme/web) use it. Set them to off and save first.',
+    })
+  })
+
+  it('records a restored version', () => {
+    const plan = planJevSave({ rev: 5, data: github() }, github({ questions: [CHOICE] }), { restoredFrom: 2 })
+
+    expect(plan.change).toBe('Restored v2; Questions')
   })
 })

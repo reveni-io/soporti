@@ -2,7 +2,7 @@ import { and, count, desc, eq, isNotNull } from 'drizzle-orm'
 import { getDb } from './index.js'
 import { jevDocuments, jevHistory, jevSetVersions } from './schema.js'
 
-const HISTORY_PAGE_SIZE = 5
+const PAGE_SIZE = 5
 
 const documentColumns = {
   id: jevDocuments.id,
@@ -16,6 +16,14 @@ const historyColumns = {
   author: jevHistory.authorEmail,
   change: jevHistory.change,
   rev: jevHistory.rev,
+}
+
+const versionColumns = {
+  version: jevSetVersions.version,
+  at: jevSetVersions.createdAt,
+  author: jevSetVersions.authorEmail,
+  change: jevSetVersions.change,
+  set: jevSetVersions.set,
 }
 
 export async function getJevDocument(id) {
@@ -69,6 +77,7 @@ export async function saveJevDocument(id, { expectedRev, author, defaults, plan 
 
     const save = plan(current)
     if (!save) return { conflict: false, document: current }
+    if (save.error) return { conflict: false, error: save.error, document: current }
 
     return { conflict: false, document: await applySave(tx, current, { ...save, author }) }
   })
@@ -78,18 +87,37 @@ export async function addJevHistoryEntry(documentId, { author, change }) {
   await getDb().insert(jevHistory).values({ documentId, rev: null, authorEmail: author, change })
 }
 
-export async function listJevHistory(documentId, page) {
-  const where = eq(jevHistory.documentId, documentId)
+async function listPage({ table, columns, where, orderBy, page }) {
   const [entries, [{ total }]] = await Promise.all([
     getDb()
-      .select(historyColumns)
-      .from(jevHistory)
+      .select(columns)
+      .from(table)
       .where(where)
-      .orderBy(desc(jevHistory.createdAt), desc(jevHistory.id))
-      .limit(HISTORY_PAGE_SIZE)
-      .offset((page - 1) * HISTORY_PAGE_SIZE),
-    getDb().select({ total: count() }).from(jevHistory).where(where),
+      .orderBy(...orderBy)
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    getDb().select({ total: count() }).from(table).where(where),
   ])
 
-  return { entries, total, page, pageSize: HISTORY_PAGE_SIZE }
+  return { entries, total, page, pageSize: PAGE_SIZE }
+}
+
+export async function listJevHistory(documentId, page) {
+  return listPage({
+    table: jevHistory,
+    columns: historyColumns,
+    where: eq(jevHistory.documentId, documentId),
+    orderBy: [desc(jevHistory.createdAt), desc(jevHistory.id)],
+    page,
+  })
+}
+
+export async function listJevSetVersions(documentId, page) {
+  return listPage({
+    table: jevSetVersions,
+    columns: versionColumns,
+    where: eq(jevSetVersions.documentId, documentId),
+    orderBy: [desc(jevSetVersions.version)],
+    page,
+  })
 }

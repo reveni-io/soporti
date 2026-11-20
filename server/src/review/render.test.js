@@ -213,6 +213,29 @@ describe('renderReviewBody', () => {
     expect(body.split('\n')[0]).toBe('✅ **Approved**: trivial change, safe to merge')
   })
 
+  it('keeps the comments line and adds the auto-approve block when auto-approve approved the PR', () => {
+    const autoApprove = {
+      repo: 'acme/web',
+      mode: 'on',
+      jevAsked: true,
+      approve: true,
+      decidedBy: 'jev',
+      reason: null,
+      pendingOnly: false,
+      setVersion: 2,
+      model: 'jev-1.14.0',
+      minConfidence: 0.75,
+      gates: [],
+      questions: [],
+    }
+
+    const body = renderReviewBody(review({ event: 'APPROVE', autoApprove }))
+
+    expect(body.split('\n')[0]).toBe('**Actionable comments posted: 0**')
+    expect(body).toContain('✅ Auto-approve · approved')
+    expect(body).toContain(', jev')
+  })
+
   it('omits every empty section from a clean review', () => {
     const body = renderReviewBody(review())
 
@@ -628,6 +651,9 @@ describe('renderWalkthrough', () => {
     expect(renderWalkthrough(partial)).toContain('**Merge risk:** ⚪ Unknown · 2 file(s) not reviewed')
     expect(renderWalkthrough(walkthrough({ event: 'APPROVE' }))).toContain(
       '**Merge risk:** 🟢 Low · trivial change, approved'
+    )
+    expect(renderWalkthrough(walkthrough({ event: 'APPROVE', autoApprove: { approve: true } }))).toContain(
+      '**Merge risk:** 🟢 Low · no blocking issues found'
     )
   })
 

@@ -206,6 +206,13 @@
   min-width: 90px;
 }
 
+.admin__select--compact,
+.admin__form--row .admin__select--compact {
+  flex: none;
+  width: 8rem;
+  min-width: 0;
+}
+
 .admin__nowrap {
   white-space: nowrap;
 }
@@ -307,6 +314,11 @@
   font-size: var(--fs-md);
   color: var(--text-primary);
   word-break: break-all;
+}
+
+.admin__kv--text .admin__kv-row dd {
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .admin__kv-row code {

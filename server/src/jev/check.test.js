@@ -62,6 +62,7 @@ describe('runJevCheck', () => {
       status: 'answered',
       setVersion: 7,
       model: 'jev-1.14.0',
+      minConfidence: 0.75,
       rows: [
         {
           questionId: 'q1',
@@ -72,6 +73,7 @@ describe('runJevCheck', () => {
           unsure: false,
         },
       ],
+      set: SET,
     })
     expect(askQuestions).toHaveBeenCalledTimes(1)
     expect(askQuestions).toHaveBeenCalledWith({
@@ -87,6 +89,29 @@ describe('runJevCheck', () => {
       answeredModel: 'jev-1.14.0',
       status: 'answered',
     })
+  })
+
+  it('asks the extra questions built from the saved set first', async () => {
+    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+    const buildExtraQuestions = vi.fn().mockReturnValue([rule])
+
+    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions })
+
+    expect(buildExtraQuestions).toHaveBeenCalledWith(SET)
+    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci', 'q1'])
+    expect(result.rows.map(row => row.questionId)).toEqual(['rule:ci', 'q1'])
+  })
+
+  it('asks a set with no questions of its own when the rules add some', async () => {
+    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
+    mockDocuments({ set: { ...SET, questions: [] } })
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+
+    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions: () => [rule] })
+
+    expect(result.status).toBe('answered')
+    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci'])
   })
 
   it('records a failed call and reports why', async () => {

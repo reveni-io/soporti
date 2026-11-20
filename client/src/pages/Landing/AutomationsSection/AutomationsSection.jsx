@@ -1,5 +1,6 @@
 import Icon from '../../../common/Icon/Icon.jsx'
 import IntegrationIcon from '../../../common/IntegrationIcon/IntegrationIcon.jsx'
+import AutoApproveDemo from '../AutoApproveDemo/AutoApproveDemo.jsx'
 import PrReviewDemo from '../PrReviewDemo/PrReviewDemo.jsx'
 import ScheduleDemo from '../ScheduleDemo/ScheduleDemo.jsx'
 import Section from '../Section/Section.jsx'
@@ -21,6 +22,13 @@ const AUTOMATIONS = [
     title: 'Reviews every pull request',
     text: 'Request a review, add a label or comment “@soporti review”. Agents hunt bugs, security holes and broken standards in parallel, and a verifier tries to refute every finding before it is posted.',
     Demo: PrReviewDemo,
+  },
+  {
+    id: 'approve',
+    icon: <Icon name="check" size={ICON_SIZE} />,
+    title: 'Approves the safe pull requests',
+    text: 'Start a repo in shadow and every review says whether it would have approved. Turn it on, and a pull request is approved only when none of your rules or questions vetoes it.',
+    Demo: AutoApproveDemo,
   },
   {
     id: 'slack',
@@ -51,7 +59,7 @@ export default function AutomationsSection() {
             It keeps working <em>when nobody is asking</em>.
           </>
         }
-        lead="The same brain that answers in the chat reviews your pull requests, replies in Slack threads and runs your questions on a schedule."
+        lead="The same brain that answers in the chat reviews your pull requests and approves the safe ones, replies in Slack threads and runs your questions on a schedule."
       />
 
       <div className="lp-automations lp-rise" style={staggerStyle(3)} ref={cycle.ref} {...cycle.hoverProps}>
