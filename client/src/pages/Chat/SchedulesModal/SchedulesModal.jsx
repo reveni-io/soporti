@@ -7,15 +7,11 @@ import ScheduleForm from './ScheduleForm/ScheduleForm.jsx'
 import { describeSchedule, formatRunTime } from './describe-schedule.js'
 import './SchedulesModal.css'
 
-const SCROLL_BATCH = 5
-const SCROLL_THRESHOLD_PX = 24
-
 export default function SchedulesModal({ token, onClose, onLogout, selectedSources, selectedProfile }) {
   const { schedules, loading, error: loadError, reload } = useSchedules(token, onLogout)
   const [actionError, setActionError] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [editingId, setEditingId] = useState(null)
-  const [visibleCount, setVisibleCount] = useState(SCROLL_BATCH)
   const overlayProps = useOverlayDismiss(onClose)
 
   const error = actionError ?? loadError
@@ -44,13 +40,6 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
 
   function handleLegalChange(id, legal) {
     runAction(() => setScheduleLegal(token, id, legal))
-  }
-
-  function handleListScroll(event) {
-    const list = event.currentTarget
-    if (list.scrollTop + list.clientHeight < list.scrollHeight - SCROLL_THRESHOLD_PX) return
-
-    setVisibleCount(count => count + SCROLL_BATCH)
   }
 
   async function handleSaved() {
@@ -83,8 +72,8 @@ export default function SchedulesModal({ token, onClose, onLogout, selectedSourc
           <p className="schedules-modal__empty">No scheduled queries yet.</p>
         )}
 
-        <ul className="schedules-modal__list" onScroll={handleListScroll}>
-          {schedules.slice(0, visibleCount).map(schedule => (
+        <ul className="schedules-modal__list">
+          {schedules.map(schedule => (
             <ScheduleRow
               key={schedule.id}
               schedule={schedule}

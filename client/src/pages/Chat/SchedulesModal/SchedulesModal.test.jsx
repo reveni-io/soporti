@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SchedulesModal from './SchedulesModal.jsx'
 
@@ -65,23 +65,6 @@ describe('SchedulesModal', () => {
     const patch = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PATCH')
     expect(patch[0]).toContain('/api/schedules/1/legal')
     expect(JSON.parse(patch[1].body)).toEqual({ legal: true })
-  })
-
-  it('shows five queries and five more each time the list is scrolled to the end', async () => {
-    global.fetch = mockFetch(
-      Array.from({ length: 12 }, (_, index) => ({ ...DAILY, id: index + 1, question: `Question ${index + 1}` }))
-    )
-
-    render(
-      <SchedulesModal token="tok" onClose={vi.fn()} onLogout={vi.fn()} selectedSources={[]} selectedProfile="tech" />
-    )
-
-    expect(await screen.findByText('Question 5')).toBeInTheDocument()
-    expect(screen.queryByText('Question 6')).not.toBeInTheDocument()
-
-    fireEvent.scroll(screen.getByRole('list'))
-    expect(screen.getByText('Question 10')).toBeInTheDocument()
-    expect(screen.queryByText('Question 11')).not.toBeInTheDocument()
   })
 
   it('lists every schedule with its cadence and its runs', async () => {
