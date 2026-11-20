@@ -37,7 +37,7 @@ beforeEach(() => {
 })
 
 describe('GithubAutoApprove', () => {
-  it('shows the repos, the rules and the save bar, and points to the GitHub PRs guard for the questions', async () => {
+  it('shows the repos and the save bar, and points to the GitHub PRs guard for the questions and rules', async () => {
     mockApi([])
 
     render(
@@ -48,9 +48,9 @@ describe('GithubAutoApprove', () => {
 
     expect(await screen.findByText('Auto-approve repos')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'GitHub PRs guard' })).toHaveAttribute('href', '/admin/guards?guard=github')
-    expect(screen.getByText('Rules')).toBeInTheDocument()
     expect(screen.getByText('GitHub review project')).toBeInTheDocument()
-    expect(screen.queryByText('Questions and answers for this review')).not.toBeInTheDocument()
+    expect(screen.queryByText('Rules')).not.toBeInTheDocument()
+    expect(screen.queryByText('Questions for this review')).not.toBeInTheDocument()
   })
 
   it('shows why the project could not load', async () => {
