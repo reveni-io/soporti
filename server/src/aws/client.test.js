@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const { awsSend, clientConfigs, commandClass } = vi.hoisted(() => {
+const { awsSend, clientConfigs, commandClass, environment } = vi.hoisted(() => {
   const awsSend = vi.fn()
   const clientConfigs = []
+  const environment = { region: 'env-region-1' }
 
   function commandClass(name) {
     return class {
@@ -13,30 +14,39 @@ const { awsSend, clientConfigs, commandClass } = vi.hoisted(() => {
     }
   }
 
-  return { awsSend, clientConfigs, commandClass }
+  return { awsSend, clientConfigs, commandClass, environment }
 })
 
-function clientClass(service, region) {
+async function resolveMockRegion(config) {
+  const region = config.region ?? environment.region
+  if (!region) throw new Error('Region is missing')
+
+  return region
+}
+
+function clientClass(service) {
   return class {
     constructor(config) {
       clientConfigs.push({ service, config })
-      this.config = { region: async () => config.region ?? region }
+      this.credentials = config.credentials
+      this.config = { region: () => resolveMockRegion(config) }
     }
 
-    send(command) {
-      return awsSend(service, command)
+    async send(command) {
+      const credentials = typeof this.credentials === 'function' ? await this.credentials() : this.credentials
+      return awsSend(service, command, credentials)
     }
   }
 }
 
 vi.mock('@aws-sdk/client-cloudwatch', () => ({
-  CloudWatchClient: clientClass('cloudwatch', 'env-region-1'),
+  CloudWatchClient: clientClass('cloudwatch'),
   DescribeAlarmsCommand: commandClass('DescribeAlarms'),
   GetMetricDataCommand: commandClass('GetMetricData'),
   ListMetricsCommand: commandClass('ListMetrics'),
 }))
 vi.mock('@aws-sdk/client-ecs', () => ({
-  ECSClient: clientClass('ecs', 'env-region-1'),
+  ECSClient: clientClass('ecs'),
   DescribeClustersCommand: commandClass('DescribeClusters'),
   DescribeServicesCommand: commandClass('DescribeServices'),
   DescribeTasksCommand: commandClass('DescribeTasks'),
@@ -45,20 +55,24 @@ vi.mock('@aws-sdk/client-ecs', () => ({
   ListTasksCommand: commandClass('ListTasks'),
 }))
 vi.mock('@aws-sdk/client-sts', () => ({
-  STSClient: clientClass('sts', 'env-region-1'),
+  STSClient: clientClass('sts'),
+  AssumeRoleCommand: commandClass('AssumeRole'),
   GetCallerIdentityCommand: commandClass('GetCallerIdentity'),
 }))
 
 const getAwsAccessKey = vi.fn()
+const getAwsAccounts = vi.fn()
 const getAwsRegion = vi.fn()
+const getAwsRoleArn = vi.fn()
 const isAwsConfigured = vi.fn()
-vi.mock('./settings.js', () => ({ getAwsAccessKey, getAwsRegion, isAwsConfigured }))
+vi.mock('./settings.js', () => ({ getAwsAccessKey, getAwsAccounts, getAwsRegion, getAwsRoleArn, isAwsConfigured }))
 
 const {
   AWS_REQUEST_FAILED,
   getEcsService,
   getMetricData,
   isConfigured,
+  listAccounts,
   listAlarms,
   listEcsClusters,
   listEcsServices,
@@ -119,15 +133,18 @@ function service(overrides = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   clientConfigs.length = 0
+  environment.region = 'env-region-1'
   _resetAwsClientsForTests()
   isAwsConfigured.mockResolvedValue(true)
   getAwsRegion.mockResolvedValue(null)
   getAwsAccessKey.mockResolvedValue(null)
+  getAwsRoleArn.mockResolvedValue(null)
+  getAwsAccounts.mockResolvedValue([])
   handlers = {}
-  awsSend.mockImplementation(async (_service, command) => {
+  awsSend.mockImplementation(async (_service, command, credentials) => {
     const handler = handlers[command.name]
     if (!handler) throw new Error(`Unexpected ${command.name}`)
-    return handler(command.input)
+    return handler(command.input, credentials)
   })
 })
 
@@ -145,8 +162,8 @@ describe('AWS clients', () => {
 
     await listEcsClusters()
 
-    expect(clientConfigs.map(entry => entry.service)).toEqual(['cloudwatch', 'ecs', 'sts'])
-    expect(clientConfigs[1].config).toEqual({ region: undefined, credentials: undefined, maxAttempts: 3 })
+    expect(clientConfigs.map(entry => entry.service)).toEqual(['sts', 'cloudwatch', 'ecs', 'sts'])
+    expect(clientConfigs[2].config).toEqual({ region: undefined, credentials: undefined, maxAttempts: 3 })
   })
 
   it('use the stored region and access key, and rebuild only when they change', async () => {
@@ -160,9 +177,9 @@ describe('AWS clients', () => {
     getAwsRegion.mockResolvedValue('eu-west-1')
     await listEcsClusters()
 
-    expect(clientConfigs).toHaveLength(6)
-    expect(clientConfigs[1].config).toEqual({ region: 'eu-central-1', credentials: key, maxAttempts: 3 })
-    expect(clientConfigs[4].config.region).toBe('eu-west-1')
+    expect(clientConfigs).toHaveLength(8)
+    expect(clientConfigs[2].config).toEqual({ region: 'eu-central-1', credentials: key, maxAttempts: 3 })
+    expect(clientConfigs[6].config.region).toBe('eu-west-1')
   })
 
   it('refuse to call AWS while the switch is off', async () => {
@@ -173,6 +190,190 @@ describe('AWS clients', () => {
       message: 'AWS is not enabled. Turn it on in /admin → AWS.',
     })
     expect(awsSend).not.toHaveBeenCalled()
+  })
+})
+
+describe('AWS accounts', () => {
+  const HUB_ARN = 'arn:aws:iam::111111111111:role/monitoring-hub'
+  const PROD_ARN = 'arn:aws:iam::222222222222:role/reader-prod'
+  const DEV_ARN = 'arn:aws:iam::333333333333:role/reader-dev'
+  const ROLE_KEYS = { [HUB_ARN]: 'hub-key', [PROD_ARN]: 'prod-key', [DEV_ARN]: 'dev-key' }
+  const HOUR_MS = 60 * 60 * 1000
+
+  function assumedCredentials(roleArn, expiresInMs) {
+    return {
+      Credentials: {
+        AccessKeyId: ROLE_KEYS[roleArn],
+        SecretAccessKey: 'secret',
+        SessionToken: 'token',
+        Expiration: new Date(Date.now() + expiresInMs),
+      },
+    }
+  }
+
+  function useAssumableRoles({ expiresInMs = HOUR_MS } = {}) {
+    const signedWith = []
+    useHandlers({
+      AssumeRole: input => assumedCredentials(input.RoleArn, expiresInMs),
+      DescribeAlarms: (_input, credentials) => {
+        signedWith.push(credentials?.accessKeyId ?? null)
+        return { MetricAlarms: [] }
+      },
+    })
+    return signedWith
+  }
+
+  function assumedBy() {
+    return awsSend.mock.calls
+      .filter(([, command]) => command.name === 'AssumeRole')
+      .map(([, command, credentials]) => [command.input.RoleArn, credentials?.accessKeyId ?? null])
+  }
+
+  beforeEach(() => {
+    getAwsRoleArn.mockResolvedValue(HUB_ARN)
+    getAwsAccounts.mockResolvedValue([
+      { name: 'prod', roleArn: PROD_ARN },
+      { name: 'dev', roleArn: DEV_ARN },
+    ])
+  })
+
+  it("assume the role first, then the account's role from it, and read with the account's credentials", async () => {
+    const signedWith = useAssumableRoles()
+
+    const result = await listAlarms({ account: 'Dev' })
+
+    expect(result.account).toBe('dev')
+    expect(signedWith).toEqual(['dev-key'])
+    expect(assumedBy()).toEqual([
+      [HUB_ARN, null],
+      [DEV_ARN, 'hub-key'],
+    ])
+    expect(commandsNamed('AssumeRole')[0].input).toEqual({ RoleArn: HUB_ARN, RoleSessionName: 'soporti' })
+  })
+
+  it('reuse assumed credentials until five minutes before they expire', async () => {
+    useAssumableRoles()
+
+    await listAlarms({ account: 'prod' })
+    await listAlarms({ account: 'prod' })
+
+    expect(commandsNamed('AssumeRole')).toHaveLength(2)
+  })
+
+  it('assume the roles again when the credentials are about to expire', async () => {
+    useAssumableRoles({ expiresInMs: 60_000 })
+
+    await listAlarms({ account: 'prod' })
+    await listAlarms({ account: 'prod' })
+
+    expect(commandsNamed('AssumeRole')).toHaveLength(4)
+  })
+
+  it('read with the role itself when no accounts are configured', async () => {
+    getAwsAccounts.mockResolvedValue([])
+    const signedWith = useAssumableRoles()
+
+    const result = await listAlarms()
+
+    expect(result).not.toHaveProperty('account')
+    expect(signedWith).toEqual(['hub-key'])
+  })
+
+  it('assume each account role with the own identity when no role is set', async () => {
+    getAwsRoleArn.mockResolvedValue(null)
+    useAssumableRoles()
+
+    await listAlarms({ account: 'prod' })
+
+    expect(assumedBy()).toEqual([[PROD_ARN, null]])
+  })
+
+  it('ask for the account when several are configured and name the ones that exist', async () => {
+    useAssumableRoles()
+
+    await expect(listAlarms()).rejects.toThrow(
+      'Several AWS accounts are configured ("prod", "dev"): pass one as "account".'
+    )
+    await expect(listAlarms({ account: 'qa' })).rejects.toThrow(
+      'There is no AWS account named "qa". Configured: "prod", "dev".'
+    )
+    expect(awsSend).not.toHaveBeenCalled()
+  })
+
+  it('use the only account when the call names none', async () => {
+    getAwsAccounts.mockResolvedValue([{ name: 'prod', roleArn: PROD_ARN }])
+    const signedWith = useAssumableRoles()
+
+    expect((await listAlarms()).account).toBe('prod')
+    expect(signedWith).toEqual(['prod-key'])
+  })
+
+  it('refuse an account name when no accounts are configured', async () => {
+    getAwsAccounts.mockResolvedValue([])
+
+    await expect(listAlarms({ account: 'prod' })).rejects.toMatchObject({
+      code: AWS_REQUEST_FAILED,
+      message: 'No AWS accounts are configured, so there is no "prod": leave out "account".',
+    })
+  })
+
+  it.each([
+    [HUB_ARN, HUB_ARN],
+    [PROD_ARN, PROD_ARN],
+  ])('explain which role AWS would not let Soporti assume (%s denied)', async (deniedArn, namedArn) => {
+    useHandlers({
+      AssumeRole: input => {
+        if (input.RoleArn === deniedArn) throw awsFailure('AccessDenied', { status: 403 })
+        return assumedCredentials(input.RoleArn, HOUR_MS)
+      },
+    })
+
+    const error = await listAlarms({ account: 'prod' }).catch(err => err)
+
+    expect(error.code).toBe(AWS_REQUEST_FAILED)
+    expect(error.message).toMatch(new RegExp(`^AWS did not let Soporti assume ${namedArn}\\. The role's trust policy`))
+  })
+
+  it('keep the credential errors of the first hop', async () => {
+    useHandlers({
+      AssumeRole: () => {
+        throw awsFailure('CredentialsProviderError')
+      },
+    })
+
+    await expect(listAlarms({ account: 'prod' })).rejects.toThrow(/No AWS credentials were found/)
+  })
+
+  it('list the configured account names, or none', async () => {
+    expect(await listAccounts()).toEqual({ accounts: [{ name: 'prod' }, { name: 'dev' }] })
+
+    getAwsAccounts.mockResolvedValue([])
+    getAwsRoleArn.mockResolvedValue(null)
+
+    expect(await listAccounts()).toEqual({ accounts: [] })
+  })
+
+  it('test each account with its assumed identity, next to the identity Soporti runs as', async () => {
+    useHandlers({
+      AssumeRole: input => {
+        if (input.RoleArn === DEV_ARN) throw awsFailure('AccessDenied', { status: 403 })
+        return assumedCredentials(input.RoleArn, HOUR_MS)
+      },
+      GetCallerIdentity: (_input, credentials) => {
+        const key = credentials?.accessKeyId ?? 'own'
+        return { Account: key, Arn: `arn:${key}` }
+      },
+      DescribeAlarms: () => ({}),
+      ListMetrics: () => ({}),
+      ListClusters: () => ({}),
+    })
+
+    const result = await testConnection()
+
+    expect(result.runsAs).toEqual({ account: 'own', arn: 'arn:own' })
+    expect(result.accounts[0]).toMatchObject({ name: 'prod', account: 'prod-key', arn: 'arn:prod-key' })
+    expect(result.accounts[0].checks.every(check => check.ok)).toBe(true)
+    expect(result.accounts[1]).toEqual({ name: 'dev', error: expect.stringMatching(/did not let Soporti assume/) })
   })
 })
 
@@ -532,7 +733,7 @@ describe('getEcsService', () => {
 
     expect(result.recentlyStoppedTasks).toBeNull()
     expect(result.stoppedTasksError).toBe(
-      'AWS denied ecs:ListTasks. Add it to the IAM policy of the role or user Soporti runs with.'
+      'AWS denied ecs:ListTasks. Add it to the IAM policy of the role or user Soporti reads this account with.'
     )
   })
 
@@ -772,13 +973,12 @@ describe('getMetricData', () => {
 })
 
 describe('testConnection', () => {
+  const OWN_ARN = 'arn:aws:sts::123456789012:assumed-role/soporti-task/abc'
+
   it('reports the identity, the region and which read permissions work, even while the switch is off', async () => {
     isAwsConfigured.mockResolvedValue(false)
     useHandlers({
-      GetCallerIdentity: () => ({
-        Account: '123456789012',
-        Arn: 'arn:aws:sts::123456789012:assumed-role/soporti-task/abc',
-      }),
+      GetCallerIdentity: () => ({ Account: '123456789012', Arn: OWN_ARN }),
       DescribeAlarms: () => ({ MetricAlarms: [] }),
       ListMetrics: () => ({ Metrics: [] }),
       ListClusters: () => {
@@ -789,35 +989,52 @@ describe('testConnection', () => {
     const result = await testConnection()
 
     expect(result).toEqual({
-      account: '123456789012',
-      arn: 'arn:aws:sts::123456789012:assumed-role/soporti-task/abc',
       region: 'env-region-1',
-      checks: [
-        { id: 'alarms', label: 'CloudWatch alarms', action: 'cloudwatch:DescribeAlarms', ok: true },
-        { id: 'metrics', label: 'CloudWatch metrics', action: 'cloudwatch:ListMetrics', ok: true },
+      runsAs: { account: '123456789012', arn: OWN_ARN },
+      accounts: [
         {
-          id: 'ecs',
-          label: 'ECS clusters',
-          action: 'ecs:ListClusters',
-          ok: false,
-          error: 'AWS denied ecs:ListClusters. Add it to the IAM policy of the role or user Soporti runs with.',
+          name: null,
+          account: '123456789012',
+          arn: OWN_ARN,
+          checks: [
+            { id: 'alarms', label: 'CloudWatch alarms', action: 'cloudwatch:DescribeAlarms', ok: true },
+            { id: 'metrics', label: 'CloudWatch metrics', action: 'cloudwatch:ListMetrics', ok: true },
+            {
+              id: 'ecs',
+              label: 'ECS clusters',
+              action: 'ecs:ListClusters',
+              ok: false,
+              error:
+                'AWS denied ecs:ListClusters. Add it to the IAM policy of the role or user Soporti reads this account with.',
+            },
+          ],
         },
       ],
     })
     expect(commandsNamed('DescribeAlarms')[0].input).toEqual({ MaxRecords: 1 })
   })
 
-  it('fails as a whole when AWS does not accept the credentials', async () => {
+  it('reports a missing identity per account instead of failing as a whole', async () => {
     useHandlers({
       GetCallerIdentity: () => {
         throw awsFailure('CredentialsProviderError')
       },
     })
 
+    const result = await testConnection()
+
+    expect(result.runsAs).toEqual({ error: expect.stringMatching(/No AWS credentials/) })
+    expect(result.accounts).toEqual([{ name: null, error: expect.stringMatching(/No AWS credentials/) }])
+  })
+
+  it('fails as a whole when no region is set anywhere', async () => {
+    environment.region = undefined
+
     await expect(testConnection()).rejects.toMatchObject({
       code: AWS_REQUEST_FAILED,
-      message: expect.stringMatching(/No AWS credentials/),
+      message: expect.stringMatching(/No AWS region is set/),
     })
+    expect(awsSend).not.toHaveBeenCalled()
   })
 
   it('names the failure of a check that broke for another reason', async () => {
@@ -831,8 +1048,9 @@ describe('testConnection', () => {
     })
 
     const result = await testConnection()
+    const [{ checks }] = result.accounts
 
-    expect(result.checks.map(check => check.ok)).toEqual([true, false, true])
-    expect(result.checks[1].error).toBe('AWS cloudwatch:ListMetrics failed (Error).')
+    expect(checks.map(check => check.ok)).toEqual([true, false, true])
+    expect(checks[1].error).toBe('AWS cloudwatch:ListMetrics failed (Error).')
   })
 })

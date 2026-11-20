@@ -1,0 +1,7 @@
+.aws-accounts__form {
+  margin-top: var(--sp3);
+}
+
+.aws-accounts__form .aws-accounts__role {
+  flex: 3;
+}

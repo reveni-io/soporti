@@ -13,23 +13,32 @@ vi.mock('../auth/secret-cipher.js', async importOriginal => {
 
 const {
   AWS_ACCESS_KEY_ID_KEY,
+  AWS_ACCOUNTS_KEY,
   AWS_ENABLED_KEY,
   AWS_REGION_KEY,
+  AWS_ROLE_ARN_KEY,
   AWS_SECRET_ACCESS_KEY_KEY,
   getAwsAccessKey,
+  getAwsAccounts,
   getAwsEnabled,
   getAwsRegion,
+  getAwsRoleArn,
   isAwsConfigured,
   parseAwsAccessKey,
+  parseAwsAccounts,
   parseAwsRegion,
+  parseAwsRoleArn,
   setAwsAccessKey,
+  setAwsAccounts,
   setAwsEnabled,
   setAwsRegion,
+  setAwsRoleArn,
   _resetAwsSettingsCacheForTests,
 } = await import('./settings.js')
 
 const ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'
 const SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+const ROLE_ARN = 'arn:aws:iam::123456789012:role/monitoring-reader'
 
 let store
 
@@ -142,6 +151,87 @@ describe('getAwsAccessKey', () => {
     expect(await getAwsAccessKey()).toBeNull()
     expect(console.error).toHaveBeenCalledTimes(1)
     expect(console.error.mock.calls[0][0]).toBe(`Failed to decrypt the stored ${AWS_SECRET_ACCESS_KEY_KEY}:`)
+  })
+})
+
+describe('getAwsRoleArn', () => {
+  it('returns the trimmed role ARN, or null when unset or empty', async () => {
+    expect(await getAwsRoleArn()).toBeNull()
+
+    await setAwsRoleArn(` ${ROLE_ARN} `)
+    expect(await getAwsRoleArn()).toBe(ROLE_ARN)
+
+    await setAwsRoleArn('')
+    expect(await getAwsRoleArn()).toBeNull()
+    expect(setConfigValue).toHaveBeenLastCalledWith(AWS_ROLE_ARN_KEY, '')
+  })
+})
+
+describe('getAwsAccounts', () => {
+  it('returns the saved accounts in order, and an empty list when unset', async () => {
+    expect(await getAwsAccounts()).toEqual([])
+
+    await setAwsAccounts([
+      { name: 'prod', roleArn: ROLE_ARN },
+      { name: 'dev', roleArn: ROLE_ARN },
+    ])
+
+    expect(await getAwsAccounts()).toEqual([
+      { name: 'prod', roleArn: ROLE_ARN },
+      { name: 'dev', roleArn: ROLE_ARN },
+    ])
+  })
+
+  it('skips stored entries that are not accounts', async () => {
+    store.set(AWS_ACCOUNTS_KEY, [{ name: 'prod', roleArn: ROLE_ARN, extra: true }, { name: 'broken' }, 'x'])
+
+    expect(await getAwsAccounts()).toEqual([{ name: 'prod', roleArn: ROLE_ARN }])
+  })
+
+  it('treats a stored value that is not a list as no accounts', async () => {
+    store.set(AWS_ACCOUNTS_KEY, 'prod')
+
+    expect(await getAwsAccounts()).toEqual([])
+  })
+})
+
+describe('parseAwsRoleArn', () => {
+  it('accepts a role ARN, trimmed, and an empty value', () => {
+    expect(parseAwsRoleArn(` ${ROLE_ARN} `)).toEqual({ value: ROLE_ARN })
+    expect(parseAwsRoleArn('arn:aws-us-gov:iam::123456789012:role/path/reader')).toEqual({
+      value: 'arn:aws-us-gov:iam::123456789012:role/path/reader',
+    })
+    expect(parseAwsRoleArn('')).toEqual({ value: '' })
+  })
+
+  it('rejects what is not a role ARN', () => {
+    expect(parseAwsRoleArn('arn:aws:iam::123456789012:user/soporti').error).toMatch(/IAM role ARN/)
+    expect(parseAwsRoleArn('reader').error).toMatch(/IAM role ARN/)
+    expect(parseAwsRoleArn(null).error).toMatch(/must be a string/)
+  })
+})
+
+describe('parseAwsAccounts', () => {
+  it('accepts a list of accounts, with lowercased names, and an empty list', () => {
+    expect(parseAwsAccounts([{ name: ' Prod ', roleArn: ROLE_ARN }])).toEqual({
+      value: [{ name: 'prod', roleArn: ROLE_ARN }],
+    })
+    expect(parseAwsAccounts([])).toEqual({ value: [] })
+  })
+
+  it('rejects bad names, bad ARNs, duplicates and lists that are too long', () => {
+    expect(parseAwsAccounts('prod').error).toMatch(/must be a list/)
+    expect(parseAwsAccounts([{ name: 'my prod', roleArn: ROLE_ARN }]).error).toMatch(/not a valid account name/)
+    expect(parseAwsAccounts([{ name: 'prod', roleArn: 'nope' }]).error).toMatch(/IAM role ARN.*account "prod"/)
+    expect(
+      parseAwsAccounts([
+        { name: 'prod', roleArn: ROLE_ARN },
+        { name: 'PROD', roleArn: ROLE_ARN },
+      ]).error
+    ).toBe('The account name "prod" is used twice.')
+    expect(
+      parseAwsAccounts(Array.from({ length: 21 }, (_, index) => ({ name: `a${index}`, roleArn: ROLE_ARN }))).error
+    ).toMatch(/At most 20/)
   })
 })
 

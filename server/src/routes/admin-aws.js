@@ -2,21 +2,39 @@ import { Router } from 'express'
 import { AWS_REQUEST_FAILED, testConnection } from '../aws/client.js'
 import {
   getAwsAccessKey,
+  getAwsAccounts,
   getAwsEnabled,
   getAwsRegion,
+  getAwsRoleArn,
   parseAwsAccessKey,
+  parseAwsAccounts,
   parseAwsRegion,
+  parseAwsRoleArn,
   setAwsAccessKey,
+  setAwsAccounts,
   setAwsEnabled,
   setAwsRegion,
+  setAwsRoleArn,
 } from '../aws/settings.js'
 
 const router = Router()
 
 router.get('/', async (_req, res) => {
   try {
-    const [enabled, region, accessKey] = await Promise.all([getAwsEnabled(), getAwsRegion(), getAwsAccessKey()])
-    res.json({ enabled, region: region ?? '', accessKeyConfigured: Boolean(accessKey) })
+    const [enabled, region, accessKey, roleArn, accounts] = await Promise.all([
+      getAwsEnabled(),
+      getAwsRegion(),
+      getAwsAccessKey(),
+      getAwsRoleArn(),
+      getAwsAccounts(),
+    ])
+    res.json({
+      enabled,
+      region: region ?? '',
+      accessKeyConfigured: Boolean(accessKey),
+      roleArn: roleArn ?? '',
+      accounts,
+    })
   } catch (err) {
     console.error('Failed to load the AWS settings:', err)
     res.status(500).json({ error: 'Failed to load the AWS settings.' })
@@ -59,6 +77,32 @@ router.put('/access-key', async (req, res) => {
   } catch (err) {
     console.error('Failed to save the AWS access key:', err.name)
     res.status(500).json({ error: 'Failed to save the AWS access key.' })
+  }
+})
+
+router.put('/role-arn', async (req, res) => {
+  const { error, value } = parseAwsRoleArn(req.body?.roleArn)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setAwsRoleArn(value)
+    res.json({ roleArn: value })
+  } catch (err) {
+    console.error('Failed to save the AWS role:', err)
+    res.status(500).json({ error: 'Failed to save the AWS role.' })
+  }
+})
+
+router.put('/accounts', async (req, res) => {
+  const { error, value } = parseAwsAccounts(req.body?.accounts)
+  if (error) return res.status(400).json({ error })
+
+  try {
+    await setAwsAccounts(value)
+    res.json({ accounts: value })
+  } catch (err) {
+    console.error('Failed to save the AWS accounts:', err)
+    res.status(500).json({ error: 'Failed to save the AWS accounts.' })
   }
 })
 

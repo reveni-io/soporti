@@ -304,6 +304,8 @@ vi.mock('./admin-aws.js', async () => {
   awsRouter.put('/enabled', awsRouteReached)
   awsRouter.put('/region', awsRouteReached)
   awsRouter.put('/access-key', awsRouteReached)
+  awsRouter.put('/role-arn', awsRouteReached)
+  awsRouter.put('/accounts', awsRouteReached)
   awsRouter.post('/test', awsRouteReached)
   return { default: awsRouter }
 })
@@ -610,6 +612,8 @@ describe('/api/admin/config/aws', () => {
     ['put', '/api/admin/config/aws/enabled'],
     ['put', '/api/admin/config/aws/region'],
     ['put', '/api/admin/config/aws/access-key'],
+    ['put', '/api/admin/config/aws/role-arn'],
+    ['put', '/api/admin/config/aws/accounts'],
     ['post', '/api/admin/config/aws/test'],
   ]
 
@@ -2517,6 +2521,7 @@ describe('GET /api/admin/subagents', () => {
       label: 'AWS',
       configured: true,
       tools: [
+        'aws_list_accounts',
         'aws_list_alarms',
         'aws_list_ecs_clusters',
         'aws_list_ecs_services',
