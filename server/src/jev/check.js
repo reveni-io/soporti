@@ -40,10 +40,10 @@ async function isOverDailyLimit(project, dailyLimit) {
   return (await countJevCallsSince(project, startOfUtcDay(Date.now()))) >= dailyLimit
 }
 
-async function findBlocker(project, { enabled, keyConfigured, set }, stateChars) {
+async function findBlocker(project, { enabled, keyConfigured, set }, { stateChars, questionCount }) {
   if (!enabled) return 'Jev calls are off'
   if (!keyConfigured) return 'No API key saved'
-  if (set.questions.length === 0) return 'No questions in the set'
+  if (questionCount === 0) return 'No questions in the set'
   if (!set.model) return 'No model selected'
   if (set.maxCharacters && stateChars > set.maxCharacters) {
     return `Too large for Jev (${describeSize(stateChars)} characters, max ${describeSize(set.maxCharacters)})`
@@ -88,10 +88,12 @@ async function callJev(project, loaded, { state, questions }) {
 
 export async function runJevCheck({ project, state, buildExtraQuestions = () => [] }) {
   const loaded = await loadProject(project)
-  const blocker = await findBlocker(project, loaded, JSON.stringify(state).length)
-  if (blocker) return unavailable(loaded, blocker)
-
   const questions = [...buildExtraQuestions(loaded.set), ...loaded.set.questions]
+  const blocker = await findBlocker(project, loaded, {
+    stateChars: JSON.stringify(state).length,
+    questionCount: questions.length,
+  })
+  if (blocker) return unavailable(loaded, blocker)
 
   return callJev(project, loaded, { state, questions })
 }
