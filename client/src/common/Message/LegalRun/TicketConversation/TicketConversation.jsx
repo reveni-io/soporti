@@ -3,6 +3,7 @@ import { formatTime } from '../format-time.js'
 import { useSendReply } from '../hooks/useSendReply/useSendReply.js'
 import { useTicketConversation } from '../hooks/useTicketConversation/useTicketConversation.js'
 import SendConfirm from '../SendConfirm/SendConfirm.jsx'
+import './TicketConversation.css'
 
 function authorOf(message) {
   if (message.author) return message.author
@@ -20,7 +21,7 @@ export default function TicketConversation({ token, legalCase, label, send, need
 
   if (!conversation.messages) {
     return (
-      <div className="legal-run__conversation">
+      <div className="ticket-conversation">
         <button
           className="btn btn--secondary btn--sm"
           type="button"
@@ -35,8 +36,8 @@ export default function TicketConversation({ token, legalCase, label, send, need
   }
 
   return (
-    <div className="legal-run__conversation">
-      <div className="legal-run__conversation-head">
+    <div className="ticket-conversation">
+      <div className="ticket-conversation__head">
         <span>Ticket conversation</span>
         <button
           className="btn btn--secondary btn--sm"
@@ -67,16 +68,16 @@ function MessageList({ messages }) {
   if (messages.length === 0) return <p className="legal-run__muted">The ticket has no public messages yet.</p>
 
   return (
-    <ol className="legal-run__messages">
+    <ol className="ticket-conversation__messages">
       {messages.map(message => (
         <li
           key={message.id}
-          className={`legal-run__message legal-run__message--${message.fromCustomer ? 'customer' : 'agent'}`}
+          className={`ticket-conversation__message ticket-conversation__message--${message.fromCustomer ? 'customer' : 'agent'}`}
         >
           <span className="legal-run__muted">
             {authorOf(message)} · {formatTime(message.at)}
           </span>
-          <p className="legal-run__message-text">{message.text}</p>
+          <p className="ticket-conversation__text">{message.text}</p>
         </li>
       ))}
     </ol>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import './SendConfirm.css'
 
 export default function SendConfirm({ recipient, label, needsCare, edited, sending, error, onCancel, onSend }) {
   const [warningsRead, setWarningsRead] = useState(false)
@@ -12,7 +13,7 @@ export default function SendConfirm({ recipient, label, needsCare, edited, sendi
   }
 
   return (
-    <div className="legal-run__confirm" role="group" aria-label="Confirm the reply">
+    <div className="send-confirm" role="group" aria-label="Confirm the reply">
       <p>
         Send this reply to <strong>{recipient || 'the customer'}</strong> on {label}? It goes out as you, and the
         customer receives it as it is.
@@ -23,7 +24,7 @@ export default function SendConfirm({ recipient, label, needsCare, edited, sendi
         </p>
       )}
       {needsCare && (
-        <label className="legal-run__check">
+        <label className="send-confirm__check">
           <input type="checkbox" checked={warningsRead} onChange={handleWarningsChange} />I read the warnings of this
           case
         </label>
