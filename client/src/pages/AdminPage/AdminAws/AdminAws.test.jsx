@@ -7,8 +7,17 @@ function jsonResponse(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body }
 }
 
-function configResponse({ enabled = false, region = '', accessKeyConfigured = false } = {}) {
-  return jsonResponse({ enabled, region, accessKeyConfigured })
+const ROLE_ARN = 'arn:aws:iam::123456789012:role/monitoring-hub'
+const READER_ARN = 'arn:aws:iam::210987654321:role/monitoring-reader'
+
+function configResponse({
+  enabled = false,
+  region = '',
+  accessKeyConfigured = false,
+  roleArn = '',
+  accounts = [],
+} = {}) {
+  return jsonResponse({ enabled, region, accessKeyConfigured, roleArn, accounts })
 }
 
 beforeEach(() => {
@@ -23,7 +32,7 @@ describe('AdminAws', () => {
 
     expect(await screen.findByText('off')).toBeInTheDocument()
     expect(screen.getByText('not set — using the environment')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /let the assistant read this aws account/i })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /let the assistant read aws/i })).not.toBeChecked()
     expect(screen.getByPlaceholderText('eu-central-1')).toHaveValue('')
     expect(screen.getByText('ecs:DescribeTasks')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledTimes(1)
@@ -52,7 +61,7 @@ describe('AdminAws', () => {
 
     render(<AdminAws token="tok" onLogout={vi.fn()} />)
     await screen.findByText('off')
-    await user.click(screen.getByRole('checkbox', { name: /let the assistant read this aws account/i }))
+    await user.click(screen.getByRole('checkbox', { name: /let the assistant read aws/i }))
     await user.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     expect(await screen.findByText('on')).toBeInTheDocument()
@@ -78,6 +87,58 @@ describe('AdminAws', () => {
     const [url, options] = global.fetch.mock.calls[1]
     expect(url).toContain('/api/admin/config/aws/region')
     expect(JSON.parse(options.body)).toEqual({ region: 'eu-west-1' })
+  })
+
+  it('shows the saved role and accounts', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(configResponse({ roleArn: ROLE_ARN, accounts: [{ name: 'prod', roleArn: READER_ARN }] }))
+
+    render(<AdminAws token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByDisplayValue(ROLE_ARN)).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'prod' })).toBeInTheDocument()
+    expect(screen.getByText(READER_ARN)).toBeInTheDocument()
+  })
+
+  it('saves the role to assume', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(configResponse())
+      .mockResolvedValueOnce(jsonResponse({ roleArn: ROLE_ARN }))
+    const user = userEvent.setup()
+
+    render(<AdminAws token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('off')
+    await user.type(screen.getByPlaceholderText('arn:aws:iam::123456789012:role/monitoring-hub'), ROLE_ARN)
+    await user.click(screen.getAllByRole('button', { name: 'Save' })[2])
+
+    expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/aws/role-arn')
+    expect(JSON.parse(options.body)).toEqual({ roleArn: ROLE_ARN })
+  })
+
+  it('saves the accounts and shows what the server kept', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(configResponse())
+      .mockResolvedValueOnce(jsonResponse({ accounts: [{ name: 'prod', roleArn: READER_ARN }] }))
+    const user = userEvent.setup()
+
+    render(<AdminAws token="tok" onLogout={vi.fn()} />)
+    await screen.findByText('off')
+    await user.type(screen.getByLabelText('Account name'), 'prod')
+    await user.type(screen.getByLabelText('Role ARN'), READER_ARN)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getAllByRole('button', { name: 'Save' })[3])
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toContain('/api/admin/config/aws/accounts')
+    expect(JSON.parse(options.body)).toEqual({ accounts: [{ name: 'prod', roleArn: READER_ARN }] })
   })
 
   it('saves an access key and shows it as configured', async () => {

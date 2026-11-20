@@ -59,6 +59,7 @@ const TOOL_LABELS = {
   zendesk_list_views: 'Listing Zendesk views',
   zendesk_list_view_tickets: 'Listing Zendesk tickets',
   zendesk_post_internal_note: 'Posting Zendesk internal note',
+  aws_list_accounts: 'Listing AWS accounts',
   aws_list_alarms: 'Checking AWS alarms',
   aws_list_ecs_clusters: 'Listing ECS clusters',
   aws_list_ecs_services: 'Checking ECS services',

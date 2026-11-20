@@ -714,6 +714,7 @@ describe('buildAgentTools', () => {
     const selection = { unrestricted: false, repos: [], integrations: ['aws'] }
     expect(names(buildAgentTools(selection, { awsConfigured: false }))).not.toContain('aws_list_alarms')
     expect(names(buildAgentTools(selection, { awsConfigured: true }))).toEqual([
+      'aws_list_accounts',
       'aws_list_alarms',
       'aws_list_ecs_clusters',
       'aws_list_ecs_services',

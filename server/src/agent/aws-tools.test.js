@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RunContext } from '@openai/agents'
 
+const listAccounts = vi.fn()
 const listAlarms = vi.fn()
 const listEcsClusters = vi.fn()
 const listEcsServices = vi.fn()
@@ -8,6 +9,7 @@ const getEcsService = vi.fn()
 const listMetrics = vi.fn()
 const getMetricData = vi.fn()
 vi.mock('../aws/client.js', () => ({
+  listAccounts,
   listAlarms,
   listEcsClusters,
   listEcsServices,
@@ -20,6 +22,7 @@ const {
   AWS_TOOLS,
   getAwsEcsServiceTool,
   getAwsMetricDataTool,
+  listAwsAccountsTool,
   listAwsAlarmsTool,
   listAwsEcsClustersTool,
   listAwsEcsServicesTool,
@@ -31,8 +34,9 @@ beforeEach(() => {
 })
 
 describe('AWS_TOOLS', () => {
-  it('registers the six read-only AWS tools', () => {
+  it('registers the seven read-only AWS tools', () => {
     expect(AWS_TOOLS.map(candidate => candidate.name)).toEqual([
+      'aws_list_accounts',
       'aws_list_alarms',
       'aws_list_ecs_clusters',
       'aws_list_ecs_services',
@@ -56,28 +60,28 @@ describe('AWS tool execution', () => {
       name: 'aws_list_alarms',
       tool: listAwsAlarmsTool,
       clientFunction: listAlarms,
-      input: { state: 'ALARM', namePrefix: null },
-      expected: { state: 'ALARM' },
+      input: { account: 'dev', state: 'ALARM', namePrefix: null },
+      expected: { account: 'dev', state: 'ALARM' },
     },
     {
       name: 'aws_list_ecs_services',
       tool: listAwsEcsServicesTool,
       clientFunction: listEcsServices,
-      input: { cluster: 'prod-cluster' },
+      input: { account: null, cluster: 'prod-cluster' },
       expected: { cluster: 'prod-cluster' },
     },
     {
       name: 'aws_get_ecs_service',
       tool: getAwsEcsServiceTool,
       clientFunction: getEcsService,
-      input: { service: 'prod-backend', cluster: null },
+      input: { account: null, service: 'prod-backend', cluster: null },
       expected: { service: 'prod-backend' },
     },
     {
       name: 'aws_list_metrics',
       tool: listAwsMetricsTool,
       clientFunction: listMetrics,
-      input: { namespace: 'AWS/ECS', metricName: null, dimensions: null },
+      input: { account: null, namespace: 'AWS/ECS', metricName: null, dimensions: null },
       expected: { namespace: 'AWS/ECS' },
     },
     {
@@ -85,6 +89,7 @@ describe('AWS tool execution', () => {
       tool: getAwsMetricDataTool,
       clientFunction: getMetricData,
       input: {
+        account: 'prod',
         namespace: 'AWS/ECS',
         metricName: 'CPUUtilization',
         dimensions: [{ name: 'ServiceName', value: 'prod-backend' }],
@@ -94,6 +99,7 @@ describe('AWS tool execution', () => {
         period: null,
       },
       expected: {
+        account: 'prod',
         namespace: 'AWS/ECS',
         metricName: 'CPUUtilization',
         dimensions: [{ name: 'ServiceName', value: 'prod-backend' }],
@@ -114,12 +120,22 @@ describe('AWS tool execution', () => {
     }
   )
 
-  it('lists the clusters without input', async () => {
-    listEcsClusters.mockResolvedValue({ clusters: [{ name: 'prod-cluster' }] })
+  it('lists the clusters of the account it is given', async () => {
+    listEcsClusters.mockResolvedValue({ account: 'dev', clusters: [{ name: 'dev-cluster' }] })
 
-    const result = await listAwsEcsClustersTool.invoke(new RunContext(), '{}')
+    const result = await listAwsEcsClustersTool.invoke(new RunContext(), JSON.stringify({ account: 'dev' }))
 
-    expect(JSON.parse(result)).toEqual({ clusters: [{ name: 'prod-cluster' }] })
+    expect(JSON.parse(result)).toEqual({ account: 'dev', clusters: [{ name: 'dev-cluster' }] })
     expect(listEcsClusters).toHaveBeenCalledTimes(1)
+    expect(listEcsClusters).toHaveBeenCalledWith({ account: 'dev' })
+  })
+
+  it('lists the configured accounts without input', async () => {
+    listAccounts.mockResolvedValue({ accounts: [{ name: 'prod' }] })
+
+    const result = await listAwsAccountsTool.invoke(new RunContext(), '{}')
+
+    expect(JSON.parse(result)).toEqual({ accounts: [{ name: 'prod' }] })
+    expect(listAccounts).toHaveBeenCalledTimes(1)
   })
 })

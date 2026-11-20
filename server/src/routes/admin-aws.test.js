@@ -18,6 +18,8 @@ app.use('/api/admin/config/aws', adminAwsRouter)
 
 const ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'
 const SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+const ROLE_ARN = 'arn:aws:iam::123456789012:role/monitoring-hub'
+const READER_ARN = 'arn:aws:iam::210987654321:role/monitoring-reader'
 
 let stored
 
@@ -45,7 +47,7 @@ describe('GET /api/admin/config/aws', () => {
     const res = await request(app).get('/api/admin/config/aws')
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ enabled: false, region: '', accessKeyConfigured: false })
+    expect(res.body).toEqual({ enabled: false, region: '', accessKeyConfigured: false, roleArn: '', accounts: [] })
   })
 
   it('reports whether an access key is stored but never returns it', async () => {
@@ -55,7 +57,7 @@ describe('GET /api/admin/config/aws', () => {
 
     const res = await request(app).get('/api/admin/config/aws')
 
-    expect(res.body).toEqual({ enabled: false, region: '', accessKeyConfigured: true })
+    expect(res.body).toMatchObject({ enabled: false, region: '', accessKeyConfigured: true })
     expect(JSON.stringify(res.body)).not.toContain(ACCESS_KEY_ID)
     expect(JSON.stringify(res.body)).not.toContain(SECRET_ACCESS_KEY)
   })
@@ -134,6 +136,74 @@ describe('PUT /api/admin/config/aws/region', () => {
   })
 })
 
+describe('PUT /api/admin/config/aws/role-arn', () => {
+  it('saves the role to assume and clears it with an empty value', async () => {
+    const saved = await request(app)
+      .put('/api/admin/config/aws/role-arn')
+      .send({ roleArn: ` ${ROLE_ARN} ` })
+
+    expect(saved.status).toBe(200)
+    expect(saved.body).toEqual({ roleArn: ROLE_ARN })
+    expect((await request(app).get('/api/admin/config/aws')).body.roleArn).toBe(ROLE_ARN)
+
+    const cleared = await request(app).put('/api/admin/config/aws/role-arn').send({ roleArn: '' })
+
+    expect(cleared.body).toEqual({ roleArn: '' })
+    expect((await request(app).get('/api/admin/config/aws')).body.roleArn).toBe('')
+  })
+
+  it('rejects what is not a role ARN', async () => {
+    const res = await request(app).put('/api/admin/config/aws/role-arn').send({ roleArn: 'monitoring-hub' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/IAM role ARN/)
+    expect(setConfigValue).not.toHaveBeenCalled()
+  })
+
+  it('answers 500 when the role cannot be saved', async () => {
+    setConfigValue.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/aws/role-arn').send({ roleArn: ROLE_ARN })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the AWS role.' })
+  })
+})
+
+describe('PUT /api/admin/config/aws/accounts', () => {
+  it('saves the accounts in order and returns them', async () => {
+    const accounts = [
+      { name: 'prod', roleArn: READER_ARN },
+      { name: 'dev', roleArn: ROLE_ARN },
+    ]
+
+    const res = await request(app).put('/api/admin/config/aws/accounts').send({ accounts })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ accounts })
+    expect((await request(app).get('/api/admin/config/aws')).body.accounts).toEqual(accounts)
+  })
+
+  it('rejects an account with a bad name or role', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/aws/accounts')
+      .send({ accounts: [{ name: 'prod', roleArn: 'reader' }] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/account "prod"/)
+    expect(setConfigValue).not.toHaveBeenCalled()
+  })
+
+  it('answers 500 when the accounts cannot be saved', async () => {
+    setConfigValue.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/aws/accounts').send({ accounts: [] })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the AWS accounts.' })
+  })
+})
+
 describe('PUT /api/admin/config/aws/access-key', () => {
   it('stores the key with the secret encrypted, and removes it with empty values', async () => {
     const saved = await request(app)
@@ -179,10 +249,16 @@ describe('PUT /api/admin/config/aws/access-key', () => {
 describe('POST /api/admin/config/aws/test', () => {
   it('returns the identity and the result of each permission check', async () => {
     const report = {
-      account: '123456789012',
-      arn: 'arn:aws:sts::123456789012:assumed-role/soporti-task/abc',
       region: 'eu-central-1',
-      checks: [{ id: 'alarms', label: 'CloudWatch alarms', action: 'cloudwatch:DescribeAlarms', ok: true }],
+      runsAs: { account: '123456789012', arn: 'arn:aws:sts::123456789012:assumed-role/soporti-task/abc' },
+      accounts: [
+        {
+          name: 'prod',
+          account: '210987654321',
+          arn: 'arn:aws:sts::210987654321:assumed-role/monitoring-reader/soporti',
+          checks: [{ id: 'alarms', label: 'CloudWatch alarms', action: 'cloudwatch:DescribeAlarms', ok: true }],
+        },
+      ],
     }
     testConnection.mockResolvedValue(report)
 
