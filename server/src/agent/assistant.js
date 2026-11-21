@@ -31,7 +31,7 @@ import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { resolveHubspotAccess } from '../hubspot/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
-import { listChatGuards } from '../guards/registry.js'
+import { listUsableGuards } from '../guards/registry.js'
 import * as shopify from '../shopify/client.js'
 
 function resolveBotRole(bot, { unattended }) {
@@ -115,7 +115,7 @@ export async function createAgent(
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
-    listChatGuards(),
+    listUsableGuards(),
   ])
   const configured = {
     shortcutConfigured,

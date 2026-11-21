@@ -644,21 +644,6 @@ export const jevCalls = pgTable(
   table => [index('jev_calls_project_created_idx').on(table.project, table.createdAt)]
 )
 
-export const autoApproveEvaluations = pgTable(
-  'auto_approve_evaluations',
-  {
-    id: serial('id').primaryKey(),
-    repo: text('repo').notNull(),
-    prNumber: integer('pr_number').notNull(),
-    headSha: text('head_sha').notNull(),
-    mode: text('mode').notNull(),
-    wouldApprove: boolean('would_approve').notNull(),
-    decidedBy: text('decided_by').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  table => [index('auto_approve_evaluations_repo_created_idx').on(table.repo, table.createdAt)]
-)
-
 export const legalCases = pgTable(
   'legal_cases',
   {

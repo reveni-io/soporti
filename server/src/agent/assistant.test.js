@@ -82,7 +82,7 @@ vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () 
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured: vi.fn(async () => false) }))
 vi.mock('../hubspot/settings.js', () => ({ resolveHubspotAccess: vi.fn(async () => null) }))
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
-vi.mock('../guards/registry.js', () => ({ listChatGuards: vi.fn(async () => []) }))
+vi.mock('../guards/registry.js', () => ({ listUsableGuards: vi.fn(async () => []) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
   getFigmaCommentsEnabled: vi.fn(async () => false),
@@ -107,7 +107,7 @@ const { isSendcloudConfigured } = await import('../sendcloud/settings.js')
 const { resolveHubspotAccess } = await import('../hubspot/settings.js')
 const { normalizeHubspotPermissions } = await import('../hubspot/permissions.js')
 const { isSlackConfigured } = await import('../slack/settings.js')
-const { listChatGuards } = await import('../guards/registry.js')
+const { listUsableGuards } = await import('../guards/registry.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -568,7 +568,7 @@ describe('createAgent', () => {
   it('hands the guards the chat can use, and where their cases go, to the tool builder', async () => {
     const guards = [{ id: 'legal', name: 'Legal', description: 'Customer replies', questions: 3, model: 'jev-1' }]
     const guardCases = { conversationId: 'conv-1', onChecked: vi.fn() }
-    listChatGuards.mockResolvedValueOnce(guards)
+    listUsableGuards.mockResolvedValueOnce(guards)
 
     await createAgent([], 'support', { guardCases })
 

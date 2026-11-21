@@ -122,6 +122,7 @@ const app = express()
 app.use(express.json({ limit: '2mb' }))
 app.use((req, _res, next) => {
   req.user = { id: 1, email: 'test@test.com', name: 'Test' }
+  if (req.get('x-test-api-key')) req.apiKey = { id: 9 }
   next()
 })
 app.use('/', chatRoute(conversationStore))
@@ -254,6 +255,15 @@ describe('POST /api/chat', () => {
     expect(run.mock.calls[0][1].endsWith('why does it 500?')).toBe(true)
   })
 
+  it('lets only a person in the web chat send ticket replies, not a request made with an API key', async () => {
+    run.mockResolvedValue(createStreamMock([]))
+
+    await request(app).post('/').set('x-test-api-key', '1').send({ message: 'send case 41' })
+
+    const [, , { guardCases }] = createAgent.mock.calls[0]
+    expect(guardCases).toMatchObject({ sendable: false, turnStartedAt: expect.any(Date) })
+  })
+
   it('keeps the similar cases out of the system prompt so the prefix stays cacheable', async () => {
     searchSimilarCases.mockResolvedValueOnce([{ question: 'Why 500?', answer: 'Bad token', score: 0.9 }])
     run.mockResolvedValue(createStreamMock([]))
@@ -267,7 +277,12 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
-      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
+      guardCases: {
+        conversationId: expect.any(String),
+        onChecked: expect.any(Function),
+        sendable: true,
+        turnStartedAt: expect.any(Date),
+      },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -384,7 +399,12 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
-      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
+      guardCases: {
+        conversationId: expect.any(String),
+        onChecked: expect.any(Function),
+        sendable: true,
+        turnStartedAt: expect.any(Date),
+      },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -409,7 +429,12 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
-      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
+      guardCases: {
+        conversationId: expect.any(String),
+        onChecked: expect.any(Function),
+        sendable: true,
+        turnStartedAt: expect.any(Date),
+      },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -671,7 +696,12 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
-      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
+      guardCases: {
+        conversationId: expect.any(String),
+        onChecked: expect.any(Function),
+        sendable: true,
+        turnStartedAt: expect.any(Date),
+      },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),
@@ -758,7 +788,12 @@ describe('POST /api/chat', () => {
       userId: 1,
       conversationId: TEST_CONVERSATION_ID,
       onArtifactPublished: expect.any(Function),
-      guardCases: { conversationId: expect.any(String), onChecked: expect.any(Function) },
+      guardCases: {
+        conversationId: expect.any(String),
+        onChecked: expect.any(Function),
+        sendable: true,
+        turnStartedAt: expect.any(Date),
+      },
       onNestedToolCall: expect.any(Function),
       onNestedToolResult: expect.any(Function),
       onNestedUsage: expect.any(Function),

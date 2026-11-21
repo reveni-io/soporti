@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
+import { defaultJevDocument, isCustomGuardId, isJevDocument, parseJevDocument, planJevSave } from './documents.js'
 
 const CHOICE = {
   id: 'q1',
@@ -16,11 +16,10 @@ const NOUL = { id: 'q2', type: 'noul', text: 'Merging this change is risky', fla
 
 function legalSet(overrides = {}) {
   return {
-    description: 'Customer reply guardrail',
-    model: 'jev-latest',
     minConfidence: 0.75,
     timeoutSeconds: 30,
     dailyLimit: 0,
+    maxCharacters: 100_000,
     questions: [CHOICE, NOUL],
     ...overrides,
   }
@@ -39,21 +38,18 @@ describe('isJevDocument', () => {
 })
 
 describe('defaultJevDocument', () => {
-  it('keeps the Jev calls of each guard off and gives each one its defaults', () => {
-    expect(defaultJevDocument('legal').enabled).toBe(false)
-    expect(defaultJevDocument('github').enabled).toBe(false)
+  it('gives each guard its defaults, with no switches of its own', () => {
+    expect(defaultJevDocument('legal')).toEqual({ set: expect.any(Object) })
     expect(defaultJevDocument('jev')).toBeNull()
     expect(defaultJevDocument('legal').set).toEqual({
-      description: '',
-      model: '',
       minConfidence: null,
       timeoutSeconds: 30,
       dailyLimit: 0,
+      maxCharacters: 100_000,
       questions: [],
     })
-    expect(defaultJevDocument('github').set.maxCharacters).toBe(100_000)
-    expect(defaultJevDocument('github').set.rules).toHaveLength(9)
-    expect(defaultJevDocument('github').repos).toEqual([])
+    expect(defaultJevDocument('github')).toEqual(defaultJevDocument('legal'))
+    expect(defaultJevDocument('auto-approve')).toBeNull()
   })
 
   it('returns a fresh copy every time', () => {
@@ -75,47 +71,36 @@ describe('parseJevDocument', () => {
       {
         id: 'q1',
         text: 'Does the change alter how money is refunded?',
-        instructions: 'Read the diff.',
-        criteria: 'Ignore tests.',
         type: 'choice',
         answers: [
-          { label: 'Yes', criteria: 'A refund path changes.', flag: true },
-          { label: 'No', criteria: 'No money logic is touched.', flag: false },
+          { label: 'Yes', flag: true },
+          { label: 'No', flag: false },
         ],
       },
-      { id: 'q2', text: 'Merging this change is risky', instructions: '', criteria: '', type: 'noul', flagAt: 70 },
+      { id: 'q2', text: 'Merging this change is risky', type: 'noul', flagAt: 70 },
     ])
   })
 
-  it('accepts an empty model and a noul question without a threshold', () => {
-    const { value } = parseLegal({ model: '', questions: [{ ...NOUL, flagAt: null }] })
+  it('drops the model a guard used to pick, and accepts a noul question without a threshold', () => {
+    const { value } = parseLegal({ model: 'jev-1.2.0', questions: [{ ...NOUL, flagAt: null }] })
 
-    expect(value.set.model).toBe('')
+    expect(value.set).not.toHaveProperty('model')
     expect(value.set.questions[0].flagAt).toBeNull()
   })
 
-  it('validates the Jev calls switch of each guard, off by default', () => {
-    expect(parseJevDocument('legal', { enabled: true, set: legalSet() }).value.enabled).toBe(true)
-    expect(parseJevDocument('legal', { set: legalSet() }).value.enabled).toBe(false)
-    expect(parseJevDocument('github', { enabled: 'yes', set: legalSet(), repos: [] })).toEqual({
-      error: '"enabled" must be true or false.',
+  it('drops the switches a guard no longer has, and knows no other document', () => {
+    expect(parseJevDocument('legal', { enabled: true, allowSend: true, set: legalSet() }).value).toEqual({
+      set: parseLegal().value.set,
     })
     expect(parseJevDocument('jev', { enabled: true })).toEqual({ error: 'Unknown document.' })
   })
 
-  it('parses the GitHub project with its rules and repos', () => {
-    const github = { set: legalSet({ maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] }), repos: [] }
-
-    expect(parseJevDocument('github', github).value).toEqual({
-      enabled: false,
-      set: { ...parseLegal().value.set, maxCharacters: 50_000, rules: [{ id: 'ci', role: 'veto' }] },
-      repos: [],
+  it('parses the GitHub guard like any other guard, without the repos and rules it used to keep', () => {
+    expect(parseJevDocument('github', { set: legalSet({ rules: [{ id: 'ci' }] }), repos: [] }).value).toEqual({
+      set: parseLegal().value.set,
     })
-    expect(parseJevDocument('github', { set: legalSet({ rules: [] }), repos: [] })).toEqual({
+    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 0 }) })).toEqual({
       error: 'Max characters sent to Jev must be a positive whole number.',
-    })
-    expect(parseJevDocument('github', { set: legalSet({ maxCharacters: 1, rules: [] }), repos: 'none' })).toEqual({
-      error: 'Repos must be a list.',
     })
   })
 
@@ -124,9 +109,6 @@ describe('parseJevDocument', () => {
     [{ minConfidence: 1.5 }, 'Min confidence must be a number between 0 and 1.'],
     [{ timeoutSeconds: 0 }, 'Timeout must be a whole number of seconds.'],
     [{ dailyLimit: -1 }, 'Daily limit must be a whole number. Use 0 for no limit.'],
-    [{ model: 'jev latest' }, 'That does not look like a Jev model name.'],
-    [{ description: 7 }, 'The set description must be text.'],
-    [{ description: 'd'.repeat(501) }, 'The set description is too long (max 500 characters).'],
     [{ questions: 'none' }, 'Questions must be a list.'],
     [{ questions: Array.from({ length: 51 }, (_, i) => ({ ...NOUL, id: `q${i}` })) }, 'A set can have at most 50'],
     [{ questions: [NOUL, NOUL] }, 'Two questions have the same id.'],
@@ -159,33 +141,28 @@ describe('planJevSave', () => {
   it('describes the first save and starts the set versions', () => {
     const plan = planJevSave({ rev: 0, data: defaultJevDocument('legal') }, saved)
 
-    expect(plan.change).toBe(
-      'Created; Set description; Questions; Model (empty) → jev-latest; Min confidence (empty) → 0.75'
-    )
-    expect(plan.set).toEqual({ model: 'jev-latest', minConfidence: 0.75, questions: saved.set.questions })
+    expect(plan.change).toBe('Created; Questions; Min confidence (empty) → 0.75')
+    expect(plan.set).toEqual({ minConfidence: 0.75, questions: saved.set.questions })
     expect(plan.data).toBe(saved)
   })
 
-  it('bumps the set version when a question, the model or the min confidence change', () => {
+  it('bumps the set version when a question or the min confidence change', () => {
     const questions = [{ ...CHOICE, text: 'Reworded' }, NOUL]
 
     expect(planJevSave({ rev: 3, data: saved }, { set: legalSet({ questions }) })).toEqual({
       data: { set: legalSet({ questions }) },
       change: 'Questions',
-      set: { model: 'jev-latest', minConfidence: 0.75, questions },
+      set: { minConfidence: 0.75, questions },
     })
     expect(planJevSave({ rev: 3, data: saved }, { set: legalSet({ minConfidence: 0.8 }) }).set).not.toBeNull()
   })
 
-  it('keeps the set version when only the description, timeout or daily limit change', () => {
-    const plan = planJevSave(
-      { rev: 3, data: saved },
-      { set: legalSet({ description: 'New', timeoutSeconds: 60, dailyLimit: 50 }) }
-    )
+  it('keeps the set version when only the timeout or daily limit change', () => {
+    const plan = planJevSave({ rev: 3, data: saved }, { set: legalSet({ timeoutSeconds: 60, dailyLimit: 50 }) })
 
     expect(plan).toEqual({
-      data: { set: legalSet({ description: 'New', timeoutSeconds: 60, dailyLimit: 50 }) },
-      change: 'Set description; Timeout 30 → 60; Daily limit 0 → 50',
+      data: { set: legalSet({ timeoutSeconds: 60, dailyLimit: 50 }) },
+      change: 'Timeout 30 → 60; Daily limit 0 → 50',
       set: null,
     })
   })
@@ -205,120 +182,45 @@ describe('planJevSave', () => {
     expect(planJevSave({ rev: 3, data: saved }, empty).change).toBe('Questions')
   })
 
-  it('describes the Jev calls switch of a guard', () => {
-    const off = parseLegal().value
-    const on = { ...off, enabled: true }
-
-    expect(planJevSave({ rev: 1, data: off }, on)).toEqual({ data: on, change: 'Jev calls on', set: null })
-    expect(planJevSave({ rev: 2, data: on }, off).change).toBe('Jev calls off')
-  })
-
-  it('refuses to turn the calls on without an API key, and lets them off', () => {
-    const off = parseLegal().value
-    const on = { ...off, enabled: true }
-
-    expect(planJevSave({ rev: 1, data: off }, on, { keyConfigured: false })).toEqual({
-      error: 'Save the API key before turning Jev calls on.',
-    })
-    expect(planJevSave({ rev: 2, data: on }, off, { keyConfigured: false }).change).toBe('Jev calls off')
-  })
-
-  it('saves a guard without a min confidence while its calls are off', () => {
+  it('saves a guard without a min confidence', () => {
     const empty = parseLegal({ minConfidence: null }).value
 
     expect(empty.set.minConfidence).toBeNull()
     expect(planJevSave({ rev: 1, data: parseLegal().value }, empty).error).toBeUndefined()
   })
+})
 
-  it('refuses to turn the calls on, or to clear the min confidence while they are on, without a min confidence', () => {
-    const off = parseLegal({ minConfidence: null }).value
-    const on = { ...parseLegal().value, enabled: true }
-    const error = { error: 'Jev calls need a min confidence: set one or turn the calls off.' }
-
-    expect(planJevSave({ rev: 1, data: off }, { ...off, enabled: true })).toEqual(error)
-    expect(planJevSave({ rev: 2, data: on }, { ...on, set: off.set })).toEqual(error)
+describe('created guards', () => {
+  it('know their ids, start empty and need a name', () => {
+    expect(isCustomGuardId('guard-0a1b2c3d')).toBe(true)
+    expect(isCustomGuardId('guard-0A1B2C3D')).toBe(false)
+    expect(isJevDocument('guard-0a1b2c3d')).toBe(true)
+    expect(defaultJevDocument('guard-0a1b2c3d')).toMatchObject({ name: '', set: { questions: [] } })
+    expect(parseJevDocument('guard-0a1b2c3d', { name: ' Payments ', set: legalSet() }).value.name).toBe('Payments')
+    expect(parseJevDocument('guard-0a1b2c3d', { set: legalSet() })).toEqual({ error: 'The name is required.' })
+    expect(parseJevDocument('guard-0a1b2c3d', { name: 7, set: legalSet() })).toEqual({
+      error: 'The name must be text.',
+    })
   })
 
-  it('still saves a guard that already had its calls on without a min confidence', () => {
-    const saved = { ...parseLegal({ minConfidence: null }).value, enabled: true }
+  it('record a new name in the change history, and let the built-in ones be renamed too', () => {
+    const saved = parseJevDocument('guard-0a1b2c3d', { name: 'Payments', set: legalSet() }).value
 
-    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
+    expect(planJevSave({ rev: 2, data: saved }, { ...saved, name: 'Refunds' }).change).toBe('Name Refunds')
+    expect(parseLegal().value).not.toHaveProperty('name')
+    expect(parseJevDocument('legal', { name: 'Customer replies', set: legalSet() }).value.name).toBe('Customer replies')
   })
 })
 
-describe('the Legal sending switch', () => {
-  it('is off by default and must be true or false', () => {
-    expect(defaultJevDocument('legal').allowSend).toBe(false)
-    expect(parseJevDocument('legal', { set: legalSet() }).value.allowSend).toBe(false)
-    expect(parseJevDocument('legal', { set: legalSet(), allowSend: true }).value.allowSend).toBe(true)
-    expect(parseJevDocument('legal', { set: legalSet(), allowSend: 'yes' })).toEqual({
-      error: '"allowSend" must be true or false.',
-    })
-  })
-
-  it('records turning the sending on and off in the change history', () => {
-    const saved = { set: legalSet() }
-
-    expect(planJevSave({ rev: 3, data: saved }, { ...saved, allowSend: true }).change).toBe('Sending from Soporti on')
-    expect(planJevSave({ rev: 4, data: { ...saved, allowSend: true } }, { ...saved, allowSend: false }).change).toBe(
-      'Sending from Soporti off'
-    )
-    expect(planJevSave({ rev: 4, data: saved }, { ...saved, allowSend: false })).toBeNull()
-  })
-})
-
-describe('planJevSave for the GitHub project', () => {
-  const RULES = [{ id: 'merge-risk', role: 'veto', limit: 'Low' }]
-
-  function github({ repos = [], rules = RULES, questions = [NOUL] } = {}) {
-    return { set: legalSet({ maxCharacters: 100_000, rules, questions }), repos }
-  }
-
-  it('bumps the set version when the rules change', () => {
+describe('planJevSave for a restored version', () => {
+  it('records a restored version of a guard', () => {
     const plan = planJevSave(
-      { rev: 2, data: github() },
-      github({ rules: [{ id: 'merge-risk', role: 'veto', limit: 'Medium' }] })
+      { rev: 5, data: { set: legalSet() } },
+      { set: legalSet({ questions: [CHOICE] }) },
+      {
+        restoredFrom: 2,
+      }
     )
-
-    expect(plan.change).toBe('Rules')
-    expect(plan.set.rules).toEqual([{ id: 'merge-risk', role: 'veto', limit: 'Medium' }])
-  })
-
-  it('keeps the set version for repo changes', () => {
-    const shadow = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
-    const plan = planJevSave(
-      { rev: 2, data: github({ repos: [shadow] }) },
-      github({
-        repos: [
-          { ...shadow, mode: 'on' },
-          { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
-        ],
-      })
-    )
-
-    expect(plan).toMatchObject({ change: 'acme/web shadow → on; Added acme/docs (off)', set: null })
-  })
-
-  it('refuses to turn on a repo that was not saved in shadow', () => {
-    const repo = { name: 'acme/web', mode: 'off', jev: true, denylist: [] }
-
-    expect(
-      planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [{ ...repo, mode: 'on' }] }))
-    ).toEqual({
-      error: 'Shadow first: acme/web must be saved in shadow before it can be set to on.',
-    })
-  })
-
-  it('refuses to delete the set while a repo uses it', () => {
-    const repo = { name: 'acme/web', mode: 'shadow', jev: true, denylist: [] }
-
-    expect(planJevSave({ rev: 2, data: github({ repos: [repo] }) }, github({ repos: [repo], questions: [] }))).toEqual({
-      error: 'Cannot delete the set: 1 auto-approve repo (acme/web) use it. Set them to off and save first.',
-    })
-  })
-
-  it('records a restored version', () => {
-    const plan = planJevSave({ rev: 5, data: github() }, github({ questions: [CHOICE] }), { restoredFrom: 2 })
 
     expect(plan.change).toBe('Restored v2; Questions')
   })

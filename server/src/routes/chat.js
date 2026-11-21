@@ -502,7 +502,8 @@ async function loadTurnContext(conversationStore, request, { conversationId, isN
 }
 
 async function runChatTurn(turnContext, { session, previousResponseId }) {
-  const { res, conversationStore, request, bot, userId, conversationId, agentInput, turn, context } = turnContext
+  const { res, conversationStore, request, bot, userId, conversationId, agentInput, turn, context, sender } =
+    turnContext
 
   try {
     const agent = await createAgent(request.sources, request.profile, {
@@ -512,7 +513,12 @@ async function runChatTurn(turnContext, { session, previousResponseId }) {
       userId,
       conversationId,
       onArtifactPublished: turn.queueArtifact,
-      guardCases: { conversationId, onChecked: turn.queueGuardResult },
+      guardCases: {
+        conversationId,
+        onChecked: turn.queueGuardResult,
+        sendable: !sender.apiKey,
+        turnStartedAt: sender.turnStartedAt,
+      },
       onNestedToolCall: turn.startToolCall,
       onNestedToolResult: turn.finishToolCall,
       onNestedUsage: usage => turn.nestedUsage.push(usage),
@@ -602,6 +608,7 @@ function openEventStream(res, conversationId) {
 }
 
 async function answerChat(conversationStore, { req, res, parsedRequest, turnKey }) {
+  const sender = { apiKey: Boolean(req.apiKey), turnStartedAt: new Date() }
   const hasClientLeft = watchClientDisconnect(res)
   const userId = req.user.id
   const prerequisites = await loadPrerequisites(parsedRequest, userId)
@@ -646,6 +653,7 @@ async function answerChat(conversationStore, { req, res, parsedRequest, turnKey 
     context,
     hasClientLeft,
     turnKey,
+    sender,
   }
   await inConversation(conversationStore, { bot, userId, resolved, res }, conversation => {
     return runChatTurn(turnContext, conversation)

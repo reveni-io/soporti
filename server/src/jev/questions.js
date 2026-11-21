@@ -2,22 +2,16 @@ import { JEV_QUESTION_CHOICE } from '../constants.js'
 
 const SCORE_SCALE = 100
 
-function describeQuestion({ text, instructions, criteria }) {
-  return Object.fromEntries(
-    Object.entries({ question: text, instructions, criteria }).filter(([, value]) => value.length > 0)
-  )
-}
-
 function toApiQuestion(question) {
   if (question.type === JEV_QUESTION_CHOICE) {
     return {
       type: JEV_QUESTION_CHOICE,
-      instructions: describeQuestion(question),
-      criteria: Object.fromEntries(question.answers.map(answer => [answer.label, answer.criteria || null])),
+      instructions: { question: question.text },
+      criteria: Object.fromEntries(question.answers.map(answer => [answer.label, null])),
     }
   }
 
-  return { type: question.type, instructions: describeQuestion(question), criteria: null }
+  return { type: question.type, instructions: { question: question.text }, criteria: null }
 }
 
 function readChoice(question, answer) {

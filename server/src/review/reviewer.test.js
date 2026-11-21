@@ -58,14 +58,14 @@ vi.mock('./spec.js', () => ({
   loadSpec: mockLoadSpec,
 }))
 
-const mockLoadAutoApproveRepo = vi.fn()
 const mockDecideAutoApprove = vi.fn()
+const mockBuildReviewGuards = vi.fn()
 vi.mock('./auto-approve.js', () => ({
-  loadAutoApproveRepo: mockLoadAutoApproveRepo,
+  buildReviewGuards: mockBuildReviewGuards,
   decideAutoApprove: mockDecideAutoApprove,
 }))
-mockLoadAutoApproveRepo.mockResolvedValue(null)
-mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+mockDecideAutoApprove.mockImplementation(({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
+mockBuildReviewGuards.mockResolvedValue({ tools: [], checks: [] })
 
 const mockSuggestReviewers = vi.fn(async () => null)
 vi.mock('./reviewer-suggestions.js', () => ({ suggestReviewers: mockSuggestReviewers }))
@@ -321,43 +321,31 @@ describe('runReview', () => {
     expect(mockCreatePullRequestReview.mock.calls[0][2].event).toBe('APPROVE')
   })
 
-  it('lets the auto-approve settings of the repo decide the event, with the mode read at the start', async () => {
-    const repo = { name: 'acme-io/app', mode: 'on', jev: true, denylist: [] }
-    const autoApprove = {
-      repo: 'acme-io/app',
-      mode: 'on',
-      jevAsked: true,
-      approve: true,
-      decidedBy: 'jev',
-      reason: null,
-      pendingOnly: false,
-      setVersion: 9,
-      model: 'jev-1.14.0',
-      minConfidence: 0.75,
-      gates: [],
-      questions: [],
-    }
-    mockLoadAutoApproveRepo.mockResolvedValueOnce(repo)
-    mockDecideAutoApprove.mockResolvedValueOnce({ event: 'APPROVE', autoApprove })
+  it('gives the overview ask_guard and lets what the guards answered decide the event', async () => {
+    const askGuard = { name: 'ask_guard' }
+    const guardChecks = [{ guard: 'GitHub Review PR', status: 'checked', review: { rows: [] } }]
+    mockBuildReviewGuards.mockResolvedValueOnce({ tools: [askGuard], checks: guardChecks })
+    const check = { guard: 'GitHub Review PR', answered: true, setVersion: 9, minConfidence: 0.75, rows: [] }
+    const autoApprove = { approve: true, checks: [check] }
+    mockDecideAutoApprove.mockReturnValueOnce({ event: 'APPROVE', autoApprove })
     setupHappyPath({ verdict: 'comment', findings: [] })
 
     await runReview(trigger(), { logger: silentLogger })
 
-    expect(mockLoadAutoApproveRepo).toHaveBeenCalledWith('acme-io/app', { logger: silentLogger })
-    expect(mockDecideAutoApprove).toHaveBeenCalledTimes(1)
-    const [context] = mockDecideAutoApprove.mock.calls[0]
-    expect(context).toMatchObject({
-      repo,
-      todayEvent: 'COMMENT',
-      pullRequest: { repoFullName: 'acme-io/app', prNumber: 7, headSha: 'deadbeef', title: 'Fix totals', body: 'desc' },
-      review: { findings: [], notReviewed: [], fixedThreads: [] },
+    const [guardsContext] = mockBuildReviewGuards.mock.calls[0]
+    expect(guardsContext.pullRequest).toEqual({
+      repoFullName: 'acme-io/app',
+      prNumber: 7,
+      title: 'Fix totals',
+      body: 'desc',
     })
-    expect(context.review.files.map(file => file.filename)).toEqual(['src/checkout.js'])
+    expect(guardsContext.files.map(file => file.filename)).toEqual(['src/checkout.js'])
+    expect(teamCall().guardTools).toEqual([askGuard])
+    expect(mockDecideAutoApprove).toHaveBeenCalledWith({ todayEvent: 'COMMENT', guardChecks })
     const posted = mockCreatePullRequestReview.mock.calls[0][2]
     expect(posted.event).toBe('APPROVE')
-    expect(posted.body).toContain('✅ Auto-approve · approved')
-    expect(posted.body).toContain('**Actionable comments posted: 0**')
-    expect(posted.body).toMatch(/\*\*Passes:\*\* .*, jev/)
+    expect(posted.body).toContain('✅ Guards · no warnings')
+    expect(posted.body).toMatch(/\*\*Passes:\*\* .*, guards \(GitHub Review PR\)/)
   })
 
   it('downgrades an approve to COMMENT when a critical or major finding exists', async () => {

@@ -61,16 +61,6 @@ export const SUBAGENT_NAME_RE = new RegExp(`^[a-z][a-z0-9_]{1,${SUBAGENT_NAME_MA
 export const MAX_SUBAGENT_DESCRIPTION_LENGTH = 1000
 export const SUBAGENT_TOOL_PREFIX = 'ask_'
 
-export const JEV_SETTINGS_DOCUMENT = 'jev'
-export const JEV_GITHUB_DOCUMENT = 'github'
-export const JEV_LEGAL_DOCUMENT = 'legal'
-
-export const AUTO_APPROVE_OFF = 'off'
-export const AUTO_APPROVE_SHADOW = 'shadow'
-export const AUTO_APPROVE_ON = 'on'
-export const AUTO_APPROVE_MODES = [AUTO_APPROVE_OFF, AUTO_APPROVE_SHADOW, AUTO_APPROVE_ON]
-export const REPO_NAME_RE = /^[\w.-]+\/[\w.-]+$/
-
 export const SCHEDULE_HOURLY = 'hourly'
 export const SCHEDULE_DAILY = 'daily'
 export const SCHEDULE_WEEKLY = 'weekly'
@@ -178,3 +168,6 @@ export const ANALYTICS_SQL_MAX_LENGTH = 20_000
 export const ANALYTICS_DASHBOARD_NAME_MAX_LENGTH = 80
 
 export const THEME = { LIGHT: 'light', DARK: 'dark' }
+
+export const SEND_CASE_REPLY_TOOL = 'send_case_reply'
+export const LEGAL_REPLY_SENT_EVENT = 'soporti:legal-reply-sent'

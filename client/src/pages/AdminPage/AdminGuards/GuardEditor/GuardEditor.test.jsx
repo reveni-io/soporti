@@ -5,10 +5,8 @@ import { MemoryRouter } from 'react-router-dom'
 import GuardEditor from './GuardEditor.jsx'
 
 const BASE = '/api/admin/config/jev'
-const CATALOG = { keyConfigured: true, models: [{ name: 'jev-latest', description: '' }], scannedAt: null }
-const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', instructions: '', criteria: '', flagAt: 60 }
+const QUESTION = { id: 'q1', type: 'noul', text: 'Is it risky?', flagAt: 60 }
 const SET = {
-  description: 'Replies to customers',
   model: 'jev-latest',
   minConfidence: 0.75,
   timeoutSeconds: 30,
@@ -17,7 +15,7 @@ const SET = {
 }
 const NO_ROWS = { entries: [], total: 0, page: 1, pageSize: 5 }
 const LEGAL = { id: 'legal', name: 'Legal' }
-const GITHUB = { id: 'github', name: 'GitHub PRs' }
+const PAYMENTS = { id: 'guard-0a1b2c3d', name: 'Payments' }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -46,111 +44,84 @@ beforeEach(() => {
 })
 
 describe('GuardEditor', () => {
-  it('edits a guard: how to ask for it, sending, its questions, versions and history', async () => {
-    mockApi('legal', { set: SET, allowSend: false })
+  it('edits a guard: how to ask for it, its questions and versions, with no switches', async () => {
+    mockApi('legal', { set: SET })
 
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
     expect(await screen.findByText('Legal guard', { selector: 'h2' })).toBeInTheDocument()
-    expect(screen.getByText(/pass the reply through the Legal guard/)).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /Allow sending replies from Soporti/ })).not.toBeChecked()
-    expect(screen.getByLabelText('When to use it')).toHaveValue('Replies to customers')
+    expect(screen.getByText(/use the Legal guards/)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Allow/ })).not.toBeInTheDocument()
     expect(await screen.findByText('No versions yet. The first save creates version 1.')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Legal')
+    expect(screen.getByText(/when a repo’s/)).toBeInTheDocument()
   })
 
-  it('turns the Jev calls of the guard on and saves them with it', async () => {
-    const saved = document('legal', { enabled: true, set: SET, allowSend: false })
-    mockApi(
-      'legal',
-      { enabled: false, set: SET, allowSend: false },
-      { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] }
-    )
-    const user = userEvent.setup()
-    render(
-      <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
-      </MemoryRouter>
-    )
-
-    const calls = await screen.findByRole('checkbox', { name: /Allow Jev calls/ })
-    expect(screen.getByText(/the guard is not offered in the chat/)).toBeInTheDocument()
-    await user.click(calls)
-    await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
-
-    const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
-    expect(JSON.parse(put[1].body).data.enabled).toBe(true)
-  })
-
-  it('locks the Jev calls off until an API key is saved', async () => {
-    mockApi('legal', { enabled: false, set: SET, allowSend: false })
-
-    render(
-      <MemoryRouter>
-        <GuardEditor
-          token="tok"
-          guard={LEGAL}
-          catalog={{ ...CATALOG, keyConfigured: false }}
-          onSaved={vi.fn()}
-          onLogout={vi.fn()}
-        />
-      </MemoryRouter>
-    )
-
-    expect(await screen.findByRole('checkbox', { name: /Allow Jev calls/ })).toBeDisabled()
-    expect(screen.getByText('Save the Jev API key above before turning the calls on.')).toBeInTheDocument()
-  })
-
-  it('saves the sending switch and refreshes the list of guards', async () => {
-    const saved = document('legal', { set: SET, allowSend: true })
-    mockApi('legal', { set: SET, allowSend: false }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
+  it('saves the guard and refreshes the list of guards', async () => {
+    const saved = document('legal', { name: 'Legal Review', set: SET })
+    mockApi('legal', { set: SET }, { [`PUT ${BASE}/documents/legal`]: [okResponse(saved)] })
     const user = userEvent.setup()
     const onSaved = vi.fn()
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={onSaved} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={onSaved} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 
-    await user.click(await screen.findByRole('checkbox', { name: /Allow sending replies from Soporti/ }))
+    await user.type(await screen.findByRole('textbox', { name: 'Name' }), ' Review')
     await user.click(screen.getByRole('button', { name: 'Save (v2 → v3)' }))
 
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     const put = global.fetch.mock.calls.find(([, options = {}]) => options.method === 'PUT')
-    expect(JSON.parse(put[1].body).data.allowSend).toBe(true)
+    expect(JSON.parse(put[1].body).data.name).toBe('Legal Review')
   })
 
-  it('shows the GitHub guard with its rules and denylists, without sending, and names the repos that use its set', async () => {
-    mockApi('github', {
-      set: { ...SET, maxCharacters: 100_000, rules: [{ id: 'denylist', role: 'veto' }] },
-      repos: [
-        { name: 'acme/web', mode: 'shadow', jev: true, denylist: ['src/payments/**'] },
-        { name: 'acme/docs', mode: 'off', jev: true, denylist: [] },
-      ],
-    })
+  it('renames a guard', async () => {
+    mockApi('guard-0a1b2c3d', { name: 'Payments', set: SET })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <GuardEditor token="tok" guard={PAYMENTS} onSaved={vi.fn()} onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
+
+    const name = await screen.findByRole('textbox', { name: 'Name' })
+    await user.clear(name)
+    await user.type(name, 'Refunds')
+
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Delete guard/ })).not.toBeInTheDocument()
+  })
+
+  it('closes at once without changes, and asks before dropping unsaved ones', async () => {
+    mockApi('legal', { set: SET })
+    const onClose = vi.fn()
     const user = userEvent.setup()
 
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={GITHUB} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onClose={onClose} onLogout={vi.fn()} />
       </MemoryRouter>
     )
+    await user.click(await screen.findByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByRole('link', { name: 'Admin → GitHub' })).toHaveAttribute('href', '/admin/github')
-    expect(screen.getByText(/only a trivial PR with nothing blocking is approved/)).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: /Allow sending/ })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Set description')).toBeInTheDocument()
-    expect(screen.getByText('Rules', { selector: 'h2' })).toBeInTheDocument()
-    expect(screen.getByText('Denylist', { selector: '.review-rules__name' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('src/payments/**')).toBeInTheDocument()
+    expect(onClose).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole('button', { name: 'Delete set' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), ' Review')
+    await user.keyboard('{Escape}')
 
-    expect(screen.getByText(/Cannot delete the set: 1 auto-approve repo \(acme\/web\) use it/)).toBeInTheDocument()
+    expect(onClose).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(screen.queryByRole('group', { name: 'Unsaved changes' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('shows why the guard could not load', async () => {
@@ -160,7 +131,7 @@ describe('GuardEditor', () => {
 
     render(
       <MemoryRouter>
-        <GuardEditor token="tok" guard={LEGAL} catalog={CATALOG} onSaved={vi.fn()} onLogout={vi.fn()} />
+        <GuardEditor token="tok" guard={LEGAL} onSaved={vi.fn()} onLogout={vi.fn()} />
       </MemoryRouter>
     )
 

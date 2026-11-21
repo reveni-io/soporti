@@ -260,6 +260,27 @@
       "when": 1795190285086,
       "tag": "0036_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795196664027,
+      "tag": "0037_guard_switches",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795196664563,
+      "tag": "0038_guard_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795196665022,
+      "tag": "0039_drop_auto_approve_evaluations",
+      "breakpoints": true
     }
   ]
 }

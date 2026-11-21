@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS "auto_approve_evaluations" CASCADE;

@@ -12,23 +12,15 @@ vi.mock('../jev/client.js', async importOriginal => ({ ...(await importOriginal(
 const getJevDocument = vi.fn()
 const getLatestJevSave = vi.fn()
 const saveJevDocument = vi.fn()
-const addJevHistoryEntry = vi.fn()
-const listJevHistory = vi.fn()
 const listJevSetVersions = vi.fn()
+const deleteJevDocument = vi.fn()
 vi.mock('../db/jev-documents.js', () => ({
+  deleteJevDocument,
   getJevDocument,
   getLatestJevSave,
   saveJevDocument,
-  addJevHistoryEntry,
-  listJevHistory,
   listJevSetVersions,
 }))
-
-const getRepository = vi.fn()
-vi.mock('../github/client.js', () => ({ getRepository }))
-
-const getShadowStats = vi.fn()
-vi.mock('../db/auto-approve-evaluations.js', () => ({ getShadowStats }))
 
 const countJevCallsByProjectSince = vi.fn()
 const countJevCallsBySetVersion = vi.fn()
@@ -39,11 +31,9 @@ const countSentRepliesByGuardSince = vi.fn()
 vi.mock('../db/legal-cases.js', () => ({ countCasesByGuardSince, countSentRepliesByGuardSince }))
 
 const listGuards = vi.fn()
-vi.mock('../guards/registry.js', () => ({ listGuards }))
+vi.mock('../guards/registry.js', async importOriginal => ({ ...(await importOriginal()), listGuards }))
 
-const { JevApiError } = await import('../jev/client.js')
-const { JEV_API_KEY_KEY, JEV_MODEL_CATALOG_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
-const { GITHUB_TOKEN_KEY, _resetSettingsCacheForTests } = await import('../github/settings.js')
+const { JEV_API_KEY_KEY, _resetJevSettingsCacheForTests } = await import('../jev/settings.js')
 const { default: adminJevRouter } = await import('./admin-jev.js')
 
 const app = express()
@@ -55,19 +45,17 @@ app.use((req, _res, next) => {
 app.use('/api/admin/config/jev', adminJevRouter)
 
 const LATEST = { name: 'jev-latest', description: 'Most recent stable release', releaseDate: '2026-10-14' }
-const PREVIEW = { name: 'jev-preview', description: 'Most recent release', releaseDate: '2026-10-14' }
 const SAVED_AT = '2026-11-19T10:00:00.000Z'
 const LEGAL_SET = {
-  description: '',
-  model: 'jev-latest',
   minConfidence: 0.75,
   timeoutSeconds: 30,
   dailyLimit: 0,
+  maxCharacters: 100_000,
   questions: [{ id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }],
 }
 
-const LEGAL_GUARD = { id: 'legal', name: 'Legal', questions: 1, model: 'jev-latest', setVersion: 3 }
-const GITHUB_GUARD = { id: 'github', name: 'GitHub PRs', questions: 0, model: '', setVersion: 0 }
+const LEGAL_GUARD = { id: 'legal', name: 'Legal', questions: 1, setVersion: 3 }
+const GITHUB_GUARD = { id: 'github', name: 'GitHub PRs', questions: 0, setVersion: 0 }
 const GUARDS = [LEGAL_GUARD, GITHUB_GUARD]
 
 let stored = {}
@@ -75,7 +63,6 @@ let stored = {}
 beforeEach(() => {
   vi.clearAllMocks()
   _resetJevSettingsCacheForTests()
-  _resetSettingsCacheForTests()
   stored = {}
   getConfigValue.mockImplementation(async key => stored[key] ?? null)
   setConfigValue.mockImplementation(async (key, value) => {
@@ -92,21 +79,16 @@ afterEach(() => {
 })
 
 describe('GET /api/admin/config/jev', () => {
-  it('reports no key and an empty catalog by default', async () => {
-    const res = await request(app).get('/api/admin/config/jev')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ keyConfigured: false, models: [], scannedAt: null })
-  })
-
-  it('reports the key as configured without returning it, with the saved catalog', async () => {
+  it('reports whether a key is saved, without returning it', async () => {
+    const none = await request(app).get('/api/admin/config/jev')
     stored[JEV_API_KEY_KEY] = 'jev-secret'
-    stored[JEV_MODEL_CATALOG_KEY] = { models: [LATEST], scannedAt: '2026-11-17T08:30:00.000Z' }
+    _resetJevSettingsCacheForTests()
+    const saved = await request(app).get('/api/admin/config/jev')
 
-    const res = await request(app).get('/api/admin/config/jev')
-
-    expect(res.body).toEqual({ keyConfigured: true, models: [LATEST], scannedAt: '2026-11-17T08:30:00.000Z' })
-    expect(JSON.stringify(res.body)).not.toContain('jev-secret')
+    expect(none.status).toBe(200)
+    expect(none.body).toEqual({ keyConfigured: false })
+    expect(saved.body).toEqual({ keyConfigured: true })
+    expect(JSON.stringify(saved.body)).not.toContain('jev-secret')
   })
 
   it('returns 500 when the settings cannot be read', async () => {
@@ -120,22 +102,12 @@ describe('GET /api/admin/config/jev', () => {
 })
 
 describe('PUT /api/admin/config/jev/api-key', () => {
-  it('saves a trimmed key and records it in the change history', async () => {
+  it('saves a trimmed key', async () => {
     const res = await request(app).put('/api/admin/config/jev/api-key').send({ apiKey: '  jev-secret  ' })
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ keyConfigured: true })
     expect(setConfigValue).toHaveBeenCalledWith(JEV_API_KEY_KEY, 'jev-secret')
-    expect(addJevHistoryEntry).toHaveBeenCalledTimes(1)
-    expect(addJevHistoryEntry).toHaveBeenCalledWith('jev', { author: 'ana@example.com', change: 'API key saved' })
-  })
-
-  it('records a replaced key', async () => {
-    stored[JEV_API_KEY_KEY] = 'jev-old'
-
-    await request(app).put('/api/admin/config/jev/api-key').send({ apiKey: 'jev-new' })
-
-    expect(addJevHistoryEntry).toHaveBeenCalledWith('jev', { author: 'ana@example.com', change: 'API key replaced' })
   })
 
   it('removes the key with an empty value', async () => {
@@ -145,13 +117,6 @@ describe('PUT /api/admin/config/jev/api-key', () => {
 
     expect(res.body).toEqual({ keyConfigured: false })
     expect(stored[JEV_API_KEY_KEY]).toBe('')
-    expect(addJevHistoryEntry).toHaveBeenCalledWith('jev', { author: 'ana@example.com', change: 'API key removed' })
-  })
-
-  it('records nothing when removing a key that was not saved', async () => {
-    await request(app).put('/api/admin/config/jev/api-key').send({ apiKey: '' })
-
-    expect(addJevHistoryEntry).not.toHaveBeenCalled()
   })
 
   it.each([[{}], [{ apiKey: 'two words' }], [{ apiKey: 'k'.repeat(301) }]])('rejects %j', async body => {
@@ -202,50 +167,80 @@ describe('POST /api/admin/config/jev/test', () => {
   })
 })
 
-describe('POST /api/admin/config/jev/models/scan', () => {
-  it('asks for the key first when none is saved', async () => {
-    const res = await request(app).post('/api/admin/config/jev/models/scan')
+describe('POST and DELETE /api/admin/config/jev/guards', () => {
+  it('creates a guard with its name', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'x', rev: 0, data: {}, setVersion: 0 } })
 
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'No API key saved. Save the key above and scan again.' })
+    const res = await request(app).post('/api/admin/config/jev/guards').send({ name: '  Payments ' })
+
+    expect(res.status).toBe(201)
+    expect(res.body).toEqual({ id: expect.stringMatching(/^guard-[0-9a-f]{8}$/), name: 'Payments' })
+    const [id, options] = saveJevDocument.mock.calls[0]
+    expect(id).toBe(res.body.id)
+    expect(options).toMatchObject({ expectedRev: 0, author: 'ana@example.com' })
+    expect(options.defaults).toMatchObject({ name: 'Payments', set: { questions: [] } })
+    expect(options.plan()).toBeNull()
   })
 
-  it('saves the scanned models and counts the new ones', async () => {
-    stored[JEV_API_KEY_KEY] = 'jev-secret'
-    stored[JEV_MODEL_CATALOG_KEY] = { models: [LATEST], scannedAt: '2026-11-01T08:00:00.000Z' }
-    listModels.mockResolvedValue([LATEST, PREVIEW])
+  it.each([
+    [{}, 400, 'The name is required.'],
+    [{ name: 'n'.repeat(61) }, 400, 'The name is too long (max 60 characters).'],
+    [{ name: 'legal' }, 409, 'There is already a guard called "legal". Pick another name.'],
+  ])('refuses to create the guard %j', async (body, status, error) => {
+    const res = await request(app).post('/api/admin/config/jev/guards').send(body)
 
-    const res = await request(app).post('/api/admin/config/jev/models/scan')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ models: [LATEST, PREVIEW], scannedAt: expect.any(String), newModels: 1 })
-    expect(stored[JEV_MODEL_CATALOG_KEY]).toEqual({ models: [LATEST, PREVIEW], scannedAt: res.body.scannedAt })
+    expect(res.status).toBe(status)
+    expect(res.body).toEqual({ error })
+    expect(saveJevDocument).not.toHaveBeenCalled()
   })
 
-  it('keeps the saved list when Jev returns no models', async () => {
-    const saved = { models: [LATEST], scannedAt: '2026-11-01T08:00:00.000Z' }
-    stored[JEV_API_KEY_KEY] = 'jev-secret'
-    stored[JEV_MODEL_CATALOG_KEY] = saved
-    listModels.mockResolvedValue([])
+  it('refuses to rename a guard to the name of another one', async () => {
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/guard-0a1b2c3d')
+      .send({ rev: 1, data: { name: 'GitHub PRs', set: LEGAL_SET } })
 
-    const res = await request(app).post('/api/admin/config/jev/models/scan')
-
-    expect(res.status).toBe(502)
-    expect(res.body).toEqual({ error: 'Could not scan the Jev models: Jev returned no models.' })
-    expect(stored[JEV_MODEL_CATALOG_KEY]).toBe(saved)
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'There is already a guard called "GitHub PRs". Pick another name.' })
   })
 
-  it('keeps the saved list when Jev fails', async () => {
-    const saved = { models: [LATEST], scannedAt: '2026-11-01T08:00:00.000Z' }
-    stored[JEV_API_KEY_KEY] = 'jev-secret'
-    stored[JEV_MODEL_CATALOG_KEY] = saved
-    listModels.mockRejectedValue(new JevApiError('Jev error (HTTP 529)', 529))
+  it('deletes a created guard', async () => {
+    getJevDocument.mockResolvedValue({ id: 'guard-0a1b2c3d', rev: 2, data: { name: 'Payments', set: LEGAL_SET } })
 
-    const res = await request(app).post('/api/admin/config/jev/models/scan')
+    const res = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
 
-    expect(res.status).toBe(502)
-    expect(res.body).toEqual({ error: 'Could not scan the Jev models: Jev error (HTTP 529).' })
-    expect(stored[JEV_MODEL_CATALOG_KEY]).toBe(saved)
+    expect(res.status).toBe(204)
+    expect(deleteJevDocument).toHaveBeenCalledWith('guard-0a1b2c3d')
+  })
+
+  it('deletes the Legal and GitHub PRs guards like any other', async () => {
+    getJevDocument.mockResolvedValue({ id: 'legal', rev: 3, data: { set: LEGAL_SET }, setVersion: 2 })
+
+    const res = await request(app).delete('/api/admin/config/jev/guards/legal')
+
+    expect(res.status).toBe(204)
+    expect(deleteJevDocument).toHaveBeenCalledWith('legal')
+  })
+
+  it('cannot delete a guard that does not exist', async () => {
+    getJevDocument.mockResolvedValue(null)
+
+    const missing = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
+
+    expect(missing.status).toBe(404)
+    expect(deleteJevDocument).not.toHaveBeenCalled()
+  })
+
+  it('returns 500 when the guard cannot be created or deleted', async () => {
+    saveJevDocument.mockRejectedValue(new Error('db down'))
+    getJevDocument.mockRejectedValue(new Error('db down'))
+
+    const created = await request(app).post('/api/admin/config/jev/guards').send({ name: 'Payments' })
+    const deleted = await request(app).delete('/api/admin/config/jev/guards/guard-0a1b2c3d')
+
+    expect(created.status).toBe(500)
+    expect(created.body).toEqual({ error: 'Failed to create the guard.' })
+    expect(deleted.status).toBe(500)
+    expect(deleted.body).toEqual({ error: 'Failed to delete the guard.' })
   })
 })
 
@@ -259,7 +254,7 @@ describe('GET /api/admin/config/jev/documents/:id', () => {
     expect(res.body).toEqual({
       id: 'legal',
       rev: 0,
-      data: { enabled: false, set: { ...LEGAL_SET, model: '', minConfidence: null, questions: [] }, allowSend: false },
+      data: { set: { ...LEGAL_SET, minConfidence: null, questions: [] } },
       setVersion: 0,
       savedAt: null,
       savedBy: null,
@@ -318,37 +313,19 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
     expect(id).toBe('legal')
     expect(options).toMatchObject({ expectedRev: 4, author: 'ana@example.com' })
     expect(options.defaults.set.questions).toEqual([])
-    const parsedQuestion = { ...LEGAL_SET.questions[0], instructions: '', criteria: '' }
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } })).toEqual({
-      data: { enabled: false, set: { ...LEGAL_SET, questions: [parsedQuestion] }, allowSend: false },
-      change: 'Questions; Min confidence 0.7 → 0.75',
-      set: { model: 'jev-latest', minConfidence: 0.75, questions: [parsedQuestion] },
+      data: { set: LEGAL_SET },
+      change: 'Min confidence 0.7 → 0.75',
+      set: { minConfidence: 0.75, questions: LEGAL_SET.questions },
     })
   })
 
-  it('keeps the calls of a guard off until an API key is saved', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
-
-    await request(app)
-      .put('/api/admin/config/jev/documents/legal')
-      .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
-
-    const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 1, data: { enabled: false, set: LEGAL_SET } })).toEqual({
-      error: 'Save the API key before turning Jev calls on.',
-    })
-  })
-
-  it('has no shared settings document to save, only its history', async () => {
-    listJevHistory.mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 5 })
-
+  it('has no document for the old shared settings', async () => {
     const save = await request(app)
       .put('/api/admin/config/jev/documents/jev')
       .send({ rev: 1, data: { enabled: true } })
-    const history = await request(app).get('/api/admin/config/jev/documents/jev/history')
 
     expect(save.status).toBe(404)
-    expect(history.status).toBe(200)
   })
 
   it('returns 409 with who saved the newer version', async () => {
@@ -368,7 +345,7 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
 
   it.each([
     [{ data: { enabled: true } }, '"rev" must be the version you edited.'],
-    [{ rev: 1, data: { enabled: 'on', set: LEGAL_SET } }, '"enabled" must be true or false.'],
+    [{ rev: 1, data: { set: { ...LEGAL_SET, minConfidence: 2 } } }, 'Min confidence must be a number between 0 and 1.'],
   ])('rejects %j', async (body, error) => {
     const res = await request(app).put('/api/admin/config/jev/documents/legal').send(body)
 
@@ -389,49 +366,15 @@ describe('PUT /api/admin/config/jev/documents/:id', () => {
   })
 })
 
-describe('GET /api/admin/config/jev/documents/:id/history', () => {
-  it('returns the requested page', async () => {
-    const page = { entries: [{ at: SAVED_AT, author: 'ana@example.com', change: 'Jev calls on', rev: 2 }] }
-    listJevHistory.mockResolvedValue({ ...page, total: 6, page: 2, pageSize: 5 })
-
-    const res = await request(app).get('/api/admin/config/jev/documents/jev/history?page=2')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ ...page, total: 6, page: 2, pageSize: 5 })
-    expect(listJevHistory).toHaveBeenCalledWith('jev', 2)
-  })
-
-  it('starts at the first page', async () => {
-    listJevHistory.mockResolvedValue({ entries: [], total: 0, page: 1, pageSize: 5 })
-
-    await request(app).get('/api/admin/config/jev/documents/legal/history')
-
-    expect(listJevHistory).toHaveBeenCalledWith('legal', 1)
-  })
-
-  it('rejects an invalid page', async () => {
-    const res = await request(app).get('/api/admin/config/jev/documents/jev/history?page=0')
-
-    expect(res.status).toBe(400)
-    expect(listJevHistory).not.toHaveBeenCalled()
-  })
-
-  it('returns 500 when the history cannot be read', async () => {
-    listJevHistory.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).get('/api/admin/config/jev/documents/jev/history')
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to load the change history.' })
-  })
-})
-
 describe('GET /api/admin/config/jev/guards', () => {
-  it('lists every guard with its calls, cases and sent replies of the last 30 days', async () => {
+  it('lists every guard with its calls, cases and sent replies of the last 30 days, shared cases included', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
     countJevCallsByProjectSince.mockResolvedValue([{ project: 'legal', calls: 41 }])
-    countCasesByGuardSince.mockResolvedValue([{ guardId: 'legal', cases: 9 }])
+    countCasesByGuardSince.mockResolvedValue([
+      { guardId: 'legal', cases: 9 },
+      { guardId: 'github,legal', cases: 2 },
+    ])
     countSentRepliesByGuardSince.mockResolvedValue([{ guardId: 'legal', replies: 4 }])
 
     const res = await request(app).get('/api/admin/config/jev/guards')
@@ -439,8 +382,8 @@ describe('GET /api/admin/config/jev/guards', () => {
     vi.useRealTimers()
     expect(res.status).toBe(200)
     expect(res.body.guards).toEqual([
-      { ...LEGAL_GUARD, usage: { calls: 41, cases: 9, sentReplies: 4 } },
-      { ...GITHUB_GUARD, usage: { calls: 0, cases: 0, sentReplies: 0 } },
+      { ...LEGAL_GUARD, usage: { calls: 41, cases: 11, sentReplies: 4 } },
+      { ...GITHUB_GUARD, usage: { calls: 0, cases: 2, sentReplies: 0 } },
     ])
     expect(countJevCallsByProjectSince).toHaveBeenCalledWith(new Date('2026-10-20T12:00:00.000Z'))
   })
@@ -456,43 +399,50 @@ describe('GET /api/admin/config/jev/guards', () => {
 })
 
 describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => {
-  const GITHUB_SET = { ...LEGAL_SET, minConfidence: null, maxCharacters: 100_000, rules: [] }
-  const REPO = { name: 'acme/web', mode: 'shadow', jev: false, denylist: [] }
-
-  it('saves the repos and keeps the guard settings that are stored', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+  it('saves a built-in guard sent with a null name without looking for a name clash', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
 
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: { repos: [REPO] } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: null, set: LEGAL_SET } })
+
+    expect(res.status).toBe(200)
+    expect(listGuards).not.toHaveBeenCalled()
+  })
+
+  it('saves the fields sent and keeps the rest of the stored document', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
+
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: 'Customer replies' } })
 
     expect(res.status).toBe(200)
     const [, options] = saveJevDocument.mock.calls[0]
-    const stored = { enabled: false, set: { ...GITHUB_SET, minConfidence: 0.8 }, repos: [] }
+    const stored = { set: { ...LEGAL_SET, minConfidence: 0.8 } }
     expect(options.plan({ rev: 1, data: stored }).data).toEqual({
-      ...stored,
-      set: { ...stored.set, questions: [{ ...LEGAL_SET.questions[0], instructions: '', criteria: '' }] },
-      repos: [REPO],
+      name: 'Customer replies',
+      set: stored.set,
     })
   })
 
   it('checks the fields sent against the stored document', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'github', rev: 2, data: {}, setVersion: 1 } })
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
 
     await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: { repos: [REPO] } })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: 'Customer replies' } })
 
     const [, options] = saveJevDocument.mock.calls[0]
-    expect(options.plan({ rev: 1, data: { enabled: 'on', set: GITHUB_SET } })).toEqual({
-      error: '"enabled" must be true or false.',
+    expect(options.plan({ rev: 1, data: { set: { ...LEGAL_SET, minConfidence: 2 } } })).toEqual({
+      error: 'Min confidence must be a number between 0 and 1.',
     })
   })
 
   it('rejects data that is not an object', async () => {
     const res = await request(app)
-      .put('/api/admin/config/jev/documents/github')
-      .send({ rev: 1, data: ['repos'] })
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: ['set'] })
 
     expect(res.status).toBe(400)
     expect(res.body).toEqual({ error: '"data" must be an object.' })
@@ -510,7 +460,7 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
 
     const [, options] = saveJevDocument.mock.calls[0]
     expect(options.plan({ rev: 4, data: { set: { ...LEGAL_SET, minConfidence: 0.7 } } }).change).toBe(
-      'Restored v2; Questions; Min confidence 0.7 → 0.75'
+      'Restored v2; Min confidence 0.7 → 0.75'
     )
   })
 
@@ -524,14 +474,14 @@ describe('PUT /api/admin/config/jev/documents/:id restore and checks', () => {
   })
 
   it('returns 422 with the reason when the save breaks a rule', async () => {
-    saveJevDocument.mockResolvedValue({ conflict: false, error: 'Shadow first: acme/web must be saved in shadow.' })
+    saveJevDocument.mockResolvedValue({ conflict: false, error: 'The name is required.' })
 
     const res = await request(app)
       .put('/api/admin/config/jev/documents/legal')
       .send({ rev: 1, data: { enabled: true, set: LEGAL_SET } })
 
     expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Shadow first: acme/web must be saved in shadow.' })
+    expect(res.body).toEqual({ error: 'The name is required.' })
   })
 })
 
@@ -549,99 +499,16 @@ describe('GET /api/admin/config/jev/documents/:id/versions', () => {
   })
 })
 
-describe('POST /api/admin/config/jev/github/repos/check', () => {
-  it('confirms a repo the GitHub token can read', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockResolvedValue({ fullName: 'acme/docs' })
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: ' acme/docs ' })
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ fullName: 'acme/docs' })
-    expect(getRepository).toHaveBeenCalledWith('acme/docs')
-  })
-
-  it('rejects a name that is not org/repo', async () => {
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'docs' })
-
-    expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'Use the org/repo format, e.g. acme/docs.' })
-  })
-
-  it('asks for the GitHub token first', async () => {
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/docs' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({ error: 'Save the GitHub token first.' })
-    expect(getRepository).not.toHaveBeenCalled()
-  })
-
-  it('explains a repo the token cannot read', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockRejectedValue(Object.assign(new Error('Not Found'), { status: 404 }))
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/secret' })
-
-    expect(res.status).toBe(422)
-    expect(res.body).toEqual({
-      error: 'The CI token cannot read acme/secret. Give the token read access to the repo, or check the name.',
-    })
-  })
-
-  it('returns 500 for other GitHub errors', async () => {
-    stored[GITHUB_TOKEN_KEY] = 'ghp_token'
-    getRepository.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 502 }))
-
-    const res = await request(app).post('/api/admin/config/jev/github/repos/check').send({ name: 'acme/docs' })
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to check the repo.' })
-  })
-})
-
-describe('GET /api/admin/config/jev/github/shadow-stats', () => {
-  it('reports the PRs evaluated in shadow, how many would be approved and the days of data', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-11-19T12:00:00.000Z'))
-    getShadowStats.mockResolvedValue([
-      { repo: 'acme/web', evaluated: 96, wouldApprove: 40, since: '2026-11-05T13:00:00.000Z' },
-    ])
-
-    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web,acme/docs')
-
-    vi.useRealTimers()
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({
-      repos: [
-        { repo: 'acme/web', evaluated: 96, wouldApprove: 40, days: 14 },
-        { repo: 'acme/docs', evaluated: 0, wouldApprove: 0, days: 0 },
-      ],
-    })
-    expect(getShadowStats).toHaveBeenCalledWith(['acme/web', 'acme/docs'])
-  })
-
-  it.each(['', '?repos=', '?repos=acme'])('rejects %s', async query => {
-    const res = await request(app).get(`/api/admin/config/jev/github/shadow-stats${query}`)
-
-    expect(res.status).toBe(400)
-    expect(getShadowStats).not.toHaveBeenCalled()
-  })
-
-  it('returns 500 when the results cannot be read', async () => {
-    getShadowStats.mockRejectedValue(new Error('db down'))
-
-    const res = await request(app).get('/api/admin/config/jev/github/shadow-stats?repos=acme/web')
-
-    expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Failed to load the shadow results.' })
-  })
-})
-
 describe('Guards in the Jev admin routes', () => {
-  it('has no document for other guards', async () => {
-    const res = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
+  it('has a document for each created guard and none for other ids', async () => {
+    getJevDocument.mockResolvedValue({ id: 'guard-0a1b2c3d', rev: 2, data: { name: 'Payments', set: LEGAL_SET } })
 
-    expect(res.status).toBe(404)
+    const created = await request(app).get('/api/admin/config/jev/documents/guard-0a1b2c3d')
+    const unknown = await request(app).get('/api/admin/config/jev/documents/payments')
+
+    expect(created.status).toBe(200)
+    expect(created.body.data.name).toBe('Payments')
+    expect(unknown.status).toBe(404)
   })
 
   it('adds the calls of each version of a guard', async () => {

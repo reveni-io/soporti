@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { useLegalCases } from './useLegalCases.js'
-
-const REPLY = { id: 7, sentBy: 'ana@example.com', text: 'Hello', sentAt: '2026-11-20T10:00:00.000Z' }
 
 function respond(status, body) {
   return { ok: status < 400, status, json: async () => body }
@@ -24,6 +22,24 @@ describe('useLegalCases', () => {
     await waitFor(() => expect(result.current.cases.get(41)).toEqual(legalCase))
     expect(global.fetch.mock.calls[0][0]).toContain('/api/legal/cases?ids=41,42')
     expect(result.current.error).toBeNull()
+  })
+
+  it('loads the cases again when the assistant sends a reply from the chat', async () => {
+    const before = { id: 41, replies: [], send: { allowed: true, reason: null } }
+    const reply = { id: 7, sentBy: 'ana@example.com', text: 'Hello', sentAt: '2026-11-20T10:00:00.000Z' }
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(200, { cases: [before] }))
+      .mockResolvedValueOnce(respond(200, { cases: [{ ...before, replies: [reply] }] }))
+
+    const onLogout = vi.fn()
+
+    const { result } = renderHook(() => useLegalCases('tok', [41], onLogout))
+    await waitFor(() => expect(result.current.cases.get(41)).toEqual(before))
+    window.dispatchEvent(new Event('soporti:legal-reply-sent'))
+
+    await waitFor(() => expect(result.current.cases.get(41).replies).toEqual([reply]))
+    expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 
   it('asks for nothing without a token or without cases', () => {
@@ -55,19 +71,5 @@ describe('useLegalCases', () => {
 
     await waitFor(() => expect(onLogout).toHaveBeenCalledTimes(1))
     expect(result.current.error).toBeNull()
-  })
-
-  it('adds a sent reply to its case and ignores unknown cases', async () => {
-    global.fetch = vi.fn(async () => respond(200, { cases: [{ id: 41, replies: [], send: { allowed: true } }] }))
-    const onLogout = vi.fn()
-    const { result } = renderHook(() => useLegalCases('tok', [41], onLogout))
-    await waitFor(() => expect(result.current.cases.has(41)).toBe(true))
-    const before = result.current.cases
-
-    act(() => result.current.addReply(99, REPLY))
-    expect(result.current.cases).toBe(before)
-
-    act(() => result.current.addReply(41, REPLY))
-    expect(result.current.cases.get(41).replies).toEqual([REPLY])
   })
 })

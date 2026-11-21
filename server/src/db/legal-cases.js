@@ -17,6 +17,9 @@ const OWNED_CASE_FIELDS = {
   customer: legalCases.customer,
   status: legalCases.status,
   warnings: legalCases.warnings,
+  draft: legalCases.draft,
+  conversationId: legalCases.conversationId,
+  createdAt: legalCases.createdAt,
 }
 
 export async function findOwnedLegalCases(ids, userId) {

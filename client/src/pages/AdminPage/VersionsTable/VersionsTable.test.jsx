@@ -42,7 +42,7 @@ describe('VersionsTable', () => {
       set: { minConfidence: 0.75, questions: [], description: 'Kept' },
       repos: [],
     })
-    expect(screen.getByText(/questions, rules, model and min confidence/)).toBeInTheDocument()
+    expect(screen.getByText(/questions and min confidence/)).toBeInTheDocument()
   })
 
   it('says which version is loaded in the editor', async () => {
@@ -53,7 +53,7 @@ describe('VersionsTable', () => {
     expect(
       await screen.findByText('Version 1 is loaded in the editor. Save to publish it as version 3.')
     ).toBeInTheDocument()
-    expect(screen.getByText(/the questions, model and min confidence/)).toBeInTheDocument()
+    expect(screen.getByText(/the questions and min confidence/)).toBeInTheDocument()
   })
 
   it('explains that the first save creates the first version', async () => {

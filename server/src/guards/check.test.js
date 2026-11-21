@@ -41,11 +41,11 @@ beforeEach(() => {
 
 describe('checkContent', () => {
   it('asks the guard about the content and counts its warnings', async () => {
-    const result = await checkContent(GUARD, 'Can we promise a refund in 2 days?')
+    const result = await checkContent(GUARD, { request: 'Use the Legal guards', content: 'A refund in 2 days' })
 
     expect(runJevCheck).toHaveBeenCalledWith({
       project: 'legal',
-      state: { content: 'Can we promise a refund in 2 days?' },
+      state: { request: 'Use the Legal guards', content: 'A refund in 2 days' },
     })
     expect(result).toEqual({
       guard: 'Legal',
@@ -56,10 +56,19 @@ describe('checkContent', () => {
     })
   })
 
+  it('adds what the caller attaches, such as a pull request, to what the guard reads', async () => {
+    await checkContent(GUARD, { request: 'Use the guards: Legal', content: null, attach: { diff: '+fee' } })
+
+    expect(runJevCheck).toHaveBeenCalledWith({
+      project: 'legal',
+      state: { request: 'Use the guards: Legal', content: null, diff: '+fee' },
+    })
+  })
+
   it('says the review could not run without naming the service', async () => {
     runJevCheck.mockResolvedValue({ status: 'unavailable', setVersion: 7, reason: 'Jev calls are off' })
 
-    expect(await checkContent(GUARD, 'Anything')).toEqual({
+    expect(await checkContent(GUARD, { request: 'Check it', content: 'Anything' })).toEqual({
       guard: 'Legal',
       status: 'not_checked',
       reason: 'the review could not run',
@@ -71,8 +80,9 @@ describe('checkContent', () => {
 
 describe('checkTicketReply', () => {
   it('reads the customer message, checks the reply and saves the case in the conversation', async () => {
-    const result = await checkTicketReply(GUARD, {
+    const result = await checkTicketReply([GUARD], {
       userId: 3,
+      request: 'Answer ticket 48213 and use the Legal guards',
       ticket: { source: 'zendesk', ticketId: '48213' },
       reply: REPLY,
       cases: { conversationId: 'conv-1' },
@@ -82,6 +92,7 @@ describe('checkTicketReply', () => {
     expect(runJevCheck).toHaveBeenCalledWith({
       project: 'legal',
       state: {
+        request: 'Answer ticket 48213 and use the Legal guards',
         ticket: { source: 'zendesk', subject: 'Refund', customer: 'customer-a@example.com' },
         customerMessage: 'Where is my refund?',
         dataFacts: REPLY.dataFacts,
@@ -96,8 +107,9 @@ describe('checkTicketReply', () => {
         conversationId: 'conv-1',
         messageHash: 'abc',
         status: 'checked',
+        setVersion: 7,
         warnings: 1,
-        jev: { setVersion: 7, model: 'jev-1', minConfidence: 0.7, rows: ROWS },
+        jev: { reviews: [{ guardId: 'legal', setVersion: 7, model: 'jev-1', minConfidence: 0.7, rows: ROWS }] },
       })
     )
     expect(result).toEqual({
@@ -113,15 +125,52 @@ describe('checkTicketReply', () => {
       draft: REPLY.draft,
       language: 'en',
       status: 'checked',
-      setVersion: 7,
       warnings: 1,
       reason: null,
-      review: { setVersion: 7, minConfidence: 0.7, rows: ROWS },
+      reviews: [
+        {
+          guard: 'Legal',
+          status: 'checked',
+          reason: null,
+          warnings: 1,
+          review: { setVersion: 7, minConfidence: 0.7, rows: ROWS },
+        },
+      ],
     })
   })
 
+  it('checks one reply with several guards into a single case', async () => {
+    const review = { id: 'guard-0a1b2c3d', name: 'Legal Review' }
+    runJevCheck.mockResolvedValueOnce(ANSWERED).mockResolvedValueOnce({
+      status: 'unavailable',
+      setVersion: 2,
+      reason: 'Jev did not answer in time',
+    })
+
+    const result = await checkTicketReply([GUARD, review], {
+      userId: 3,
+      ticket: TICKET,
+      reply: REPLY,
+      cases: { conversationId: 'conv-1' },
+    })
+
+    expect(runJevCheck).toHaveBeenCalledTimes(2)
+    expect(saveLegalCase).toHaveBeenCalledWith(
+      expect.objectContaining({ guardId: 'legal,guard-0a1b2c3d', status: 'not_checked', warnings: 1 })
+    )
+    expect(result).toMatchObject({
+      guard: 'Legal + Legal Review',
+      status: 'not_checked',
+      reason: 'the review could not run',
+    })
+    expect(result.reviews.map(({ guard, status }) => [guard, status])).toEqual([
+      ['Legal', 'checked'],
+      ['Legal Review', 'not_checked'],
+    ])
+  })
+
   it('does not save a case where nobody can send it', async () => {
-    const result = await checkTicketReply(GUARD, { userId: 3, ticket: TICKET, reply: REPLY })
+    const result = await checkTicketReply([GUARD], { userId: 3, ticket: TICKET, reply: REPLY })
 
     expect(saveLegalCase).not.toHaveBeenCalled()
     expect(result.id).toBeNull()
@@ -130,7 +179,7 @@ describe('checkTicketReply', () => {
   it('returns nothing when the ticket cannot be read', async () => {
     readLegalTickets.mockResolvedValue([])
 
-    expect(await checkTicketReply(GUARD, { userId: 3, ticket: TICKET, reply: REPLY })).toBeNull()
+    expect(await checkTicketReply([GUARD], { userId: 3, ticket: TICKET, reply: REPLY })).toBeNull()
     expect(runJevCheck).not.toHaveBeenCalled()
   })
 })

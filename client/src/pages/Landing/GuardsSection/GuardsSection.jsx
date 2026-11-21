@@ -13,7 +13,7 @@ const POINTS = [
   {
     icon: 'check',
     title: 'A guard for each job',
-    text: 'Replies to customers and pull request approvals each have their own guard: the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
+    text: 'Create a guard for anything you want checked, like replies to customers or pull request approvals, each with the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
   },
   {
     icon: 'shield',
@@ -23,7 +23,7 @@ const POINTS = [
   {
     icon: 'zap',
     title: 'Wherever you ask',
-    text: 'Name a guard in the chat, in Slack, over MCP or in a scheduled query. It only warns: a person decides, and a reply goes out only when someone sends it.',
+    text: 'Ask for guards by name in the chat, Slack, MCP, a scheduled query or a bot, like “use the Legal guards”. They only warn: a person decides, and a reply goes out only when someone sends it.',
   },
 ]
 
