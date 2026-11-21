@@ -80,3 +80,9 @@
   color: var(--text-muted);
   font-size: var(--fs-md);
 }
+
+@media (max-width: 768px) {
+  .chart-settings__check {
+    min-height: var(--sp10);
+  }
+}

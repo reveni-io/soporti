@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Lmstfy from './Lmstfy.jsx'
@@ -17,6 +17,10 @@ vi.mock('./TypingReplay/TypingReplay.jsx', () => ({
 
 beforeEach(() => {
   global.fetch = vi.fn()
+})
+
+afterEach(() => {
+  localStorage.clear()
 })
 
 describe('Lmstfy', () => {
@@ -81,5 +85,28 @@ describe('Lmstfy', () => {
 
     expect(screen.getByText('Soporti')).toBeInTheDocument()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('offers a signed-in user a way back to the chat', () => {
+    localStorage.setItem('auth_token', 'tok')
+
+    render(
+      <MemoryRouter initialEntries={['/lmstfy']}>
+        <Lmstfy />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
+  })
+
+  it('offers no way into the chat to a visitor without a session', () => {
+    render(
+      <MemoryRouter initialEntries={['/lmstfy?q=how%20do%20refunds%20work']}>
+        <Lmstfy />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText('Soporti')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Back to chat' })).not.toBeInTheDocument()
   })
 })

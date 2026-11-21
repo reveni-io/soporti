@@ -56,3 +56,20 @@
   gap: var(--sp2);
   padding-top: var(--sp1);
 }
+
+@media (max-width: 768px) {
+  .subagent-flow {
+    height: 20rem;
+  }
+
+  .subagent-flow .react-flow__controls {
+    flex-direction: row;
+  }
+
+  .subagent-flow .react-flow__controls-button {
+    width: var(--sp10);
+    height: var(--sp10);
+    border-bottom: none;
+    border-right: 1px solid var(--border-default);
+  }
+}

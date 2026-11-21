@@ -17,3 +17,9 @@
 .ready-view__actions .btn {
   text-decoration: none;
 }
+
+@media (max-width: 768px) {
+  .ready-view__actions .btn {
+    flex: 1 1 auto;
+  }
+}

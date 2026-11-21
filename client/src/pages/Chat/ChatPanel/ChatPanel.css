@@ -232,6 +232,7 @@
 @media (max-width: 768px) {
   .chat__messages {
     padding: var(--sp4) var(--sp3) var(--sp2);
+    overscroll-behavior-y: contain;
   }
 
   .chat__empty h2 {

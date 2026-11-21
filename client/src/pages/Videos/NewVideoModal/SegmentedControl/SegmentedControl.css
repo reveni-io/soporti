@@ -53,3 +53,12 @@
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
+
+@media (max-width: 768px) {
+  .segmented-control__option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--sp10);
+  }
+}

@@ -280,8 +280,10 @@
     z-index: 100;
     width: var(--sidebar-drawer-width);
     border-right: none;
+    border-radius: 0 var(--radius-2xl) var(--radius-2xl) 0;
     visibility: hidden;
     transform: translateX(-100%);
+    touch-action: pan-y;
     transition:
       transform var(--motion-slow) var(--ease-out-expo),
       box-shadow var(--motion-slow) ease,
@@ -290,7 +292,7 @@
 
   .sidebar--open {
     visibility: visible;
-    transform: translateX(0);
+    transform: translateX(min(var(--sidebar-drag, 0px), 0px));
     box-shadow: var(--shadow-drawer);
     transition:
       transform var(--motion-slow) var(--ease-out-expo),
@@ -298,8 +300,27 @@
       visibility 0s;
   }
 
+  .sidebar--dragging {
+    transition: none;
+  }
+
   .sidebar__inner {
     width: 100%;
+    padding: var(--safe-top) 0 0 var(--safe-left);
+  }
+
+  .sidebar__new-chat {
+    height: var(--touch-target);
+    border-radius: var(--radius-lg);
+  }
+
+  .sidebar__body {
+    scrollbar-gutter: auto;
+  }
+
+  .sidebar__body > .profile-toggle,
+  .sidebar__body > .source-picker {
+    display: none;
   }
 
   .sidebar__inner > *,

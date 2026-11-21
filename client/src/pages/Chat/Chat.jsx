@@ -13,6 +13,7 @@ import { useAuthMethods } from '../../hooks/useAuthMethods/useAuthMethods.js'
 import { useAuthedResource } from '../../hooks/useAuthedResource/useAuthedResource.js'
 import { usePushNotifications } from './hooks/usePushNotifications/usePushNotifications.js'
 import { useSkills } from '../../hooks/useSkills/useSkills.js'
+import { useRepos } from '../../hooks/useRepos/useRepos.js'
 import Sidebar from './Sidebar/Sidebar.jsx'
 import ChatPanel from './ChatPanel/ChatPanel.jsx'
 import ArtifactPanel from './ArtifactPanel/ArtifactPanel.jsx'
@@ -27,6 +28,8 @@ import BotsIntro from './BotsIntro/BotsIntro.jsx'
 import BotNotFound from './BotNotFound/BotNotFound.jsx'
 import BotFormModal from './BotFormModal/BotFormModal.jsx'
 import RoutinesModal from './RoutinesModal/RoutinesModal.jsx'
+import SourcesSheet from './SourcesSheet/SourcesSheet.jsx'
+import { summarizeSources } from './source-summary.js'
 import { DEFAULT_PROFILE, SHARED_PARAM, YOLO_SOURCE } from '../../constants.js'
 import { absoluteAppUrl, createShare, getIntegrations } from '../../services/services.js'
 import './Chat.css'
@@ -59,6 +62,7 @@ export default function Chat({ initialQuestion = '' }) {
   const [artifactsOpen, setArtifactsOpen] = useState(false)
   const [botForm, setBotForm] = useState(null)
   const [routinesOpen, setRoutinesOpen] = useState(false)
+  const [sourcesOpen, setSourcesOpen] = useState(false)
   const {
     token,
     user,
@@ -74,6 +78,7 @@ export default function Chat({ initialQuestion = '' }) {
   const bots = useBots(token, logout)
   const bot = bots.bots.find(candidate => candidate.id === view.botId) ?? null
   const skills = useSkills(token, logout)
+  const repos = useRepos(token, logout)
   const [integrationsReloadKey, setIntegrationsReloadKey] = useState(0)
   const integrations = useAuthedResource(getIntegrations, {
     key: 'integrations',
@@ -158,6 +163,12 @@ export default function Chat({ initialQuestion = '' }) {
   function handleNewChat() {
     newChat()
     view.showChat()
+    setSidebarOpen(false)
+  }
+
+  function handleOpenFromSidebar(open) {
+    setSidebarOpen(false)
+    open(true)
   }
 
   async function handleLoadConversation(id) {
@@ -212,19 +223,21 @@ export default function Chat({ initialQuestion = '' }) {
         onSelectProfile={handleProfileChange}
         onNewChat={handleNewChat}
         onLogout={logout}
-        onOpenSchedules={() => setSchedulesOpen(true)}
-        onOpenArtifacts={() => setArtifactsOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSchedules={() => handleOpenFromSidebar(setSchedulesOpen)}
+        onOpenArtifacts={() => handleOpenFromSidebar(setArtifactsOpen)}
+        onOpenSettings={() => handleOpenFromSidebar(setSettingsOpen)}
         onLoadConversation={handleLoadConversation}
         conversationsReloadKey={completedRuns}
         activeConversations={activeConversations}
         selectedConversationId={view.isChatView ? sessionId : null}
         hasUnreadBots={bots.bots.some(hasUnread)}
         integrations={integrations}
+        repos={repos}
         token={token}
         user={user}
         isOpen={sidebarOpen}
         isCollapsed={isSidebarCollapsed}
+        onOpen={() => setSidebarOpen(true)}
         onClose={() => setSidebarOpen(false)}
         onCollapse={() => handleSidebarCollapsed(true)}
       />
@@ -285,6 +298,9 @@ export default function Chat({ initialQuestion = '' }) {
             onBackToBots={view.showBots}
             isShared={sharedLink.value !== null}
             onSharedContentRead={sharedLink.clear}
+            onNewChat={handleNewChat}
+            sourcesLabel={summarizeSources({ selectedSources, integrations, profile: selectedProfile })}
+            onOpenSources={bot ? null : () => setSourcesOpen(true)}
           />
         </ScreenTransition>
       )}
@@ -351,6 +367,17 @@ export default function Chat({ initialQuestion = '' }) {
           onCreated={handleBotCreated}
           onUpdated={handleBotUpdated}
           onDeleted={handleBotDeleted}
+        />
+      )}
+      {sourcesOpen && (
+        <SourcesSheet
+          selectedSources={selectedSources}
+          onToggleSource={toggleSource}
+          selectedProfile={selectedProfile}
+          onSelectProfile={handleProfileChange}
+          repos={repos}
+          integrations={integrations}
+          onClose={() => setSourcesOpen(false)}
         />
       )}
       {routinesOpen && bot && (

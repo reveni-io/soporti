@@ -24,3 +24,10 @@
   background: var(--bg-subtle);
   border-color: var(--border-strong);
 }
+
+@media (max-width: 768px) {
+  .feedback__btn {
+    min-width: var(--sp10);
+    min-height: var(--sp10);
+  }
+}

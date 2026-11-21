@@ -142,6 +142,10 @@
   cursor: not-allowed;
 }
 
+.chat-topbar__new {
+  display: none;
+}
+
 .chat-topbar__tour,
 .chat-topbar__tour:hover:not(:disabled) {
   --chat-topbar-glow: var(--border-default);
@@ -234,7 +238,13 @@
 
 @media (max-width: 768px) {
   .chat-topbar {
-    padding: 0 var(--sp3);
+    gap: var(--sp1);
+    height: calc(var(--topbar-height) + var(--safe-top));
+    padding: var(--safe-top) var(--sp2) 0;
+  }
+
+  .chat-topbar__lead {
+    gap: var(--sp1);
   }
 
   .icon-btn.chat-topbar__back {
@@ -246,12 +256,34 @@
   }
 
   .chat-topbar__title {
-    font-size: var(--fs-base);
+    font-size: var(--fs-lg);
+  }
+
+  .chat-topbar__actions {
+    gap: var(--sp1);
   }
 
   .chat-topbar__action {
-    width: var(--sp8);
+    width: var(--touch-target);
+    height: var(--touch-target);
     padding: 0;
+    border-color: transparent;
+    background-color: transparent;
+  }
+
+  .chat-topbar__tour,
+  .chat-topbar__tour:hover:not(:disabled) {
+    background: transparent;
+    animation: none;
+  }
+
+  .chat-topbar__action:active:not(:disabled) {
+    background-color: var(--bg-subtle);
+  }
+
+  .chat-topbar__new {
+    display: inline-flex;
+    color: var(--text-primary);
   }
 
   .chat-topbar__label {

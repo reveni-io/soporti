@@ -62,3 +62,26 @@
   flex-shrink: 0;
   gap: var(--sp2);
 }
+
+@media (max-width: 768px) {
+  .artifacts-modal__list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .artifacts-modal__item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .artifacts-modal__item-actions {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+  }
+
+  .artifacts-modal__item-actions .btn {
+    justify-content: center;
+    min-height: var(--sp10);
+  }
+}

@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background-color: var(--green-deep);
   overflow: hidden;
@@ -23,7 +23,7 @@
 .login__title {
   font-family: var(--font-heading);
   font-weight: 600;
-  font-size: 1.75rem;
+  font-size: var(--fs-4xl);
   color: var(--text-primary);
   text-align: center;
 }
@@ -80,8 +80,19 @@
 }
 
 @media (max-width: 768px) {
+  .login {
+    height: auto;
+    min-height: 100dvh;
+    padding: calc(var(--sp6) + var(--safe-top)) var(--safe-right) calc(var(--sp6) + var(--safe-bottom)) var(--safe-left);
+  }
+
   .login__form {
     margin: 0 var(--sp4);
     padding: var(--sp6);
+  }
+
+  .login__password .input,
+  .login__password .btn {
+    min-height: var(--touch-target);
   }
 }

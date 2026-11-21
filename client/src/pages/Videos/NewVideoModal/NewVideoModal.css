@@ -1,6 +1,6 @@
 .new-video-modal {
   gap: var(--sp4);
-  max-height: calc(100vh - var(--sp8));
+  max-height: calc(100dvh - var(--sp8));
   overflow-y: auto;
 }
 

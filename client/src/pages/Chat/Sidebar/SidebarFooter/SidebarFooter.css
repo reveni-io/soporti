@@ -80,6 +80,13 @@
   transform: translateX(calc(var(--sp1) / 2));
 }
 
+@media (max-width: 768px) {
+  .sidebar-footer {
+    gap: 0;
+    padding: var(--sp2) var(--sp2) calc(var(--sp2) + var(--safe-bottom)) var(--sp3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar-footer__icon {
     transition: none;

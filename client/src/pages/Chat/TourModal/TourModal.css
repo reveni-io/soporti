@@ -127,7 +127,16 @@
 
 @media (max-width: 768px) {
   .tour-modal {
-    max-height: 90vh;
-    padding: var(--sp4);
+    padding: var(--sp5) var(--sp4) var(--sp4);
+  }
+
+  .tour-modal__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--touch-target);
+    height: var(--touch-target);
+    top: var(--sp2);
+    right: var(--sp2);
   }
 }

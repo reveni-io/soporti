@@ -159,3 +159,35 @@
     opacity: 1;
   }
 }
+
+@media (max-width: 768px) {
+  .chart-card__header {
+    padding-right: var(--sp2);
+  }
+
+  .chart-card__header:not([data-grid-handle]) {
+    padding-left: var(--sp4);
+  }
+
+  .chart-card__header:not([data-grid-handle]) .chart-card__grip {
+    display: none;
+  }
+
+  .chart-card__actions {
+    gap: 0;
+  }
+
+  .chart-card__action {
+    width: var(--sp10);
+    height: var(--sp10);
+  }
+
+  .chart-card__action:active {
+    color: var(--text-primary);
+    background: var(--bg-subtle);
+  }
+
+  .chart-card__header .delete-confirm .btn {
+    min-height: var(--sp10);
+  }
+}

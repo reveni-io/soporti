@@ -1,7 +1,7 @@
 .analytics {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-app);
 }
 
@@ -67,6 +67,11 @@
 @media (max-width: 768px) {
   .analytics__body {
     gap: var(--sp4);
-    padding: var(--sp4) var(--sp4) var(--sp10);
+    padding: var(--sp4) calc(var(--sp4) + var(--safe-right)) calc(var(--sp10) + var(--safe-bottom))
+      calc(var(--sp4) + var(--safe-left));
+  }
+
+  .analytics__notice-action {
+    min-height: var(--touch-target);
   }
 }

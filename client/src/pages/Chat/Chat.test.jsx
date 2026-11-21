@@ -85,8 +85,14 @@ vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
     onBackToBots,
     isShared,
     onSharedContentRead,
+    onNewChat,
+    sourcesLabel,
+    onOpenSources,
   }) => (
     <div data-testid="chat" data-sidebar-collapsed={isSidebarCollapsed}>
+      <span data-testid="sources-label">{sourcesLabel}</span>
+      {onOpenSources && <button onClick={onOpenSources}>Open Sources</button>}
+      <button onClick={onNewChat}>Topbar New Chat</button>
       <span data-testid="chat-shared">{String(isShared)}</span>
       <button onClick={onSharedContentRead}>Shared Content Read</button>
       <span data-testid="chat-bot">{bot?.name}</span>
@@ -99,6 +105,19 @@ vi.mock('./ChatPanel/ChatPanel.jsx', () => ({
       <button onClick={onShare}>Share</button>
       <button onClick={onOpenSidebar}>Open Sidebar</button>
       <button onClick={onExpandSidebar}>Expand Sidebar</button>
+    </div>
+  ),
+}))
+
+vi.mock('./SourcesSheet/SourcesSheet.jsx', () => ({
+  default: ({ selectedSources, selectedProfile, onToggleSource, onSelectProfile, repos, onClose }) => (
+    <div data-testid="sources-sheet">
+      <span data-testid="sheet-sources">{selectedSources.join(',')}</span>
+      <span data-testid="sheet-profile">{selectedProfile}</span>
+      <span data-testid="sheet-repos-loading">{String(repos.loading)}</span>
+      <button onClick={() => onToggleSource('org/app')}>Sheet Toggle Source</button>
+      <button onClick={() => onSelectProfile('tech')}>Sheet Set Tech</button>
+      <button onClick={onClose}>Close Sources</button>
     </div>
   ),
 }))
@@ -522,6 +541,93 @@ describe('Chat', () => {
     expect(screen.getByTestId('sidebar').dataset.open).toBe('true')
   })
 
+  it('summarizes the sources and profile for the composer and changes them from the sources sheet', async () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat: vi.fn(),
+    })
+    const user = userEvent.setup()
+
+    render(<Chat />, { wrapper: MemoryRouter })
+    expect(screen.getByTestId('sources-label')).toHaveTextContent('Auto · Support')
+    expect(screen.queryByTestId('sources-sheet')).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Open Sources'))
+    expect(screen.getByTestId('sheet-sources')).toHaveTextContent('yolo')
+    expect(screen.getByTestId('sheet-profile')).toHaveTextContent('support')
+
+    await user.click(screen.getByText('Sheet Toggle Source'))
+    await user.click(screen.getByText('Sheet Set Tech'))
+    expect(screen.getByTestId('sources-label')).toHaveTextContent('app · Tech')
+
+    await user.click(screen.getByText('Close Sources'))
+    expect(screen.queryByTestId('sources-sheet')).not.toBeInTheDocument()
+  })
+
+  it('closes the sidebar when a new chat starts from the chat panel', async () => {
+    const newChat = vi.fn()
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat,
+    })
+    const user = userEvent.setup()
+
+    render(<Chat />, { wrapper: MemoryRouter })
+    await user.click(screen.getByText('Open Sidebar'))
+    await user.click(screen.getByText('Topbar New Chat'))
+
+    expect(newChat).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
+  })
+
+  it('closes the sidebar before it opens the schedules over it', async () => {
+    useAuth.mockReturnValue({
+      token: 'tok',
+      isAuthenticated: true,
+      loginWithGoogle: vi.fn(),
+      logout: vi.fn(),
+      error: null,
+      isLoggingIn: false,
+    })
+    useChat.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      sendMessage: vi.fn(),
+      stopGeneration: vi.fn(),
+      newChat: vi.fn(),
+    })
+    const user = userEvent.setup()
+
+    render(<Chat />, { wrapper: MemoryRouter })
+    await user.click(screen.getByText('Open Sidebar'))
+    await user.click(screen.getByText('Open Schedules'))
+
+    expect(screen.getByTestId('schedules-modal')).toBeInTheDocument()
+    expect(screen.getByTestId('sidebar').dataset.open).toBe('false')
+  })
+
   it('closes sidebar when Close Sidebar button is clicked', async () => {
     useAuth.mockReturnValue({
       token: 'tok',
@@ -927,6 +1033,21 @@ describe('Chat', () => {
 
       expect(await screen.findByRole('link', { name: /ticket triager/i })).toHaveTextContent('Thinking…')
       expect(screen.getByRole('link', { name: /release notes/i })).not.toHaveTextContent('Thinking…')
+    })
+
+    it('offers no sources to pick in the chat of a bot', async () => {
+      serveBots([TRIAGER])
+      useAuth.mockReturnValue(SIGNED_IN)
+      useChat.mockReturnValue(chatState())
+
+      render(
+        <MemoryRouter initialEntries={['/bots/3']}>
+          <Chat />
+        </MemoryRouter>
+      )
+
+      expect(await screen.findByTestId('chat-bot')).toHaveTextContent('Ticket triager')
+      expect(screen.queryByText('Open Sources')).not.toBeInTheDocument()
     })
 
     it('goes back to the list from the chat of a bot', async () => {

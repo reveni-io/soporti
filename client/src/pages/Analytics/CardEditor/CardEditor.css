@@ -75,7 +75,7 @@
 
 @media (max-width: 900px) {
   .modal.card-editor {
-    height: calc(100vh - var(--sp4));
+    height: calc(100dvh - var(--sp4));
     margin: 0 var(--sp2);
   }
 
@@ -99,5 +99,24 @@
 
   .card-editor__preview {
     padding: var(--sp4);
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-overlay > .modal.card-editor {
+    height: var(--sheet-max-height);
+    margin: 0;
+  }
+
+  .modal-overlay > .modal.card-editor::before {
+    margin: var(--sp2) auto 0;
+  }
+
+  .card-editor .modal-frame__header {
+    padding-top: var(--sp2);
+  }
+
+  .card-editor__footer-row .btn {
+    min-height: var(--touch-target);
   }
 }

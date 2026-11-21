@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ArtifactBody from '../../common/ArtifactBody/ArtifactBody.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
+import Icon from '../../common/Icon/Icon.jsx'
+import { readStoredToken } from '../../context/AuthContext.jsx'
+import { ROUTES } from '../../router/constants.js'
 import { getSharedArtifact } from '../../services/services.js'
 import './SharedArtifact.css'
+
+const BACK_ICON_SIZE = 18
 
 export default function SharedArtifact({ shareId }) {
   const [artifact, setArtifact] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const frameRef = useRef(null)
+  const isLoggedIn = Boolean(readStoredToken())
 
   function handleExportPdf() {
     frameRef.current?.print()
@@ -38,8 +45,13 @@ export default function SharedArtifact({ shareId }) {
       <GridPattern variant="surface" />
 
       <header className="shared-artifact__header">
+        {isLoggedIn && (
+          <Link className="icon-btn shared-artifact__back" to={ROUTES.CHAT} aria-label="Back to chat">
+            <Icon name="arrow-left" size={BACK_ICON_SIZE} />
+          </Link>
+        )}
         <span className="shared-artifact__brand">Soporti</span>
-        <span className="badge">Shared artifact</span>
+        <span className="badge shared-artifact__badge">Shared artifact</span>
         {artifact && <span className="shared-artifact__title">{artifact.title}</span>}
 
         <button

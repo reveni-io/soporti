@@ -124,3 +124,9 @@
     line-height: 1.375rem;
   }
 }
+
+@media (max-width: 768px) {
+  .empty-dashboard__example {
+    min-height: var(--sp10);
+  }
+}

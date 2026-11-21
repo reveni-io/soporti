@@ -51,4 +51,9 @@
   .lmstfy-form__row {
     flex-direction: column;
   }
+
+  .lmstfy-form__row .input,
+  .lmstfy-form__row .btn {
+    min-height: var(--touch-target);
+  }
 }

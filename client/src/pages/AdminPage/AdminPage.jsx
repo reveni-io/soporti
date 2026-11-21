@@ -5,6 +5,7 @@ import { ROUTES } from '../../router/constants.js'
 import { getAdminStatus } from '../../services/services.js'
 import Login from '../../common/Login/Login.jsx'
 import GridPattern from '../../common/GridPattern/GridPattern.jsx'
+import Icon from '../../common/Icon/Icon.jsx'
 import ScreenTransition from '../../common/ScreenTransition/ScreenTransition.jsx'
 import SharedElement from '../../common/SharedElement/SharedElement.jsx'
 import ThemeToggle from '../../common/ThemeToggle/ThemeToggle.jsx'
@@ -15,6 +16,8 @@ import { SECTIONS } from './sections.js'
 import './AdminPage.css'
 
 const NAV_INDICATOR_TRANSITION_NAME = 'admin-nav-indicator'
+const HEADER_ICON_SIZE = 20
+const ACTIVE_NAV_LINK_SELECTOR = '.admin__nav-link--active'
 
 export default function AdminPage() {
   const {
@@ -94,19 +97,21 @@ export default function AdminPage() {
       <header className="admin__header">
         <h1 className="admin__title">Administration</h1>
         <div className="admin__header-actions">
-          <span className="admin__muted">{user.email}</span>
-          <a className="admin__link" href={ROUTES.CHAT}>
-            Go to chat
+          <span className="admin__muted admin__email">{user.email}</span>
+          <a className="admin__link admin__back" href={ROUTES.CHAT} aria-label="Go to chat">
+            <Icon name="arrow-left" size={HEADER_ICON_SIZE} className="admin__header-icon" />
+            <span className="admin__header-label">Go to chat</span>
           </a>
           <ThemeToggle />
-          <button className="btn btn--secondary" onClick={logout}>
-            Log out
+          <button className="btn btn--secondary admin__logout" onClick={logout} aria-label="Log out">
+            <Icon name="log-out" size={HEADER_ICON_SIZE} className="admin__header-icon" />
+            <span className="admin__header-label">Log out</span>
           </button>
         </div>
       </header>
 
       <div className="admin__body">
-        <nav className="admin__nav card">
+        <nav className="admin__nav card" ref={scrollActiveLinkIntoView}>
           <span className="admin__nav-title">Settings</span>
           {SECTIONS.map(section => (
             <NavLink
@@ -138,6 +143,13 @@ export default function AdminPage() {
       </div>
     </div>
   )
+}
+
+function scrollActiveLinkIntoView(nav) {
+  const activeLink = nav?.querySelector(ACTIVE_NAV_LINK_SELECTOR)
+  if (!activeLink) return
+
+  nav.scrollLeft = activeLink.offsetLeft - (nav.clientWidth - activeLink.offsetWidth) / 2
 }
 
 function NavLinkContent({ section, isActive }) {

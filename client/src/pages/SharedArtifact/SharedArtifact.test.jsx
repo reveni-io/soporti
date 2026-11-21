@@ -1,12 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import SharedArtifact from './SharedArtifact.jsx'
 
 const SHARE_ID = 'a'.repeat(32)
 
 beforeEach(() => {
   vi.restoreAllMocks()
+})
+
+afterEach(() => {
+  localStorage.clear()
 })
 
 describe('SharedArtifact', () => {
@@ -17,7 +22,11 @@ describe('SharedArtifact', () => {
       json: async () => ({ title: 'Refund dashboard', version: 2, html: '<h1>Refunds</h1>' }),
     })
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByTitle('Refund dashboard')).toBeInTheDocument())
     expect(screen.getByTitle('Refund dashboard').getAttribute('srcdoc')).toContain('<h1>Refunds</h1>')
@@ -34,7 +43,11 @@ describe('SharedArtifact', () => {
       json: async () => ({ title: 'Refund dashboard', version: 2, html: '<h1>Refunds</h1>' }),
     })
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByText('Refund dashboard')).toBeInTheDocument())
     expect(screen.getByText('Shared artifact')).toBeInTheDocument()
@@ -47,7 +60,11 @@ describe('SharedArtifact', () => {
       json: async () => ({ title: 'Refund dashboard', version: 2, html: '<h1>Refunds</h1>' }),
     })
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Export as PDF' })).toBeEnabled())
     const frame = screen.getByTitle('Refund dashboard')
@@ -61,7 +78,11 @@ describe('SharedArtifact', () => {
   it('cannot export a pdf before the artifact arrives', () => {
     global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     expect(screen.getByRole('button', { name: 'Export as PDF' })).toBeDisabled()
   })
@@ -69,7 +90,11 @@ describe('SharedArtifact', () => {
   it('shows a loading note first', () => {
     global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     expect(screen.getByText('Loading artifact...')).toBeInTheDocument()
   })
@@ -79,7 +104,11 @@ describe('SharedArtifact', () => {
       .fn()
       .mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: 'Shared artifact not found.' }) })
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByText(/may have expired or the link is invalid/)).toBeInTheDocument())
     expect(screen.queryByTitle('Refund dashboard')).not.toBeInTheDocument()
@@ -92,7 +121,11 @@ describe('SharedArtifact', () => {
       json: async () => ({ title: 'Refund dashboard', version: 2, html: '<h1>Refunds</h1>' }),
     })
 
-    const { container } = render(<SharedArtifact shareId={SHARE_ID} />)
+    const { container } = render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByTitle('Refund dashboard')).toBeInTheDocument())
     expect(container.querySelector('canvas.grid-pattern')).toBeInTheDocument()
@@ -105,8 +138,38 @@ describe('SharedArtifact', () => {
       json: async () => ({ title: 'Refund dashboard', version: 2, html: '<h1>Refunds</h1>' }),
     })
 
-    render(<SharedArtifact shareId={SHARE_ID} />)
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => expect(screen.getByText(/may expire at any time/)).toBeInTheDocument())
+  })
+
+  it('offers a signed-in reader a way back to the chat', async () => {
+    localStorage.setItem('auth_token', 'tok')
+    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
+
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
+  })
+
+  it('offers no way into the chat to a visitor without a session', () => {
+    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
+
+    render(
+      <MemoryRouter>
+        <SharedArtifact shareId={SHARE_ID} />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText('Soporti')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Back to chat' })).not.toBeInTheDocument()
   })
 })

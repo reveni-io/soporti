@@ -1,7 +1,7 @@
 .video-studio {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   background: var(--bg-app);
 }
 
@@ -37,14 +37,18 @@
 @media (max-width: 768px) {
   .video-studio {
     height: auto;
-    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   .video-studio__columns {
     grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    padding: var(--sp4) calc(var(--sp4) + var(--safe-right)) calc(var(--sp6) + var(--safe-bottom))
+      calc(var(--sp4) + var(--safe-left));
   }
 
   .video-studio__panel {
+    order: -1;
     overflow: visible;
   }
 }

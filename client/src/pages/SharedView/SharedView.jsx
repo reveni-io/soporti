@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import Icon from '../../common/Icon/Icon.jsx'
 import Message from '../../common/Message/Message.jsx'
+import { readStoredToken } from '../../context/AuthContext.jsx'
+import { ROUTES } from '../../router/constants.js'
 import { getSharedConversation } from '../../services/services.js'
 import './SharedView.css'
+
+const BACK_ICON_SIZE = 18
 
 export default function SharedView({ shareId }) {
   const [share, setShare] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const isLoggedIn = Boolean(readStoredToken())
 
   useEffect(() => {
     getSharedConversation(shareId)
@@ -37,6 +44,11 @@ export default function SharedView({ shareId }) {
   return (
     <div className="shared-view">
       <header className="shared-view__header">
+        {isLoggedIn && (
+          <Link className="icon-btn shared-view__back" to={ROUTES.CHAT} aria-label="Back to chat">
+            <Icon name="arrow-left" size={BACK_ICON_SIZE} />
+          </Link>
+        )}
         <span className="shared-view__brand">Soporti</span>
         <span className="shared-view__badge">Shared conversation</span>
       </header>

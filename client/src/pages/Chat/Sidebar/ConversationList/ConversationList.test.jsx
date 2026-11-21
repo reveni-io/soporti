@@ -247,4 +247,49 @@ describe('ConversationList', () => {
     expect(within(snippet).getByText('Refund').tagName).toBe('MARK')
     expect(screen.getByText('Refund report')).toBeInTheDocument()
   })
+
+  it('deletes right away when clicked with a mouse', async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList conversations={[{ id: 'c1', title: 'Auth question' }]} onSelect={vi.fn()} onDelete={onDelete} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Delete conversation' }))
+
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    expect(onDelete).toHaveBeenCalledWith('c1')
+  })
+
+  it('asks before deleting when tapped on a touch screen', async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList conversations={[{ id: 'c1', title: 'Auth question' }]} onSelect={vi.fn()} onDelete={onDelete} />
+    )
+
+    await user.pointer({ keys: '[TouchA]', target: screen.getByRole('button', { name: 'Delete conversation' }) })
+
+    expect(onDelete).not.toHaveBeenCalled()
+    const confirm = screen.getByRole('group', { name: 'Delete this conversation?' })
+    await user.click(within(confirm).getByRole('button', { name: 'Delete' }))
+
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    expect(onDelete).toHaveBeenCalledWith('c1')
+  })
+
+  it('keeps the conversation when the touch confirmation is dismissed', async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConversationList conversations={[{ id: 'c1', title: 'Auth question' }]} onSelect={vi.fn()} onDelete={onDelete} />
+    )
+
+    await user.pointer({ keys: '[TouchA]', target: screen.getByRole('button', { name: 'Delete conversation' }) })
+    await user.click(screen.getByRole('button', { name: 'Keep it' }))
+
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('group', { name: 'Delete this conversation?' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Delete conversation' })).toBeInTheDocument()
+  })
 })

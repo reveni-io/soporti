@@ -7,6 +7,7 @@ export function useRepos(token, onLogout) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!token) return
     let active = true
     async function load() {
       try {

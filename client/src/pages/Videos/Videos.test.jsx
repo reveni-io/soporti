@@ -54,7 +54,7 @@ describe('Videos', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Videos' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /chat/i })).toHaveAttribute('href', '/chat')
+    expect(screen.getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', '/chat')
     expect(await screen.findByRole('heading', { name: 'Liquid email templates' })).toBeInTheDocument()
     expect(screen.getByText('9:16 · ~30s')).toBeInTheDocument()
     expect(screen.getByText('Generating · Rendering · 40%')).toBeInTheDocument()

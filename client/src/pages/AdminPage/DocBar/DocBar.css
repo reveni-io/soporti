@@ -16,3 +16,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+@media (max-width: 768px) {
+  .docbar {
+    bottom: calc(var(--sp4) + var(--safe-bottom));
+  }
+}
