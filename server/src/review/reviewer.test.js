@@ -326,7 +326,7 @@ describe('runReview', () => {
     const guardChecks = [{ guard: 'GitHub Review PR', status: 'checked', review: { rows: [] } }]
     mockBuildReviewGuards.mockResolvedValueOnce({ tools: [askGuard], checks: guardChecks })
     const check = { guard: 'GitHub Review PR', answered: true, setVersion: 9, minConfidence: 0.75, rows: [] }
-    const autoApprove = { approve: true, reason: null, checks: [check] }
+    const autoApprove = { approve: true, checks: [check] }
     mockDecideAutoApprove.mockReturnValueOnce({ event: 'APPROVE', autoApprove })
     setupHappyPath({ verdict: 'comment', findings: [] })
 

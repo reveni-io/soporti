@@ -36,26 +36,24 @@ function listGuards(names) {
   return `the ${list} guard${names.length === 1 ? '' : 's'}`
 }
 
-function describeWhyNot({ reason, checks }) {
-  if (reason) return reason
-
-  const warned = checks.filter(check => countWarnings(check) > 0).map(check => check.guard)
-
-  return `${listGuards(warned)} raised a warning`
+function describeSkipped(checks) {
+  return checks.map(check => `The **${check.guard}** guard could not run (${check.reason}), so it did not count.`)
 }
 
-function describeOutcome(autoApprove) {
-  const { approve, checks } = autoApprove
+function describeOutcome({ approve, checks }) {
+  const answered = checks.filter(check => check.answered)
+  const skipped = describeSkipped(checks.filter(check => !check.answered))
 
-  return approve
-    ? [
-        '✅ Guards · no warnings',
-        `Soporti passed this PR through ${listGuards(checks.map(check => check.guard))}, and none raised a warning.`,
-      ]
-    : [
-        '⛔ Guards · not approved',
-        `Soporti did not approve this PR because ${describeWhyNot(autoApprove)}. Review it as usual.`,
-      ]
+  if (answered.length === 0) return ['⚪ Guards · could not run', [...skipped, 'The usual rule decided.'].join(' ')]
+  if (approve) {
+    const passed = `Soporti passed this PR through ${listGuards(answered.map(check => check.guard))}, and none raised a warning.`
+    return ['✅ Guards · no warnings', [passed, ...skipped].join(' ')]
+  }
+
+  const warned = answered.filter(check => countWarnings(check) > 0).map(check => check.guard)
+  const why = `Soporti did not approve this PR because ${listGuards(warned)} raised a warning. Review it as usual.`
+
+  return ['⛔ Guards · not approved', [why, ...skipped].join(' ')]
 }
 
 export function renderAutoApprove(autoApprove) {

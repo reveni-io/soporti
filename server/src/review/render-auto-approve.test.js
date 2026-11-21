@@ -12,7 +12,6 @@ function check(guard, rows = [row('Is it risky?')]) {
 function autoApprove(overrides = {}) {
   return {
     approve: true,
-    reason: null,
     checks: [check('GitHub Review PR'), check('Payments')],
     ...overrides,
   }
@@ -42,10 +41,19 @@ describe('renderAutoApprove', () => {
     )
   })
 
-  it('gives the reason when the guards could not run', () => {
-    const text = renderAutoApprove(autoApprove({ approve: false, reason: 'the guards could not run', checks: [] }))
+  it('says which guards could not run and did not count', () => {
+    const skipped = { guard: 'Legal', answered: false, reason: 'No API key saved', rows: [] }
 
-    expect(text).toContain('Soporti did not approve this PR because the guards could not run. Review it as usual.')
+    const alone = renderAutoApprove(autoApprove({ checks: [skipped] }))
+    const withOthers = renderAutoApprove(autoApprove({ checks: [check('Payments'), skipped] }))
+
+    expect(alone).toContain('⚪ Guards · could not run')
+    expect(alone).toContain(
+      'The **Legal** guard could not run (No API key saved), so it did not count. The usual rule decided.'
+    )
+    expect(withOthers).toContain(
+      'Soporti passed this PR through the **Payments** guard, and none raised a warning. The **Legal** guard could not run (No API key saved), so it did not count.'
+    )
   })
 
   it('renders nothing when no guard ran', () => {

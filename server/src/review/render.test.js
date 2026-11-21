@@ -221,7 +221,7 @@ describe('renderReviewBody', () => {
       minConfidence: 0.75,
       rows: [],
     }
-    const autoApprove = { approve: true, reason: null, checks: [check] }
+    const autoApprove = { approve: true, checks: [check] }
 
     const body = renderReviewBody(review({ event: 'APPROVE', autoApprove }))
 

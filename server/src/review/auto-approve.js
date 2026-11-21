@@ -50,19 +50,11 @@ function hasWarning(check) {
   return check.rows.some(row => row.flagged || row.unsure)
 }
 
-function decide(checks) {
-  const unavailable = checks.find(check => !check.answered)
-  if (unavailable)
-    return { approve: false, reason: `the ${unavailable.guard} guard could not run (${unavailable.reason})` }
-
-  return { approve: !checks.some(hasWarning), reason: null }
-}
-
 export function decideAutoApprove({ todayEvent, guardChecks }) {
   if (guardChecks.length === 0) return { event: todayEvent, autoApprove: null }
 
   const checks = guardChecks.map(toCheck)
-  const outcome = { checks, ...decide(checks) }
+  const approve = !checks.some(hasWarning)
 
-  return { event: todayEvent === APPROVE && !outcome.approve ? COMMENT : todayEvent, autoApprove: outcome }
+  return { event: todayEvent === APPROVE && !approve ? COMMENT : todayEvent, autoApprove: { approve, checks } }
 }

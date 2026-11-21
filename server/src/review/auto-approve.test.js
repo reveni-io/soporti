@@ -77,7 +77,6 @@ describe('decideAutoApprove', () => {
     expect(result.event).toBe('APPROVE')
     expect(result.autoApprove).toEqual({
       approve: true,
-      reason: null,
       checks: [
         {
           guard: 'GitHub Review PR',
@@ -104,19 +103,32 @@ describe('decideAutoApprove', () => {
       guardChecks: [guardCheck('GitHub Review PR'), guardCheck('Payments', [row('Big?', { unsure: true })])],
     })
 
-    expect(result).toMatchObject({ event: 'COMMENT', autoApprove: { approve: false, reason: null } })
+    expect(result).toMatchObject({ event: 'COMMENT', autoApprove: { approve: false } })
   })
 
-  it('does not approve when a guard could not run', () => {
+  it('leaves out a guard that could not run, so the usual rule decides', () => {
     const failed = { guard: 'Payments', status: 'not_checked', reason: 'the review could not run', review: null }
 
-    const result = decideAutoApprove({ todayEvent: 'APPROVE', guardChecks: [failed] })
-
-    expect(result.event).toBe('COMMENT')
-    expect(result.autoApprove).toMatchObject({
-      approve: false,
-      reason: 'the Payments guard could not run (the review could not run)',
+    const alone = decideAutoApprove({ todayEvent: 'APPROVE', guardChecks: [failed] })
+    const withWarning = decideAutoApprove({
+      todayEvent: 'APPROVE',
+      guardChecks: [failed, guardCheck('Legal', [row('Refund?', { flagged: true })])],
     })
-    expect(result.autoApprove.checks[0]).toMatchObject({ answered: false, rows: [] })
+
+    expect(alone.event).toBe('APPROVE')
+    expect(alone.autoApprove).toEqual({
+      approve: true,
+      checks: [
+        {
+          guard: 'Payments',
+          answered: false,
+          reason: 'the review could not run',
+          setVersion: null,
+          minConfidence: null,
+          rows: [],
+        },
+      ],
+    })
+    expect(withWarning).toMatchObject({ event: 'COMMENT', autoApprove: { approve: false } })
   })
 })
