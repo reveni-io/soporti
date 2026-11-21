@@ -168,3 +168,6 @@ export const ANALYTICS_SQL_MAX_LENGTH = 20_000
 export const ANALYTICS_DASHBOARD_NAME_MAX_LENGTH = 80
 
 export const THEME = { LIGHT: 'light', DARK: 'dark' }
+
+export const SEND_CASE_REPLY_TOOL = 'send_case_reply'
+export const LEGAL_REPLY_SENT_EVENT = 'soporti:legal-reply-sent'

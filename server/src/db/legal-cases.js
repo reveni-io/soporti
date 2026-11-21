@@ -18,6 +18,7 @@ const OWNED_CASE_FIELDS = {
   status: legalCases.status,
   warnings: legalCases.warnings,
   draft: legalCases.draft,
+  conversationId: legalCases.conversationId,
   createdAt: legalCases.createdAt,
 }
 

@@ -24,6 +24,24 @@ describe('useLegalCases', () => {
     expect(result.current.error).toBeNull()
   })
 
+  it('loads the cases again when the assistant sends a reply from the chat', async () => {
+    const before = { id: 41, replies: [], send: { allowed: true, reason: null } }
+    const reply = { id: 7, sentBy: 'ana@example.com', text: 'Hello', sentAt: '2026-11-20T10:00:00.000Z' }
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(200, { cases: [before] }))
+      .mockResolvedValueOnce(respond(200, { cases: [{ ...before, replies: [reply] }] }))
+
+    const onLogout = vi.fn()
+
+    const { result } = renderHook(() => useLegalCases('tok', [41], onLogout))
+    await waitFor(() => expect(result.current.cases.get(41)).toEqual(before))
+    window.dispatchEvent(new Event('soporti:legal-reply-sent'))
+
+    await waitFor(() => expect(result.current.cases.get(41).replies).toEqual([reply]))
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
   it('asks for nothing without a token or without cases', () => {
     global.fetch = vi.fn()
 

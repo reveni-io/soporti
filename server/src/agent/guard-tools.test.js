@@ -201,7 +201,14 @@ describe('ask_guard', () => {
 })
 
 describe('send_case_reply', () => {
-  const CASE = { id: 41, source: 'zendesk', ticketId: '48213', status: 'checked', warnings: 0 }
+  const CASE = {
+    id: 41,
+    source: 'zendesk',
+    ticketId: '48213',
+    status: 'checked',
+    warnings: 0,
+    conversationId: 'conv-1',
+  }
   const USER = { id: 3, email: 'ana@example.com' }
   const TURN_STARTED_AT = new Date('2026-11-20T09:05:00.000Z')
 
@@ -209,7 +216,7 @@ describe('send_case_reply', () => {
     return buildGuardTools({
       guards: GUARDS,
       userId: 3,
-      guardCases: { sendable: true, turnStartedAt: TURN_STARTED_AT },
+      guardCases: { conversationId: 'conv-1', sendable: true, turnStartedAt: TURN_STARTED_AT },
     })[1]
   }
 
@@ -263,5 +270,14 @@ describe('send_case_reply', () => {
     expect(await sendTool().execute({ caseId: 99, warningsConfirmed: true })).toBe(
       'There is no case with that id in this conversation.'
     )
+  })
+
+  it('does not send a case from another conversation of the user', async () => {
+    getOwnedLegalCase.mockResolvedValueOnce({ ...CASE, conversationId: 'conv-2' })
+
+    expect(await sendTool().execute({ caseId: 41, warningsConfirmed: true })).toBe(
+      'There is no case with that id in this conversation.'
+    )
+    expect(sendCaseReply).not.toHaveBeenCalled()
   })
 })

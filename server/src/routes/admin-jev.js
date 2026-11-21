@@ -183,7 +183,7 @@ function describeNameClash(name) {
 }
 
 async function findNameClash(id, name) {
-  if (name === undefined) return null
+  if (typeof name !== 'string') return null
 
   return findGuardByName(await listGuards(), name, { exceptId: id }) ? describeNameClash(name) : null
 }

@@ -399,6 +399,17 @@ describe('GET /api/admin/config/jev/guards', () => {
 })
 
 describe('PUT /api/admin/config/jev/documents/:id with only some fields', () => {
+  it('saves a built-in guard sent with a null name without looking for a name clash', async () => {
+    saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
+
+    const res = await request(app)
+      .put('/api/admin/config/jev/documents/legal')
+      .send({ rev: 1, data: { name: null, set: LEGAL_SET } })
+
+    expect(res.status).toBe(200)
+    expect(listGuards).not.toHaveBeenCalled()
+  })
+
   it('saves the fields sent and keeps the rest of the stored document', async () => {
     saveJevDocument.mockResolvedValue({ conflict: false, document: { id: 'legal', rev: 2, data: {}, setVersion: 1 } })
 

@@ -12,7 +12,7 @@ import { LEGAL_SOURCES } from '../legal/tickets.js'
 const CONFIDENCE_DIGITS = 2
 const CASE_NOT_FOUND = 'There is no case with that id in this conversation.'
 const CASE_NEEDS_CONFIRMATION =
-  'Not sent: this case has warnings or was not checked. Tell the user what the warnings are and send it only after they confirm they read them.'
+  'Not sent: this case has warnings or was not checked. Tell the user what the warnings are and send it only after they confirm, in a new message, that they read them.'
 const SOURCE_LABELS = new Map([
   ['zendesk', 'Zendesk'],
   ['hubspot', 'HubSpot'],
@@ -50,9 +50,9 @@ function describeCaseShown(caseId) {
   return `The user sees case ${caseId} with the draft and the review of each guard. When the user asks you to send it, call send_case_reply with case ${caseId}; to change it or add data first, check the new draft again with the same guards.`
 }
 
-async function sendFromChat({ userId, turnStartedAt }, { caseId, warningsConfirmed }) {
+async function sendFromChat({ userId, conversationId, turnStartedAt }, { caseId, warningsConfirmed }) {
   const [legalCase, user] = await Promise.all([getOwnedLegalCase(caseId, userId), findUserById(userId)])
-  if (!legalCase || !user) return CASE_NOT_FOUND
+  if (!legalCase || legalCase.conversationId !== conversationId || !user) return CASE_NOT_FOUND
 
   try {
     const sent = await sendCaseReply({ legalCase, user, warningsRead: warningsConfirmed, turnStartedAt })
@@ -147,7 +147,8 @@ const ticketParam = z
   .describe('A reply to a customer ticket. Null when checking `content`.')
 
 export function buildGuardTools({ guards, userId = null, guardCases = null, review = null }) {
-  const sendTools = guardCases?.sendable ? [buildSendTool({ userId, turnStartedAt: guardCases.turnStartedAt })] : []
+  const sender = { userId, conversationId: guardCases?.conversationId, turnStartedAt: guardCases?.turnStartedAt }
+  const sendTools = guardCases?.sendable ? [buildSendTool(sender)] : []
   const reviewNote = review ? [REVIEW_NOTE] : []
 
   return [

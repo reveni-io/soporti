@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const listLegalReplies = vi.fn()
 const saveLegalReply = vi.fn()
@@ -33,6 +33,10 @@ function send(overrides = {}) {
     ...overrides,
   })
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -83,13 +87,23 @@ describe('sendCaseReply', () => {
     expect(sendLegalReply).not.toHaveBeenCalled()
   })
 
-  it('asks to confirm the warnings of a case that has them or was not checked', async () => {
-    const careful = { ...CASE, warnings: 2 }
-    const unchecked = { ...CASE, status: 'not_checked' }
+  it('sends a case with warnings only once the user confirms them in a message after the one that asked', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-20T09:06:00.000Z'), toFake: ['Date'] })
+    const careful = { ...CASE, id: 42, warnings: 2 }
+    const nextTurn = new Date('2026-11-20T09:07:00.000Z')
 
-    expect(await send({ legalCase: careful })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
-    expect(await send({ legalCase: unchecked })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
-    expect((await send({ legalCase: careful, warningsRead: true })).reply).toBeDefined()
+    expect(await send({ legalCase: careful, warningsRead: true })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
+    expect(await send({ legalCase: careful, warningsRead: true })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
+    expect(await send({ legalCase: careful, turnStartedAt: nextTurn })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
+    expect(sendLegalReply).not.toHaveBeenCalled()
+
+    expect((await send({ legalCase: careful, warningsRead: true, turnStartedAt: nextTurn })).reply).toBeDefined()
+  })
+
+  it('asks to confirm the warnings of a case that could not be checked', async () => {
+    const unchecked = { ...CASE, id: 43, status: 'not_checked' }
+
+    expect(await send({ legalCase: unchecked, warningsRead: true })).toEqual({ unconfirmed: WARNINGS_NOT_READ })
   })
 
   it('says when the reply went out but could not be recorded', async () => {

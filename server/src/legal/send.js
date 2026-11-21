@@ -39,8 +39,18 @@ async function recordReply({ legalCase, user, text, externalId }) {
   }
 }
 
+const confirmationsAsked = new Map()
+
 function isFromThisTurn(legalCase, turnStartedAt) {
   return new Date(legalCase.createdAt) >= turnStartedAt
+}
+
+function hasConfirmedWarnings(legalCase, { warningsRead, turnStartedAt }) {
+  const askedAt = confirmationsAsked.get(legalCase.id)
+  if (warningsRead && askedAt && askedAt < turnStartedAt) return true
+
+  if (!askedAt) confirmationsAsked.set(legalCase.id, new Date())
+  return false
 }
 
 export async function sendCaseReply({ legalCase, user, warningsRead, turnStartedAt }) {
@@ -51,7 +61,10 @@ export async function sendCaseReply({ legalCase, user, warningsRead, turnStarted
   const text = draft.value
   const blocker = await findReplyBlocker(legalCase, { userId: user.id, text })
   if (blocker) return { blocker }
-  if (needsCare(legalCase) && !warningsRead) return { unconfirmed: WARNINGS_NOT_READ }
+  if (needsCare(legalCase) && !hasConfirmedWarnings(legalCase, { warningsRead, turnStartedAt })) {
+    return { unconfirmed: WARNINGS_NOT_READ }
+  }
+  confirmationsAsked.delete(legalCase.id)
 
   const externalId = await sendLegalReply(legalCase, { userId: user.id, text })
   const reply = await recordReply({ legalCase, user, text, externalId })
