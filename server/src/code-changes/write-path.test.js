@@ -29,6 +29,11 @@ describe('parseWritablePath', () => {
     expect(parseWritablePath('/src/a.js')).toBe('src/a.js')
   })
 
+  it('accepts files whose names only start like an env file', () => {
+    expect(parseWritablePath('src/.environment.js')).toBe('src/.environment.js')
+    expect(parseWritablePath('docs/env.md')).toBe('docs/env.md')
+  })
+
   it.each([
     { kind: 'a workflow file', path: '.github/workflows/ci.yml', message: 'Workflow and CI files are off-limits' },
     { kind: 'a workflow file in other casing', path: '.GitHub/workflows/ci.yml', message: 'is under .github/' },
@@ -36,6 +41,18 @@ describe('parseWritablePath', () => {
     { kind: 'the git folder', path: '.git/config', message: 'Access to ".git" is not allowed' },
     { kind: 'the git folder in other casing', path: '.GIT/config', message: 'Access to ".GIT" is not allowed' },
     { kind: 'an env file', path: 'server/.env', message: 'Access to ".env" is not allowed' },
+    { kind: 'a staging env file', path: '.env.staging', message: 'Access to ".env.staging" is not allowed' },
+    {
+      kind: 'a development env file',
+      path: '.env.development',
+      message: 'Access to ".env.development" is not allowed',
+    },
+    { kind: 'an env file in other casing', path: 'config/.ENV.test', message: 'Access to ".ENV.test" is not allowed' },
+    {
+      kind: 'a local production env file',
+      path: '.env.production.local',
+      message: 'Access to ".env.production.local" is not allowed',
+    },
     { kind: 'node_modules', path: 'node_modules/x/index.js', message: 'Access to "node_modules" is not allowed' },
     { kind: 'a parent traversal', path: 'src/../../etc/passwd', message: 'Path traversal is not allowed' },
     { kind: 'an encoded traversal', path: 'src/%2e%2e/x', message: 'Path traversal is not allowed' },

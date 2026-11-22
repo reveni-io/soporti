@@ -383,8 +383,43 @@ describe('CodeChangeSession', () => {
     const again = await session.continuePullRequest(REPO, 5)
 
     expect(again.number).toBe(5)
-    expect(getPullRequest).toHaveBeenCalledTimes(1)
+    expect(getPullRequest).toHaveBeenCalledTimes(2)
+    expect(getPullRequest).toHaveBeenLastCalledWith(REPO, 5)
     expect(session.pendingPath(REPO)).toBe(localPath)
+  })
+
+  it('drops a held pull request that was closed in the meantime when it is continued again', async () => {
+    await session.continuePullRequest(REPO, 5)
+    getPullRequest.mockResolvedValue(openPullRequestFixture({ state: 'closed' }))
+
+    await expect(session.continuePullRequest(REPO, 5)).rejects.toThrow(
+      'Pull request #5 in acme/app is closed, so nothing was pushed to it and the edits made for it were discarded.'
+    )
+    expect(session.pendingPath(REPO)).toBeNull()
+  })
+
+  it('refuses to push a follow-up to a pull request merged in the meantime and starts over', async () => {
+    await session.writeFile(REPO, 'first.txt', 'one\n')
+    const first = await session.openPullRequest(REPO, { title: 'Add the first file', body: '' })
+    const tipAfterFirst = originGit('rev-parse', first.branch)
+    getPullRequest.mockResolvedValue(openPullRequestFixture({ state: 'closed', merged_at: '2026-11-22T10:00:00Z' }))
+
+    await session.writeFile(REPO, 'second.txt', 'two\n')
+    await expect(session.openPullRequest(REPO, { title: 'Add the second file', body: '' })).rejects.toThrow(
+      'Pull request #12 in acme/app is already merged, so nothing was pushed to it and the edits made for it were discarded. Make them again and open_pull_request will open a new pull request.'
+    )
+
+    expect(getPullRequest).toHaveBeenLastCalledWith(REPO, 12)
+    expect(originGit('rev-parse', first.branch)).toBe(tipAfterFirst)
+    expect(session.pendingPath(REPO)).toBeNull()
+
+    await session.writeFile(REPO, 'second.txt', 'two\n')
+    const second = await session.openPullRequest(REPO, { title: 'Add the second file', body: '' })
+
+    expect(createPullRequest).toHaveBeenCalledTimes(2)
+    expect(second.created).toBe(true)
+    expect(second.branch).not.toBe(first.branch)
+    expect(second.files).toEqual([{ path: 'second.txt', status: 'added' }])
   })
 
   it('refuses to continue another pull request while edits are unpublished', async () => {

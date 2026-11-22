@@ -4,6 +4,7 @@ import { BLOCKED_PATHS, sanitizePath } from '../github/sanitize.js'
 
 const WORKFLOWS_DIR = '.github'
 const BLOCKED_SEGMENTS = new Set(BLOCKED_PATHS.map(path => path.toLowerCase()))
+const ENV_FILE_RE = /^\.env(\..*)?$/i
 
 export function parseWritablePath(path) {
   if (typeof path !== 'string') throw new Error('A file path is required.')
@@ -20,7 +21,7 @@ export function parseWritablePath(path) {
     )
   }
 
-  const blocked = segments.find(segment => BLOCKED_SEGMENTS.has(segment.toLowerCase()))
+  const blocked = segments.find(segment => BLOCKED_SEGMENTS.has(segment.toLowerCase()) || ENV_FILE_RE.test(segment))
   if (blocked) throw new Error(`Access to "${blocked}" is not allowed.`)
 
   return safePath

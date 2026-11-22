@@ -4,7 +4,7 @@ import { withoutClonePath } from '../repo-pool/resolve-inside-clone.js'
 import { redactSecrets } from '../review/output-guard.js'
 import { deleteFileAt, editFileAt, parseContent, parseEdit, writeFileAt } from './file-edits.js'
 import { hasUncommittedChanges, readHead } from './git.js'
-import { loadContinuablePullRequest, noEditsMessage, publishChange } from './publish.js'
+import { loadContinuablePullRequest, noEditsMessage, publishChange, readClosedState } from './publish.js'
 import { parseWritablePath } from './write-path.js'
 
 const EXPIRED_MESSAGE =
@@ -46,6 +46,10 @@ async function hasUnpublishedEdits(change) {
   if ((await readHead(change.localPath)) !== change.pushedSha) return true
 
   return hasUncommittedChanges(change.localPath)
+}
+
+function closedPullRequestMessage({ repo, pr }, state) {
+  return `Pull request #${pr.number} in ${repo} is ${state}, so nothing was pushed to it and the edits made for it were discarded. Make them again and open_pull_request will open a new pull request.`
 }
 
 function describePullRequest(pr) {
@@ -118,6 +122,7 @@ export class CodeChangeSession {
     return this._run(repo, async () => {
       const change = this.changes.get(repoKey(repo))
       if (!change) throw new Error(noEditsMessage(repo))
+      if (change.pr) await this._dropIfClosed(repo, change)
 
       return publishChange(change, { title, body, requestedBy })
     })
@@ -142,6 +147,16 @@ export class CodeChangeSession {
     return change
   }
 
+  async _dropIfClosed(repo, change) {
+    const state = await readClosedState(change.repo, change.pr.number)
+    if (!state) return
+
+    this.changes.delete(repoKey(repo))
+    await change.release()
+
+    throw new Error(closedPullRequestMessage(change, state))
+  }
+
   async _ensureChange(repo) {
     const existing = this.changes.get(repoKey(repo))
     if (existing) return existing
@@ -152,7 +167,10 @@ export class CodeChangeSession {
   async _continue(repo, number) {
     const current = this.changes.get(repoKey(repo))
 
-    if (current?.pr?.number === number) return describePullRequest(current.pr)
+    if (current?.pr?.number === number) {
+      await this._dropIfClosed(repo, current)
+      return describePullRequest(current.pr)
+    }
     if (current && (await hasUnpublishedEdits(current))) {
       throw new Error(
         `There are unpublished edits in ${repo}. Publish them with open_pull_request before continuing pull request #${number}.`

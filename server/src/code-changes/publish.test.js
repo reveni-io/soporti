@@ -19,7 +19,7 @@ vi.mock('./git.js', async () => {
   return { ...actual, commitAll, hasUncommittedChanges, listChangedFiles, pushHead, readHead }
 })
 
-const { publishChange, loadContinuablePullRequest, noEditsMessage } = await import('./publish.js')
+const { publishChange, loadContinuablePullRequest, noEditsMessage, readClosedState } = await import('./publish.js')
 
 const TOKEN = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789'
 const BRANCH_RE = /^soporti\/fix-the-greeting-[a-z0-9]{6}$/
@@ -363,6 +363,31 @@ describe('loadContinuablePullRequest', () => {
     getPullRequest.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 502 }))
 
     await expect(loadContinuablePullRequest('acme/app', 5)).rejects.toThrow(
+      'Could not read pull request #5 of acme/app: Server Error'
+    )
+  })
+})
+
+describe('readClosedState', () => {
+  it.each([
+    { kind: 'an open pull request', pr: { state: 'open', merged_at: null }, expected: null },
+    { kind: 'a closed pull request', pr: { state: 'closed', merged_at: null }, expected: 'closed' },
+    {
+      kind: 'a merged pull request',
+      pr: { state: 'closed', merged_at: '2026-11-20T10:00:00Z' },
+      expected: 'already merged',
+    },
+  ])('returns $expected for $kind', async ({ pr, expected }) => {
+    getPullRequest.mockResolvedValue(pr)
+
+    expect(await readClosedState('acme/app', 5)).toBe(expected)
+    expect(getPullRequest).toHaveBeenCalledWith('acme/app', 5)
+  })
+
+  it('reports a failed lookup instead of guessing the state', async () => {
+    getPullRequest.mockRejectedValue(Object.assign(new Error('Server Error'), { status: 502 }))
+
+    await expect(readClosedState('acme/app', 5)).rejects.toThrow(
       'Could not read pull request #5 of acme/app: Server Error'
     )
   })

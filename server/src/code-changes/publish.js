@@ -137,10 +137,15 @@ function describeLookupFailure(err, { repo, number }) {
   return new Error(`Could not read pull request #${number} of ${repo}: ${redactSecrets(err.message)}`, { cause: err })
 }
 
+function describeClosedState(pr) {
+  return pr.merged_at ? 'already merged' : 'closed'
+}
+
 function assertContinuable(pr, { repo, number }) {
   if (pr.state !== 'open') {
-    const state = pr.merged_at ? 'already merged' : 'closed'
-    throw new Error(`Pull request #${number} in ${repo} is ${state}. Open a new pull request instead.`)
+    throw new Error(
+      `Pull request #${number} in ${repo} is ${describeClosedState(pr)}. Open a new pull request instead.`
+    )
   }
 
   if (String(pr.head?.repo?.full_name ?? '').toLowerCase() !== repo.toLowerCase()) {
@@ -156,10 +161,21 @@ function assertContinuable(pr, { repo, number }) {
   }
 }
 
-export async function loadContinuablePullRequest(repo, number) {
-  const pr = await getPullRequest(repo, number).catch(err => {
+async function lookUpPullRequest(repo, number) {
+  return getPullRequest(repo, number).catch(err => {
     throw describeLookupFailure(err, { repo, number })
   })
+}
+
+export async function readClosedState(repo, number) {
+  const pr = await lookUpPullRequest(repo, number)
+  if (pr.state === 'open') return null
+
+  return describeClosedState(pr)
+}
+
+export async function loadContinuablePullRequest(repo, number) {
+  const pr = await lookUpPullRequest(repo, number)
 
   assertContinuable(pr, { repo, number })
 
