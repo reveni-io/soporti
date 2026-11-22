@@ -4,6 +4,7 @@ import AppTile from '../AppTile/AppTile.jsx'
 import BentoCard from '../BentoCard/BentoCard.jsx'
 import BotsTile from '../BotsTile/BotsTile.jsx'
 import HighlightsGrid from '../HighlightsGrid/HighlightsGrid.jsx'
+import PullRequestTile from '../PullRequestTile/PullRequestTile.jsx'
 import Section from '../Section/Section.jsx'
 import SectionHeading from '../SectionHeading/SectionHeading.jsx'
 import SkillsPreview from '../SkillsPreview/SkillsPreview.jsx'
@@ -25,7 +26,7 @@ export default function BentoSection() {
             When the answer is a <em>deliverable</em>, Soporti builds it.
           </>
         }
-        lead="Reports that open beside the chat, dashboards that stay live, product videos with their own soundtrack, and bots that keep doing the job on a schedule."
+        lead="Reports that open beside the chat, dashboards that stay live, draft pull requests for the small fixes, product videos with their own soundtrack, and bots that keep doing the job on a schedule."
       />
 
       <div className="lp-bento" {...spotlight}>
@@ -67,12 +68,23 @@ export default function BentoSection() {
           <AnalyticsTile />
         </BentoCard>
         <BentoCard
+          icon="pull-request"
+          kicker="Pull requests"
+          title="Ask for the fix, get a draft pull request"
+          description="Ask for a copy change or a one-line fix and Soporti makes it on a new branch and opens a draft pull request. It never runs your code: CI checks it and a person merges it."
+          isWide
+          isLandscape
+          index={4}
+        >
+          <PullRequestTile />
+        </BentoCard>
+        <BentoCard
           icon="video"
           kicker="Videos"
           title="Product videos from a brief"
           description="It reads the repos, proposes a storyboard and, once you approve it, renders an MP4 with music composed to match the scenes."
           isWide
-          index={4}
+          index={5}
         >
           <VideosTile />
         </BentoCard>
@@ -81,7 +93,7 @@ export default function BentoSection() {
           kicker="Subagents"
           title="Specialists behind one assistant"
           description="Each specialist gets its own prompt, model and tools. The assistant decides when a question belongs to one."
-          index={5}
+          index={6}
         >
           <SubagentsTile />
         </BentoCard>
@@ -91,7 +103,7 @@ export default function BentoSection() {
           title="Soporti in your dock and in your pocket"
           description="Install it on desktop or phone, laid out for one thumb. Get notified when a bot reports, an answer lands or a video is ready, and share screenshots into a chat."
           isLandscape
-          index={6}
+          index={7}
         >
           <AppTile />
         </BentoCard>

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   YOLO_SOURCE,
   isYoloMode,
@@ -8,7 +8,10 @@ import {
   INTEGRATION_TOOL_NAMES,
   INTEGRATION_WRITE_TOOL_NAMES,
   WRITE_TOOL_NAMES,
+  REPO_WRITE_TOOL_NAMES,
+  OPEN_PULL_REQUEST_TOOL_NAME,
   hasWriteTools,
+  guardRepoSelection,
 } from './sources.js'
 
 const HUBSPOT_WRITE_TOOLS = [
@@ -42,6 +45,60 @@ describe('INTEGRATION_WRITE_TOOL_NAMES', () => {
   it('counts every HubSpot write tool among the write tools', () => {
     for (const name of HUBSPOT_WRITE_TOOLS) expect(WRITE_TOOL_NAMES, name).toContain(name)
     expect(WRITE_TOOL_NAMES).not.toContain('search_hubspot_records')
+  })
+})
+
+describe('REPO_WRITE_TOOL_NAMES', () => {
+  it('names the tools that change code and open pull requests, ending with open_pull_request', () => {
+    expect(REPO_WRITE_TOOL_NAMES).toEqual([
+      'edit_file',
+      'write_file',
+      'delete_file',
+      'continue_pull_request',
+      'open_pull_request',
+    ])
+    expect(OPEN_PULL_REQUEST_TOOL_NAME).toBe('open_pull_request')
+  })
+
+  it('counts them among the write tools, so read-only runs drop them', () => {
+    for (const name of REPO_WRITE_TOOL_NAMES) expect(WRITE_TOOL_NAMES, name).toContain(name)
+    expect(WRITE_TOOL_NAMES).not.toContain('get_file_contents')
+  })
+
+  it('keeps them out of every integration group', () => {
+    const integrationTools = Object.values(INTEGRATION_TOOL_NAMES).flat()
+
+    for (const name of REPO_WRITE_TOOL_NAMES) expect(integrationTools, name).not.toContain(name)
+  })
+})
+
+describe('guardRepoSelection', () => {
+  it('runs the tool for any repo when nothing restricts the selection', async () => {
+    const run = vi.fn(async input => `ran on ${input.repo}`)
+
+    const result = await guardRepoSelection(null)(run)({ repo: 'org/any' })
+
+    expect(result).toBe('ran on org/any')
+    expect(run).toHaveBeenCalledWith({ repo: 'org/any' })
+  })
+
+  it('runs the tool for a selected repo', async () => {
+    const run = vi.fn(async () => 'ok')
+
+    expect(await guardRepoSelection(['org/app'])(run)({ repo: 'org/app', path: 'a.js' })).toBe('ok')
+    expect(run).toHaveBeenCalledWith({ repo: 'org/app', path: 'a.js' })
+  })
+
+  it('refuses a repo outside the selection with the allowed list, without running the tool', async () => {
+    const run = vi.fn()
+
+    const result = await guardRepoSelection(['org/app', 'org/web'])(run)({ repo: 'org/other' })
+
+    expect(JSON.parse(result)).toEqual({
+      error:
+        'Repository "org/other" is not among the sources selected for this conversation. Allowed repositories: org/app, org/web.',
+    })
+    expect(run).not.toHaveBeenCalled()
   })
 })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AdminGithub from './AdminGithub.jsx'
 
@@ -14,12 +14,23 @@ function mockGet({
   webhookSecretConfigured = false,
   repoCatalog = '',
   reviewerSuggestionsEnabled = false,
+  writesEnabled = false,
 } = {}) {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ tokenConfigured, webhookSecretConfigured, repoCatalog, reviewerSuggestionsEnabled }),
+    json: async () => ({
+      tokenConfigured,
+      webhookSecretConfigured,
+      repoCatalog,
+      reviewerSuggestionsEnabled,
+      writesEnabled,
+    }),
   }
+}
+
+function saveButtonOf(checkbox) {
+  return within(checkbox.closest('form')).getByRole('button', { name: 'Save' })
 }
 
 describe('AdminGithub', () => {
@@ -42,14 +53,97 @@ describe('AdminGithub', () => {
     render(<AdminGithub token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByText(/committed lately in their folders/)).toBeInTheDocument()
-    await user.click(screen.getByRole('checkbox', { name: /suggest reviewers/i }))
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    const toggle = screen.getByRole('checkbox', { name: /suggest reviewers/i })
+    await user.click(toggle)
+    await user.click(saveButtonOf(toggle))
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).toBeChecked()
     const [url, options] = global.fetch.mock.calls[1]
     expect(url).toContain('/api/admin/config/github/reviewer-suggestions')
     expect(JSON.parse(options.body)).toEqual({ enabled: true })
+  })
+
+  it('turns the write access on and only saves it when its button is pressed', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: true }) })
+    const user = userEvent.setup()
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
+    expect(toggle).not.toBeChecked()
+
+    await user.click(toggle)
+
+    expect(toggle).toBeChecked()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    await user.click(saveButtonOf(toggle))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const [url, options] = global.fetch.mock.calls[1]
+    expect(url).toBe('/api/admin/config/github/writes')
+    expect(options.method).toBe('PUT')
+    expect(JSON.parse(options.body)).toEqual({ enabled: true })
+    expect(screen.getByRole('checkbox', { name: /let the assistant open pull requests/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).not.toBeChecked()
+  })
+
+  it('shows the write access already on, and lets it be turned off', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true, writesEnabled: true }))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: false }) })
+    const user = userEvent.setup()
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+    await user.click(saveButtonOf(toggle))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({ enabled: false })
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('surfaces an error when the write access cannot be saved', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(mockGet({ tokenConfigured: true }))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'Boom.' }) })
+    const user = userEvent.setup()
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
+    await user.click(toggle)
+    await user.click(saveButtonOf(toggle))
+
+    expect(await screen.findByText('Boom.')).toBeInTheDocument()
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
+  })
+
+  it('explains what the write access can and cannot do, and the token permissions it needs', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockGet())
+
+    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+
+    expect(await screen.findByRole('heading', { name: 'Write access' })).toBeInTheDocument()
+    const explanation = screen.getByText(/never pushes to the default branch/i)
+    expect(explanation).toHaveTextContent(/as a draft pull request/i)
+    expect(explanation).toHaveTextContent('.github/')
+    expect(explanation).toHaveTextContent(/never runs your code/i)
+    expect(screen.getByText('Contents')).toBeInTheDocument()
+    expect(screen.getByText('Pull requests: read and write')).toBeInTheDocument()
+    expect(screen.getByText('workflow')).toBeInTheDocument()
+    expect(screen.getByText(/off by default — reading code never needs it/i)).toBeInTheDocument()
   })
 
   it('lists the token permissions PR reviews need to read the CI status', async () => {

@@ -6,6 +6,7 @@ import {
   saveGithubReviewerSuggestions,
   saveGithubToken,
   saveGithubWebhookSecret,
+  saveGithubWrites,
 } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
@@ -48,6 +49,11 @@ export default function AdminGithub({ token, onLogout }) {
     patchConfig({ reviewerSuggestionsEnabled: data.reviewerSuggestionsEnabled })
   }
 
+  async function saveWrites(enabled) {
+    const data = await saveGithubWrites(token, enabled)
+    patchConfig({ writesEnabled: data.writesEnabled })
+  }
+
   function handleCatalogSave() {
     save(async () => {
       const data = await saveGithubCatalog(token, catalog)
@@ -64,13 +70,14 @@ export default function AdminGithub({ token, onLogout }) {
     <>
       <AdminSection title="GitHub token">
         <p className="admin__muted">
-          Personal access token used by every GitHub feature: repository tools, clones and PR reviews. It is stored in
-          the database and never shown again after saving.
+          Personal access token used by every GitHub feature: repository tools, clones, PR reviews and the pull requests
+          the assistant opens. It is stored in the database and never shown again after saving.
         </p>
         <p className="admin__muted">
           A classic token with the <code>repo</code> scope covers everything. A fine-grained token also needs{' '}
           <strong>Checks: read</strong> and <strong>Commit statuses: read</strong> so PR reviews can see the CI results;
-          without them, reviews run without the CI section.
+          without them, reviews run without the CI section. Opening pull requests needs write permissions on top, listed
+          under <strong>Write access</strong>.
         </p>
 
         <StatusRow configured={config.tokenConfigured} />
@@ -82,6 +89,27 @@ export default function AdminGithub({ token, onLogout }) {
           onSave={saveToken}
           onLogout={onLogout}
           saveLabel="Save token"
+        />
+      </AdminSection>
+
+      <AdminSection title="Write access">
+        <p className="admin__muted">
+          Lets the assistant make small code changes and open them as a <strong>draft</strong> pull request on a{' '}
+          <code>soporti/…</code> branch. It never pushes to the default branch, never touches <code>.github/</code> or{' '}
+          <code>.env</code> files, and never runs your code: CI checks it and a person merges it.
+        </p>
+
+        <p className="note">
+          The token needs <strong>Contents</strong> and <strong>Pull requests: read and write</strong> (
+          <code>repo</code> on a classic token), without <code>workflow</code>.
+        </p>
+
+        <ToggleField
+          enabled={config.writesEnabled}
+          label="Let the assistant open pull requests"
+          hint="Off by default — reading code never needs it."
+          onSave={saveWrites}
+          onLogout={onLogout}
         />
       </AdminSection>
 

@@ -172,4 +172,202 @@ describe('RepoPool', () => {
       expect(pool.entries.has('owner/repo')).toBe(false)
     })
   })
+  describe('acquireBranchWorktree', () => {
+    const CLONE_PATH = '/tmp/test-repos/owner--repo'
+
+    function succeed(cb, stdout = '') {
+      if (cb) cb(null, { stdout, stderr: '' })
+    }
+
+    beforeEach(async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockClear()
+      execFile.mockImplementation((cmd, args, opts, cb) => succeed(cb, args.includes('rev-parse') ? 'main\n' : ''))
+    })
+
+    afterEach(async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockImplementation((cmd, args, opts, cb) => succeed(cb))
+    })
+
+    async function gitCalls() {
+      const { execFile } = await import('node:child_process')
+      return execFile.mock.calls.filter(c => c[0] === 'git').map(c => c[1])
+    }
+
+    function localRefOf(calls) {
+      const fetch = calls.find(args => args.includes('fetch'))
+      return fetch.at(-1).split(':')[1]
+    }
+
+    it('checks out the latest default branch tip in a fresh worktree and pins the clone while held', async () => {
+      const wt = await pool.acquireBranchWorktree('owner/repo')
+
+      expect(wt.baseBranch).toBe('main')
+      expect(wt.localPath).toMatch(/^\/tmp\/test-repos\/owner--repo--change-[a-z0-9]+$/)
+      expect(pool.entries.get('owner/repo').refCount).toBe(1)
+
+      const calls = await gitCalls()
+      const localRef = localRefOf(calls)
+      expect(localRef).toMatch(/^refs\/soporti\/change-[a-z0-9]+$/)
+      expect(calls).toContainEqual(['-C', CLONE_PATH, 'rev-parse', '--abbrev-ref', 'HEAD'])
+      expect(calls).toContainEqual([
+        '-C',
+        CLONE_PATH,
+        'fetch',
+        '--depth',
+        '1',
+        'origin',
+        `+refs/heads/main:${localRef}`,
+      ])
+      expect(calls).toContainEqual(['-C', CLONE_PATH, 'worktree', 'add', '--detach', wt.localPath, localRef])
+
+      await wt.release()
+
+      const after = await gitCalls()
+      expect(after).toContainEqual(['-C', CLONE_PATH, 'worktree', 'remove', '--force', wt.localPath])
+      expect(after).toContainEqual(['-C', CLONE_PATH, 'update-ref', '-d', localRef])
+      expect(pool.entries.get('owner/repo').refCount).toBe(0)
+    })
+
+    it('starts from the requested branch while still reporting the default branch', async () => {
+      const wt = await pool.acquireBranchWorktree('owner/repo', { branch: 'soporti/fix-typo-abc123' })
+
+      const calls = await gitCalls()
+      const localRef = localRefOf(calls)
+      expect(wt.baseBranch).toBe('main')
+      expect(calls).toContainEqual([
+        '-C',
+        CLONE_PATH,
+        'fetch',
+        '--depth',
+        '1',
+        'origin',
+        `+refs/heads/soporti/fix-typo-abc123:${localRef}`,
+      ])
+      await wt.release()
+    })
+
+    it('gives every change its own worktree and local ref', async () => {
+      const a = await pool.acquireBranchWorktree('owner/repo')
+      const b = await pool.acquireBranchWorktree('owner/repo')
+
+      const fetches = (await gitCalls()).filter(args => args.includes('fetch'))
+      expect(a.localPath).not.toBe(b.localPath)
+      expect(fetches).toHaveLength(2)
+      expect(fetches[0].at(-1)).not.toBe(fetches[1].at(-1))
+      expect(pool.entries.get('owner/repo').refCount).toBe(2)
+      await a.release()
+      await b.release()
+    })
+
+    it('release is idempotent and removes the worktree once', async () => {
+      const wt = await pool.acquireBranchWorktree('owner/repo')
+
+      await wt.release()
+      await wt.release()
+
+      const removes = (await gitCalls()).filter(args => args.includes('worktree') && args.includes('remove'))
+      expect(removes).toHaveLength(1)
+      expect(pool.entries.get('owner/repo').refCount).toBe(0)
+    })
+
+    it('deletes the worktree folder when git cannot remove it', async () => {
+      const { execFile } = await import('node:child_process')
+      const { rm } = await import('node:fs/promises')
+      const wt = await pool.acquireBranchWorktree('owner/repo')
+      execFile.mockImplementation((cmd, args, opts, cb) => {
+        if (args.includes('remove')) return cb(new Error('fatal: not a working tree'))
+        succeed(cb)
+      })
+      rm.mockClear()
+
+      await wt.release()
+
+      expect(rm).toHaveBeenCalledWith(wt.localPath, { recursive: true, force: true })
+      expect(pool.entries.get('owner/repo').refCount).toBe(0)
+    })
+
+    it('releases the clone and hides the token and clone path when the fetch fails', async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockImplementation((cmd, args, opts, cb) => {
+        if (args.includes('rev-parse')) return succeed(cb, 'main\n')
+        if (!args.includes('fetch')) return succeed(cb)
+        const err = new Error(`Command failed: git -C ${CLONE_PATH} fetch https://x-access-token:test-token@github.com`)
+        err.stderr = `fatal: couldn't find remote ref refs/heads/soporti/gone in ${CLONE_PATH}/.git\n`
+        cb(err)
+      })
+
+      const failure = await pool.acquireBranchWorktree('owner/repo', { branch: 'soporti/gone' }).catch(err => err)
+
+      expect(failure.message).toBe(
+        "Could not check out soporti/gone of owner/repo: fatal: couldn't find remote ref refs/heads/soporti/gone in owner--repo/.git"
+      )
+      expect(pool.entries.get('owner/repo').refCount).toBe(0)
+      expect((await gitCalls()).some(args => args.includes('update-ref') && args.includes('-d'))).toBe(true)
+    })
+
+    it('falls back to the masked error message when git prints nothing', async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockImplementation((cmd, args, opts, cb) => {
+        if (args.includes('rev-parse')) return succeed(cb, 'main\n')
+        if (args.includes('worktree')) return cb(new Error('push https://x-access-token:test-token@github.com failed'))
+        succeed(cb)
+      })
+
+      const failure = await pool.acquireBranchWorktree('owner/repo').catch(err => err)
+
+      expect(failure.message).toBe(
+        'Could not check out the default branch of owner/repo: push https://x-access-token:***@github.com failed'
+      )
+    })
+
+    it('refuses a clone with no branch checked out', async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockImplementation((cmd, args, opts, cb) => succeed(cb, args.includes('rev-parse') ? 'HEAD\n' : ''))
+
+      await expect(pool.acquireBranchWorktree('owner/repo')).rejects.toThrow(
+        'Could not check out the default branch of owner/repo: The clone has no default branch checked out.'
+      )
+      expect(pool.entries.get('owner/repo').refCount).toBe(0)
+    })
+
+    it('hides the clone path and token when the clone fails', async () => {
+      const { execFile } = await import('node:child_process')
+      execFile.mockImplementation((cmd, args, opts, cb) => {
+        if (args[0] === 'clone') return cb(new Error(`fatal: ${args[3]} into ${args[4]} failed`))
+        succeed(cb)
+      })
+
+      const failure = await pool.acquireBranchWorktree('owner/repo').catch(err => err)
+
+      expect(failure.message).toBe(
+        'Clone failed for owner/repo: fatal: https://x-access-token:***@github.com/owner/repo.git into owner--repo failed'
+      )
+    })
+
+    it.each([
+      '../main',
+      '-delete',
+      'has space',
+      'refs/heads/main',
+      'a..b',
+      'line\nbreak',
+      'trailing/',
+      'trailing.',
+      '.hidden',
+      'dir/.hidden',
+      'branch.lock',
+      'HEAD',
+      '',
+      'double//slash',
+      'tilde~1',
+      'colon:name',
+      'x'.repeat(256),
+    ])('rejects the unsafe branch name %j without touching the pool', async branch => {
+      await expect(pool.acquireBranchWorktree('owner/repo', { branch })).rejects.toThrow('Invalid branch name')
+      expect(pool.entries.has('owner/repo')).toBe(false)
+      expect(await gitCalls()).toEqual([])
+    })
+  })
 })

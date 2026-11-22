@@ -13,10 +13,14 @@ const {
   setRepoCatalog,
   getReviewerSuggestionsEnabled,
   setReviewerSuggestionsEnabled,
+  getGithubWritesEnabled,
+  setGithubWritesEnabled,
+  areGithubWritesEnabled,
   GITHUB_TOKEN_KEY,
   GITHUB_WEBHOOK_SECRET_KEY,
   REPO_CATALOG_KEY,
   REVIEWER_SUGGESTIONS_KEY,
+  GITHUB_WRITES_KEY,
   _resetSettingsCacheForTests,
 } = await import('./settings.js')
 
@@ -129,5 +133,53 @@ describe('getReviewerSuggestionsEnabled', () => {
 
     expect(setConfigValue).toHaveBeenCalledWith(REVIEWER_SUGGESTIONS_KEY, true)
     expect(await getReviewerSuggestionsEnabled()).toBe(true)
+  })
+})
+
+describe('getGithubWritesEnabled', () => {
+  it('is off unless true is stored', async () => {
+    getConfigValue.mockResolvedValue(null)
+    expect(await getGithubWritesEnabled()).toBe(false)
+    expect(getConfigValue).toHaveBeenCalledWith('github_writes_enabled')
+
+    _resetSettingsCacheForTests()
+    getConfigValue.mockResolvedValue('true')
+    expect(await getGithubWritesEnabled()).toBe(false)
+  })
+
+  it('reads the new value after saving', async () => {
+    getConfigValue.mockResolvedValue(false)
+    expect(await getGithubWritesEnabled()).toBe(false)
+
+    getConfigValue.mockResolvedValue(true)
+    await setGithubWritesEnabled(true)
+
+    expect(setConfigValue).toHaveBeenCalledTimes(1)
+    expect(setConfigValue).toHaveBeenCalledWith(GITHUB_WRITES_KEY, true)
+    expect(await getGithubWritesEnabled()).toBe(true)
+  })
+})
+
+describe('areGithubWritesEnabled', () => {
+  function storeValues(values) {
+    getConfigValue.mockImplementation(async key => values[key] ?? null)
+  }
+
+  it('is on when a token is configured and the switch is on', async () => {
+    storeValues({ [GITHUB_TOKEN_KEY]: 'ghp_stored', [GITHUB_WRITES_KEY]: true })
+
+    expect(await areGithubWritesEnabled()).toBe(true)
+  })
+
+  it('is off when the switch is on but no token is configured', async () => {
+    storeValues({ [GITHUB_TOKEN_KEY]: '', [GITHUB_WRITES_KEY]: true })
+
+    expect(await areGithubWritesEnabled()).toBe(false)
+  })
+
+  it('is off when a token is configured but the switch is off', async () => {
+    storeValues({ [GITHUB_TOKEN_KEY]: 'ghp_stored', [GITHUB_WRITES_KEY]: false })
+
+    expect(await areGithubWritesEnabled()).toBe(false)
   })
 })

@@ -67,6 +67,20 @@ describe('describeToolCall', () => {
     expect(step.detail).toBe('/crm/pipelines/2026-03/deals')
   })
 
+  it('labels the code change tools', () => {
+    expect(describeToolCall({ tool: 'edit_file', input: {} }).label).toBe('Editing file')
+    expect(describeToolCall({ tool: 'write_file', input: {} }).label).toBe('Writing file')
+    expect(describeToolCall({ tool: 'delete_file', input: {} }).label).toBe('Deleting file')
+    expect(describeToolCall({ tool: 'continue_pull_request', input: {} }).label).toBe('Continuing pull request')
+    expect(describeToolCall({ tool: 'open_pull_request', input: {} }).label).toBe('Opening pull request')
+  })
+
+  it('shows the repository and the file an edit touches as the detail', () => {
+    const step = describeToolCall({ tool: 'edit_file', input: { repo: 'org/app', path: 'src/cart.js', oldText: 'a' } })
+
+    expect(step.detail).toBe('org/app/src/cart.js')
+  })
+
   it('labels the Slack posting tool', () => {
     expect(describeToolCall({ tool: 'post_slack_message', input: {} }).label).toBe('Posting to Slack')
   })

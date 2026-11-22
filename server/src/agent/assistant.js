@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Agent } from '@openai/agents'
 import { resolveModelForAgent } from '../llm/model.js'
 import { buildAgentTools, excludeToolsByName, REPO_TOOL_NAMES, restrictToolsByName } from './tools.js'
@@ -31,6 +32,8 @@ import { getZendeskConnection } from '../zendesk/settings.js'
 import { isSendcloudConfigured } from '../sendcloud/settings.js'
 import { resolveHubspotAccess } from '../hubspot/settings.js'
 import { isSlackConfigured } from '../slack/settings.js'
+import { areGithubWritesEnabled } from '../github/settings.js'
+import { getCodeChangeSession } from '../code-changes/index.js'
 import { listChatGuards } from '../guards/registry.js'
 import * as shopify from '../shopify/client.js'
 
@@ -40,6 +43,12 @@ function resolveBotRole(bot, { unattended }) {
   const canManageRoutines = Boolean(bot.id) && !unattended
 
   return { botId: canManageRoutines ? bot.id : null, botPrompt: buildBotPrompt(bot, { canManageRoutines }) }
+}
+
+function resolveCodeChanges(githubWrites, conversationId) {
+  if (!githubWrites) return null
+
+  return getCodeChangeSession(conversationId ?? randomUUID())
 }
 
 export async function createAgent(
@@ -88,6 +97,7 @@ export async function createAgent(
     shortcutWrites,
     figmaCommentsEnabled,
     slackConfigured,
+    githubWrites,
     catalogPrompt,
     subagents,
     mainAgentTools,
@@ -112,6 +122,7 @@ export async function createAgent(
     areShortcutWritesEnabled(),
     getFigmaCommentsEnabled(),
     isSlackConfigured(),
+    areGithubWritesEnabled(),
     isYoloMode(selectedSources) ? buildRepoCatalogPrompt() : '',
     resolveActiveSubagents(),
     getMainAgentTools(),
@@ -152,6 +163,7 @@ export async function createAgent(
     profile,
     guards,
     guardCases,
+    codeChanges: resolveCodeChanges(githubWrites, conversationId),
   })
   const allowed = mainAgentTools ? restrictToolsByName(registered, mainAgentTools) : registered
   const subagentTools = await buildSubagentTools(subagents, registered, {
