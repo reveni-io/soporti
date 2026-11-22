@@ -20,7 +20,7 @@ Security fixes land on `main`. There are no long-term support branches; run the 
 
 ## Security Model — Read This Before You Deploy
 
-Soporti is an LLM agent wired to real systems: your source code, a production database (read-only), Google Drive, Slack. Like any LLM agent, it is exposed to **prompt injection** — content the agent reads (PR diffs, support tickets, documents, query results) can attempt to steer its behavior. The project ships deterministic guardrails, but four design decisions deliberately trade isolation for capability. They are summarized here because **every adopter must evaluate them against their own threat model before connecting production systems.**
+Soporti is an LLM agent wired to real systems: your source code, a production database (read-only), Google Drive, Slack. Like any LLM agent, it is exposed to **prompt injection** — content the agent reads (PR diffs, support tickets, documents, query results) can attempt to steer its behavior. The project ships deterministic guardrails, but five design decisions deliberately trade isolation for capability. They are summarized here because **every adopter must evaluate them against their own threat model before connecting production systems.**
 
 ### 1. The agent runs live queries against the databases you connect
 
@@ -63,6 +63,20 @@ Deploy accordingly:
 - Never grant the bot `mpim:history` or `mpim:read`: Soporti refuses group messages anyway, and without them Slack does too.
 - Never grant the bot `chat:write.public`: without it, the bot cannot post in a channel it has not been invited to.
 
+### 5. GitHub write access: a steered run can push a branch and open a pull request
+
+With write access enabled in `/admin` → GitHub (off by default), every agent run that can read a repository — web chat, Slack, MCP, bots, scheduled queries and auto-diagnose — carries `edit_file`, `write_file`, `delete_file`, `continue_pull_request` and `open_pull_request`. They push a `soporti/…` branch with the GitHub token and open a draft pull request. A prompt-injected ticket, email or document could in principle steer a run into pushing code nobody asked for. The pull request never merges by itself, but **your CI runs on that branch, and workflows triggered by pull requests from branches of the same repository get its secrets** — code pushed there executes before anyone has reviewed it.
+
+What is enforced in code: pushes only go to `soporti/` branches, never to the default branch; nothing under `.github/` (in any casing), `.env*`, `.git` or `node_modules` can be written, and never through a symbolic link; commits and pushes run with git hooks disabled, so nothing from the repository is executed on the server; the switch is checked again right before every push; the pull request title and body go through the output guard.
+
+Deploy accordingly:
+
+- Leave write access off unless your team will use it, and turn it on only with a token whose account may push branches to the repositories the agent reads.
+- Protect the default branch with required reviews **that the token's account cannot bypass**: a machine user with admin rights skips branch protection unless it is enforced for administrators too.
+- Do not grant the token the `workflow` scope (the **Workflows** permission on a fine-grained token), so GitHub itself rejects any push that touches a workflow file.
+- Check what your pull-request workflows expose to same-repository branches (secrets, deploy previews), as you would for any collaborator who can push a branch.
+- Auto-diagnose (section 3) carries these tools too when write access is on: the most exposed input surface reaching a tool that writes.
+
 ### Built-in guardrails (they reduce the risks above — they do not eliminate them)
 
 - Everything published to GitHub or Slack passes through a deterministic output guard that redacts credential-shaped strings — API tokens, JWTs, private keys, connection-string passwords (`server/src/review/output-guard.js`).
@@ -78,4 +92,5 @@ Deploy accordingly:
 - Create users only for people who should see everything the agent can see: there is no per-user data ACL inside the app.
 - Keep the app database (`DATABASE_URL`) and the agent's query database separate, with separate credentials.
 - Give the IAM role or user behind the AWS integration only the read actions `/admin` → AWS lists (see `docs/deployment.md`): the IAM policy is what AWS enforces, whatever the tools would ask for.
+- If you enable GitHub write access, protect the default branch with required reviews the token's account cannot bypass, and leave out the `workflow` scope.
 - Create the HubSpot Service Key with only the scopes `/admin` → HubSpot lists for the levels you chose: the key's scopes are what HubSpot itself enforces, whatever the levels say.

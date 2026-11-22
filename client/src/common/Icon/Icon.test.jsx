@@ -36,6 +36,12 @@ describe('Icon', () => {
     expect(container.querySelector('[data-icon="bot"] rect')).toBeInTheDocument()
   })
 
+  it('renders the pull request icon', () => {
+    const { container } = render(<Icon name="pull-request" />)
+
+    expect(container.querySelectorAll('[data-icon="pull-request"] circle')).toHaveLength(2)
+  })
+
   it('renders nothing for an unknown icon name', () => {
     const { container } = render(<Icon name="not-an-icon" />)
 

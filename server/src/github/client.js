@@ -51,10 +51,16 @@ async function getOctokit() {
   return octokitInstance
 }
 
-export async function getAuthenticatedLogin() {
+export async function getAuthenticatedUser() {
   const octokit = await getOctokit()
   const { data } = await octokit.users.getAuthenticated()
-  return data.login
+
+  return { login: data.login, id: data.id, name: data.name ?? null }
+}
+
+export async function getAuthenticatedLogin() {
+  const { login } = await getAuthenticatedUser()
+  return login
 }
 
 export async function getRepository(repoFullName) {
@@ -69,6 +75,14 @@ export async function getPullRequest(repoFullName, prNumber) {
   const { owner, repo } = parseRepo(repoFullName)
   const { data } = await octokit.pulls.get({ owner, repo, pull_number: prNumber })
   return data
+}
+
+export async function createPullRequest(repoFullName, { title, body, head, base }) {
+  const octokit = await getOctokit()
+  const { owner, repo } = parseRepo(repoFullName)
+  const { data } = await octokit.pulls.create({ owner, repo, title, body, head, base, draft: true })
+
+  return { number: data.number, url: data.html_url, title: data.title, draft: data.draft }
 }
 
 export async function listPullRequestFiles(repoFullName, prNumber) {

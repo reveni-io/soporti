@@ -8,6 +8,12 @@ import {
   findFiles,
   gitLogFile,
   gitBlame,
+  getDirectoryContentsAt,
+  getFileContentsAt,
+  searchCodeAt,
+  findFilesAt,
+  gitLogFileAt,
+  gitBlameAt,
 } from '../repo-pool/index.js'
 import * as shortcut from '../shortcut/client.js'
 import * as notion from '../notion/client.js'
@@ -36,7 +42,8 @@ import {
   SLACK_POST_TOOL_NAME,
 } from '../constants.js'
 import { resolveAvailableIntegrations } from './integrations.js'
-import { INTEGRATION_TOOL_NAMES } from './sources.js'
+import { guardRepoSelection, INTEGRATION_TOOL_NAMES, REPO_WRITE_TOOL_NAMES } from './sources.js'
+import { buildCodeChangeTools } from './code-change-tools.js'
 import { buildGuardTools } from './guard-tools.js'
 import { buildArtifactTools } from './artifact-tools.js'
 import { buildTimeTools } from './time-tools.js'
@@ -55,15 +62,22 @@ export const listReposTool = tool({
   },
 })
 
-export function buildRepoTools(allowedRepos = null) {
-  const guard = run => async input => {
-    if (allowedRepos && !allowedRepos.includes(input.repo)) {
-      return JSON.stringify({
-        error: `Repository "${input.repo}" is not among the sources selected for this conversation. Allowed repositories: ${allowedRepos.join(', ')}.`,
-      })
-    }
-    return run(input)
+function readFrom(workspaceFor, remote, local) {
+  return (repo, ...args) => {
+    const localPath = workspaceFor?.(repo)
+
+    return localPath ? local(localPath, ...args) : remote(repo, ...args)
   }
+}
+
+export function buildRepoTools(allowedRepos = null, { workspaceFor = null } = {}) {
+  const guard = guardRepoSelection(allowedRepos)
+  const readDirectory = readFrom(workspaceFor, getDirectoryContents, getDirectoryContentsAt)
+  const readFile = readFrom(workspaceFor, getFileContents, getFileContentsAt)
+  const search = readFrom(workspaceFor, searchCode, searchCodeAt)
+  const find = readFrom(workspaceFor, findFiles, findFilesAt)
+  const logFile = readFrom(workspaceFor, gitLogFile, gitLogFileAt)
+  const blame = readFrom(workspaceFor, gitBlame, gitBlameAt)
 
   return [
     tool({
@@ -74,7 +88,7 @@ export function buildRepoTools(allowedRepos = null) {
         path: z.string().optional().default('').describe('Directory path. Empty string for root.'),
       }),
       execute: guard(async input => {
-        const result = await getDirectoryContents(input.repo, input.path)
+        const result = await readDirectory(input.repo, input.path)
         return JSON.stringify(result)
       }),
     }),
@@ -119,7 +133,7 @@ export function buildRepoTools(allowedRepos = null) {
           ),
       }),
       execute: guard(async input => {
-        const result = await getFileContents(input.repo, input.path, {
+        const result = await readFile(input.repo, input.path, {
           offset: input.offset,
           limit: input.limit,
           centerLine: input.centerLine,
@@ -157,7 +171,7 @@ export function buildRepoTools(allowedRepos = null) {
           ),
       }),
       execute: guard(async input => {
-        const result = await searchCode(input.repo, input.query, {
+        const result = await search(input.repo, input.query, {
           pathGlob: input.pathGlob,
           caseInsensitive: input.caseInsensitive,
           regex: input.regex,
@@ -184,7 +198,7 @@ export function buildRepoTools(allowedRepos = null) {
           ),
       }),
       execute: guard(async input => {
-        const result = await findFiles(input.repo, input.pattern, { maxResults: input.maxResults })
+        const result = await find(input.repo, input.pattern, { maxResults: input.maxResults })
         return JSON.stringify(result)
       }),
     }),
@@ -198,7 +212,7 @@ export function buildRepoTools(allowedRepos = null) {
         limit: z.number().int().min(1).max(100).default(20).describe('Max number of commits to return.'),
       }),
       execute: guard(async input => {
-        const result = await gitLogFile(input.repo, input.path, { limit: input.limit })
+        const result = await logFile(input.repo, input.path, { limit: input.limit })
         return JSON.stringify(result)
       }),
     }),
@@ -218,7 +232,7 @@ export function buildRepoTools(allowedRepos = null) {
           .describe('Last line to blame (1-based, inclusive). Capped to startLine + 499.'),
       }),
       execute: guard(async input => {
-        const result = await gitBlame(input.repo, input.path, { startLine: input.startLine, endLine: input.endLine })
+        const result = await blame(input.repo, input.path, { startLine: input.startLine, endLine: input.endLine })
         return JSON.stringify(result)
       }),
     }),
@@ -1592,7 +1606,11 @@ const INTEGRATION_TOOLS = {
   slack: ({ userId, slackChannelId, timezone }) => buildSlackReadTools({ userId, slackChannelId, timezone }),
 }
 
-export const SELECTABLE_TOOL_NAMES = new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()])
+export const SELECTABLE_TOOL_NAMES = new Set([
+  ...REPO_TOOL_NAMES,
+  ...REPO_WRITE_TOOL_NAMES,
+  ...Object.values(INTEGRATION_TOOL_NAMES).flat(),
+])
 
 export function selectToolsByName(tools, names) {
   const allowed = new Set(Array.isArray(names) ? names : [])
@@ -1610,6 +1628,19 @@ export function excludeToolsByName(tools, names) {
   const claimed = new Set(Array.isArray(names) ? names : [])
 
   return tools.filter(candidate => !claimed.has(candidate.name))
+}
+
+function buildRepoToolset(allowedRepos, { codeChanges = null, userId = null }) {
+  if (!codeChanges) return allowedRepos ? buildRepoTools(allowedRepos) : allTools
+
+  const workspaceFor = repo => codeChanges.pendingPath(repo)
+  const discoveryTools = allowedRepos ? [] : [listReposTool]
+
+  return [
+    ...discoveryTools,
+    ...buildRepoTools(allowedRepos, { workspaceFor }),
+    ...buildCodeChangeTools({ session: codeChanges, allowedRepos, userId }),
+  ]
 }
 
 export function buildAgentTools(policy, configured, context = {}) {
@@ -1634,9 +1665,8 @@ export function buildAgentTools(policy, configured, context = {}) {
     ...guardTools,
   ]
 
-  if (!policy || policy.unrestricted) return [...allTools, ...sharedTools]
+  if (!policy || policy.unrestricted) return [...buildRepoToolset(null, context), ...sharedTools]
+  if (policy.repos.length === 0) return sharedTools
 
-  const repoTools = policy.repos.length > 0 ? buildRepoTools(policy.repos) : []
-
-  return [...repoTools, ...sharedTools]
+  return [...buildRepoToolset(policy.repos, context), ...sharedTools]
 }

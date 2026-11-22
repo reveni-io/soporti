@@ -46,7 +46,35 @@ export const INTEGRATION_WRITE_TOOL_NAMES = {
   ],
 }
 
-export const WRITE_TOOL_NAMES = [...Object.values(INTEGRATION_WRITE_TOOL_NAMES).flat(), SLACK_POST_TOOL_NAME]
+export const OPEN_PULL_REQUEST_TOOL_NAME = 'open_pull_request'
+
+export const REPO_WRITE_TOOL_NAMES = [
+  'edit_file',
+  'write_file',
+  'delete_file',
+  'continue_pull_request',
+  OPEN_PULL_REQUEST_TOOL_NAME,
+]
+
+export const WRITE_TOOL_NAMES = [
+  ...Object.values(INTEGRATION_WRITE_TOOL_NAMES).flat(),
+  ...REPO_WRITE_TOOL_NAMES,
+  SLACK_POST_TOOL_NAME,
+]
+
+export function guardRepoSelection(allowedRepos) {
+  return function guard(run) {
+    return async input => {
+      if (allowedRepos && !allowedRepos.includes(input.repo)) {
+        return JSON.stringify({
+          error: `Repository "${input.repo}" is not among the sources selected for this conversation. Allowed repositories: ${allowedRepos.join(', ')}.`,
+        })
+      }
+
+      return run(input)
+    }
+  }
+}
 
 export function hasWriteTools(integrationId, toolNames) {
   return (INTEGRATION_WRITE_TOOL_NAMES[integrationId] ?? []).some(name => toolNames.has(name))

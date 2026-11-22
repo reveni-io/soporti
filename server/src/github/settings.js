@@ -4,6 +4,7 @@ export const GITHUB_TOKEN_KEY = 'github_token'
 export const GITHUB_WEBHOOK_SECRET_KEY = 'github_webhook_secret'
 export const REPO_CATALOG_KEY = 'repo_catalog'
 export const REVIEWER_SUGGESTIONS_KEY = 'github_reviewer_suggestions'
+export const GITHUB_WRITES_KEY = 'github_writes_enabled'
 
 const CACHE_TTL_MS = 60_000
 const cache = new Map()
@@ -55,6 +56,21 @@ export async function getReviewerSuggestionsEnabled() {
 export async function setReviewerSuggestionsEnabled(enabled) {
   await setConfigValue(REVIEWER_SUGGESTIONS_KEY, enabled)
   cache.delete(REVIEWER_SUGGESTIONS_KEY)
+}
+
+export async function getGithubWritesEnabled() {
+  return (await getCachedValue(GITHUB_WRITES_KEY)) === true
+}
+
+export async function setGithubWritesEnabled(enabled) {
+  await setConfigValue(GITHUB_WRITES_KEY, enabled)
+  cache.delete(GITHUB_WRITES_KEY)
+}
+
+export async function areGithubWritesEnabled() {
+  const [token, enabled] = await Promise.all([getGithubToken(), getGithubWritesEnabled()])
+
+  return token !== null && enabled
 }
 
 export function _resetSettingsCacheForTests() {

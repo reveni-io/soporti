@@ -83,6 +83,8 @@ import {
   setRepoCatalog,
   getReviewerSuggestionsEnabled,
   setReviewerSuggestionsEnabled,
+  getGithubWritesEnabled,
+  setGithubWritesEnabled,
 } from '../github/settings.js'
 import {
   getLlmProvider,
@@ -113,7 +115,7 @@ import {
   SUBAGENT_NAME_RE,
 } from '../constants.js'
 import { listSubagents, createSubagent, updateSubagent, deleteSubagent } from '../db/subagents.js'
-import { INTEGRATION_TOOL_NAMES } from '../agent/sources.js'
+import { INTEGRATION_TOOL_NAMES, REPO_WRITE_TOOL_NAMES } from '../agent/sources.js'
 import { INTEGRATIONS } from '../agent/integrations.js'
 import { REPO_TOOL_NAMES, SELECTABLE_TOOL_NAMES } from '../agent/tools.js'
 import { isShortcutConfigured } from '../shortcut/settings.js'
@@ -156,7 +158,7 @@ const LANGFUSE_HOST_MAX_LENGTH = 300
 const TRAILING_SLASHES_RE = /\/+$/
 const LINE_BREAK_RE = /[\r\n]/
 const INVALID_HOST_ERROR = 'That does not look like a valid connect host (e.g. "eu-nbg-2-connect.betterstackdata.com").'
-const REPO_TOOL_GROUP = { id: 'repo', label: 'Repositories', tools: [...REPO_TOOL_NAMES] }
+const REPO_TOOL_GROUP = { id: 'repo', label: 'Repositories', tools: [...REPO_TOOL_NAMES, ...REPO_WRITE_TOOL_NAMES] }
 const GLOBAL_MODEL_GETTERS = { openai: getOpenAIModel, anthropic: getAnthropicModel }
 const INTEGRATION_CHECKS = {
   shortcut: isShortcutConfigured,
@@ -492,17 +494,19 @@ router.put('/config/auth/google-client-secret', async (req, res) => {
 
 router.get('/config/github', async (_req, res) => {
   try {
-    const [token, webhookSecret, repoCatalog, reviewerSuggestionsEnabled] = await Promise.all([
+    const [token, webhookSecret, repoCatalog, reviewerSuggestionsEnabled, writesEnabled] = await Promise.all([
       getGithubToken(),
       getWebhookSecret(),
       getRepoCatalog(),
       getReviewerSuggestionsEnabled(),
+      getGithubWritesEnabled(),
     ])
     res.json({
       tokenConfigured: Boolean(token),
       webhookSecretConfigured: Boolean(webhookSecret),
       repoCatalog,
       reviewerSuggestionsEnabled,
+      writesEnabled,
     })
   } catch (err) {
     console.error('Admin get github config error:', err)
@@ -582,6 +586,22 @@ router.put('/config/github/reviewer-suggestions', async (req, res) => {
   } catch (err) {
     console.error('Admin set reviewer suggestions error:', err)
     res.status(500).json({ error: 'Failed to save the reviewer suggestions.' })
+  }
+})
+
+router.put('/config/github/writes', async (req, res) => {
+  const { enabled } = req.body ?? {}
+
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: '"enabled" must be a boolean.' })
+  }
+
+  try {
+    await setGithubWritesEnabled(enabled)
+    res.json({ writesEnabled: enabled })
+  } catch (err) {
+    console.error('Admin set github writes error:', err)
+    res.status(500).json({ error: 'Failed to save the GitHub write access.' })
   }
 })
 

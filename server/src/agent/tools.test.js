@@ -24,6 +24,12 @@ vi.mock('../repo-pool/index.js', () => ({
   findFiles: vi.fn(),
   gitLogFile: vi.fn(),
   gitBlame: vi.fn(),
+  getDirectoryContentsAt: vi.fn(),
+  getFileContentsAt: vi.fn(),
+  searchCodeAt: vi.fn(),
+  findFilesAt: vi.fn(),
+  gitLogFileAt: vi.fn(),
+  gitBlameAt: vi.fn(),
 }))
 
 vi.mock('../shortcut/client.js', () => ({
@@ -445,6 +451,202 @@ describe('buildRepoTools repo guard', () => {
   })
 })
 
+describe('buildRepoTools over a working copy', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const READS = [
+    {
+      name: 'get_directory_contents',
+      input: { repo: 'org/app', path: 'src' },
+      remote: 'getDirectoryContents',
+      local: 'getDirectoryContentsAt',
+      args: ['src'],
+    },
+    {
+      name: 'get_file_contents',
+      input: { repo: 'org/app', path: 'a.js', offset: 0, limit: 300, centerLine: 12, contextLines: 5 },
+      remote: 'getFileContents',
+      local: 'getFileContentsAt',
+      args: ['a.js', { offset: 0, limit: 300, centerLine: 12, contextLines: 5 }],
+    },
+    {
+      name: 'search_code',
+      input: { repo: 'org/app', query: 'foo', pathGlob: '*.js', caseInsensitive: true, regex: false, maxResults: 9 },
+      remote: 'searchCode',
+      local: 'searchCodeAt',
+      args: ['foo', { pathGlob: '*.js', caseInsensitive: true, regex: false, maxResults: 9 }],
+    },
+    {
+      name: 'find_files',
+      input: { repo: 'org/app', pattern: '*.js', maxResults: 5 },
+      remote: 'findFiles',
+      local: 'findFilesAt',
+      args: ['*.js', { maxResults: 5 }],
+    },
+    {
+      name: 'git_log_file',
+      input: { repo: 'org/app', path: 'a.js', limit: 3 },
+      remote: 'gitLogFile',
+      local: 'gitLogFileAt',
+      args: ['a.js', { limit: 3 }],
+    },
+    {
+      name: 'git_blame',
+      input: { repo: 'org/app', path: 'a.js', startLine: 1, endLine: 4 },
+      remote: 'gitBlame',
+      local: 'gitBlameAt',
+      args: ['a.js', { startLine: 1, endLine: 4 }],
+    },
+  ]
+
+  it('reads the pending working copy of a repo that has one', async () => {
+    const pool = await import('../repo-pool/index.js')
+    const workspaceFor = vi.fn(() => '/tmp/worktrees/app')
+    const tools = buildRepoTools(null, { workspaceFor })
+
+    for (const read of READS) {
+      pool[read.local].mockResolvedValue({ from: 'working copy' })
+
+      const result = await tools.find(t => t.name === read.name).execute(read.input)
+
+      expect(JSON.parse(result), read.name).toEqual({ from: 'working copy' })
+      expect(pool[read.local], read.name).toHaveBeenCalledTimes(1)
+      expect(pool[read.local], read.name).toHaveBeenCalledWith('/tmp/worktrees/app', ...read.args)
+      expect(pool[read.remote], read.name).not.toHaveBeenCalled()
+    }
+    expect(workspaceFor).toHaveBeenCalledTimes(READS.length)
+    expect(workspaceFor).toHaveBeenCalledWith('org/app')
+  })
+
+  it('reads the shared clone when the repo has no pending change', async () => {
+    const pool = await import('../repo-pool/index.js')
+    const tools = buildRepoTools(null, { workspaceFor: () => null })
+
+    for (const read of READS) {
+      pool[read.remote].mockResolvedValue({ from: 'clone' })
+
+      const result = await tools.find(t => t.name === read.name).execute(read.input)
+
+      expect(JSON.parse(result), read.name).toEqual({ from: 'clone' })
+      expect(pool[read.remote], read.name).toHaveBeenCalledWith('org/app', ...read.args)
+      expect(pool[read.local], read.name).not.toHaveBeenCalled()
+    }
+  })
+
+  it('still refuses a repo outside the selection before looking for a working copy', async () => {
+    const workspaceFor = vi.fn(() => '/tmp/worktrees/other')
+    const getFile = buildRepoTools(['org/app'], { workspaceFor }).find(t => t.name === 'get_file_contents')
+
+    const result = await getFile.execute({ repo: 'org/other', path: 'a.js', offset: 0, limit: 10 })
+
+    expect(JSON.parse(result).error).toContain('not among the sources selected')
+    expect(workspaceFor).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildAgentTools with a code change session', () => {
+  const names = tools => tools.map(t => t.name)
+  const REPO_WRITE_TOOLS = ['edit_file', 'write_file', 'delete_file', 'continue_pull_request', 'open_pull_request']
+
+  function buildSession(localPath = null) {
+    return {
+      pendingPath: vi.fn(() => localPath),
+      editFile: vi.fn(async () => ({ path: 'a.js', replacements: 1, preview: '' })),
+    }
+  }
+
+  beforeEach(() => vi.clearAllMocks())
+
+  it('adds the write tools after the repo tools for an unrestricted policy', () => {
+    const tools = buildAgentTools(null, {}, { codeChanges: buildSession() })
+
+    expect(names(tools)).toEqual([...names(allTools), ...REPO_WRITE_TOOLS, ...TIME_TOOL_NAMES])
+  })
+
+  it('adds the write tools for a selection of repos, guarded to that selection', async () => {
+    const session = buildSession()
+    const tools = buildAgentTools(
+      { unrestricted: false, repos: ['org/app'], integrations: [] },
+      {},
+      { codeChanges: session }
+    )
+
+    expect(names(tools)).toEqual([
+      'get_directory_contents',
+      'get_file_contents',
+      'search_code',
+      'find_files',
+      'git_log_file',
+      'git_blame',
+      ...REPO_WRITE_TOOLS,
+      ...TIME_TOOL_NAMES,
+    ])
+
+    const edit = tools.find(t => t.name === 'edit_file')
+    const refused = await edit.execute({
+      repo: 'org/other',
+      path: 'a.js',
+      oldText: 'a',
+      newText: 'b',
+      replaceAll: false,
+    })
+    await edit.execute({ repo: 'org/app', path: 'a.js', oldText: 'a', newText: 'b', replaceAll: false })
+
+    expect(JSON.parse(refused).error).toContain('not among the sources selected')
+    expect(session.editFile).toHaveBeenCalledTimes(1)
+    expect(session.editFile).toHaveBeenCalledWith('org/app', 'a.js', { oldText: 'a', newText: 'b', replaceAll: false })
+  })
+
+  it('leaves the write tools out when no repo is reachable', () => {
+    const tools = buildAgentTools(
+      { unrestricted: false, repos: [], integrations: ['notion'] },
+      { notionConfigured: true },
+      { codeChanges: buildSession() }
+    )
+
+    expect(names(tools)).toEqual(['search_notion_pages', 'get_notion_page', ...TIME_TOOL_NAMES])
+  })
+
+  it('leaves the write tools out without a session, so the admin switch decides', () => {
+    const unrestricted = names(buildAgentTools(null, {}, { codeChanges: null }))
+    const restricted = names(buildAgentTools({ unrestricted: false, repos: ['org/app'], integrations: [] }))
+
+    for (const name of REPO_WRITE_TOOLS) {
+      expect(unrestricted).not.toContain(name)
+      expect(restricted).not.toContain(name)
+    }
+  })
+
+  it('points the read tools at the pending edits of the session', async () => {
+    const pool = await import('../repo-pool/index.js')
+    pool.getFileContentsAt.mockResolvedValue({ content: 'edited' })
+    const session = buildSession('/tmp/worktrees/app')
+    const getFile = buildAgentTools(null, {}, { codeChanges: session }).find(t => t.name === 'get_file_contents')
+
+    const result = await getFile.execute({ repo: 'org/app', path: 'a.js', offset: 0, limit: 10 })
+
+    expect(JSON.parse(result)).toEqual({ content: 'edited' })
+    expect(session.pendingPath).toHaveBeenCalledWith('org/app')
+    expect(pool.getFileContentsAt).toHaveBeenCalledWith('/tmp/worktrees/app', 'a.js', {
+      offset: 0,
+      limit: 10,
+      centerLine: undefined,
+      contextLines: undefined,
+    })
+    expect(pool.getFileContents).not.toHaveBeenCalled()
+  })
+
+  it('drops the write tools from a main agent restricted to a list that does not grant them', () => {
+    const tools = restrictToolsByName(buildAgentTools(null, {}, { codeChanges: buildSession() }), [
+      'search_code',
+      'edit_file',
+      'open_pull_request',
+    ])
+
+    expect(names(tools)).toEqual(['search_code', 'edit_file', 'open_pull_request', ...TIME_TOOL_NAMES])
+  })
+})
+
 describe('buildAgentTools', () => {
   const names = tools => tools.map(t => t.name)
 
@@ -774,6 +976,7 @@ describe('buildAgentTools', () => {
       zendeskWrites: true,
       slackConfigured: true,
       hubspot: HUBSPOT_WEB_RUN,
+      codeChanges: { pendingPath: () => null },
     }
     const noWrites = {
       shortcutWrites: false,
@@ -781,6 +984,7 @@ describe('buildAgentTools', () => {
       zendeskWrites: false,
       slackConfigured: false,
       hubspot: { ...HUBSPOT_WEB_RUN, permissions: HUBSPOT_READ_ACCESS },
+      codeChanges: null,
     }
 
     const withWrites = names(buildAgentTools(policy, configured, { userId: 'u-1', ...writes }))
@@ -1513,6 +1717,12 @@ describe('SELECTABLE_TOOL_NAMES', () => {
     for (const name of REPO_TOOL_NAMES) expect(SELECTABLE_TOOL_NAMES.has(name)).toBe(true)
     expect(SELECTABLE_TOOL_NAMES.has('get_sentry_issue')).toBe(true)
     expect(SELECTABLE_TOOL_NAMES.has('query_database')).toBe(true)
+  })
+
+  it('lets the admin grant the repository write tools, like the integration write tools', () => {
+    for (const name of ['edit_file', 'write_file', 'delete_file', 'continue_pull_request', 'open_pull_request']) {
+      expect(SELECTABLE_TOOL_NAMES.has(name), name).toBe(true)
+    }
   })
 
   it('leaves out the artifact tool, which is not the admin to grant', () => {

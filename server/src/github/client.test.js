@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockListForAuthenticatedUser = vi.fn()
 const mockGetAuthenticated = vi.fn()
 const mockPullsGet = vi.fn()
+const mockPullsCreate = vi.fn()
 const mockListFiles = vi.fn()
 const mockCreateReview = vi.fn()
 const mockCreateComment = vi.fn()
@@ -38,6 +39,7 @@ vi.mock('@octokit/rest', () => ({
       this.users = { getAuthenticated: mockGetAuthenticated }
       this.pulls = {
         get: mockPullsGet,
+        create: mockPullsCreate,
         listFiles: mockListFiles,
         createReview: mockCreateReview,
         listReviewComments: mockListReviewComments,
@@ -66,7 +68,9 @@ vi.mock('./settings.js', () => ({ getGithubToken }))
 const {
   listRepos,
   getAuthenticatedLogin,
+  getAuthenticatedUser,
   getPullRequest,
+  createPullRequest,
   listPullRequestFiles,
   createPullRequestReview,
   createIssueComment,
@@ -143,6 +147,51 @@ describe('getAuthenticatedLogin', () => {
   it('returns the login of the token owner', async () => {
     mockGetAuthenticated.mockResolvedValue({ data: { login: 'soporti-bot' } })
     expect(await getAuthenticatedLogin()).toBe('soporti-bot')
+  })
+})
+
+describe('getAuthenticatedUser', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns the login, id and name of the token owner', async () => {
+    mockGetAuthenticated.mockResolvedValue({ data: { login: 'soporti-bot', id: 42, name: 'Soporti Bot', email: 'x' } })
+
+    expect(await getAuthenticatedUser()).toEqual({ login: 'soporti-bot', id: 42, name: 'Soporti Bot' })
+  })
+
+  it('returns a null name when the account has none', async () => {
+    mockGetAuthenticated.mockResolvedValue({ data: { login: 'soporti-bot', id: 42 } })
+
+    expect(await getAuthenticatedUser()).toEqual({ login: 'soporti-bot', id: 42, name: null })
+  })
+})
+
+describe('createPullRequest', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('always opens the pull request as a draft and returns its link', async () => {
+    mockPullsCreate.mockResolvedValue({
+      data: { number: 12, html_url: 'https://github.com/acme-io/app/pull/12', title: 'Fix typo', draft: true, id: 9 },
+    })
+
+    const pr = await createPullRequest('acme-io/app', {
+      title: 'Fix typo',
+      body: 'Body',
+      head: 'soporti/fix-typo-abc123',
+      base: 'main',
+    })
+
+    expect(mockPullsCreate).toHaveBeenCalledTimes(1)
+    expect(mockPullsCreate).toHaveBeenCalledWith({
+      owner: 'acme-io',
+      repo: 'app',
+      title: 'Fix typo',
+      body: 'Body',
+      head: 'soporti/fix-typo-abc123',
+      base: 'main',
+      draft: true,
+    })
+    expect(pr).toEqual({ number: 12, url: 'https://github.com/acme-io/app/pull/12', title: 'Fix typo', draft: true })
   })
 })
 

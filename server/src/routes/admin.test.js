@@ -32,6 +32,8 @@ const getRepoCatalog = vi.fn()
 const setRepoCatalog = vi.fn()
 const getReviewerSuggestionsEnabled = vi.fn()
 const setReviewerSuggestionsEnabled = vi.fn()
+const getGithubWritesEnabled = vi.fn()
+const setGithubWritesEnabled = vi.fn()
 
 const getLlmProvider = vi.fn()
 const setLlmProvider = vi.fn()
@@ -252,6 +254,8 @@ vi.mock('../github/settings.js', () => ({
   setRepoCatalog,
   getReviewerSuggestionsEnabled,
   setReviewerSuggestionsEnabled,
+  getGithubWritesEnabled,
+  setGithubWritesEnabled,
 }))
 vi.mock('../llm/settings.js', () => ({
   getLlmProvider,
@@ -355,11 +359,15 @@ const REPO_TOOL_NAMES = new Set([
 ])
 
 vi.mock('../agent/tools.js', async () => {
-  const { INTEGRATION_TOOL_NAMES } = await import('../agent/sources.js')
+  const { INTEGRATION_TOOL_NAMES, REPO_WRITE_TOOL_NAMES } = await import('../agent/sources.js')
 
   return {
     REPO_TOOL_NAMES,
-    SELECTABLE_TOOL_NAMES: new Set([...REPO_TOOL_NAMES, ...Object.values(INTEGRATION_TOOL_NAMES).flat()]),
+    SELECTABLE_TOOL_NAMES: new Set([
+      ...REPO_TOOL_NAMES,
+      ...REPO_WRITE_TOOL_NAMES,
+      ...Object.values(INTEGRATION_TOOL_NAMES).flat(),
+    ]),
   }
 })
 
@@ -446,6 +454,8 @@ beforeEach(() => {
   setWebhookSecret.mockReset()
   getRepoCatalog.mockReset()
   setRepoCatalog.mockReset()
+  getGithubWritesEnabled.mockReset()
+  setGithubWritesEnabled.mockReset()
   getLlmProvider.mockReset()
   setLlmProvider.mockReset()
   getOpenAIApiKey.mockReset()
@@ -2016,6 +2026,7 @@ describe('GET /api/admin/config/github', () => {
     getWebhookSecret.mockResolvedValue('hook-secret')
     getRepoCatalog.mockResolvedValue('### org/api\nBackend.')
     getReviewerSuggestionsEnabled.mockResolvedValue(true)
+    getGithubWritesEnabled.mockResolvedValue(true)
 
     const res = await request(app).get('/api/admin/config/github')
 
@@ -2025,6 +2036,7 @@ describe('GET /api/admin/config/github', () => {
       webhookSecretConfigured: true,
       repoCatalog: '### org/api\nBackend.',
       reviewerSuggestionsEnabled: true,
+      writesEnabled: true,
     })
     expect(JSON.stringify(res.body)).not.toContain('ghp_secret')
     expect(JSON.stringify(res.body)).not.toContain('hook-secret')
@@ -2035,6 +2047,7 @@ describe('GET /api/admin/config/github', () => {
     getWebhookSecret.mockResolvedValue(null)
     getRepoCatalog.mockResolvedValue('')
     getReviewerSuggestionsEnabled.mockResolvedValue(false)
+    getGithubWritesEnabled.mockResolvedValue(false)
 
     const res = await request(app).get('/api/admin/config/github')
 
@@ -2043,7 +2056,62 @@ describe('GET /api/admin/config/github', () => {
       webhookSecretConfigured: false,
       repoCatalog: '',
       reviewerSuggestionsEnabled: false,
+      writesEnabled: false,
     })
+  })
+
+  it('does not leak the error when the settings cannot be read', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getGithubToken.mockResolvedValue('ghp_secret')
+    getWebhookSecret.mockResolvedValue(null)
+    getRepoCatalog.mockResolvedValue('')
+    getReviewerSuggestionsEnabled.mockResolvedValue(false)
+    getGithubWritesEnabled.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).get('/api/admin/config/github')
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to read the GitHub settings.' })
+    spy.mockRestore()
+  })
+})
+
+describe('PUT /api/admin/config/github/writes', () => {
+  it('turns the write switch on and off', async () => {
+    setGithubWritesEnabled.mockResolvedValue(undefined)
+
+    const on = await request(app).put('/api/admin/config/github/writes').send({ enabled: true })
+    const off = await request(app).put('/api/admin/config/github/writes').send({ enabled: false })
+
+    expect(on.status).toBe(200)
+    expect(on.body).toEqual({ writesEnabled: true })
+    expect(off.status).toBe(200)
+    expect(off.body).toEqual({ writesEnabled: false })
+    expect(setGithubWritesEnabled).toHaveBeenCalledTimes(2)
+    expect(setGithubWritesEnabled).toHaveBeenNthCalledWith(1, true)
+    expect(setGithubWritesEnabled).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('rejects anything but a boolean without saving', async () => {
+    for (const body of [{ enabled: 'yes' }, { enabled: 1 }, {}]) {
+      const res = await request(app).put('/api/admin/config/github/writes').send(body)
+
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: '"enabled" must be a boolean.' })
+    }
+    expect(setGithubWritesEnabled).not.toHaveBeenCalled()
+  })
+
+  it('does not leak the error when the save fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    setGithubWritesEnabled.mockRejectedValue(new Error('db down'))
+
+    const res = await request(app).put('/api/admin/config/github/writes').send({ enabled: true })
+
+    expect(res.status).toBe(500)
+    expect(res.body).toEqual({ error: 'Failed to save the GitHub write access.' })
+    expect(spy).toHaveBeenCalledWith('Admin set github writes error:', expect.any(Error))
+    spy.mockRestore()
   })
 })
 
@@ -2519,7 +2587,7 @@ describe('GET /api/admin/subagents', () => {
     expect(getAnthropicModel).not.toHaveBeenCalled()
   })
 
-  it('lists the repository tools first and always available', async () => {
+  it('lists the repository tools first and always available, the write tools after the read ones', async () => {
     const res = await request(app).get('/api/admin/subagents')
 
     const [repo] = res.body.tools.groups
@@ -2535,6 +2603,11 @@ describe('GET /api/admin/subagents', () => {
         'find_files',
         'git_log_file',
         'git_blame',
+        'edit_file',
+        'write_file',
+        'delete_file',
+        'continue_pull_request',
+        'open_pull_request',
       ],
     })
   })
@@ -3081,6 +3154,16 @@ describe('PUT /api/admin/agent/tools', () => {
 
     expect(res.status).toBe(200)
     expect(setMainAgentTools).toHaveBeenCalledWith([])
+  })
+
+  it('grants the repository write tools like any other tool', async () => {
+    const res = await request(app)
+      .put('/api/admin/agent/tools')
+      .send({ tools: ['search_code', 'edit_file', 'open_pull_request'] })
+
+    expect(res.status).toBe(200)
+    expect(setMainAgentTools).toHaveBeenCalledTimes(1)
+    expect(setMainAgentTools).toHaveBeenCalledWith(['search_code', 'edit_file', 'open_pull_request'])
   })
 
   it('drops a duplicate without complaining', async () => {

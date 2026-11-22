@@ -5,10 +5,83 @@ import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import config from '../config.js'
 import { getGithubToken } from '../github/settings.js'
+import { withoutClonePath } from './resolve-inside-clone.js'
 
 const execFileAsync = promisify(execFile)
 
 const DEFAULT_BASE_PATH = join(tmpdir(), 'soporti-repos')
+const FETCH_TIMEOUT_MS = 120_000
+const WORKTREE_TIMEOUT_MS = 60_000
+const TOKEN_IN_URL_RE = /x-access-token:[^@]+@/g
+const MASKED_TOKEN = 'x-access-token:***@'
+const MAX_BRANCH_LENGTH = 255
+const BRANCH_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9._/-]*$/
+const BRANCH_FORBIDDEN_RE = /\.\.|\/\/|\/\.|\.lock(?:\/|$)|[/.]$/
+const RESERVED_BRANCH_NAMES = new Set(['HEAD'])
+
+function withoutToken(text) {
+  return String(text ?? '').replace(TOKEN_IN_URL_RE, MASKED_TOKEN)
+}
+
+function randomSuffix() {
+  return Math.random().toString(36).slice(2, 8)
+}
+
+function isValidBranchName(branch) {
+  if (typeof branch !== 'string' || branch.length > MAX_BRANCH_LENGTH) return false
+  if (branch.startsWith('refs/') || RESERVED_BRANCH_NAMES.has(branch)) return false
+
+  return BRANCH_NAME_RE.test(branch) && !BRANCH_FORBIDDEN_RE.test(branch)
+}
+
+async function readCheckedOutBranch(clonePath) {
+  const { stdout } = await execFileAsync('git', ['-C', clonePath, 'rev-parse', '--abbrev-ref', 'HEAD'], {
+    timeout: WORKTREE_TIMEOUT_MS,
+  })
+  const branch = String(stdout ?? '').trim()
+
+  if (!branch || branch === 'HEAD') throw new Error('The clone has no default branch checked out.')
+
+  return branch
+}
+
+async function checkoutWorktree(clonePath, { sourceRef, localRef, worktreePath }) {
+  await execFileAsync('git', ['-C', clonePath, 'fetch', '--depth', '1', 'origin', `+${sourceRef}:${localRef}`], {
+    timeout: FETCH_TIMEOUT_MS,
+  })
+  await execFileAsync('git', ['-C', clonePath, 'worktree', 'add', '--detach', worktreePath, localRef], {
+    timeout: WORKTREE_TIMEOUT_MS,
+  })
+}
+
+async function removeWorktree(clonePath, worktreePath) {
+  try {
+    await execFileAsync('git', ['-C', clonePath, 'worktree', 'remove', '--force', worktreePath], {
+      timeout: WORKTREE_TIMEOUT_MS,
+    })
+  } catch {
+    await rm(worktreePath, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+async function deleteLocalRef(clonePath, localRef) {
+  const args = ['-C', clonePath, 'update-ref', '-d', localRef]
+
+  await execFileAsync('git', args, { timeout: WORKTREE_TIMEOUT_MS }).catch(() => {})
+}
+
+function worktreeRelease(base, { worktreePath, localRef = null }) {
+  let released = false
+
+  return async () => {
+    if (released) return
+    released = true
+
+    await removeWorktree(base.localPath, worktreePath)
+    if (localRef) await deleteLocalRef(base.localPath, localRef)
+    base.release()
+  }
+}
 
 export class RepoPool {
   constructor({
@@ -67,41 +140,54 @@ export class RepoPool {
     }
 
     const base = await this.acquire(repoFullName)
-    const suffix = Math.random().toString(36).slice(2, 8)
+    const suffix = randomSuffix()
     const worktreePath = `${base.localPath}--pr-${pr}-${suffix}`
     const localRef = `refs/reviews/pr-${pr}-${suffix}`
 
     try {
-      await execFileAsync(
-        'git',
-        ['-C', base.localPath, 'fetch', '--depth', '1', 'origin', `+refs/pull/${pr}/head:${localRef}`],
-        { timeout: 120_000 }
-      )
-      await execFileAsync('git', ['-C', base.localPath, 'worktree', 'add', '--detach', worktreePath, localRef], {
-        timeout: 60_000,
-      })
+      await checkoutWorktree(base.localPath, { sourceRef: `refs/pull/${pr}/head`, localRef, worktreePath })
     } catch (err) {
       base.release()
-      const safeMsg = (err.message || '').replace(/x-access-token:[^@]+@/g, 'x-access-token:***@')
-      throw new Error(`Worktree failed for ${repoFullName}#${pr}: ${safeMsg}`, { cause: err })
+      throw new Error(`Worktree failed for ${repoFullName}#${pr}: ${withoutToken(err.message)}`, { cause: err })
     }
 
-    let released = false
-    return {
-      localPath: worktreePath,
-      release: async () => {
-        if (released) return
-        released = true
-        try {
-          await execFileAsync('git', ['-C', base.localPath, 'worktree', 'remove', '--force', worktreePath], {
-            timeout: 60_000,
-          })
-        } catch {
-          await rm(worktreePath, { recursive: true, force: true }).catch(() => {})
-        }
-        base.release()
-      },
+    return { localPath: worktreePath, release: worktreeRelease(base, { worktreePath }) }
+  }
+
+  async acquireBranchWorktree(repoFullName, { branch = null } = {}) {
+    if (branch !== null && !isValidBranchName(branch)) {
+      throw new Error(`Invalid branch name: "${branch}".`)
     }
+
+    const base = await this.acquire(repoFullName).catch(err => {
+      throw new Error(this._withoutPaths(err.message), { cause: err })
+    })
+    const suffix = randomSuffix()
+    const worktreePath = `${base.localPath}--change-${suffix}`
+    const localRef = `refs/soporti/change-${suffix}`
+
+    try {
+      const baseBranch = await readCheckedOutBranch(base.localPath)
+      await checkoutWorktree(base.localPath, {
+        sourceRef: `refs/heads/${branch ?? baseBranch}`,
+        localRef,
+        worktreePath,
+      })
+
+      return { localPath: worktreePath, baseBranch, release: worktreeRelease(base, { worktreePath, localRef }) }
+    } catch (err) {
+      await deleteLocalRef(base.localPath, localRef)
+      base.release()
+
+      const detail = this._withoutPaths(err.stderr?.trim() || err.message)
+      throw new Error(`Could not check out ${branch ?? 'the default branch'} of ${repoFullName}: ${detail}`, {
+        cause: err,
+      })
+    }
+  }
+
+  _withoutPaths(text) {
+    return withoutClonePath(withoutToken(text), this.basePath)
   }
 
   _handle(repoFullName, entry) {
@@ -129,12 +215,9 @@ export class RepoPool {
     }
     const url = `https://x-access-token:${token}@github.com/${repoFullName}.git`
     try {
-      await execFileAsync('git', ['clone', '--depth', '1', url, dest], {
-        timeout: 120_000,
-      })
+      await execFileAsync('git', ['clone', '--depth', '1', url, dest], { timeout: FETCH_TIMEOUT_MS })
     } catch (err) {
-      const safeMsg = (err.message || '').replace(/x-access-token:[^@]+@/g, 'x-access-token:***@')
-      throw new Error(`Clone failed for ${repoFullName}: ${safeMsg}`, { cause: err })
+      throw new Error(`Clone failed for ${repoFullName}: ${withoutToken(err.message)}`, { cause: err })
     }
   }
 

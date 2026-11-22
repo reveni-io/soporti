@@ -82,6 +82,8 @@ vi.mock('../zendesk/settings.js', () => ({ getZendeskConnection: vi.fn(async () 
 vi.mock('../sendcloud/settings.js', () => ({ isSendcloudConfigured: vi.fn(async () => false) }))
 vi.mock('../hubspot/settings.js', () => ({ resolveHubspotAccess: vi.fn(async () => null) }))
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
+vi.mock('../github/settings.js', () => ({ areGithubWritesEnabled: vi.fn(async () => false) }))
+vi.mock('../code-changes/index.js', () => ({ getCodeChangeSession: vi.fn(key => ({ key })) }))
 vi.mock('../guards/registry.js', () => ({ listChatGuards: vi.fn(async () => []) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
@@ -107,6 +109,8 @@ const { isSendcloudConfigured } = await import('../sendcloud/settings.js')
 const { resolveHubspotAccess } = await import('../hubspot/settings.js')
 const { normalizeHubspotPermissions } = await import('../hubspot/permissions.js')
 const { isSlackConfigured } = await import('../slack/settings.js')
+const { areGithubWritesEnabled } = await import('../github/settings.js')
+const { getCodeChangeSession } = await import('../code-changes/index.js')
 const { listChatGuards } = await import('../guards/registry.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
@@ -133,6 +137,8 @@ describe('createAgent', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
     areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
+    areGithubWritesEnabled.mockClear().mockResolvedValue(false)
+    getCodeChangeSession.mockClear()
     getZendeskConnection.mockReset().mockResolvedValue(null)
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
@@ -435,6 +441,58 @@ describe('createAgent', () => {
     expect(agent.instructions).not.toContain('Active skill')
   })
 
+  it('keeps the code change tools out while the GitHub write switch is off', async () => {
+    await createAgent(['org/app'], 'support', { conversationId: 'conv-1' })
+
+    expect(areGithubWritesEnabled).toHaveBeenCalledTimes(1)
+    expect(getCodeChangeSession).not.toHaveBeenCalled()
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ codeChanges: null })
+    )
+  })
+
+  it('ties the code change session to the web conversation, so follow-ups reach the same pull request', async () => {
+    areGithubWritesEnabled.mockResolvedValue(true)
+
+    await createAgent(['org/app'], 'support', { conversationId: 'conv-1', userId: 7 })
+
+    expect(getCodeChangeSession).toHaveBeenCalledTimes(1)
+    expect(getCodeChangeSession).toHaveBeenCalledWith('conv-1')
+    expect(buildAgentTools).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ userId: 7, codeChanges: { key: 'conv-1' } })
+    )
+  })
+
+  it('gives a run without a conversation a session of its own', async () => {
+    areGithubWritesEnabled.mockResolvedValue(true)
+
+    await createAgent(['org/app'], 'support')
+    await createAgent(['org/app'], 'support')
+
+    const [[firstKey], [secondKey]] = getCodeChangeSession.mock.calls
+    expect(getCodeChangeSession).toHaveBeenCalledTimes(2)
+    expect(firstKey).toMatch(/^[0-9a-f-]{36}$/)
+    expect(secondKey).toMatch(/^[0-9a-f-]{36}$/)
+    expect(firstKey).not.toBe(secondKey)
+  })
+
+  it('adds the pull request rules only when open_pull_request survived the tool selection', async () => {
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'edit_file', 'open_pull_request']))
+
+    const withPullRequests = await createAgent([], 'support')
+
+    expect(withPullRequests.instructions).toContain('## Changing code and opening pull requests')
+
+    buildAgentTools.mockReturnValue(toolList([...AVAILABLE_TOOL_NAMES, 'edit_file']))
+    const withoutPullRequests = await createAgent([], 'support')
+
+    expect(withoutPullRequests.instructions).not.toContain('## Changing code and opening pull requests')
+  })
+
   it('passes the stored Shortcut write access to the tool builder', async () => {
     areShortcutWritesEnabled.mockResolvedValue(true)
 
@@ -602,6 +660,7 @@ describe('createAgent', () => {
         profile: 'support',
         guards: [],
         guardCases: null,
+        codeChanges: null,
       }
     )
   })
@@ -630,6 +689,7 @@ describe('createAgent', () => {
         profile: 'support',
         guards: [],
         guardCases: null,
+        codeChanges: null,
       }
     )
   })
@@ -658,6 +718,7 @@ describe('createAgent', () => {
         profile: 'support',
         guards: [],
         guardCases: null,
+        codeChanges: null,
       }
     )
   })
@@ -889,6 +950,8 @@ describe('createAgent with subagents', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
     areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
+    areGithubWritesEnabled.mockClear().mockResolvedValue(false)
+    getCodeChangeSession.mockClear()
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -1080,6 +1143,8 @@ describe('createAgent with a main agent allowlist', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
     areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
+    areGithubWritesEnabled.mockClear().mockResolvedValue(false)
+    getCodeChangeSession.mockClear()
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockClear()
     buildAgentTools.mockReturnValue(toolList())
@@ -1176,6 +1241,8 @@ describe('createAgent language rule', () => {
   beforeEach(() => {
     for (const isConfigured of CONFIGURATION_CHECKS) isConfigured.mockResolvedValue(false)
     areShortcutWritesEnabled.mockClear().mockResolvedValue(false)
+    areGithubWritesEnabled.mockClear().mockResolvedValue(false)
+    getCodeChangeSession.mockClear()
     buildRepoCatalogPrompt.mockResolvedValue('')
     buildAgentTools.mockReturnValue(toolList())
     listEnabledSubagents.mockReset().mockResolvedValue([])

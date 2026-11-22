@@ -67,6 +67,35 @@ describe('describeToolCall', () => {
     })
   })
 
+  it('labels the code change tools with the file, the pull request number or its title', () => {
+    expect(
+      describeToolCall('edit_file', JSON.stringify({ repo: 'org/app', path: 'src/cart.js', oldText: 'a' }))
+    ).toEqual({
+      title: 'Editing file',
+      details: 'src/cart.js',
+    })
+    expect(
+      describeToolCall('write_file', JSON.stringify({ repo: 'org/app', path: 'src/new.js', content: 'x' }))
+    ).toEqual({
+      title: 'Writing file',
+      details: 'src/new.js',
+    })
+    expect(describeToolCall('delete_file', JSON.stringify({ repo: 'org/app', path: 'src/old.js' }))).toEqual({
+      title: 'Deleting file',
+      details: 'src/old.js',
+    })
+    expect(describeToolCall('continue_pull_request', JSON.stringify({ repo: 'org/app', number: 42 }))).toEqual({
+      title: 'Continuing pull request',
+      details: '42',
+    })
+    expect(
+      describeToolCall(
+        'open_pull_request',
+        JSON.stringify({ repo: 'org/app', title: 'fix(api): empty carts', body: 'b' })
+      )
+    ).toEqual({ title: 'Opening pull request', details: 'fix(api): empty carts' })
+  })
+
   it('has a step label for every HubSpot tool', () => {
     for (const name of INTEGRATION_TOOL_NAMES.hubspot) {
       expect(describeToolCall(name, '{}').title).not.toBe(name)

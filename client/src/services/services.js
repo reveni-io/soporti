@@ -769,6 +769,15 @@ export function saveGithubReviewerSuggestions(token, enabled) {
   })
 }
 
+export function saveGithubWrites(token, enabled) {
+  return request('/api/admin/config/github/writes', {
+    method: 'PUT',
+    token,
+    body: { enabled },
+    errorMessage: 'Failed to save the write access',
+  })
+}
+
 export function getGoogleDriveConfig(token) {
   return request('/api/admin/config/google-drive', {
     token,

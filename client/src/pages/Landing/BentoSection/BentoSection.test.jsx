@@ -10,6 +10,12 @@ describe('BentoSection', () => {
     expect(screen.getByRole('heading', { level: 2, name: /when the answer is a deliverable/i })).toBeInTheDocument()
   })
 
+  it('mentions pull requests among the deliverables', () => {
+    render(<BentoSection />)
+
+    expect(screen.getByText(/draft pull requests for the small fixes/i)).toBeInTheDocument()
+  })
+
   it('shows one card per capability, with the bigger demos spanning two columns and the app closing the grid', () => {
     const { container } = render(<BentoSection />)
 
@@ -19,13 +25,27 @@ describe('BentoSection', () => {
       'Describe a job once',
       'Your playbooks as /commands',
       'Ask for a chart, keep a live dashboard',
+      'Ask for the fix, get a draft pull request',
       'Product videos from a brief',
       'Specialists behind one assistant',
       'Soporti in your dock and in your pocket',
     ])
-    expect(container.querySelectorAll('.lp-bento-card--wide')).toHaveLength(3)
-    expect(container.querySelectorAll('.lp-bento-card--landscape')).toHaveLength(1)
-    expect(container.querySelector('.lp-bento-card--landscape')).toHaveTextContent(/install it on desktop or phone/i)
+    expect(container.querySelectorAll('.lp-bento-card--wide')).toHaveLength(4)
+    const landscapeCards = container.querySelectorAll('.lp-bento-card--landscape')
+    expect(landscapeCards).toHaveLength(2)
+    expect(landscapeCards[1]).toHaveTextContent(/install it on desktop or phone/i)
+  })
+
+  it('gives pull requests a full row of their own, from the request to the draft and its CI', () => {
+    render(<BentoSection />)
+
+    const card = screen
+      .getByRole('heading', { level: 3, name: 'Ask for the fix, get a draft pull request' })
+      .closest('article')
+    expect(card).toHaveClass('lp-bento-card--wide', 'lp-bento-card--landscape')
+    expect(card).toHaveTextContent(/never runs your code: CI checks it and a person merges it/i)
+    expect(card.querySelector('[data-icon="pull-request"]')).toBeInTheDocument()
+    expect(card.querySelector('.lp-pr-tile')).toHaveTextContent('Draft · #312')
   })
 
   it('follows the pointer with the spotlight of every card', () => {
