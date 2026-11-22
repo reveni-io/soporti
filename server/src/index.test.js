@@ -101,6 +101,18 @@ vi.mock('./review/index.js', () => ({
 
 vi.mock('./repo-pool/index.js', () => ({
   pool: { shutdown: vi.fn() },
+  getDirectoryContents: vi.fn(),
+  getFileContents: vi.fn(),
+  searchCode: vi.fn(),
+  findFiles: vi.fn(),
+  gitLogFile: vi.fn(),
+  gitBlame: vi.fn(),
+  getDirectoryContentsAt: vi.fn(),
+  getFileContentsAt: vi.fn(),
+  searchCodeAt: vi.fn(),
+  findFilesAt: vi.fn(),
+  gitLogFileAt: vi.fn(),
+  gitBlameAt: vi.fn(),
 }))
 
 vi.mock('./postgres/client.js', () => ({
