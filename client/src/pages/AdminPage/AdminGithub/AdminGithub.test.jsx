@@ -136,12 +136,13 @@ describe('AdminGithub', () => {
     render(<AdminGithub token="tok" onLogout={vi.fn()} />)
 
     expect(await screen.findByRole('heading', { name: 'Write access' })).toBeInTheDocument()
-    expect(screen.getByText(/opens the pull request as a/i)).toHaveTextContent(/as a draft/i)
-    expect(screen.getByText(/never pushes to the default branch/i)).toHaveTextContent('.github/')
-    expect(screen.getByText(/never runs anything from the repository/i)).toBeInTheDocument()
-    expect(screen.getByText('Contents: read and write')).toBeInTheDocument()
+    const explanation = screen.getByText(/never pushes to the default branch/i)
+    expect(explanation).toHaveTextContent(/as a draft pull request/i)
+    expect(explanation).toHaveTextContent('.github/')
+    expect(explanation).toHaveTextContent(/never runs your code/i)
+    expect(screen.getByText('Contents')).toBeInTheDocument()
     expect(screen.getByText('Pull requests: read and write')).toBeInTheDocument()
-    expect(screen.getByText('open_pull_request')).toBeInTheDocument()
+    expect(screen.getByText('workflow')).toBeInTheDocument()
     expect(screen.getByText(/off by default — reading code never needs it/i)).toBeInTheDocument()
   })
 

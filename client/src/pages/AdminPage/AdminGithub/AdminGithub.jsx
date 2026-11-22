@@ -94,28 +94,14 @@ export default function AdminGithub({ token, onLogout }) {
 
       <AdminSection title="Write access">
         <p className="admin__muted">
-          With this on, the assistant can change code in a repository and open a pull request from a conversation — in
-          the web chat, Slack, MCP and bots. It is meant for small changes, like a piece of copy or a wrong condition.
-          It edits a private copy of the latest default branch, pushes a new <code>soporti/…</code> branch and opens the
-          pull request as a <strong>draft</strong>; follow-ups in the same conversation land on the same pull request.
-        </p>
-
-        <p className="admin__muted">
-          It never pushes to the default branch and never touches <code>.github/</code> (workflows and CI),{' '}
-          <code>.env</code> files, <code>.git</code> or <code>node_modules</code>. It never runs anything from the
-          repository either — no install, build, tests or git hooks: the repository&apos;s CI checks the pull request,
-          and a person reviews it, marks it ready and merges it. The conversation&apos;s sources still apply, so it can
-          only change a repository the conversation can read.
+          Lets the assistant make small code changes and open them as a <strong>draft</strong> pull request on a{' '}
+          <code>soporti/…</code> branch. It never pushes to the default branch, never touches <code>.github/</code> or{' '}
+          <code>.env</code> files, and never runs your code: CI checks it and a person merges it.
         </p>
 
         <p className="note">
-          GitHub records the account the token belongs to as the author of the pull request, so its description ends
-          with the name of the person who asked. The token needs write access: the <code>repo</code> scope on a classic
-          token, or <strong>Contents: read and write</strong> and <strong>Pull requests: read and write</strong> on a
-          fine-grained one. Leave out the <code>workflow</code> scope (the <strong>Workflows</strong> permission on a
-          fine-grained token), so GitHub itself also rejects any push that touches a workflow. If you have narrowed the
-          assistant&apos;s tools in <strong>Subagents</strong>, grant it <code>edit_file</code>, <code>write_file</code>
-          , <code>delete_file</code>, <code>continue_pull_request</code> and <code>open_pull_request</code> there too.
+          The token needs <strong>Contents</strong> and <strong>Pull requests: read and write</strong> (
+          <code>repo</code> on a classic token), without <code>workflow</code>.
         </p>
 
         <ToggleField
