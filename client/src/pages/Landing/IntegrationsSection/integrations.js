@@ -68,7 +68,7 @@ export const INTEGRATIONS = [
     id: 'shortcut',
     name: 'Shortcut',
     ring: 'outer',
-    desc: 'Fetches stories and epics, and files a bug if you allow it.',
+    desc: 'Fetches stories, their comments and epics, and files a bug if you allow it.',
   },
   {
     id: 'helpjuice',
