@@ -15,6 +15,7 @@ const TOOL_LABELS = {
   continue_pull_request: 'Continuing pull request',
   open_pull_request: 'Opening pull request',
   get_shortcut_story: 'Reading Shortcut story',
+  get_shortcut_story_comments: 'Reading Shortcut comments',
   search_shortcut_stories: 'Searching Shortcut stories',
   list_shortcut_iterations: 'Listing iterations',
   get_shortcut_iteration_stories: 'Reading iteration stories',

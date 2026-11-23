@@ -12,6 +12,7 @@ const MAX_SEARCH_PAGES = 10
 const MAX_ITERATION_STORIES = 200
 const MAX_ITERATIONS = 20
 const MAX_EPICS = 50
+const MAX_STORY_COMMENTS = 100
 const MAX_ERROR_CHARS = 500
 
 const NOT_CONFIGURED_ERROR = 'Shortcut token not configured. Set it in the admin panel (Shortcut section).'
@@ -199,6 +200,33 @@ export async function getStory(id) {
       description: t.description,
       complete: t.complete,
     })),
+  }
+}
+
+function toComment(comment, members) {
+  return {
+    id: comment.id,
+    author: members.get(comment.author_id)?.name || null,
+    text: comment.text || '',
+    created_at: comment.created_at,
+    updated_at: comment.updated_at,
+    app_url: comment.app_url || null,
+    replies: (comment.comments || []).filter(reply => !reply.deleted).map(reply => toComment(reply, members)),
+  }
+}
+
+export async function getStoryComments(storyId) {
+  const [rawComments, members] = await Promise.all([request('GET', `/stories/${storyId}/comments`), getMembers()])
+
+  const visible = (rawComments || []).filter(comment => !comment.deleted)
+  const comments = visible.slice(0, MAX_STORY_COMMENTS).map(comment => toComment(comment, members))
+
+  return {
+    story_id: storyId,
+    total: visible.length,
+    returned: comments.length,
+    truncated: visible.length > comments.length,
+    comments,
   }
 }
 

@@ -17,6 +17,7 @@ global.fetch = mockFetch
 
 const {
   getStory,
+  getStoryComments,
   searchStories,
   listIterations,
   getIterationStories,
@@ -259,6 +260,81 @@ describe('getStory', () => {
     mockFetch.mockResolvedValue({ ok: false, status: 404, json: async () => ({}), text: async () => 'Not found' })
 
     await expect(getStory(9999)).rejects.toThrow('Shortcut API GET /stories/9999 failed (404): Not found')
+  })
+})
+
+describe('getStoryComments', () => {
+  it('resolves authors and keeps replies, skipping deleted comments', async () => {
+    mockApi([
+      [
+        '/stories/25694/comments',
+        [
+          {
+            id: 1,
+            author_id: 'user-1',
+            text: 'Change it in the frontend',
+            created_at: '2026-11-23T10:00:00Z',
+            updated_at: '2026-11-23T10:05:00Z',
+            app_url: 'https://app.shortcut.com/story/25694#activity-1',
+            comments: [
+              { id: 2, author_id: 'user-2', text: 'Agreed', created_at: '2026-11-23T11:00:00Z' },
+              { id: 3, author_id: 'user-2', text: 'Gone', deleted: true },
+            ],
+          },
+          { id: 4, author_id: 'user-2', text: 'Removed', deleted: true },
+        ],
+      ],
+    ])
+
+    const result = await getStoryComments(25694)
+
+    expect(result.story_id).toBe(25694)
+    expect(result.total).toBe(1)
+    expect(result.returned).toBe(1)
+    expect(result.truncated).toBe(false)
+    expect(result.comments[0].author).toBe('Sergio Zam')
+    expect(result.comments[0].text).toBe('Change it in the frontend')
+    expect(result.comments[0].replies).toHaveLength(1)
+    expect(result.comments[0].replies[0].author).toBe('Ana Ruiz')
+    expect(requestedPaths()).toContain('/stories/25694/comments')
+  })
+
+  it('handles empty comments and unknown authors', async () => {
+    mockApi([['/stories/7/comments', [{ id: 5, author_id: 'user-ghost', text: null }]]])
+
+    const result = await getStoryComments(7)
+
+    expect(result.comments).toEqual([
+      {
+        id: 5,
+        author: null,
+        text: '',
+        created_at: undefined,
+        updated_at: undefined,
+        app_url: null,
+        replies: [],
+      },
+    ])
+  })
+
+  it('treats a null response as no comments', async () => {
+    mockApi([['/stories/8/comments', null]])
+
+    const result = await getStoryComments(8)
+
+    expect(result.total).toBe(0)
+    expect(result.comments).toEqual([])
+  })
+
+  it('flags the list as truncated beyond 100 comments', async () => {
+    const many = Array.from({ length: 101 }, (_, index) => ({ id: index + 1, author_id: 'user-1', text: 'x' }))
+    mockApi([['/stories/9/comments', many]])
+
+    const result = await getStoryComments(9)
+
+    expect(result.total).toBe(101)
+    expect(result.returned).toBe(100)
+    expect(result.truncated).toBe(true)
   })
 })
 

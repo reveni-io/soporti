@@ -17,6 +17,7 @@ const TOOL_LABELS = {
   continue_pull_request: { label: 'Continuing pull request', arg: 'number' },
   open_pull_request: { label: 'Opening pull request', arg: 'title' },
   get_shortcut_story: { label: 'Reading Shortcut story', arg: 'id' },
+  get_shortcut_story_comments: { label: 'Reading Shortcut comments', arg: 'id' },
   search_shortcut_stories: { label: 'Searching Shortcut', arg: 'query' },
   create_shortcut_story: { label: 'Creating Shortcut story', arg: 'name' },
   update_shortcut_story: { label: 'Updating Shortcut story', arg: 'storyId' },

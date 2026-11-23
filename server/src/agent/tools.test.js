@@ -34,6 +34,7 @@ vi.mock('../repo-pool/index.js', () => ({
 
 vi.mock('../shortcut/client.js', () => ({
   getStory: vi.fn(),
+  getStoryComments: vi.fn(),
   searchStories: vi.fn(),
   listIterations: vi.fn(),
   getIterationStories: vi.fn(),
@@ -211,6 +212,7 @@ const {
   gitLogFileTool,
   gitBlameTool,
   getShortcutStoryTool,
+  getShortcutStoryCommentsTool,
   searchShortcutStoriesTool,
   listShortcutIterationsTool,
   getShortcutIterationStoriesTool,
@@ -281,6 +283,7 @@ describe('tool definitions', () => {
 
   it('exports shortcut tools', () => {
     expect(getShortcutStoryTool).toBeDefined()
+    expect(getShortcutStoryCommentsTool).toBeDefined()
     expect(searchShortcutStoriesTool).toBeDefined()
     expect(listShortcutIterationsTool).toBeDefined()
     expect(getShortcutIterationStoriesTool).toBeDefined()
@@ -745,6 +748,7 @@ describe('buildAgentTools', () => {
       'git_log_file',
       'git_blame',
       'get_shortcut_story',
+      'get_shortcut_story_comments',
       'search_shortcut_stories',
       'list_shortcut_iterations',
       'get_shortcut_iteration_stories',
@@ -772,6 +776,7 @@ describe('buildAgentTools', () => {
       'search_notion_pages',
       'get_notion_page',
       'get_shortcut_story',
+      'get_shortcut_story_comments',
       'search_shortcut_stories',
       'list_shortcut_iterations',
       'get_shortcut_iteration_stories',
@@ -955,6 +960,7 @@ describe('buildAgentTools', () => {
     )
     expect(names(tools)).toEqual([
       'get_shortcut_story',
+      'get_shortcut_story_comments',
       'search_shortcut_stories',
       'list_shortcut_iterations',
       'get_shortcut_iteration_stories',
@@ -1096,6 +1102,14 @@ describe('tool execute functions', () => {
     const result = await getShortcutStoryTool.execute({ id: 1234 })
     expect(JSON.parse(result)).toEqual({ id: 1234, name: 'Test story' })
     expect(shortcut.getStory).toHaveBeenCalledWith(1234)
+  })
+
+  it('getShortcutStoryCommentsTool.execute calls getStoryComments and returns JSON', async () => {
+    const shortcut = await import('../shortcut/client.js')
+    shortcut.getStoryComments.mockResolvedValue({ story_id: 1234, total: 1, comments: [{ id: 9, text: 'Hi' }] })
+    const result = await getShortcutStoryCommentsTool.execute({ id: 1234 })
+    expect(JSON.parse(result)).toEqual({ story_id: 1234, total: 1, comments: [{ id: 9, text: 'Hi' }] })
+    expect(shortcut.getStoryComments).toHaveBeenCalledWith(1234)
   })
 
   it('searchShortcutStoriesTool.execute forwards the query and the limit', async () => {
