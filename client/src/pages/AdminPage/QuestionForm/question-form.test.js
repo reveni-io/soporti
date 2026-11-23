@@ -6,9 +6,9 @@ function choiceForm(overrides = {}) {
     ...toForm(null),
     text: ' Does the change alter refunds? ',
     answers: [
-      { label: ' Yes ', criteria: ' A refund path changes. ', flag: true },
-      { label: 'No', criteria: '', flag: false },
-      { label: '  ', criteria: 'ignored', flag: false },
+      { label: ' Yes ', flag: true },
+      { label: 'No', flag: false },
+      { label: '  ', flag: false },
     ],
     ...overrides,
   }
@@ -20,18 +20,16 @@ describe('toForm', () => {
       id: '',
       type: 'choice',
       text: '',
-      instructions: '',
-      criteria: '',
       answers: [
-        { label: '', criteria: '', flag: false },
-        { label: '', criteria: '', flag: false },
+        { label: '', flag: false },
+        { label: '', flag: false },
       ],
       flagAt: '',
     })
   })
 
   it('shows the threshold of a noul question as text', () => {
-    const form = toForm({ id: 'q2', type: 'noul', text: 'Risky', instructions: '', criteria: '', flagAt: 70 })
+    const form = toForm({ id: 'q2', type: 'noul', text: 'Risky', flagAt: 70 })
 
     expect(form.flagAt).toBe('70')
     expect(form.answers).toHaveLength(2)
@@ -46,11 +44,9 @@ describe('fromForm', () => {
       id: expect.any(String),
       type: 'choice',
       text: 'Does the change alter refunds?',
-      instructions: '',
-      criteria: '',
       answers: [
-        { label: 'Yes', criteria: 'A refund path changes.', flag: true },
-        { label: 'No', criteria: '', flag: false },
+        { label: 'Yes', flag: true },
+        { label: 'No', flag: false },
       ],
     })
     expect(value.id).not.toBe('')
@@ -67,12 +63,12 @@ describe('fromForm', () => {
 
   it.each([
     [{ text: '  ' }, 'Write the question.'],
-    [{ answers: [{ label: 'Yes', criteria: '', flag: false }] }, 'A choice question needs at least two answers.'],
+    [{ answers: [{ label: 'Yes', flag: false }] }, 'A choice question needs at least two answers.'],
     [
       {
         answers: [
-          { label: 'Yes', criteria: '', flag: false },
-          { label: 'Yes', criteria: '', flag: true },
+          { label: 'Yes', flag: false },
+          { label: 'Yes', flag: true },
         ],
       },
       'Two answers have the same text.',

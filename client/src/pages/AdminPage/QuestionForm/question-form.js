@@ -6,7 +6,7 @@ export const QUESTION_CHOICE = 'choice'
 export const QUESTION_NOUL = 'noul'
 
 export function blankAnswer() {
-  return { label: '', criteria: '', flag: false }
+  return { label: '', flag: false }
 }
 
 export function toForm(question) {
@@ -14,8 +14,6 @@ export function toForm(question) {
     id: question?.id ?? '',
     type: question?.type ?? QUESTION_CHOICE,
     text: question?.text ?? '',
-    instructions: question?.instructions ?? '',
-    criteria: question?.criteria ?? '',
     answers: question?.answers ?? [blankAnswer(), blankAnswer()],
     flagAt: question?.flagAt === null || question?.flagAt === undefined ? '' : String(question.flagAt),
   }
@@ -23,7 +21,7 @@ export function toForm(question) {
 
 function readAnswers(answers) {
   const filled = answers
-    .map(answer => ({ label: answer.label.trim(), criteria: answer.criteria.trim(), flag: answer.flag }))
+    .map(answer => ({ label: answer.label.trim(), flag: answer.flag }))
     .filter(answer => answer.label)
 
   if (filled.length < MIN_ANSWERS) return { error: 'A choice question needs at least two answers.' }
@@ -56,8 +54,6 @@ export function fromForm(form) {
       id: form.id || crypto.randomUUID(),
       type: form.type,
       text,
-      instructions: form.instructions.trim(),
-      criteria: form.criteria.trim(),
       ...details.value,
     },
   }
