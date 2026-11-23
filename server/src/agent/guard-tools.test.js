@@ -8,11 +8,22 @@ const checkContent = vi.fn()
 const checkTicketReply = vi.fn()
 vi.mock('../guards/check.js', () => ({ checkContent, checkTicketReply }))
 
-const { buildGuardTools } = await import('./guard-tools.js')
+const getOwnedLegalCase = vi.fn()
+vi.mock('../db/legal-cases.js', () => ({ getOwnedLegalCase }))
 
+const findUserById = vi.fn()
+vi.mock('../db/users.js', () => ({ findUserById }))
+
+const sendCaseReply = vi.fn()
+vi.mock('../legal/send.js', async importOriginal => ({ ...(await importOriginal()), sendCaseReply }))
+
+const { buildGuardTools } = await import('./guard-tools.js')
+const { LegalReplyError } = await import('../legal/replies.js')
+
+const REQUEST = 'Can we refund in 2 days? Use the Legal guards'
 const GUARDS = [
-  { id: 'legal', name: 'Legal', description: 'Replies to customers' },
-  { id: 'guard-0a1b2c3d', name: 'Refunds', description: '' },
+  { id: 'legal', name: 'Legal' },
+  { id: 'guard-0a1b2c3d', name: 'Refunds' },
 ]
 const ROWS = [
   { question: 'Is it unusual?', answer: 'Yes', confidence: 0.9, flagged: true, unsure: false },
@@ -36,43 +47,90 @@ function askGuard(options = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   checkContent.mockResolvedValue({ guard: 'Legal', warnings: 2, review: { rows: ROWS } })
-  checkTicketReply.mockResolvedValue({ id: 41, guard: 'Legal', warnings: 0, review: { rows: [ROWS[2]] } })
+  checkTicketReply.mockResolvedValue({
+    id: 41,
+    guard: 'Legal',
+    reviews: [{ guard: 'Legal', warnings: 0, review: { rows: [ROWS[2]] } }],
+  })
 })
 
 describe('ask_guard', () => {
-  it('lists the guards and when to use them, and asks to be used only on request', () => {
+  it('lists the guards and asks to use them only when asked, every guard whose name matches', () => {
     const { name, description } = askGuard()
 
     expect(name).toBe('ask_guard')
-    expect(description).toContain('Call it only when the user asks')
-    expect(description).toContain('- "Legal": Replies to customers\n- "Refunds"')
+    expect(description).toContain(
+      'Use guards only when the user, a scheduled query, the instructions of a bot or the REVIEW.md of a pull request under review ask for them'
+    )
+    expect(description).toContain('Never use a guard on your own.')
+    expect(description).toContain('If no guard has the name they used, pass none: ask them whether they want the guard')
+    expect(description).toContain(
+      'Pass in `request` what was asked, quoting the words of the person, the scheduled query, the bot or the REVIEW.md'
+    )
+    expect(description).toContain('Guards:\n- "Legal"\n- "Refunds"')
   })
 
   it('checks content with the guard named, in any case', async () => {
     const onChecked = vi.fn()
 
     const answer = await askGuard({ guardCases: { conversationId: 'conv-1', onChecked } }).execute({
-      guard: ' legal ',
+      request: REQUEST,
+      guards: [' legal '],
       content: 'Can we refund in 2 days?',
       ticket: null,
     })
 
-    expect(checkContent).toHaveBeenCalledWith(GUARDS[0], 'Can we refund in 2 days?')
+    expect(checkContent).toHaveBeenCalledWith(GUARDS[0], { request: REQUEST, content: 'Can we refund in 2 days?' })
     expect(answer).toBe(
       [
         'The Legal guard raised 2 warnings.',
-        '- Is it unusual?: Yes (confidence 0.90) [warning]',
-        '- Does it match the data?: no answer (confidence 0.40) [not sure]',
-        '- Is it safe?: Yes (confidence 0.95)',
+        '- Is it unusual?: Yes (confidence 90 out of 100) [warning]',
+        '- Does it match the data?: no answer (confidence 40 out of 100) [not sure]',
+        '- Is it safe?: Yes (confidence 95 out of 100)',
       ].join('\n')
     )
     expect(onChecked).toHaveBeenCalledWith({ kind: 'check', check: expect.objectContaining({ guard: 'Legal' }) })
   })
 
+  it('checks a pull request in a review, with the pull request attached, and hands each answer to the review', async () => {
+    const onChecked = vi.fn()
+    const attach = { pullRequest: { number: 12 }, diff: '+fee' }
+    const guardTool = askGuard({ userId: null, review: { attach, onChecked } })
+
+    const answer = await guardTool.execute({
+      request: 'Use the guards: Legal',
+      guards: ['Legal'],
+      content: null,
+      ticket: null,
+    })
+
+    expect(guardTool.description).toContain(
+      'In a pull request review, quote in `request` the lines of the REVIEW.md that ask for the guards, and in `content` the rules of the REVIEW.md'
+    )
+    expect(askGuard().description).not.toContain('In a pull request review')
+    expect(checkContent).toHaveBeenCalledWith(GUARDS[0], { request: 'Use the guards: Legal', content: null, attach })
+    expect(onChecked).toHaveBeenCalledWith(expect.objectContaining({ guard: 'Legal', warnings: 2 }))
+    expect(answer).toMatch(/^The Legal guard raised 2 warnings/)
+  })
+
+  it('passes content through every guard named, once each', async () => {
+    checkContent.mockImplementation(async guard => ({ guard: guard.name, warnings: 0, review: { rows: [] } }))
+
+    const answer = await askGuard().execute({
+      request: REQUEST,
+      guards: ['Legal', 'refunds', 'LEGAL'],
+      content: 'x',
+      ticket: null,
+    })
+
+    expect(checkContent.mock.calls.map(([guard]) => guard.name)).toEqual(['Legal', 'Refunds'])
+    expect(answer).toBe('The Legal guard found no warnings.\n\nThe Refunds guard found no warnings.')
+  })
+
   it('says when the guard could not check it', async () => {
     checkContent.mockResolvedValue({ guard: 'Legal', warnings: 0, review: null, reason: 'the review could not run' })
 
-    expect(await askGuard().execute({ guard: 'Legal', content: 'Anything', ticket: null })).toBe(
+    expect(await askGuard().execute({ request: REQUEST, guards: ['Legal'], content: 'Anything', ticket: null })).toBe(
       'The Legal guard could not check it: the review could not run.'
     )
   })
@@ -81,10 +139,16 @@ describe('ask_guard', () => {
     const onChecked = vi.fn()
     const guardCases = { conversationId: 'conv-1', onChecked }
 
-    const answer = await askGuard({ guardCases }).execute({ guard: 'Legal', content: null, ticket: TICKET })
+    const answer = await askGuard({ guardCases }).execute({
+      request: REQUEST,
+      guards: ['Legal'],
+      content: null,
+      ticket: TICKET,
+    })
 
-    expect(checkTicketReply).toHaveBeenCalledWith(GUARDS[0], {
+    expect(checkTicketReply).toHaveBeenCalledWith([GUARDS[0]], {
       userId: 3,
+      request: REQUEST,
       ticket: { source: 'zendesk', ticketId: '48213' },
       reply: {
         draft: { subject: 'Your refund', body: 'We issued it.' },
@@ -95,12 +159,12 @@ describe('ask_guard', () => {
     })
     expect(onChecked).toHaveBeenCalledWith({ kind: 'case', case: expect.objectContaining({ id: 41 }) })
     expect(answer).toBe(
-      'The Legal guard found no warnings.\n- Is it safe?: Yes (confidence 0.95)\n\nThe user sees the case with the reply, the warnings and a Send button.'
+      'The Legal guard found no warnings.\n- Is it safe?: Yes (confidence 95 out of 100)\n\nThe user sees case 41 with the draft and the review of each guard. When the user asks you to send it, call send_case_reply with case 41; to change it or add data first, check the new draft again with the same guards.'
     )
   })
 
   it('points to the web chat to send a reply checked from Slack or MCP', async () => {
-    const answer = await askGuard().execute({ guard: 'Legal', content: null, ticket: TICKET })
+    const answer = await askGuard().execute({ request: REQUEST, guards: ['Legal'], content: null, ticket: TICKET })
 
     expect(answer).toMatch(/Sending is only possible from the Soporti web chat/)
   })
@@ -108,16 +172,163 @@ describe('ask_guard', () => {
   it('says when the ticket cannot be read', async () => {
     checkTicketReply.mockResolvedValue(null)
 
-    expect(await askGuard().execute({ guard: 'Legal', content: null, ticket: TICKET })).toMatch(
+    expect(await askGuard().execute({ request: REQUEST, guards: ['Legal'], content: null, ticket: TICKET })).toMatch(
       /^Could not read that ticket/
     )
   })
 
-  it('needs something to check and a guard that exists', async () => {
-    expect(await askGuard().execute({ guard: 'Legal', content: '  ', ticket: null })).toMatch(/^Pass `content`/)
-    expect(await askGuard().execute({ guard: 'Payments', content: 'x', ticket: null })).toBe(
-      'There is no guard called "Payments". Guards: Legal, Refunds.'
+  it('needs the request, something to check and a guard that exists', async () => {
+    expect(await askGuard().execute({ request: ' ', guards: ['Legal'], content: 'x', ticket: null })).toBe(
+      'Pass in `request` what the person, the scheduled query, the bot or the REVIEW.md asked for.'
+    )
+    expect(await askGuard().execute({ request: REQUEST, guards: ['Legal'], content: '  ', ticket: null })).toMatch(
+      /^Pass `content`/
+    )
+    expect(
+      await askGuard().execute({ request: REQUEST, guards: ['Legal', 'Payments'], content: 'x', ticket: null })
+    ).toBe(
+      'There is no guard called "Payments". Nothing was checked. Ask the user whether they want the closest of these instead, or tell them none is close: Legal, Refunds.'
     )
     expect(checkContent).not.toHaveBeenCalled()
+  })
+
+  it('sends a case only from the web chat', () => {
+    expect(buildGuardTools({ guards: GUARDS, userId: 3 }).map(({ name }) => name)).toEqual(['ask_guard'])
+    expect(
+      buildGuardTools({ guards: GUARDS, userId: 3, guardCases: { sendable: true } }).map(({ name }) => name)
+    ).toEqual(['ask_guard', 'send_case_reply'])
+  })
+})
+
+describe('send_case_reply', () => {
+  const CASE = {
+    id: 41,
+    source: 'zendesk',
+    ticketId: '48213',
+    status: 'checked',
+    warnings: 0,
+    conversationId: 'conv-1',
+  }
+  const USER = { id: 3, email: 'ana@example.com' }
+  const TURN_STARTED_AT = new Date('2026-11-20T09:05:00.000Z')
+
+  function sendTool() {
+    return buildGuardTools({
+      guards: GUARDS,
+      userId: 3,
+      guardCases: {
+        conversationId: 'conv-1',
+        onChecked: vi.fn(),
+        sendable: true,
+        turnStartedAt: TURN_STARTED_AT,
+        completedTurns: 4,
+      },
+    })[1]
+  }
+
+  beforeEach(() => {
+    getOwnedLegalCase.mockResolvedValue(CASE)
+    findUserById.mockResolvedValue(USER)
+    sendCaseReply.mockResolvedValue({ reply: { id: 7 } })
+  })
+
+  it('asks to be used only when the user asks to send in a later message, after confirming any warning', () => {
+    const { description, parameters } = sendTool()
+
+    expect(description).toContain('in a message after the one that showed them the case; never on your own')
+    expect(description).toContain('Only the draft the guards checked goes out')
+    expect(description).toContain('send it only after they confirm they read them')
+    expect(Object.keys(parameters.shape)).toEqual(['caseId', 'warningsConfirmed'])
+  })
+
+  it('sends the checked draft of the case as the user, through the ticket of the case', async () => {
+    const answer = await sendTool().execute({ caseId: 41, warningsConfirmed: false })
+
+    expect(getOwnedLegalCase).toHaveBeenCalledWith(41, 3)
+    expect(sendCaseReply).toHaveBeenCalledWith({
+      legalCase: CASE,
+      user: USER,
+      warningsRead: false,
+      turnStartedAt: TURN_STARTED_AT,
+      completedTurns: 4,
+    })
+    expect(answer).toBe('Sent to the Zendesk ticket 48213 as ana@example.com.')
+  })
+
+  it('says why it did not send', async () => {
+    sendCaseReply.mockResolvedValueOnce({ blocker: 'Sending from Soporti is off.' })
+    sendCaseReply.mockResolvedValueOnce({ unconfirmed: 'Confirm' })
+    sendCaseReply.mockRejectedValueOnce(new LegalReplyError('Zendesk did not take the reply.'))
+    const input = { caseId: 41, warningsConfirmed: false }
+
+    expect(await sendTool().execute(input)).toBe('Not sent: Sending from Soporti is off.')
+    expect(await sendTool().execute(input)).toMatch(/^Not sent: this case has warnings or was not checked/)
+    expect(await sendTool().execute(input)).toBe('Not sent: Zendesk did not take the reply.')
+  })
+
+  it('says when the reply went out but could not be recorded, and when the case is not there', async () => {
+    sendCaseReply.mockResolvedValueOnce({ reply: { id: null }, warning: 'Check the ticket.' })
+
+    expect(await sendTool().execute({ caseId: 41, warningsConfirmed: true })).toBe(
+      'Sent to the Zendesk ticket 48213 as ana@example.com. Check the ticket.'
+    )
+
+    getOwnedLegalCase.mockResolvedValueOnce(null)
+    expect(await sendTool().execute({ caseId: 99, warningsConfirmed: true })).toBe(
+      'There is no case with that id in this conversation.'
+    )
+  })
+
+  it('does not send a case from another conversation of the user', async () => {
+    getOwnedLegalCase.mockResolvedValueOnce({ ...CASE, conversationId: 'conv-2' })
+
+    expect(await sendTool().execute({ caseId: 41, warningsConfirmed: true })).toBe(
+      'There is no case with that id in this conversation.'
+    )
+    expect(sendCaseReply).not.toHaveBeenCalled()
+  })
+
+  it('checks the same draft again with the same guards when the confirmation expired, and shows the new case', async () => {
+    const expiredCase = {
+      ...CASE,
+      guardId: 'legal',
+      draft: { subject: 'Your refund', body: 'We issued it.' },
+      dataFacts: [{ fact: 'Refund issued', source: 'Shopify' }],
+      language: 'en',
+      jev: { request: 'Answer ticket 48213 and use the Legal guards' },
+    }
+    getOwnedLegalCase.mockResolvedValueOnce(expiredCase)
+    sendCaseReply.mockResolvedValueOnce({ expired: true })
+    checkTicketReply.mockResolvedValueOnce({
+      id: 52,
+      guard: 'Legal',
+      reviews: [{ guard: 'Legal', warnings: 0, review: { rows: [ROWS[2]] } }],
+    })
+
+    const answer = await sendTool().execute({ caseId: 41, warningsConfirmed: true })
+
+    expect(checkTicketReply).toHaveBeenCalledWith([GUARDS[0]], {
+      userId: 3,
+      request: 'Answer ticket 48213 and use the Legal guards',
+      ticket: { source: 'zendesk', ticketId: '48213' },
+      reply: {
+        draft: { subject: 'Your refund', body: 'We issued it.' },
+        dataFacts: [{ fact: 'Refund issued', source: 'Shopify' }],
+        language: 'en',
+      },
+      cases: expect.objectContaining({ conversationId: 'conv-1' }),
+    })
+    expect(answer).toMatch(/^Not sent: the warnings of case 41 were shown too long ago/)
+    expect(answer).toContain('The user sees case 52')
+  })
+
+  it('does not check an expired case again when one of its guards no longer exists', async () => {
+    getOwnedLegalCase.mockResolvedValueOnce({ ...CASE, guardId: 'legal,guard-99999999' })
+    sendCaseReply.mockResolvedValueOnce({ expired: true })
+
+    expect(await sendTool().execute({ caseId: 41, warningsConfirmed: true })).toMatch(
+      /one of its guards no longer exists/
+    )
+    expect(checkTicketReply).not.toHaveBeenCalled()
   })
 })

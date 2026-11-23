@@ -1,63 +1,89 @@
-import { JEV_GITHUB_DOCUMENT } from '../../../../constants.js'
+import { Fragment, useState } from 'react'
+import DeleteConfirm from '../../../../common/DeleteConfirm/DeleteConfirm.jsx'
+import Icon from '../../../../common/Icon/Icon.jsx'
+import './GuardsTable.css'
 
-function describeUse(guard) {
-  if (guard.id === JEV_GITHUB_DOCUMENT) return 'PR reviews of the auto-approve repos'
-  if (!guard.enabled) return 'Not in the chat while its Jev calls are off'
-  if (guard.questions === 0 || !guard.model) return 'Not in the chat until it has questions and a model'
+const DELETE_QUESTION = 'Are you sure you want to delete this guard?'
+const ICON_SIZE = 14
+const COLUMN_COUNT = 6
 
-  return guard.description || 'No description'
+function GuardActions({ guard, onEdit, onAskToDelete }) {
+  return (
+    <div className="guards-table__actions">
+      <button
+        className="btn btn--secondary btn--sm"
+        type="button"
+        onClick={() => onEdit(guard.id)}
+        aria-label={`Edit ${guard.name}`}
+      >
+        Edit
+      </button>
+      <button
+        className="btn btn--secondary btn--sm"
+        type="button"
+        onClick={() => onAskToDelete(guard.id)}
+        aria-label={`Delete ${guard.name}`}
+        title="Delete"
+      >
+        <Icon name="trash" size={ICON_SIZE} />
+      </button>
+    </div>
+  )
 }
 
-export default function GuardsTable({ guards, selectedId, onSelect }) {
+export default function GuardsTable({ guards, deleting = false, onEdit, onDelete }) {
+  const [confirmingId, setConfirmingId] = useState(null)
+
+  function handleKeep() {
+    setConfirmingId(null)
+  }
+
   return (
-    <>
-      <div className="admin__table-wrap">
-        <table className="admin__table">
-          <thead>
-            <tr>
-              <th>Guard</th>
-              <th>Used for</th>
-              <th className="admin__nowrap">Jev calls</th>
-              <th>Questions</th>
-              <th>Calls</th>
-              <th>Cases</th>
-              <th>Sent</th>
-              <th aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {guards.map(guard => (
-              <tr key={guard.id}>
+    <div className="admin__table-wrap">
+      <table className="admin__table">
+        <thead>
+          <tr>
+            <th>Guard</th>
+            <th>Questions</th>
+            <th>Calls</th>
+            <th>Cases</th>
+            <th>Sent</th>
+            <th aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {guards.map(guard => (
+            <Fragment key={guard.id}>
+              <tr>
                 <td className="admin__nowrap">
                   <strong>{guard.name}</strong>
-                </td>
-                <td className="admin__table-text">{describeUse(guard)}</td>
-                <td>
-                  <span className={`badge${guard.enabled ? ' badge--success' : ''}`}>
-                    {guard.enabled ? 'On' : 'Off'}
-                  </span>
                 </td>
                 <td>{guard.questions}</td>
                 <td>{guard.usage.calls.toLocaleString()}</td>
                 <td>{guard.usage.cases.toLocaleString()}</td>
                 <td>{guard.usage.sentReplies.toLocaleString()}</td>
                 <td>
-                  <button
-                    className="btn btn--secondary btn--sm"
-                    type="button"
-                    onClick={() => onSelect(guard.id)}
-                    disabled={guard.id === selectedId}
-                    aria-label={`Edit ${guard.name}`}
-                  >
-                    {guard.id === selectedId ? 'Editing' : 'Edit'}
-                  </button>
+                  <GuardActions guard={guard} onEdit={onEdit} onAskToDelete={setConfirmingId} />
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="admin__muted">Calls, cases and sent replies of the last 30 days.</p>
-    </>
+              {confirmingId === guard.id && (
+                <tr>
+                  <td colSpan={COLUMN_COUNT}>
+                    <div className="guards-table__confirm">
+                      <DeleteConfirm
+                        question={DELETE_QUESTION}
+                        busy={deleting}
+                        onConfirm={() => onDelete(guard.id)}
+                        onCancel={handleKeep}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

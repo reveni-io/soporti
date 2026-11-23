@@ -176,6 +176,15 @@ export class ConversationStore {
     return row ?? null
   }
 
+  async countTurns(conversationId) {
+    const userMessages = await this.db
+      .select({ id: conversationMessages.id })
+      .from(conversationMessages)
+      .where(and(eq(conversationMessages.conversationId, conversationId), eq(conversationMessages.role, 'user')))
+
+    return userMessages.length
+  }
+
   async saveTurn(conversationId, { lastResponseId, uiMessages = [], session, unpersistedItems } = {}) {
     const set = { updatedAt: new Date() }
     if (lastResponseId !== undefined && (await usesContinuationToken())) {

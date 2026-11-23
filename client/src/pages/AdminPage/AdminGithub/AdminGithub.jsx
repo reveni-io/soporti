@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   absoluteApiUrl,
   getGithubConfig,
@@ -9,9 +10,9 @@ import {
 } from '../../../services/services.js'
 import { useAuthedConfig } from '../../../hooks/useAuthedConfig/useAuthedConfig.js'
 import { useSaveField } from '../../../hooks/useSaveField/useSaveField.js'
+import { ROUTES } from '../../../router/constants.js'
 import AdminSection from '../AdminSection/AdminSection.jsx'
 import AdminSectionStatus from '../AdminSectionStatus/AdminSectionStatus.jsx'
-import GithubAutoApprove from './GithubAutoApprove/GithubAutoApprove.jsx'
 import SecretField from '../SecretField/SecretField.jsx'
 import StatusRow from '../StatusRow/StatusRow.jsx'
 import ToggleField from '../ToggleField/ToggleField.jsx'
@@ -154,6 +155,12 @@ export default function AdminGithub({ token, onLogout }) {
         <p className="admin__muted">
           Copy the secret into GitHub before saving — it is stored write-only and cannot be shown again.
         </p>
+        <p className="note">
+          A repo whose <code>REVIEW.md</code> names guards, for example “Use the guards: GitHub Review PR”, has every PR
+          passed through them, and Soporti approves it only when they raise no warning. Without a <code>REVIEW.md</code>
+          , or when it names no guard, no guard runs. The guards are in{' '}
+          <Link to={ROUTES.ADMIN_GUARDS}>Admin → Guards</Link>.
+        </p>
       </AdminSection>
 
       <AdminSection title="Repository catalog">
@@ -189,8 +196,6 @@ export default function AdminGithub({ token, onLogout }) {
           {!catalogError && catalogSavedAt && !catalogDirty && <span className="admin__saved">Saved</span>}
         </div>
       </AdminSection>
-
-      <GithubAutoApprove token={token} onLogout={onLogout} />
     </>
   )
 }

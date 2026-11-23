@@ -8,7 +8,7 @@ describe('AutoApproveDemo', () => {
 
     expect(screen.getByText('Clarify the return window on the help page')).toBeInTheDocument()
     expect(screen.getByText('Approved')).toBeInTheDocument()
-    expect(screen.getByText('✅ Auto-approve · approved')).toBeInTheDocument()
+    expect(screen.getByText('✅ Guards · no warnings')).toBeInTheDocument()
     expect(container.querySelectorAll('.lp-approve-demo__check--done')).toHaveLength(5)
     expect(container.textContent).not.toMatch(/jev/i)
   })
@@ -47,7 +47,7 @@ describe('AutoApproveDemo', () => {
       vi.unstubAllGlobals()
     })
 
-    it('checks the rules, then the question, and approves only at the end', async () => {
+    it('checks the questions of one guard, then the next, and approves only at the end', async () => {
       const { container } = render(<AutoApproveDemo />)
       act(() => {
         observers.forEach(observer =>
@@ -63,11 +63,11 @@ describe('AutoApproveDemo', () => {
 
       await advance(1500)
       expect(container.querySelectorAll('.lp-approve-demo__check--done')).toHaveLength(5)
-      expect(screen.queryByText('✅ Auto-approve · approved')).not.toBeInTheDocument()
+      expect(screen.queryByText('✅ Guards · no warnings')).not.toBeInTheDocument()
 
       await advance(1600)
       expect(screen.getByText('Approved')).toBeInTheDocument()
-      expect(screen.getByText('✅ Auto-approve · approved')).toBeInTheDocument()
+      expect(screen.getByText('✅ Guards · no warnings')).toBeInTheDocument()
     })
   })
 })

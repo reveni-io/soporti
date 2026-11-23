@@ -23,7 +23,7 @@ import { renderInlineComment, renderReviewBody, renderWalkthrough } from './rend
 import { buildReviewerSuggestion } from './reviewer-suggestions.js'
 import { upsertWalkthrough } from './walkthrough.js'
 import { resolveFixedThreads, selectFixedThreads } from './fixed-threads.js'
-import { decideAutoApprove, loadAutoApproveRepo } from './auto-approve.js'
+import { buildReviewGuards, decideAutoApprove } from './auto-approve.js'
 import { shortSha } from '../github/sanitize.js'
 import {
   PR_HEAD_PLACEHOLDER,
@@ -54,7 +54,6 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
 
     const current = refreshTrigger(trigger, pr)
     reviewedSha = current.headSha
-    const autoApproveRepo = await loadAutoApproveRepo(repoFullName, { logger })
     if (headSha !== PR_HEAD_PLACEHOLDER && current.headSha !== headSha) {
       logger.log(
         `[review] Head moved ${shortSha(headSha)} → ${shortSha(current.headSha)} on ${dedupeKey}; reviewing the current head`
@@ -115,13 +114,26 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
       logger,
     }
 
+    const guards = await buildReviewGuards(
+      {
+        pullRequest: { repoFullName, prNumber, title: current.title, body: current.body },
+        files: changedFiles,
+      },
+      { logger }
+    )
+
     signal?.throwIfAborted()
 
     const reviewerSuggestion = buildReviewerSuggestion(
       { trigger: current, pr: latest ?? pr, files: classifiedFiles, reviewerLogin },
       { logger }
     )
-    const team = await runReviewTeam({ ...scope, standards, spec, overviewTools: [reviewerSuggestion.tool] })
+    const team = await runReviewTeam({
+      ...scope,
+      standards,
+      spec,
+      overviewTools: [...guards.tools, reviewerSuggestion.tool],
+    })
 
     signal?.throwIfAborted()
 
@@ -133,24 +145,10 @@ export async function runReview(trigger, { logger = console, reviewerLogin = nul
     const notReviewed = findUnreviewedFiles(changedFiles, team.reviewedPaths)
     const placed = placeFindings(findings, files)
     const fixedThreads = selectFixedThreads(team.overview, history)
-    const { event, autoApprove } = await decideAutoApprove(
-      {
-        repo: autoApproveRepo,
-        todayEvent: resolveEvent(team, notReviewed),
-        pullRequest: { repoFullName, prNumber, headSha: reviewedSha, title: current.title, body: current.body },
-        review: {
-          ciStatus,
-          findings,
-          passes: team.passes,
-          notReviewed,
-          overview: team.overview,
-          history,
-          fixedThreads,
-          files: changedFiles,
-        },
-      },
-      { logger }
-    )
+    const { event, autoApprove } = decideAutoApprove({
+      todayEvent: resolveEvent(team, notReviewed),
+      guardChecks: guards.checks,
+    })
     const review = {
       event,
       autoApprove,

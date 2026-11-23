@@ -205,12 +205,12 @@ describe('runReviewTeam', () => {
           notInlined: [],
         },
         spec: { configured: true, stories: [{ id: 1, story }] },
-        overviewTools: [{ name: 'suggest_reviewer' }],
+        overviewTools: [{ name: 'ask_guard' }, { name: 'suggest_reviewer' }],
       })
     )
 
     const toolsOf = lens => callFor(lens).tools.map(tool => tool.name)
-    expect(toolsOf('overview')).toEqual(['get_file_contents', 'get_file_diff', 'suggest_reviewer'])
+    expect(toolsOf('overview')).toEqual(['get_file_contents', 'get_file_diff', 'ask_guard', 'suggest_reviewer'])
     expect(toolsOf('correctness')).toEqual(['get_file_contents', 'get_file_diff', 'query_database'])
     expect(toolsOf('security')).toEqual(['get_file_contents', 'get_file_diff'])
     expect(toolsOf('standards')).toEqual(['get_file_contents', 'get_file_diff'])

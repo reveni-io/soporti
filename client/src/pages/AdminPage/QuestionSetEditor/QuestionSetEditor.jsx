@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PERCENT, PERCENT_DIGITS } from '../../../constants.js'
 import { VERSIONED_SET_FIELDS, projectLabels } from '../jev-projects.js'
 import NumberField from '../NumberField/NumberField.jsx'
 import QuestionForm from '../QuestionForm/QuestionForm.jsx'
@@ -6,39 +7,28 @@ import { QUESTION_CHOICE } from '../QuestionForm/question-form.js'
 import './QuestionSetEditor.css'
 
 const NEW_QUESTION = 'new'
-const RELEASE_RE = /^jev-\d+\.\d+\.\d+$/
+
+function toPercent(fraction) {
+  return typeof fraction === 'number' ? Number((fraction * PERCENT).toFixed(PERCENT_DIGITS)) : fraction
+}
+
+function toFraction(percent) {
+  return typeof percent === 'number' ? percent / PERCENT : percent
+}
 
 function versionedPart(set) {
   return JSON.stringify(VERSIONED_SET_FIELDS.map(field => set[field] ?? null))
 }
 
-function modelOptions(models, current) {
-  const options = models.map(model => ({
-    value: model.name,
-    label: model.description ? `${model.name} · ${model.description}` : model.name,
-  }))
-  if (current && !models.some(model => model.name === current)) {
-    options.push({ value: current, label: `${current} (not in the saved list)` })
-  }
-
-  return [{ value: '', label: 'Choose a model' }, ...options]
-}
-
-export default function QuestionSetEditor({ project, state, catalog, inUseMessage }) {
+export default function QuestionSetEditor({ project, state }) {
   const [editing, setEditing] = useState(null)
-  const [message, setMessage] = useState(null)
   const labels = projectLabels(project)
   const set = state.draft.set
   const setVersion = state.document.setVersion
   const bumps = versionedPart(state.document.data.set) !== versionedPart(set)
-  const canPickModel = catalog.keyConfigured && catalog.models.length > 0
 
   function updateSet(field, value) {
     state.updateDraft(draft => ({ ...draft, set: { ...draft.set, [field]: value } }))
-  }
-
-  function handleSetFieldChange(event) {
-    updateSet(event.target.name, event.target.value)
   }
 
   function handleSaveQuestion(question) {
@@ -57,47 +47,14 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
     )
   }
 
-  function handleDeleteSet() {
-    if (inUseMessage) {
-      setMessage(inUseMessage)
-      return
-    }
-    state.updateDraft(draft => ({ ...draft, set: { ...draft.set, description: '', questions: [] } }))
-  }
-
   return (
     <>
-      <label className="question-set__label">
-        {labels.description}
-        <input className="input" name="description" value={set.description} onChange={handleSetFieldChange} />
-      </label>
-
       <div key={`${state.document.rev}-${state.restoredFrom}`} className="question-set__fields">
-        <label className="question-set__label">
-          Model
-          <select
-            className="input input--select"
-            name="model"
-            value={set.model}
-            onChange={handleSetFieldChange}
-            disabled={!canPickModel}
-          >
-            {canPickModel ? (
-              modelOptions(catalog.models, set.model).map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))
-            ) : (
-              <option value={set.model}>{set.model || 'No model'}</option>
-            )}
-          </select>
-        </label>
         <NumberField
           label="Min confidence"
           inputMode="decimal"
-          value={set.minConfidence}
-          onChange={value => updateSet('minConfidence', value)}
+          value={toPercent(set.minConfidence)}
+          onChange={value => updateSet('minConfidence', toFraction(value))}
         />
         <NumberField
           label="Timeout (s)"
@@ -114,15 +71,8 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         )}
       </div>
 
-      {set.model && !RELEASE_RE.test(set.model) && (
-        <p className="alert alert--warning">
-          <code>{set.model}</code> is an alias: when it moves to a new Jev release, the answers can change without a new
-          set version. Pick a numbered release to pin them.
-        </p>
-      )}
       <p className="admin__muted">
-        Each guard configures Jev on its own. The models come from the list saved in the Jev section above
-        {catalog.keyConfigured ? '' : ', which has no key saved: the model cannot be changed until it does'}. A daily
+        Every guard asks Jev’s latest model. Min confidence goes from <code>0</code> to <code>100</code>, and a daily
         limit of <code>0</code> means no limit.
       </p>
 
@@ -167,7 +117,6 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         />
       )}
 
-      {message && <p className="alert alert--error">{message}</p>}
       <div className="admin__form admin__form--row">
         <button
           className="btn btn--secondary"
@@ -177,13 +126,10 @@ export default function QuestionSetEditor({ project, state, catalog, inUseMessag
         >
           Add question
         </button>
-        <button className="btn btn--danger btn--sm" type="button" onClick={handleDeleteSet}>
-          Delete set
-        </button>
       </div>
       <p className="admin__muted">
-        The set version goes up on save when the {labels.versioned} change. Editing only the description keeps the
-        version. Question edits stay in this page until you save the project below.
+        The set version goes up on save when the {labels.versioned} change. Question edits stay here until you save the
+        guard below.
       </p>
     </>
   )
@@ -205,14 +151,6 @@ function QuestionItem({ number, question, labels, isLocked, onEdit, onDelete }) 
         </button>
       </div>
       <dl>
-        <div className="admin__kv-row">
-          <dt>Instructions</dt>
-          <dd>{question.instructions || <span className="admin__muted">none</span>}</dd>
-        </div>
-        <div className="admin__kv-row">
-          <dt>Criteria</dt>
-          <dd>{question.criteria || <span className="admin__muted">none</span>}</dd>
-        </div>
         {question.type === QUESTION_CHOICE ? (
           <div className="admin__kv-row">
             <dt>Answers</dt>
@@ -220,8 +158,7 @@ function QuestionItem({ number, question, labels, isLocked, onEdit, onDelete }) 
               <ul>
                 {question.answers.map(answer => (
                   <li key={answer.label}>
-                    <strong>{answer.label}</strong>
-                    {answer.criteria && `: ${answer.criteria}`}{' '}
+                    <strong>{answer.label}</strong>{' '}
                     {answer.flag && <span className="badge badge--warning">{labels.badge}</span>}
                   </li>
                 ))}

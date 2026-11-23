@@ -1,6 +1,9 @@
+import { PERCENT } from '../../../constants.js'
 import './GuardReview.css'
 
-const CONFIDENCE_DIGITS = 2
+function toPercent(confidence) {
+  return Math.round(confidence * PERCENT)
+}
 
 function WarningsBadge({ warnings }) {
   if (warnings === 0) return <span className="badge badge--success">No warnings</span>
@@ -41,8 +44,8 @@ export default function GuardReview({ guard, review, warnings, reason }) {
                 <td>{row.question}</td>
                 <td>{row.answer ?? 'no answer'}</td>
                 <td className={row.unsure ? 'guard-review__low' : ''}>
-                  {row.confidence.toFixed(CONFIDENCE_DIGITS)}
-                  {row.unsure && ` < ${minConfidence.toFixed(CONFIDENCE_DIGITS)}`}
+                  {toPercent(row.confidence)}
+                  {row.unsure && ` < ${toPercent(minConfidence)}`}
                 </td>
                 <td>
                   {row.flagged || row.unsure ? (

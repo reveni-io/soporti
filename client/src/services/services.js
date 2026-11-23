@@ -381,15 +381,6 @@ export function getLegalCases(token, ids) {
   return request(`/api/legal/cases?ids=${ids.join(',')}`, { token, errorMessage: 'Failed to load the cases' })
 }
 
-export function sendLegalReply(token, caseId, { text, warningsRead }) {
-  return request(`/api/legal/cases/${caseId}/replies`, {
-    method: 'POST',
-    token,
-    body: { text, warningsRead },
-    errorMessage: 'Failed to send the reply',
-  })
-}
-
 export function getLegalConversation(token, caseId) {
   return request(`/api/legal/cases/${caseId}/conversation`, {
     token,
@@ -596,6 +587,23 @@ export function getJevConfig(token) {
   return request('/api/admin/config/jev', { token, errorMessage: 'Failed to load the Jev settings' })
 }
 
+export function createGuard(token, name) {
+  return request('/api/admin/config/jev/guards', {
+    method: 'POST',
+    token,
+    body: { name },
+    errorMessage: 'Failed to create the guard',
+  })
+}
+
+export function deleteGuard(token, id) {
+  return request(`/api/admin/config/jev/guards/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    token,
+    errorMessage: 'Failed to delete the guard',
+  })
+}
+
 export function saveJevApiKey(token, apiKey) {
   return request('/api/admin/config/jev/api-key', {
     method: 'PUT',
@@ -610,14 +618,6 @@ export function testJevConnection(token) {
     method: 'POST',
     token,
     errorMessage: 'Failed to test the connection',
-  })
-}
-
-export function scanJevModels(token) {
-  return request('/api/admin/config/jev/models/scan', {
-    method: 'POST',
-    token,
-    errorMessage: 'Failed to scan for models',
   })
 }
 
@@ -642,29 +642,6 @@ export function getJevVersions(token, id, page) {
   return request(`/api/admin/config/jev/documents/${id}/versions?page=${page}`, {
     token,
     errorMessage: 'Failed to load the versions',
-  })
-}
-
-export function checkGithubAutoApproveRepo(token, name) {
-  return request('/api/admin/config/jev/github/repos/check', {
-    method: 'POST',
-    token,
-    body: { name },
-    errorMessage: 'Failed to check the repo',
-  })
-}
-
-export function getGithubShadowStats(token, repos) {
-  return request(`/api/admin/config/jev/github/shadow-stats?repos=${encodeURIComponent(repos.join(','))}`, {
-    token,
-    errorMessage: 'Failed to load the shadow results',
-  })
-}
-
-export function getJevHistory(token, id, page) {
-  return request(`/api/admin/config/jev/documents/${id}/history?page=${page}`, {
-    token,
-    errorMessage: 'Failed to load the change history',
   })
 }
 

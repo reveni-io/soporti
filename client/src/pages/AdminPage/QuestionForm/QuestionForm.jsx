@@ -84,25 +84,9 @@ export default function QuestionForm({ project, title, question, onSave, onCance
         </select>
       </label>
 
-      <label className="question-form__label">
-        Instructions
-        <textarea
-          className="textarea"
-          rows={2}
-          name="instructions"
-          value={form.instructions}
-          onChange={handleFieldChange}
-        />
-      </label>
-
-      <label className="question-form__label">
-        Criteria
-        <textarea className="textarea" rows={2} name="criteria" value={form.criteria} onChange={handleFieldChange} />
-      </label>
-
       {form.type === QUESTION_CHOICE ? (
         <>
-          <span className="question-form__label">Answers and their criteria</span>
+          <span className="question-form__label">Answers</span>
           {form.answers.map((answer, index) => (
             <div key={index} className="admin__form admin__form--row">
               <input
@@ -111,14 +95,6 @@ export default function QuestionForm({ project, title, question, onSave, onCance
                 placeholder="Answer"
                 name="label"
                 value={answer.label}
-                onChange={event => handleAnswerChange(index, event)}
-              />
-              <input
-                className="input"
-                aria-label={`Criteria of answer ${index + 1}`}
-                placeholder="When Jev gives this answer"
-                name="criteria"
-                value={answer.criteria}
                 onChange={event => handleAnswerChange(index, event)}
               />
               <label className="question-form__check">

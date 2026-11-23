@@ -1,11 +1,11 @@
-import { JEV_GITHUB_DOCUMENT, JEV_LEGAL_DOCUMENT, JEV_QUESTION_CHOICE, JEV_QUESTION_NOUL } from '../constants.js'
 import {
-  DEFAULT_GITHUB_RULES,
-  describeGithubChanges,
-  findGithubSaveError,
-  parseGithubRepos,
-  parseGithubRules,
-} from './github-project.js'
+  JEV_GITHUB_DOCUMENT,
+  JEV_LEGAL_DOCUMENT,
+  JEV_QUESTION_CHOICE,
+  JEV_QUESTION_NOUL,
+  PERCENT,
+  PERCENT_DIGITS,
+} from '../constants.js'
 
 const DEFAULT_TIMEOUT_SECONDS = 30
 const DEFAULT_DAILY_LIMIT = 0
@@ -15,38 +15,25 @@ const MAX_QUESTIONS = 50
 const MIN_ANSWERS = 2
 const MAX_ANSWERS = 255
 const MAX_SCORE = 100
-const MAX_DESCRIPTION_CHARS = 500
 const MAX_QUESTION_CHARS = 500
-const MAX_GUIDANCE_CHARS = 4_000
 const MAX_LABEL_CHARS = 200
+const MAX_NAME_CHARS = 60
+const CUSTOM_GUARD_RE = /^guard-[0-9a-f]{8}$/
 const MAX_ID_CHARS = 64
-const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
 const EMPTY_VALUE = '(empty)'
-const NO_KEY_CALLS_MESSAGE = 'Save the API key before turning Jev calls on.'
-const NO_MIN_CONFIDENCE_CALLS_MESSAGE = 'Jev calls need a min confidence: set one or turn the calls off.'
-const VERSIONED_FIELDS = ['model', 'minConfidence', 'questions', 'rules']
+const VERSIONED_FIELDS = ['minConfidence', 'questions']
+const LEGACY_GUARD_IDS = new Set([JEV_LEGAL_DOCUMENT, JEV_GITHUB_DOCUMENT])
 
 const DEFAULT_SET = {
-  description: '',
-  model: '',
   minConfidence: null,
   timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
   dailyLimit: DEFAULT_DAILY_LIMIT,
+  maxCharacters: DEFAULT_MAX_CHARACTERS,
   questions: [],
 }
 
-const DEFAULT_DOCUMENTS = {
-  [JEV_GITHUB_DOCUMENT]: {
-    enabled: false,
-    set: { ...DEFAULT_SET, maxCharacters: DEFAULT_MAX_CHARACTERS, rules: DEFAULT_GITHUB_RULES },
-    repos: [],
-  },
-  [JEV_LEGAL_DOCUMENT]: { enabled: false, set: DEFAULT_SET, allowSend: false },
-}
-
 const SCALAR_CHANGES = [
-  ['model', 'Model'],
-  ['minConfidence', 'Min confidence'],
+  ['minConfidence', 'Min confidence', toPercent],
   ['timeoutSeconds', 'Timeout'],
   ['dailyLimit', 'Daily limit'],
   ['maxCharacters', 'Max characters'],
@@ -69,17 +56,10 @@ function parseWholeNumber(value, { min, max, error }) {
   return { value }
 }
 
-function parseModel(value) {
-  if (value === undefined || value === null || value === '') return { value: '' }
-  if (typeof value !== 'string' || !MODEL_RE.test(value)) return { error: 'That does not look like a Jev model name.' }
-
-  return { value }
-}
-
 function parseMinConfidence(value) {
   if (value === undefined || value === null) return { value: null }
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
-    return { error: 'Min confidence must be a number between 0 and 1.' }
+    return { error: 'Min confidence must be a number from 0 to 100.' }
   }
 
   return { value }
@@ -111,13 +91,10 @@ function parseFields(source, parsers) {
 const COMMON_QUESTION_PARSERS = [
   ['id', value => parseText(value, { label: 'The question id', max: MAX_ID_CHARS, required: true })],
   ['text', value => parseText(value, { label: 'The question', max: MAX_QUESTION_CHARS, required: true })],
-  ['instructions', value => parseText(value, { label: 'The instructions', max: MAX_GUIDANCE_CHARS })],
-  ['criteria', value => parseText(value, { label: 'The criteria', max: MAX_GUIDANCE_CHARS })],
 ]
 
 const ANSWER_PARSERS = [
   ['label', value => parseText(value, { label: 'Each answer', max: MAX_LABEL_CHARS, required: true })],
-  ['criteria', value => parseText(value, { label: 'The answer criteria', max: MAX_GUIDANCE_CHARS })],
 ]
 
 function parseAnswer(answer) {
@@ -208,7 +185,7 @@ function parseDailyLimit(value) {
   })
 }
 
-function parseMaxCharacters(value) {
+function parseMaxCharacters(value = DEFAULT_MAX_CHARACTERS) {
   return parseWholeNumber(value, {
     min: 1,
     max: Number.MAX_SAFE_INTEGER,
@@ -217,50 +194,28 @@ function parseMaxCharacters(value) {
 }
 
 const SET_PARSERS = [
-  ['description', value => parseText(value, { label: 'The set description', max: MAX_DESCRIPTION_CHARS })],
-  ['model', parseModel],
   ['minConfidence', parseMinConfidence],
   ['timeoutSeconds', parseTimeoutSeconds],
   ['dailyLimit', parseDailyLimit],
+  ['maxCharacters', parseMaxCharacters],
   ['questions', parseQuestions],
 ]
 
-const GITHUB_SET_PARSERS = [...SET_PARSERS, ['maxCharacters', parseMaxCharacters], ['rules', parseGithubRules]]
+export function parseGuardName(value, { required = false } = {}) {
+  if ((value === undefined || value === null) && !required) return { value: undefined }
 
-function parseProject(data, setParsers) {
-  const enabled = data?.enabled ?? false
-  if (typeof enabled !== 'boolean') return { error: '"enabled" must be true or false.' }
+  return parseText(value, { label: 'The name', max: MAX_NAME_CHARS, required: true })
+}
 
-  const set = parseFields(data?.set, setParsers)
+function parseGuard(data, { nameRequired }) {
+  const name = parseGuardName(data?.name, { required: nameRequired })
+  if (name.error) return name
+
+  const set = parseFields(data?.set, SET_PARSERS)
   if (set.error) return set
 
-  return { value: { enabled, set: set.value } }
+  return { value: name.value === undefined ? { set: set.value } : { name: name.value, set: set.value } }
 }
-
-function parseLegalProject(data) {
-  const project = parseProject(data, SET_PARSERS)
-  if (project.error) return project
-
-  const allowSend = data.allowSend ?? false
-  if (typeof allowSend !== 'boolean') return { error: '"allowSend" must be true or false.' }
-
-  return { value: { ...project.value, allowSend } }
-}
-
-function parseGithubProject(data) {
-  const project = parseProject(data, GITHUB_SET_PARSERS)
-  if (project.error) return project
-
-  const repos = parseGithubRepos(data.repos)
-  if (repos.error) return repos
-
-  return { value: { ...project.value, repos: repos.value } }
-}
-
-const DOCUMENT_PARSERS = new Map([
-  [JEV_GITHUB_DOCUMENT, parseGithubProject],
-  [JEV_LEGAL_DOCUMENT, parseLegalProject],
-])
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical)
@@ -277,45 +232,38 @@ function isSameValue(a, b) {
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b))
 }
 
-function showValue(value) {
-  return value === null || value === undefined || value === '' ? EMPTY_VALUE : String(value)
+function toPercent(fraction) {
+  return Number((fraction * PERCENT).toFixed(PERCENT_DIGITS))
 }
 
-function describeScalarChange(label, before, after) {
-  return `${label} ${showValue(before)} → ${showValue(after)}`
+function showValue(value, format) {
+  if (value === null || value === undefined || value === '') return EMPTY_VALUE
+
+  return String(format ? format(value) : value)
+}
+
+function describeScalarChange([label, format], before, after) {
+  return `${label} ${showValue(before, format)} → ${showValue(after, format)}`
 }
 
 function describeSetChanges(previous, next) {
   const changes = []
 
-  if (previous.description !== next.description) changes.push('Set description')
   if (!isSameValue(previous.questions, next.questions)) changes.push('Questions')
 
-  const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(([field, label]) =>
-    describeScalarChange(label, previous[field], next[field])
+  const scalars = SCALAR_CHANGES.filter(([field]) => previous[field] !== next[field]).map(([field, ...shown]) =>
+    describeScalarChange(shown, previous[field], next[field])
   )
 
   return [...changes, ...scalars]
 }
 
-function describeSendingChange(previous, next) {
-  if (!('allowSend' in next) || Boolean(previous.allowSend) === next.allowSend) return []
-
-  return [`Sending from Soporti ${next.allowSend ? 'on' : 'off'}`]
-}
-
-function describeCallsChange(previous, next) {
-  if (!('enabled' in next) || Boolean(previous.enabled) === next.enabled) return []
-
-  return [`Jev calls ${next.enabled ? 'on' : 'off'}`]
+function describeNameChange(previous, next) {
+  return next.name !== undefined && previous.name !== next.name ? [`Name ${next.name}`] : []
 }
 
 function describeChanges(previous, next) {
-  const calls = describeCallsChange(previous, next)
-  if (next.repos)
-    return [...calls, ...describeGithubChanges(previous, next), ...describeSetChanges(previous.set, next.set)]
-
-  return [...calls, ...describeSetChanges(previous.set, next.set), ...describeSendingChange(previous, next)]
+  return [...describeNameChange(previous, next), ...describeSetChanges(previous.set, next.set)]
 }
 
 function versionedSet(data) {
@@ -324,40 +272,33 @@ function versionedSet(data) {
   return Object.fromEntries(VERSIONED_FIELDS.filter(field => field in data.set).map(field => [field, data.set[field]]))
 }
 
-function lacksMinConfidence(data) {
-  return Boolean(data.enabled) && data.set?.minConfidence === null
+export function isCustomGuardId(id) {
+  return CUSTOM_GUARD_RE.test(id)
 }
 
-function findSaveError(previous, next, keyConfigured) {
-  if (next.enabled && !previous.enabled && !keyConfigured) return NO_KEY_CALLS_MESSAGE
-  if (next.enabled && next.set.minConfidence === null && !lacksMinConfidence(previous)) {
-    return NO_MIN_CONFIDENCE_CALLS_MESSAGE
-  }
-
-  return next.repos ? findGithubSaveError(previous, next) : null
+export function isGuardId(id) {
+  return LEGACY_GUARD_IDS.has(id) || isCustomGuardId(id)
 }
 
 export function isJevDocument(id) {
-  return DOCUMENT_PARSERS.has(id)
+  return isGuardId(id)
 }
 
 export function defaultJevDocument(id) {
-  return structuredClone(DEFAULT_DOCUMENTS[id] ?? null)
+  if (isCustomGuardId(id)) return structuredClone({ name: '', set: DEFAULT_SET })
+
+  return LEGACY_GUARD_IDS.has(id) ? structuredClone({ set: DEFAULT_SET }) : null
 }
 
 export function parseJevDocument(id, data) {
-  const parse = DOCUMENT_PARSERS.get(id)
-  if (typeof parse !== 'function') return { error: 'Unknown document.' }
+  if (!isGuardId(id)) return { error: 'Unknown document.' }
 
-  return parse(data)
+  return parseGuard(data, { nameRequired: isCustomGuardId(id) })
 }
 
-export function planJevSave(current, next, { restoredFrom = null, keyConfigured = true } = {}) {
+export function planJevSave(current, next, { restoredFrom = null } = {}) {
   const changes = describeChanges(current.data, next)
   if (changes.length === 0) return null
-
-  const error = findSaveError(current.data, next, keyConfigured)
-  if (error) return { error }
 
   const snapshot = versionedSet(next)
   const bumpsSet = snapshot !== null && !isSameValue(versionedSet(current.data), snapshot)

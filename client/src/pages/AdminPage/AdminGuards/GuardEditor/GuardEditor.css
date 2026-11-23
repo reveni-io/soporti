@@ -1,0 +1,40 @@
+.modal.guard-modal {
+  max-width: 64rem;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.guard-modal__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp3);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.guard-modal .docbar {
+  position: static;
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
+.guard-modal__confirm {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp2);
+}
+
+.guard-modal__confirm span {
+  flex: 1;
+}
+
+.guard-modal__name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp1);
+}

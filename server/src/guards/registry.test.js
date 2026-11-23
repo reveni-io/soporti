@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getJevDocument = vi.fn()
-vi.mock('../db/jev-documents.js', () => ({ getJevDocument }))
+const listJevDocuments = vi.fn()
+vi.mock('../db/jev-documents.js', () => ({ listJevDocuments }))
 
 const isConfigured = vi.fn()
 vi.mock('../jev/settings.js', () => ({ isConfigured }))
 
-const { isGuardSendAllowed, listChatGuards, listGuards } = await import('./registry.js')
+const { findGuardByName, listUsableGuards, listGuards } = await import('./registry.js')
 
 function set(overrides = {}) {
   return {
-    description: '',
-    model: 'jev-latest',
     minConfidence: 0.7,
     timeoutSeconds: 30,
     dailyLimit: 0,
@@ -24,84 +22,64 @@ const LEGAL = {
   id: 'legal',
   rev: 4,
   setVersion: 3,
-  data: { enabled: true, set: set({ description: 'Customer replies' }), allowSend: true },
+  data: { set: set() },
 }
-const GITHUB = { id: 'github', rev: 2, setVersion: 1, data: { enabled: true, set: set(), repos: [] } }
-const DOCUMENTS = { legal: LEGAL, github: GITHUB }
+const GITHUB = { id: 'github', rev: 2, setVersion: 1, data: { set: set(), repos: [] } }
+const PAYMENTS = {
+  id: 'guard-0a1b2c3d',
+  rev: 1,
+  setVersion: 0,
+  data: { name: 'Payments', set: set({ questions: [] }) },
+}
+const ANALYTICS = { id: 'guard-1a2b3c4d', rev: 1, setVersion: 1, data: { name: 'Analytics', set: set() } }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getJevDocument.mockImplementation(async id => DOCUMENTS[id] ?? null)
+  listJevDocuments.mockResolvedValue([PAYMENTS, LEGAL, GITHUB, ANALYTICS, { id: 'jev', rev: 1, data: {} }])
   isConfigured.mockResolvedValue(true)
 })
 
 describe('listGuards', () => {
-  it('lists the Legal and the GitHub PRs guards', async () => {
+  it('lists the stored guards by name, with the old ones named as before, and nothing else', async () => {
+    listJevDocuments.mockResolvedValue([
+      PAYMENTS,
+      LEGAL,
+      GITHUB,
+      ANALYTICS,
+      { id: 'auto-approve', rev: 1, data: { repos: [] } },
+    ])
+
     expect(await listGuards()).toEqual([
-      {
-        id: 'legal',
-        name: 'Legal',
-        enabled: true,
-        description: 'Customer replies',
-        questions: 1,
-        model: 'jev-latest',
-        setVersion: 3,
-        allowSend: true,
-      },
-      {
-        id: 'github',
-        name: 'GitHub PRs',
-        enabled: true,
-        description: '',
-        questions: 1,
-        model: 'jev-latest',
-        setVersion: 1,
-        allowSend: null,
-      },
+      { id: 'guard-1a2b3c4d', name: 'Analytics', questions: 1, setVersion: 1 },
+      { id: 'github', name: 'GitHub PRs', questions: 1, setVersion: 1 },
+      { id: 'legal', name: 'Legal', questions: 1, setVersion: 3 },
+      { id: 'guard-0a1b2c3d', name: 'Payments', questions: 0, setVersion: 0 },
     ])
   })
 
-  it('shows a guard that was never saved with its defaults', async () => {
-    getJevDocument.mockResolvedValue(null)
+  it('has no guard before one is created', async () => {
+    listJevDocuments.mockResolvedValue([])
 
-    const [legal] = await listGuards()
-
-    expect(legal).toMatchObject({
-      id: 'legal',
-      enabled: false,
-      questions: 0,
-      model: '',
-      setVersion: 0,
-      allowSend: false,
-    })
+    expect(await listGuards()).toEqual([])
   })
 })
 
-describe('listChatGuards', () => {
-  it('offers the Legal guard once it has questions and a model, never the GitHub one', async () => {
-    expect((await listChatGuards()).map(guard => guard.name)).toEqual(['Legal'])
+describe('findGuardByName', () => {
+  it('finds a guard by its name in any case, leaving one guard out when asked', async () => {
+    const guards = await listGuards()
 
-    getJevDocument.mockImplementation(async id =>
-      id === 'legal' ? { ...LEGAL, data: { ...LEGAL.data, set: set({ questions: [] }) } } : DOCUMENTS[id]
-    )
-    expect(await listChatGuards()).toEqual([])
+    expect(findGuardByName(guards, ' payments ').id).toBe('guard-0a1b2c3d')
+    expect(findGuardByName(guards, 'Payments', { exceptId: 'guard-0a1b2c3d' })).toBeNull()
+  })
+})
+
+describe('listUsableGuards', () => {
+  it('offers every guard with questions', async () => {
+    expect((await listUsableGuards()).map(guard => guard.name)).toEqual(['Analytics', 'GitHub PRs', 'Legal'])
   })
 
-  it('offers none while the calls of the guard are off or there is no key', async () => {
-    getJevDocument.mockImplementation(async id =>
-      id === 'legal' ? { ...LEGAL, data: { ...LEGAL.data, enabled: false } } : DOCUMENTS[id]
-    )
-    expect(await listChatGuards()).toEqual([])
-
-    getJevDocument.mockImplementation(async id => DOCUMENTS[id])
+  it('offers none while there is no key', async () => {
     isConfigured.mockResolvedValueOnce(false)
-    expect(await listChatGuards()).toEqual([])
-  })
-})
-
-describe('isGuardSendAllowed', () => {
-  it('follows the sending switch of the guard', async () => {
-    expect(await isGuardSendAllowed('legal')).toBe(true)
-    expect(await isGuardSendAllowed('github')).toBe(false)
+    expect(await listUsableGuards()).toEqual([])
   })
 })

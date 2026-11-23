@@ -1,32 +1,33 @@
+import { randomBytes } from 'node:crypto'
 import { Router } from 'express'
-import { JEV_SETTINGS_DOCUMENT, REPO_NAME_RE } from '../constants.js'
+import { GUARD_IDS_SEPARATOR } from '../constants.js'
 import { countCasesByGuardSince, countSentRepliesByGuardSince } from '../db/legal-cases.js'
-import { getShadowStats } from '../db/auto-approve-evaluations.js'
 import { countJevCallsByProjectSince, countJevCallsBySetVersion } from '../db/jev-calls.js'
 import {
-  addJevHistoryEntry,
+  deleteJevDocument,
   getJevDocument,
   getLatestJevSave,
-  listJevHistory,
   listJevSetVersions,
   saveJevDocument,
 } from '../db/jev-documents.js'
-import { getRepository } from '../github/client.js'
-import { getGithubToken } from '../github/settings.js'
 import { JevApiError, listModels } from '../jev/client.js'
-import { defaultJevDocument, isJevDocument, parseJevDocument, planJevSave } from '../jev/documents.js'
-import { listGuards } from '../guards/registry.js'
-import { getJevModelCatalog, isConfigured, setJevApiKey, setJevModelCatalog } from '../jev/settings.js'
+import {
+  defaultJevDocument,
+  isGuardId,
+  isJevDocument,
+  parseGuardName,
+  parseJevDocument,
+  planJevSave,
+} from '../jev/documents.js'
+import { findGuardByName, listGuards } from '../guards/registry.js'
+import { isConfigured, setJevApiKey } from '../jev/settings.js'
 
+const CUSTOM_GUARD_PREFIX = 'guard-'
+const CUSTOM_GUARD_ID_BYTES = 4
 const MAX_API_KEY_LENGTH = 300
 const WHITESPACE_RE = /\s/
 const PAGE_RE = /^[1-9]\d{0,5}$/
-const UNREADABLE_REPO_STATUSES = new Set([401, 403, 404])
-const MAX_STATS_REPOS = 100
-const DAY_MS = 24 * 60 * 60 * 1000
 const NO_KEY_TEST_MESSAGE = 'No API key saved. Save the key above and test again.'
-const NO_KEY_SCAN_MESSAGE = 'No API key saved. Save the key above and scan again.'
-const NO_MODELS_MESSAGE = 'Jev returned no models'
 const USAGE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 const router = Router()
@@ -67,11 +68,11 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function planMergedSave(id, current, { data, restoredFrom, keyConfigured }) {
+function planMergedSave(id, current, { data, restoredFrom }) {
   const next = parseJevDocument(id, { ...current.data, ...data })
   if (next.error) return next
 
-  return planJevSave(current, next.value, { restoredFrom, keyConfigured })
+  return planJevSave(current, next.value, { restoredFrom })
 }
 
 function parsePage(value) {
@@ -79,36 +80,6 @@ function parsePage(value) {
   if (typeof value !== 'string' || !PAGE_RE.test(value)) return { error: '"page" must be a positive whole number.' }
 
   return { value: Number(value) }
-}
-
-function parseRepoList(value) {
-  const repos = typeof value === 'string' ? value.split(',').map(name => name.trim()) : []
-  if (repos.length === 0 || repos.length > MAX_STATS_REPOS || !repos.every(name => REPO_NAME_RE.test(name))) {
-    return { error: '"repos" must be a comma-separated list of org/repo names.' }
-  }
-
-  return { value: repos }
-}
-
-function toShadowStats(repo, rows) {
-  const row = rows.find(stats => stats.repo === repo)
-  if (!row) return { repo, evaluated: 0, wouldApprove: 0, days: 0 }
-
-  const days = Math.max(1, Math.ceil((Date.now() - new Date(row.since).getTime()) / DAY_MS))
-
-  return { repo, evaluated: row.evaluated, wouldApprove: row.wouldApprove, days }
-}
-
-function describeKeyChange(hadKey, hasKey) {
-  if (hasKey) return hadKey ? 'API key replaced' : 'API key saved'
-
-  return hadKey ? 'API key removed' : null
-}
-
-function countNewModels(savedModels, scannedModels) {
-  const known = new Set(savedModels.map(model => model.name))
-
-  return scannedModels.filter(model => !known.has(model.name)).length
 }
 
 function toPayload(id, document, latestSave) {
@@ -140,21 +111,15 @@ function sendFailure(res, err, action) {
   res.status(500).json({ error: `Failed to ${action}.` })
 }
 
-function isConnectionHistory(req, id) {
-  return id === JEV_SETTINGS_DOCUMENT && req.path.endsWith('/history')
-}
-
 router.param('id', (req, res, next, id) => {
-  if (!isJevDocument(id) && !isConnectionHistory(req, id))
-    return res.status(404).json({ error: 'Unknown Jev document.' })
+  if (!isJevDocument(id)) return res.status(404).json({ error: 'Unknown Jev document.' })
 
   next()
 })
 
 router.get('/', async (_req, res) => {
   try {
-    const [keyConfigured, catalog] = await Promise.all([isConfigured(), getJevModelCatalog()])
-    res.json({ keyConfigured, models: catalog.models, scannedAt: catalog.scannedAt })
+    res.json({ keyConfigured: await isConfigured() })
   } catch (err) {
     console.error('Failed to load the Jev settings:', err)
     res.status(500).json({ error: 'Failed to load the Jev settings.' })
@@ -166,12 +131,7 @@ router.put('/api-key', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const hadKey = await isConfigured()
     await setJevApiKey(value)
-
-    const change = describeKeyChange(hadKey, value.length > 0)
-    if (change) await addJevHistoryEntry(JEV_SETTINGS_DOCUMENT, { author: req.user.email, change })
-
     res.json({ keyConfigured: value.length > 0 })
   } catch (err) {
     console.error('Failed to save the Jev API key:', err)
@@ -191,24 +151,12 @@ router.post('/test', async (_req, res) => {
   }
 })
 
-router.post('/models/scan', async (_req, res) => {
-  try {
-    if (!(await isConfigured())) return res.status(422).json({ error: NO_KEY_SCAN_MESSAGE })
-
-    const [saved, models] = await Promise.all([getJevModelCatalog(), listModels()])
-    if (models.length === 0) throw new JevApiError(NO_MODELS_MESSAGE)
-
-    const catalog = { models, scannedAt: new Date().toISOString() }
-    await setJevModelCatalog(catalog)
-
-    res.json({ ...catalog, newModels: countNewModels(saved.models, models) })
-  } catch (err) {
-    sendFailure(res, err, 'scan the Jev models')
-  }
-})
+function belongsTo(row, guardId) {
+  return row.project === guardId || (row.guardId?.split(GUARD_IDS_SEPARATOR) ?? []).includes(guardId)
+}
 
 function countOf(rows, guardId, field) {
-  return rows.find(row => row.guardId === guardId || row.project === guardId)?.[field] ?? 0
+  return rows.filter(row => belongsTo(row, guardId)).reduce((total, row) => total + row[field], 0)
 }
 
 async function listGuardsWithUsage() {
@@ -229,6 +177,55 @@ async function listGuardsWithUsage() {
     },
   }))
 }
+
+function describeNameClash(name) {
+  return `There is already a guard called "${name}". Pick another name.`
+}
+
+async function findNameClash(id, name) {
+  if (typeof name !== 'string') return null
+
+  return findGuardByName(await listGuards(), name, { exceptId: id }) ? describeNameClash(name) : null
+}
+
+router.post('/guards', async (req, res) => {
+  const { error, value: name } = parseGuardName(req.body?.name, { required: true })
+  if (error) return res.status(400).json({ error })
+
+  try {
+    if (await findNameClash(null, name)) return res.status(409).json({ error: describeNameClash(name) })
+
+    const id = `${CUSTOM_GUARD_PREFIX}${randomBytes(CUSTOM_GUARD_ID_BYTES).toString('hex')}`
+    await saveJevDocument(id, {
+      expectedRev: 0,
+      author: req.user.email,
+      defaults: { ...defaultJevDocument(id), name },
+      plan: () => null,
+    })
+
+    res.status(201).json({ id, name })
+  } catch (err) {
+    console.error('Failed to create the guard:', err)
+    res.status(500).json({ error: 'Failed to create the guard.' })
+  }
+})
+
+router.delete('/guards/:guardId', async (req, res) => {
+  const { guardId } = req.params
+  if (!isGuardId(guardId)) return res.status(404).json({ error: 'Unknown guard.' })
+
+  try {
+    const document = await getJevDocument(guardId)
+    if (!document) return res.status(404).json({ error: 'Unknown guard.' })
+
+    await deleteJevDocument(guardId)
+
+    res.status(204).end()
+  } catch (err) {
+    console.error('Failed to delete the guard:', err)
+    res.status(500).json({ error: 'Failed to delete the guard.' })
+  }
+})
 
 router.get('/guards', async (_req, res) => {
   try {
@@ -257,7 +254,9 @@ router.put('/documents/:id', async (req, res) => {
   if (error) return res.status(400).json({ error })
 
   try {
-    const keyConfigured = await isConfigured()
+    const clash = await findNameClash(id, value.data.name)
+    if (clash) return res.status(409).json({ error: clash })
+
     const {
       conflict,
       error: saveError,
@@ -266,7 +265,7 @@ router.put('/documents/:id', async (req, res) => {
       expectedRev: value.rev,
       author: req.user.email,
       defaults: defaultJevDocument(id),
-      plan: current => planMergedSave(id, current, { ...value, keyConfigured }),
+      plan: current => planMergedSave(id, current, value),
     })
     if (saveError) return res.status(422).json({ error: saveError })
 
@@ -294,8 +293,6 @@ function pageHandler(list, label) {
   }
 }
 
-router.get('/documents/:id/history', pageHandler(listJevHistory, 'change history'))
-
 async function listVersionsWithCalls(id, page) {
   const versions = await listJevSetVersions(id, page)
   const calls = await countJevCallsBySetVersion(id)
@@ -305,38 +302,5 @@ async function listVersionsWithCalls(id, page) {
 }
 
 router.get('/documents/:id/versions', pageHandler(listVersionsWithCalls, 'versions'))
-
-router.post('/github/repos/check', async (req, res) => {
-  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
-  if (!REPO_NAME_RE.test(name)) return res.status(400).json({ error: 'Use the org/repo format, e.g. acme/docs.' })
-
-  try {
-    if (!(await getGithubToken())) return res.status(422).json({ error: 'Save the GitHub token first.' })
-
-    res.json(await getRepository(name))
-  } catch (err) {
-    if (!UNREADABLE_REPO_STATUSES.has(err.status)) {
-      console.error('Failed to check the GitHub repo:', err)
-      return res.status(500).json({ error: 'Failed to check the repo.' })
-    }
-
-    res.status(422).json({
-      error: `The CI token cannot read ${name}. Give the token read access to the repo, or check the name.`,
-    })
-  }
-})
-
-router.get('/github/shadow-stats', async (req, res) => {
-  const { error, value: repos } = parseRepoList(req.query.repos)
-  if (error) return res.status(400).json({ error })
-
-  try {
-    const rows = await getShadowStats(repos)
-    res.json({ repos: repos.map(repo => toShadowStats(repo, rows)) })
-  } catch (err) {
-    console.error('Failed to load the shadow results:', err)
-    res.status(500).json({ error: 'Failed to load the shadow results.' })
-  }
-})
 
 export default router

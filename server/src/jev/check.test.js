@@ -13,20 +13,15 @@ vi.mock('./settings.js', () => ({ isConfigured }))
 const askQuestions = vi.fn()
 vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), askQuestions }))
 
+const getCurrentTrace = vi.fn(() => null)
+const withGenerationSpan = vi.fn()
+vi.mock('@openai/agents', () => ({ getCurrentTrace, withGenerationSpan }))
+
 const { JevApiError } = await import('./client.js')
 const { runJevCheck } = await import('./check.js')
 
-const QUESTION = {
-  id: 'q1',
-  type: 'noul',
-  text: 'The reply promises a refund',
-  instructions: '',
-  criteria: '',
-  flagAt: 60,
-}
+const QUESTION = { id: 'q1', type: 'noul', text: 'The reply promises a refund', flagAt: 60 }
 const SET = {
-  description: '',
-  model: 'jev-latest',
   minConfidence: 0.75,
   timeoutSeconds: 45,
   dailyLimit: 0,
@@ -34,8 +29,8 @@ const SET = {
 }
 const STATE = { customerMessage: 'Where is my refund?' }
 
-function mockDocuments({ enabled = true, set = SET } = {}) {
-  getJevDocument.mockImplementation(async id => (set ? { id, rev: 3, data: { enabled, set }, setVersion: 7 } : null))
+function mockDocuments({ set = SET } = {}) {
+  getJevDocument.mockImplementation(async id => (set ? { id, rev: 3, data: { set }, setVersion: 7 } : null))
 }
 
 beforeEach(() => {
@@ -50,6 +45,41 @@ afterEach(() => {
 })
 
 describe('runJevCheck', () => {
+  it('shows the Jev call as a generation of the current trace, with what was sent and answered', async () => {
+    const span = { spanData: {} }
+    getCurrentTrace.mockReturnValueOnce({ traceId: 'trace_1' })
+    withGenerationSpan.mockImplementationOnce(async fn => fn(span))
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: { q1: { type: 'noul', noul: 0.1 } } })
+
+    const result = await runJevCheck({ project: 'legal', state: STATE })
+
+    expect(result.status).toBe('answered')
+    const [, options] = withGenerationSpan.mock.calls[0]
+    expect(options).toEqual({
+      data: {
+        model: 'jev-latest',
+        input: [
+          {
+            state: STATE,
+            questions: {
+              q1: { type: 'noul', instructions: { question: 'The reply promises a refund' }, criteria: null },
+            },
+          },
+        ],
+      },
+    })
+    expect(span.spanData).toEqual({ model: 'jev-1.14.0', output: [{ answers: { q1: { type: 'noul', noul: 0.1 } } }] })
+  })
+
+  it('calls Jev without a trace span outside a traced run', async () => {
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+
+    await runJevCheck({ project: 'legal', state: STATE })
+
+    expect(withGenerationSpan).not.toHaveBeenCalled()
+    expect(askQuestions).toHaveBeenCalledTimes(1)
+  })
+
   it('asks the set questions about the state and records the call', async () => {
     askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: { q1: { type: 'noul', noul: 0.1 } } })
 
@@ -70,7 +100,7 @@ describe('runJevCheck', () => {
           unsure: false,
         },
       ],
-      set: SET,
+      set: { ...SET, maxCharacters: 100_000 },
     })
     expect(askQuestions).toHaveBeenCalledTimes(1)
     expect(askQuestions).toHaveBeenCalledWith({
@@ -86,29 +116,6 @@ describe('runJevCheck', () => {
       answeredModel: 'jev-1.14.0',
       status: 'answered',
     })
-  })
-
-  it('asks the extra questions built from the saved set first', async () => {
-    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
-    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
-    const buildExtraQuestions = vi.fn().mockReturnValue([rule])
-
-    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions })
-
-    expect(buildExtraQuestions).toHaveBeenCalledWith(SET)
-    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci', 'q1'])
-    expect(result.rows.map(row => row.questionId)).toEqual(['rule:ci', 'q1'])
-  })
-
-  it('asks a set with no questions of its own when the rules add some', async () => {
-    const rule = { id: 'rule:ci', type: 'noul', text: 'CI passed', instructions: '', criteria: '', flagAt: null }
-    mockDocuments({ set: { ...SET, questions: [] } })
-    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
-
-    const result = await runJevCheck({ project: 'github', state: STATE, buildExtraQuestions: () => [rule] })
-
-    expect(result.status).toBe('answered')
-    expect(Object.keys(askQuestions.mock.calls[0][0].questions)).toEqual(['rule:ci'])
   })
 
   it('records a failed call and reports why', async () => {
@@ -139,11 +146,9 @@ describe('runJevCheck', () => {
   })
 
   it.each([
-    ['the calls of the guard are off', () => mockDocuments({ enabled: false }), 'Jev calls are off for this guard'],
     ['no key is saved', () => isConfigured.mockResolvedValue(false), 'No API key saved'],
-    ['the guard was never saved', () => mockDocuments({ set: null }), 'Jev calls are off for this guard'],
+    ['the guard was never saved', () => mockDocuments({ set: null }), 'No questions in the set'],
     ['the guard has no questions', () => mockDocuments({ set: { ...SET, questions: [] } }), 'No questions in the set'],
-    ['no model is selected', () => mockDocuments({ set: { ...SET, model: '' } }), 'No model selected'],
     [
       'no min confidence is set',
       () => mockDocuments({ set: { ...SET, minConfidence: null } }),
@@ -157,6 +162,13 @@ describe('runJevCheck', () => {
     expect(result).toMatchObject({ status: 'unavailable', reason })
     expect(askQuestions).not.toHaveBeenCalled()
     expect(recordJevCall).not.toHaveBeenCalled()
+  })
+
+  it('caps a guard saved before it had max characters at the default', async () => {
+    const result = await runJevCheck({ project: 'legal', state: { diff: 'x'.repeat(100_000) } })
+
+    expect(result.reason).toBe('Too large for Jev (100,011 characters, max 100,000)')
+    expect(askQuestions).not.toHaveBeenCalled()
   })
 
   it('does not call Jev with a document over the max characters', async () => {

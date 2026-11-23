@@ -71,9 +71,10 @@
   color: var(--text-muted);
 }
 
-.legal-run__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp2);
+.legal-run__draft {
+  margin: 0;
+  padding: var(--sp3);
+  white-space: pre-wrap;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
 }

@@ -5,7 +5,7 @@ import VersionsTable from './VersionsTable.jsx'
 
 const AT = '2026-11-19T10:00:00.000Z'
 const VERSIONS = [
-  { version: 2, at: AT, author: 'ana@example.com', change: 'Min confidence 0.75 → 0.8', set: { minConfidence: 0.8 } },
+  { version: 2, at: AT, author: 'ana@example.com', change: 'Min confidence 75 → 80', set: { minConfidence: 0.8 } },
   { version: 1, at: AT, author: 'luis@example.com', change: 'Created', set: { minConfidence: 0.75, questions: [] } },
 ]
 
@@ -42,7 +42,7 @@ describe('VersionsTable', () => {
       set: { minConfidence: 0.75, questions: [], description: 'Kept' },
       repos: [],
     })
-    expect(screen.getByText(/questions, rules, model and min confidence/)).toBeInTheDocument()
+    expect(screen.getByText(/questions and min confidence/)).toBeInTheDocument()
   })
 
   it('says which version is loaded in the editor', async () => {
@@ -53,7 +53,7 @@ describe('VersionsTable', () => {
     expect(
       await screen.findByText('Version 1 is loaded in the editor. Save to publish it as version 3.')
     ).toBeInTheDocument()
-    expect(screen.getByText(/the questions, model and min confidence/)).toBeInTheDocument()
+    expect(screen.getByText(/the questions and min confidence/)).toBeInTheDocument()
   })
 
   it('explains that the first save creates the first version', async () => {
