@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { BROWSER_TIMEZONE } from '../../../../constants.js'
+import { BROWSER_TIMEZONE, LEGAL_REPLY_SENT_EVENT, SEND_CASE_REPLY_TOOL } from '../../../../constants.js'
 import { createRequestId } from './request-id.js'
 import { getBotMessages, getConversation, isUnauthorized, stopChat, streamChat } from '../../../../services/services.js'
 import { createAnswer, notifyAnswerReady, trackAnswer } from './answer-notification.js'
@@ -222,6 +222,7 @@ export function useChat(token, onAuthError, onArtifactPublished, botId = null) {
 
         case 'tool_end':
           updateChat(key, chat => withLastAssistant(chat, withFinishedTool(event)))
+          if (event.tool === SEND_CASE_REPLY_TOOL) window.dispatchEvent(new Event(LEGAL_REPLY_SENT_EVENT))
           break
 
         case 'error':

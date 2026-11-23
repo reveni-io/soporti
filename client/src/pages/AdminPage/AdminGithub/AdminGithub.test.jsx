@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import AdminGithub from './AdminGithub.jsx'
-
-vi.mock('./GithubAutoApprove/GithubAutoApprove.jsx', () => ({ default: () => null }))
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -37,10 +36,15 @@ describe('AdminGithub', () => {
   it('shows the token status and the stored catalog', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet({ tokenConfigured: true, repoCatalog: '### org/api\nBackend.' }))
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByDisplayValue(/org\/api/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Admin → Guards' })).toHaveAttribute('href', '/admin/guards')
   })
 
   it('turns the reviewer suggestions on', async () => {
@@ -50,7 +54,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviewerSuggestionsEnabled: true }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText(/committed lately in their folders/)).toBeInTheDocument()
     const toggle = screen.getByRole('checkbox', { name: /suggest reviewers/i })
@@ -71,7 +79,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: true }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
     expect(toggle).not.toBeChecked()
@@ -100,7 +112,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ writesEnabled: false }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
     expect(toggle).toBeChecked()
@@ -120,7 +136,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'Boom.' }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     const toggle = await screen.findByRole('checkbox', { name: /let the assistant open pull requests/i })
     await user.click(toggle)
@@ -133,7 +153,11 @@ describe('AdminGithub', () => {
   it('explains what the write access can and cannot do, and the token permissions it needs', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet())
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByRole('heading', { name: 'Write access' })).toBeInTheDocument()
     const explanation = screen.getByText(/never pushes to the default branch/i)
@@ -149,7 +173,11 @@ describe('AdminGithub', () => {
   it('lists the token permissions PR reviews need to read the CI status', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet())
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('Checks: read')).toBeInTheDocument()
     expect(screen.getByText('Commit statuses: read')).toBeInTheDocument()
@@ -159,7 +187,11 @@ describe('AdminGithub', () => {
   it('shows not configured when there is no token', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet())
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('not configured')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
@@ -172,7 +204,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ tokenConfigured: true }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByText('not configured')
 
     const input = screen.getByPlaceholderText('ghp_...')
@@ -193,7 +229,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ tokenConfigured: false }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByText('configured')
 
     await user.click(screen.getByRole('button', { name: /remove/i }))
@@ -209,7 +249,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ repoCatalog: 'old text more' }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByDisplayValue('old text')
 
     const save = screen.getByRole('button', { name: /save catalog/i })
@@ -229,7 +273,11 @@ describe('AdminGithub', () => {
   it('shows the PR reviews status and the webhook payload URL', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockGet({ webhookSecretConfigured: true }))
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
 
     expect(await screen.findByText('enabled')).toBeInTheDocument()
     expect(screen.getByText(/\/api\/webhooks\/github/)).toBeInTheDocument()
@@ -242,7 +290,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ webhookSecretConfigured: true }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByText('disabled')
 
     await user.click(screen.getByRole('button', { name: /generate/i }))
@@ -266,7 +318,11 @@ describe('AdminGithub', () => {
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ webhookSecretConfigured: false }) })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByText('enabled')
 
     await user.click(screen.getByRole('button', { name: /disable/i }))
@@ -286,7 +342,11 @@ describe('AdminGithub', () => {
       })
     const user = userEvent.setup()
 
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="tok" onLogout={vi.fn()} />
+      </MemoryRouter>
+    )
     await screen.findByText('not configured')
 
     await user.type(screen.getByPlaceholderText('ghp_...'), 'bad')
@@ -299,7 +359,11 @@ describe('AdminGithub', () => {
     const onLogout = vi.fn()
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) })
 
-    render(<AdminGithub token="expired" onLogout={onLogout} />)
+    render(
+      <MemoryRouter>
+        <AdminGithub token="expired" onLogout={onLogout} />
+      </MemoryRouter>
+    )
 
     await waitFor(() => {
       expect(onLogout).toHaveBeenCalled()
