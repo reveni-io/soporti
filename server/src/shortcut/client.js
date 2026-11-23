@@ -206,12 +206,12 @@ export async function getStory(id) {
 function toComment(comment, members) {
   return {
     id: comment.id,
+    reply_to: comment.parent_id ?? null,
     author: members.get(comment.author_id)?.name || null,
     text: comment.text || '',
     created_at: comment.created_at,
     updated_at: comment.updated_at,
     app_url: comment.app_url || null,
-    replies: (comment.comments || []).filter(reply => !reply.deleted).map(reply => toComment(reply, members)),
   }
 }
 
@@ -219,7 +219,7 @@ export async function getStoryComments(storyId) {
   const [rawComments, members] = await Promise.all([request('GET', `/stories/${storyId}/comments`), getMembers()])
 
   const visible = (rawComments || []).filter(comment => !comment.deleted)
-  const comments = visible.slice(0, MAX_STORY_COMMENTS).map(comment => toComment(comment, members))
+  const comments = visible.slice(-MAX_STORY_COMMENTS).map(comment => toComment(comment, members))
 
   return {
     story_id: storyId,

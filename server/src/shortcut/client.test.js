@@ -264,24 +264,23 @@ describe('getStory', () => {
 })
 
 describe('getStoryComments', () => {
-  it('resolves authors and keeps replies, skipping deleted comments', async () => {
+  it('resolves authors and links each reply to its thread, skipping deleted comments', async () => {
     mockApi([
       [
         '/stories/25694/comments',
         [
           {
             id: 1,
+            parent_id: null,
             author_id: 'user-1',
             text: 'Change it in the frontend',
             created_at: '2026-11-23T10:00:00Z',
             updated_at: '2026-11-23T10:05:00Z',
             app_url: 'https://app.shortcut.com/story/25694#activity-1',
-            comments: [
-              { id: 2, author_id: 'user-2', text: 'Agreed', created_at: '2026-11-23T11:00:00Z' },
-              { id: 3, author_id: 'user-2', text: 'Gone', deleted: true },
-            ],
           },
-          { id: 4, author_id: 'user-2', text: 'Removed', deleted: true },
+          { id: 2, parent_id: 1, author_id: 'user-2', text: 'Agreed', created_at: '2026-11-23T11:00:00Z' },
+          { id: 3, parent_id: 1, author_id: 'user-2', text: 'Gone', deleted: true },
+          { id: 4, parent_id: null, author_id: 'user-2', text: 'Removed', deleted: true },
         ],
       ],
     ])
@@ -289,13 +288,13 @@ describe('getStoryComments', () => {
     const result = await getStoryComments(25694)
 
     expect(result.story_id).toBe(25694)
-    expect(result.total).toBe(1)
-    expect(result.returned).toBe(1)
+    expect(result.total).toBe(2)
+    expect(result.returned).toBe(2)
     expect(result.truncated).toBe(false)
-    expect(result.comments[0].author).toBe('Sergio Zam')
-    expect(result.comments[0].text).toBe('Change it in the frontend')
-    expect(result.comments[0].replies).toHaveLength(1)
-    expect(result.comments[0].replies[0].author).toBe('Ana Ruiz')
+    expect(result.comments.map(comment => [comment.id, comment.reply_to, comment.author, comment.text])).toEqual([
+      [1, null, 'Sergio Zam', 'Change it in the frontend'],
+      [2, 1, 'Ana Ruiz', 'Agreed'],
+    ])
     expect(requestedPaths()).toContain('/stories/25694/comments')
   })
 
@@ -307,12 +306,12 @@ describe('getStoryComments', () => {
     expect(result.comments).toEqual([
       {
         id: 5,
+        reply_to: null,
         author: null,
         text: '',
         created_at: undefined,
         updated_at: undefined,
         app_url: null,
-        replies: [],
       },
     ])
   })
@@ -326,7 +325,7 @@ describe('getStoryComments', () => {
     expect(result.comments).toEqual([])
   })
 
-  it('flags the list as truncated beyond 100 comments', async () => {
+  it('keeps the most recent 100 comments and flags the list as truncated', async () => {
     const many = Array.from({ length: 101 }, (_, index) => ({ id: index + 1, author_id: 'user-1', text: 'x' }))
     mockApi([['/stories/9/comments', many]])
 
@@ -335,6 +334,8 @@ describe('getStoryComments', () => {
     expect(result.total).toBe(101)
     expect(result.returned).toBe(100)
     expect(result.truncated).toBe(true)
+    expect(result.comments[0].id).toBe(2)
+    expect(result.comments.at(-1).id).toBe(101)
   })
 })
 
