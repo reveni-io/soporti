@@ -13,6 +13,10 @@ vi.mock('./settings.js', () => ({ isConfigured }))
 const askQuestions = vi.fn()
 vi.mock('./client.js', async importOriginal => ({ ...(await importOriginal()), askQuestions }))
 
+const getCurrentTrace = vi.fn(() => null)
+const withGenerationSpan = vi.fn()
+vi.mock('@openai/agents', () => ({ getCurrentTrace, withGenerationSpan }))
+
 const { JevApiError } = await import('./client.js')
 const { runJevCheck } = await import('./check.js')
 
@@ -41,6 +45,41 @@ afterEach(() => {
 })
 
 describe('runJevCheck', () => {
+  it('shows the Jev call as a generation of the current trace, with what was sent and answered', async () => {
+    const span = { spanData: {} }
+    getCurrentTrace.mockReturnValueOnce({ traceId: 'trace_1' })
+    withGenerationSpan.mockImplementationOnce(async fn => fn(span))
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: { q1: { type: 'noul', noul: 0.1 } } })
+
+    const result = await runJevCheck({ project: 'legal', state: STATE })
+
+    expect(result.status).toBe('answered')
+    const [, options] = withGenerationSpan.mock.calls[0]
+    expect(options).toEqual({
+      data: {
+        model: 'jev-latest',
+        input: [
+          {
+            state: STATE,
+            questions: {
+              q1: { type: 'noul', instructions: { question: 'The reply promises a refund' }, criteria: null },
+            },
+          },
+        ],
+      },
+    })
+    expect(span.spanData).toEqual({ model: 'jev-1.14.0', output: [{ answers: { q1: { type: 'noul', noul: 0.1 } } }] })
+  })
+
+  it('calls Jev without a trace span outside a traced run', async () => {
+    askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: {} })
+
+    await runJevCheck({ project: 'legal', state: STATE })
+
+    expect(withGenerationSpan).not.toHaveBeenCalled()
+    expect(askQuestions).toHaveBeenCalledTimes(1)
+  })
+
   it('asks the set questions about the state and records the call', async () => {
     askQuestions.mockResolvedValue({ model: 'jev-1.14.0', answers: { q1: { type: 'noul', noul: 0.1 } } })
 
