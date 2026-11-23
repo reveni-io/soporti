@@ -69,6 +69,7 @@ function normalizeTeam(team) {
 
 async function loadTeam({ trigger }, team) {
   const named = normalizeTeam(team)
+
   if (named.length > 0) return new Set(named)
 
   const { owner } = parseRepo(trigger.repoFullName)
@@ -89,6 +90,7 @@ function byLoadForKnowledge(a, b) {
 
 export async function pickReviewer(context, team) {
   const taken = await listTakenReviewers(context)
+
   if (taken.hasReviewer) return { reason: ALREADY_REVIEWING }
 
   const { repoFullName, baseRef } = context.trigger
@@ -101,9 +103,11 @@ export async function pickReviewer(context, team) {
   const knowledge = countKnowledge(history)
   const known = [...knowledge.keys()].filter(login => {
     const lower = login.toLowerCase()
+
     return members.has(lower) && !isBotLogin(login) && !taken.logins.has(lower)
   })
   const candidates = await keepPushers(repoFullName, known)
+
   if (candidates.length === 0) return { reason: NO_CANDIDATE }
 
   const load = await countReviewsSince(parseRepo(repoFullName).owner, candidates, toDay(daysAgo(LOAD_WINDOW_DAYS)))
@@ -137,6 +141,7 @@ export function buildReviewerSuggestion(context, { logger = console } = {}) {
     execute: async ({ team }) => {
       try {
         const picked = await pickReviewer(context, team)
+
         if (picked.reason) return picked.reason
 
         suggestion = picked.suggestion
