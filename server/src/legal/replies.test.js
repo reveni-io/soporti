@@ -18,8 +18,7 @@ const isConfigured = vi.fn()
 const postPublicReply = vi.fn()
 vi.mock('../zendesk/client.js', () => ({ getTicket, isConfigured, postPublicReply }))
 
-const { GUARD_SEND_OFF, LegalReplyError, findSendBlocker, readLegalConversation, sendLegalReply } =
-  await import('./replies.js')
+const { LegalReplyError, findSendBlocker, readLegalConversation, sendLegalReply } = await import('./replies.js')
 
 const ZENDESK_CASE = { id: 41, source: 'zendesk', ticketId: '48213' }
 const HUBSPOT_CASE = { id: 42, source: 'hubspot', ticketId: '9312' }
@@ -34,12 +33,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   resolveHubspotAccess.mockResolvedValue(REPLY_ACCESS)
   getRecord.mockResolvedValue({ id: '9312', properties: { hs_conversations_originating_thread_id: 'thread-1' } })
-})
-
-describe('GUARD_SEND_OFF', () => {
-  it('points to the Guards section', () => {
-    expect(GUARD_SEND_OFF).toMatch(/Guards section of the admin/)
-  })
 })
 
 describe('findSendBlocker', () => {

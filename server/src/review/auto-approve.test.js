@@ -1,265 +1,134 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const getJevDocument = vi.fn()
-vi.mock('../db/jev-documents.js', () => ({ getJevDocument }))
+const listUsableGuards = vi.fn()
+vi.mock('../guards/registry.js', () => ({ listUsableGuards }))
 
-const recordAutoApproveEvaluation = vi.fn()
-vi.mock('../db/auto-approve-evaluations.js', () => ({ recordAutoApproveEvaluation }))
+const buildGuardTools = vi.fn()
+vi.mock('../agent/guard-tools.js', () => ({ buildGuardTools }))
 
-const runJevCheck = vi.fn()
-vi.mock('../jev/check.js', () => ({ runJevCheck }))
-
-const { decideAutoApprove, loadAutoApproveRepo } = await import('./auto-approve.js')
+const { buildReviewGuards, decideAutoApprove } = await import('./auto-approve.js')
 
 const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
-const RULES = [
-  { id: 'ci', role: 'veto' },
-  { id: 'nitpicks', role: 'veto', limit: 3 },
-  { id: 'walkthrough', role: 'info' },
-]
-
-function context({ mode = 'on', jev = true, todayEvent = 'COMMENT', review = {} } = {}) {
-  return {
-    repo: { name: 'acme/web', mode, jev, denylist: ['src/payments/**'] },
-    todayEvent,
-    pullRequest: { repoFullName: 'acme/web', prNumber: 12, headSha: 'abc123', title: 'Fix totals', body: 'Desc' },
-    review: {
-      ciStatus: { checks: [], incomplete: false },
-      findings: [],
-      passes: [],
-      notReviewed: [],
-      overview: { reviewMinutes: 5 },
-      history: { unresolvedThreads: 0 },
-      fixedThreads: [],
-      files: [
-        { filename: 'src/payments/fees.js', patch: '+fee' },
-        { filename: 'package-lock.json', patch: '+x', generated: true },
-      ],
-      ...review,
-    },
-  }
+const GUARDS = [{ id: 'github', name: 'GitHub Review PR' }]
+const ASK_GUARD = { name: 'ask_guard' }
+const CONTEXT = {
+  pullRequest: { repoFullName: 'acme/web', prNumber: 12, title: 'Fix totals', body: 'Desc' },
+  files: [
+    { filename: 'src/payments/fees.js', patch: '+fee' },
+    { filename: 'package-lock.json', patch: '+x', generated: true },
+    { filename: 'logo.png' },
+  ],
 }
 
-function row(questionId, answer, { flagged = false, unsure = false } = {}) {
-  return { questionId, question: questionId, answer, confidence: 0.9, flagged, unsure }
+function row(question, { flagged = false, unsure = false } = {}) {
+  return { questionId: question, question, answer: 'No', confidence: 0.9, flagged, unsure }
 }
 
-function answered(rows, rules = RULES) {
-  runJevCheck.mockImplementation(async ({ buildExtraQuestions }) => {
-    const set = { rules }
-    buildExtraQuestions(set)
-    return { status: 'answered', setVersion: 9, model: 'jev-1.14.0', minConfidence: 0.75, rows, set }
-  })
+function guardCheck(guard, rows = [row('Is it risky?')]) {
+  return { guard, status: 'checked', reason: null, warnings: 0, review: { setVersion: 9, minConfidence: 0.75, rows } }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  recordAutoApproveEvaluation.mockResolvedValue()
+  listUsableGuards.mockResolvedValue(GUARDS)
+  buildGuardTools.mockReturnValue([ASK_GUARD])
 })
 
-describe('loadAutoApproveRepo', () => {
-  it('finds the repo regardless of the case of its name', async () => {
-    getJevDocument.mockResolvedValue({ data: { repos: [{ name: 'Acme/Web', mode: 'shadow' }] } })
+describe('buildReviewGuards', () => {
+  it('gives the review ask_guard with the pull request and its diff attached, and collects what the guards answer', async () => {
+    const guards = await buildReviewGuards(CONTEXT, { logger })
 
-    expect(await loadAutoApproveRepo('acme/web', { logger })).toEqual({ name: 'Acme/Web', mode: 'shadow' })
-    expect(getJevDocument).toHaveBeenCalledWith('github')
+    expect(guards.tools).toEqual([ASK_GUARD])
+    const [{ guards: passed, review }] = buildGuardTools.mock.calls[0]
+    expect(passed).toBe(GUARDS)
+    expect(review.attach).toEqual({
+      pullRequest: { repository: 'acme/web', number: 12, title: 'Fix totals', description: 'Desc' },
+      diff: '--- src/payments/fees.js\n+fee',
+    })
+
+    review.onChecked(guardCheck('GitHub Review PR'))
+    expect(guards.checks).toEqual([guardCheck('GitHub Review PR')])
   })
 
-  it('treats a missing project or repo as not listed', async () => {
-    getJevDocument.mockResolvedValue(null)
+  it('gives no tool when no guard can run, or the guards cannot be read', async () => {
+    listUsableGuards.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('db down'))
 
-    expect(await loadAutoApproveRepo('acme/web', { logger })).toBeNull()
-  })
-
-  it('keeps today’s behaviour when the settings cannot be read', async () => {
-    getJevDocument.mockRejectedValue(new Error('db down'))
-
-    expect(await loadAutoApproveRepo('acme/web', { logger })).toBeNull()
+    expect(await buildReviewGuards(CONTEXT, { logger })).toEqual({ tools: [], checks: [] })
+    expect(await buildReviewGuards(CONTEXT, { logger })).toEqual({ tools: [], checks: [] })
+    expect(buildGuardTools).not.toHaveBeenCalled()
     expect(logger.error).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('decideAutoApprove', () => {
-  it('keeps today’s event for repos that are not listed', async () => {
-    const result = await decideAutoApprove({ ...context(), repo: null, todayEvent: 'APPROVE' }, { logger })
-
-    expect(result).toEqual({ event: 'APPROVE', autoApprove: null })
-    expect(runJevCheck).not.toHaveBeenCalled()
+  it('keeps today’s event when the review passed no guard', () => {
+    expect(decideAutoApprove({ todayEvent: 'APPROVE', guardChecks: [] })).toEqual({
+      event: 'APPROVE',
+      autoApprove: null,
+    })
   })
 
-  it('never approves a repo set to off and does not evaluate it', async () => {
-    const result = await decideAutoApprove(context({ mode: 'off', todayEvent: 'APPROVE' }), { logger })
+  it('approves as today when every guard answered with no warning', () => {
+    const result = decideAutoApprove({
+      todayEvent: 'APPROVE',
+      guardChecks: [guardCheck('GitHub Review PR'), guardCheck('Payments')],
+    })
 
-    expect(result).toEqual({ event: 'COMMENT', autoApprove: null })
-    expect(recordAutoApproveEvaluation).not.toHaveBeenCalled()
-  })
-
-  it('approves an on repo when no gate or question vetoes, and sends Jev the PR and the review facts', async () => {
-    answered([row('rule:ci', 'No checks'), row('rule:nitpicks', 'Yes'), row('q1', 'No')])
-
-    const { event, autoApprove } = await decideAutoApprove(context(), { logger })
-
-    expect(event).toBe('APPROVE')
-    expect(autoApprove).toMatchObject({
-      repo: 'acme/web',
-      mode: 'on',
-      jevAsked: true,
+    expect(result.event).toBe('APPROVE')
+    expect(result.autoApprove).toEqual({
       approve: true,
-      decidedBy: 'jev',
-      minConfidence: 0.75,
-      reason: null,
-      pendingOnly: false,
-      setVersion: 9,
-      model: 'jev-1.14.0',
-    })
-    expect(autoApprove.gates).toEqual([
-      {
-        ...row('rule:ci', 'No checks'),
-        label: 'CI status',
-        role: 'veto',
-        limit: null,
-        fact: 'No checks',
-        factVeto: false,
-      },
-      { ...row('rule:nitpicks', 'Yes'), label: 'Max nitpicks', role: 'veto', limit: 3, fact: 'Yes', factVeto: false },
-    ])
-    expect(autoApprove.questions).toEqual([row('q1', 'No')])
-
-    const [{ project, state }] = runJevCheck.mock.calls[0]
-    expect(project).toBe('github')
-    expect(state.pullRequest).toEqual({ repository: 'acme/web', number: 12, title: 'Fix totals', description: 'Desc' })
-    expect(state.review).toMatchObject({ ciStatus: 'no checks', denylistMatches: ['src/payments/fees.js'] })
-    expect(state.diff).toBe('--- src/payments/fees.js\n+fee')
-    expect(recordAutoApproveEvaluation).toHaveBeenCalledWith({
-      repo: 'acme/web',
-      prNumber: 12,
-      headSha: 'abc123',
-      mode: 'on',
-      wouldApprove: true,
-      decidedBy: 'jev',
+      checks: [
+        {
+          guard: 'GitHub Review PR',
+          answered: true,
+          reason: null,
+          setVersion: 9,
+          minConfidence: 0.75,
+          rows: [row('Is it risky?')],
+        },
+        expect.objectContaining({ guard: 'Payments', answered: true }),
+      ],
     })
   })
 
-  it('only logs what it would do in shadow', async () => {
-    answered([row('q1', 'No')])
+  it('never approves on its own: a PR today’s review would not approve keeps its event', () => {
+    const result = decideAutoApprove({ todayEvent: 'COMMENT', guardChecks: [guardCheck('Payments')] })
 
-    const { event, autoApprove } = await decideAutoApprove(context({ mode: 'shadow' }), { logger })
-
-    expect(event).toBe('COMMENT')
-    expect(autoApprove).toMatchObject({ mode: 'shadow', approve: true })
-    expect(recordAutoApproveEvaluation.mock.calls[0][0]).toMatchObject({ mode: 'shadow', wouldApprove: true })
+    expect(result).toMatchObject({ event: 'COMMENT', autoApprove: { approve: true } })
   })
 
-  it('does not approve when Jev vetoes or is not sure', async () => {
-    answered([row('q1', 'Yes', { flagged: true }), row('q2', 'No', { unsure: true })])
+  it('does not approve when a guard warns or is not sure', () => {
+    const result = decideAutoApprove({
+      todayEvent: 'APPROVE',
+      guardChecks: [guardCheck('GitHub Review PR'), guardCheck('Payments', [row('Big?', { unsure: true })])],
+    })
 
-    const { event, autoApprove } = await decideAutoApprove(context(), { logger })
-
-    expect(event).toBe('COMMENT')
-    expect(autoApprove).toMatchObject({ approve: false, pendingOnly: false })
+    expect(result).toMatchObject({ event: 'COMMENT', autoApprove: { approve: false } })
   })
 
-  it('never lets an info rule block, even when Jev is not sure', async () => {
-    answered([row('rule:walkthrough', 'No', { unsure: true }), row('q1', 'No')])
+  it('leaves out a guard that could not run, so the usual rule decides', () => {
+    const failed = { guard: 'Payments', status: 'not_checked', reason: 'the review could not run', review: null }
 
-    const { event, autoApprove } = await decideAutoApprove(context(), { logger })
+    const alone = decideAutoApprove({ todayEvent: 'APPROVE', guardChecks: [failed] })
+    const withWarning = decideAutoApprove({
+      todayEvent: 'APPROVE',
+      guardChecks: [failed, guardCheck('Legal', [row('Refund?', { flagged: true })])],
+    })
 
-    expect(event).toBe('APPROVE')
-    expect(autoApprove.gates[0]).toMatchObject({ label: 'Walkthrough', role: 'info', unsure: true })
-  })
-
-  it('says when only a pending CI holds the approval back', async () => {
-    answered([row('rule:ci', 'Passed'), row('q1', 'No')])
-    const review = { ciStatus: { checks: [{ name: 'test', state: 'pending' }], incomplete: false } }
-
-    const { autoApprove } = await decideAutoApprove(context({ review }), { logger })
-
-    expect(autoApprove).toMatchObject({ approve: false, pendingOnly: true })
-  })
-
-  it.each([
-    {
-      name: 'a failed CI',
-      rule: { id: 'ci', role: 'veto' },
-      jevAnswer: 'Passed',
-      review: { ciStatus: { checks: [{ name: 'test', state: 'failed' }], incomplete: false } },
-      fact: 'Failed',
-    },
-    {
-      name: 'a blocking finding',
-      rule: { id: 'findings', role: 'veto' },
-      jevAnswer: 'No',
-      review: { findings: [{ title: 'Refund twice', severity: 'major' }] },
-      fact: 'Yes',
-    },
-    {
-      name: 'a file in the denylist',
-      rule: { id: 'denylist', role: 'veto' },
-      jevAnswer: 'No',
-      review: {},
-      fact: 'Yes',
-    },
-  ])('never approves over $name, whatever Jev answers', async ({ rule, jevAnswer, review, fact }) => {
-    answered([row(`rule:${rule.id}`, jevAnswer), row('q1', 'No')], [rule])
-
-    const { event, autoApprove } = await decideAutoApprove(context({ review }), { logger })
-
-    expect(event).toBe('COMMENT')
-    expect(autoApprove).toMatchObject({ approve: false, pendingOnly: false })
-    expect(autoApprove.gates[0]).toMatchObject({ answer: jevAnswer, fact, factVeto: true })
-  })
-
-  it('decides as today when Jev is off for the repo', async () => {
-    const { event, autoApprove } = await decideAutoApprove(context({ jev: false, todayEvent: 'APPROVE' }), { logger })
-
-    expect(event).toBe('APPROVE')
-    expect(autoApprove).toMatchObject({
-      jevAsked: false,
+    expect(alone.event).toBe('APPROVE')
+    expect(alone.autoApprove).toEqual({
       approve: true,
-      decidedBy: 'today',
-      reason: 'Jev is off for this repo',
+      checks: [
+        {
+          guard: 'Payments',
+          answered: false,
+          reason: 'the review could not run',
+          setVersion: null,
+          minConfidence: null,
+          rows: [],
+        },
+      ],
     })
-    expect(runJevCheck).not.toHaveBeenCalled()
-  })
-
-  it('decides as today when Jev is unavailable', async () => {
-    runJevCheck.mockResolvedValue({
-      status: 'unavailable',
-      setVersion: 9,
-      model: 'jev-latest',
-      reason: 'Jev error (HTTP 502)',
-    })
-
-    const { event, autoApprove } = await decideAutoApprove(context({ todayEvent: 'COMMENT' }), { logger })
-
-    expect(event).toBe('COMMENT')
-    expect(autoApprove).toMatchObject({
-      approve: false,
-      decidedBy: 'today',
-      reason: 'Jev error (HTTP 502)',
-      setVersion: 9,
-      model: 'jev-latest',
-      gates: [],
-      questions: [],
-    })
-  })
-
-  it('decides as today when asking Jev fails unexpectedly', async () => {
-    runJevCheck.mockRejectedValue(new Error('boom'))
-
-    const { autoApprove } = await decideAutoApprove(context({ todayEvent: 'APPROVE' }), { logger })
-
-    expect(autoApprove).toMatchObject({ approve: true, decidedBy: 'today', reason: 'the Jev check failed' })
-    expect(logger.error).toHaveBeenCalledTimes(1)
-  })
-
-  it('still decides when the evaluation cannot be recorded', async () => {
-    answered([row('q1', 'No')])
-    recordAutoApproveEvaluation.mockRejectedValue(new Error('db down'))
-
-    const { event } = await decideAutoApprove(context(), { logger })
-
-    expect(event).toBe('APPROVE')
-    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(withWarning).toMatchObject({ event: 'COMMENT', autoApprove: { approve: false } })
   })
 })

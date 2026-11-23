@@ -84,7 +84,7 @@ vi.mock('../hubspot/settings.js', () => ({ resolveHubspotAccess: vi.fn(async () 
 vi.mock('../slack/settings.js', () => ({ isSlackConfigured: vi.fn(async () => false) }))
 vi.mock('../github/settings.js', () => ({ areGithubWritesEnabled: vi.fn(async () => false) }))
 vi.mock('../code-changes/index.js', () => ({ getCodeChangeSession: vi.fn(key => ({ key })) }))
-vi.mock('../guards/registry.js', () => ({ listChatGuards: vi.fn(async () => []) }))
+vi.mock('../guards/registry.js', () => ({ listUsableGuards: vi.fn(async () => []) }))
 vi.mock('../figma/settings.js', () => ({
   isFigmaConfigured: vi.fn(async () => false),
   getFigmaCommentsEnabled: vi.fn(async () => false),
@@ -111,7 +111,7 @@ const { normalizeHubspotPermissions } = await import('../hubspot/permissions.js'
 const { isSlackConfigured } = await import('../slack/settings.js')
 const { areGithubWritesEnabled } = await import('../github/settings.js')
 const { getCodeChangeSession } = await import('../code-changes/index.js')
-const { listChatGuards } = await import('../guards/registry.js')
+const { listUsableGuards } = await import('../guards/registry.js')
 const { buildAgentTools } = await import('./tools.js')
 const { createAgent } = await import('./assistant.js')
 
@@ -626,7 +626,7 @@ describe('createAgent', () => {
   it('hands the guards the chat can use, and where their cases go, to the tool builder', async () => {
     const guards = [{ id: 'legal', name: 'Legal', description: 'Customer replies', questions: 3, model: 'jev-1' }]
     const guardCases = { conversationId: 'conv-1', onChecked: vi.fn() }
-    listChatGuards.mockResolvedValueOnce(guards)
+    listUsableGuards.mockResolvedValueOnce(guards)
 
     await createAgent([], 'support', { guardCases })
 

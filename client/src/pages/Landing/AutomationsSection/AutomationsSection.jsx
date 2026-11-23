@@ -28,7 +28,7 @@ const AUTOMATIONS = [
     id: 'approve',
     icon: <Icon name="check" size={ICON_SIZE} />,
     title: 'Approves the safe pull requests',
-    text: 'Pick your repos from the ones your GitHub token can read and start each in shadow: every review says whether it would have approved. Turn it on, and a pull request is approved only when none of your rules or questions vetoes it.',
+    text: 'Name guards in a repo’s REVIEW.md and every pull request goes through them: Soporti approves the safe ones only when the guards raise no warning.',
     Demo: AutoApproveDemo,
   },
   {
@@ -49,7 +49,7 @@ const AUTOMATIONS = [
     id: 'legal',
     icon: <Icon name="shield" size={ICON_SIZE} />,
     title: 'Drafts replies, checked by a guard',
-    text: 'Ask for replies to the customer tickets in Zendesk and HubSpot, in the chat or in a scheduled query, and pass them through a guard. Each case shows what needs a second look, and nothing goes out until a person sends it, from Soporti or from the ticket.',
+    text: 'Ask for replies to the customer tickets in Zendesk and HubSpot, in the chat or in a scheduled query, and name the guards to pass them through. Each case shows what needs a second look; change the draft or send it by asking Soporti in the chat, and nothing goes out until you say so.',
     Demo: LegalRepliesDemo,
   },
 ]

@@ -141,7 +141,7 @@ function isGeneratedRule(pattern, attributes) {
   return attributes.some(attribute => LINGUIST_GENERATED.test(attribute))
 }
 
-export function globToRegExp(glob, { isAnchored }) {
+function globToRegExp(glob, { isAnchored }) {
   const source = glob
     .split(GLOB_TOKEN)
     .map(token => GLOB_TOKEN_SOURCES.get(token) ?? token.replace(REGEX_SPECIAL, '\\$&'))

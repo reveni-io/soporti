@@ -32,6 +32,17 @@ export async function getJevDocument(id) {
   return row ?? null
 }
 
+export async function listJevDocuments() {
+  return getDb().select(documentColumns).from(jevDocuments)
+}
+
+export async function deleteJevDocument(id) {
+  await getDb().transaction(async tx => {
+    await tx.delete(jevHistory).where(eq(jevHistory.documentId, id))
+    await tx.delete(jevDocuments).where(eq(jevDocuments.id, id))
+  })
+}
+
 export async function getLatestJevSave(documentId) {
   const [row] = await getDb()
     .select(historyColumns)
@@ -83,10 +94,6 @@ export async function saveJevDocument(id, { expectedRev, author, defaults, plan 
   })
 }
 
-export async function addJevHistoryEntry(documentId, { author, change }) {
-  await getDb().insert(jevHistory).values({ documentId, rev: null, authorEmail: author, change })
-}
-
 async function listPage({ table, columns, where, orderBy, page }) {
   const [entries, [{ total }]] = await Promise.all([
     getDb()
@@ -100,16 +107,6 @@ async function listPage({ table, columns, where, orderBy, page }) {
   ])
 
   return { entries, total, page, pageSize: PAGE_SIZE }
-}
-
-export async function listJevHistory(documentId, page) {
-  return listPage({
-    table: jevHistory,
-    columns: historyColumns,
-    where: eq(jevHistory.documentId, documentId),
-    orderBy: [desc(jevHistory.createdAt), desc(jevHistory.id)],
-    page,
-  })
 }
 
 export async function listJevSetVersions(documentId, page) {
