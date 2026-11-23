@@ -13,7 +13,7 @@ const POINTS = [
   {
     icon: 'check',
     title: 'A guard for each job',
-    text: 'Replies to customers and pull request approvals each have their own guard: the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
+    text: 'Create a guard for anything you want checked, like replies to customers or pull request approvals, each with the questions it must answer and the answers that warn. Every change is versioned, so you know which questions checked what.',
   },
   {
     icon: 'shield',
@@ -23,14 +23,14 @@ const POINTS = [
   {
     icon: 'zap',
     title: 'Wherever you ask',
-    text: 'Name a guard in the chat, in Slack, over MCP or in a scheduled query. It only warns: a person decides, and a reply goes out only when someone sends it.',
+    text: 'Ask for guards by name in the chat, Slack, MCP, a scheduled query or a bot, like “use the Legal guards”. They only warn: a person decides, and a reply goes out only when someone sends it.',
   },
 ]
 
 const ANSWERS = [
-  { question: 'Does the reply promise what the data does not show?', answer: 'No', confidence: '0.95', isSure: true },
-  { question: 'Is the customer asking for something unusual?', answer: 'No', confidence: '0.92', isSure: true },
-  { question: 'Does the reply share data of someone else?', answer: 'No', confidence: '0.64', isSure: false },
+  { question: 'Does the reply promise what the data does not show?', answer: 'No', confidence: '95', isSure: true },
+  { question: 'Is the customer asking for something unusual?', answer: 'No', confidence: '92', isSure: true },
+  { question: 'Does the reply share data of someone else?', answer: 'No', confidence: '64', isSure: false },
 ]
 
 export default function GuardsSection() {
@@ -58,7 +58,7 @@ export default function GuardsSection() {
                 ))}
               </ul>
               <p className="lp-guards__verdict">
-                Not sure about one answer (0.64 &lt; 0.75), so the case shows a warning before anyone sends the reply.
+                Not sure about one answer (64 &lt; 75), so the case shows a warning before anyone sends the reply.
               </p>
             </div>
           </PreviewWindow>

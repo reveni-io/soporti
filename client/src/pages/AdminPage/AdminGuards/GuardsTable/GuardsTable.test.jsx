@@ -7,8 +7,6 @@ const USAGE = { calls: 1200, cases: 9, sentReplies: 4 }
 const LEGAL = {
   id: 'legal',
   name: 'Legal',
-  enabled: true,
-  description: 'Replies to customers',
   questions: 3,
   model: 'jev-1',
   usage: USAGE,
@@ -16,45 +14,46 @@ const LEGAL = {
 const GITHUB = {
   id: 'github',
   name: 'GitHub PRs',
-  enabled: false,
-  description: '',
   questions: 2,
   model: 'jev-1',
   usage: USAGE,
 }
 
 describe('GuardsTable', () => {
-  it('lists each guard with what it is used for and its usage', () => {
-    render(<GuardsTable guards={[LEGAL, GITHUB]} selectedId="legal" onSelect={vi.fn()} />)
+  it('lists each guard with its usage', () => {
+    render(<GuardsTable guards={[LEGAL, GITHUB]} onEdit={vi.fn()} />)
 
-    const [, legal, github] = screen.getAllByRole('row')
+    const [, legal] = screen.getAllByRole('row')
     expect(within(legal).getByRole('cell', { name: 'Legal' })).toBeInTheDocument()
-    expect(legal).toHaveTextContent('Replies to customers')
     expect(within(legal).getByRole('cell', { name: (1200).toLocaleString() })).toBeInTheDocument()
-    expect(within(legal).getByText('On')).toBeInTheDocument()
-    expect(github).toHaveTextContent('PR reviews of the auto-approve repos')
-    expect(within(github).getByText('Off')).toBeInTheDocument()
-    expect(screen.getByText('Calls, cases and sent replies of the last 30 days.')).toBeInTheDocument()
   })
 
-  it.each([
-    ['its calls are off', { enabled: false }, 'Not in the chat while its Jev calls are off'],
-    ['it has no questions', { questions: 0 }, 'Not in the chat until it has questions and a model'],
-    ['it has no description', { description: '' }, 'No description'],
-  ])('says what the Legal guard is used for when %s', (_case, overrides, text) => {
-    render(<GuardsTable guards={[{ ...LEGAL, ...overrides }]} selectedId="legal" onSelect={vi.fn()} />)
-
-    expect(screen.getByText(text)).toBeInTheDocument()
-  })
-
-  it('edits one guard at a time', async () => {
-    const onSelect = vi.fn()
+  it('opens the guard picked to edit', async () => {
+    const onEdit = vi.fn()
     const user = userEvent.setup()
-    render(<GuardsTable guards={[LEGAL, GITHUB]} selectedId="legal" onSelect={onSelect} />)
+    render(<GuardsTable guards={[LEGAL, GITHUB]} onEdit={onEdit} />)
 
-    expect(screen.getByRole('button', { name: 'Edit Legal' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit Legal' })).toHaveTextContent('Edit')
     await user.click(screen.getByRole('button', { name: 'Edit GitHub PRs' }))
 
-    expect(onSelect).toHaveBeenCalledWith('github')
+    expect(onEdit).toHaveBeenCalledWith('github')
+  })
+
+  it('asks before deleting a guard', async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    const payments = { ...LEGAL, id: 'guard-0a1b2c3d', name: 'Payments' }
+    render(<GuardsTable guards={[LEGAL, payments]} onEdit={vi.fn()} onDelete={onDelete} />)
+
+    expect(screen.getByRole('button', { name: 'Delete Legal' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete Payments' }))
+    expect(screen.getByText('Are you sure you want to delete this guard?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Keep it' }))
+    expect(onDelete).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Payments' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+    expect(onDelete).toHaveBeenCalledWith('guard-0a1b2c3d')
   })
 })

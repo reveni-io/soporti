@@ -5,11 +5,8 @@ import userEvent from '@testing-library/user-event'
 import JevConnection from './JevConnection.jsx'
 
 const BASE = '/api/admin/config/jev'
-const LATEST = { name: 'jev-latest', description: 'Most recent stable release', releaseDate: '2026-10-14' }
-const PREVIEW = { name: 'jev-preview', description: 'Most recent release', releaseDate: '2026-10-14' }
-const SCANNED_AT = '2026-11-17T08:30:00.000Z'
-const NO_KEY = { keyConfigured: false, models: [], scannedAt: null }
-const WITH_KEY = { keyConfigured: true, models: [LATEST], scannedAt: SCANNED_AT }
+const NO_KEY = { keyConfigured: false }
+const WITH_KEY = { keyConfigured: true }
 
 function okResponse(data) {
   return { ok: true, status: 200, json: async () => data }
@@ -32,22 +29,14 @@ function requestsTo(method, path) {
   return global.fetch.mock.calls.filter(([url, options = {}]) => url === path && (options.method ?? 'GET') === method)
 }
 
-function Harness({ initial, onChanged }) {
+function Harness({ initial }) {
   const [config, setConfig] = useState(initial)
 
   function handleConfigChange(patch) {
     setConfig(current => ({ ...current, ...patch }))
   }
 
-  return (
-    <JevConnection
-      token="tok"
-      onLogout={vi.fn()}
-      config={config}
-      onConfigChange={handleConfigChange}
-      onChanged={onChanged}
-    />
-  )
+  return <JevConnection token="tok" onLogout={vi.fn()} config={config} onConfigChange={handleConfigChange} />
 }
 
 beforeEach(() => {
@@ -55,33 +44,31 @@ beforeEach(() => {
 })
 
 describe('JevConnection', () => {
-  it('starts without a key or models, and has no switch of its own: each guard has one', async () => {
+  it('starts without a key, always on the latest Jev model, with no switch nor model list', async () => {
     mockApi({})
 
-    render(<Harness initial={NO_KEY} onChanged={vi.fn()} />)
+    render(<Harness initial={NO_KEY} />)
 
     expect(await screen.findByText('not configured')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeDisabled()
-    expect(screen.getByText('No models saved yet.')).toBeInTheDocument()
+    expect(screen.getByText(/always in its latest release/)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Scan for new models' })).not.toBeInTheDocument()
   })
 
-  it('shows the saved catalog when the key is configured', async () => {
+  it('shows a saved key as configured', async () => {
     mockApi({})
 
-    render(<Harness initial={WITH_KEY} onChanged={vi.fn()} />)
+    render(<Harness initial={WITH_KEY} />)
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Paste a new key to replace it')).toBeInTheDocument()
-    expect(screen.getByText(/^1 model saved · last scan/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scan for new models' })).toBeEnabled()
   })
 
   it('shows the latency of a successful connection test', async () => {
     mockApi({ [`POST ${BASE}/test`]: [okResponse({ latencyMs: 312 })] })
     const user = userEvent.setup()
 
-    render(<Harness initial={NO_KEY} onChanged={vi.fn()} />)
+    render(<Harness initial={NO_KEY} />)
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText('Connected · 312 ms')).toBeInTheDocument()
@@ -96,8 +83,7 @@ describe('JevConnection', () => {
     })
     const user = userEvent.setup()
 
-    const onChanged = vi.fn()
-    render(<Harness initial={NO_KEY} onChanged={onChanged} />)
+    render(<Harness initial={NO_KEY} />)
     await user.click(await screen.findByRole('button', { name: 'Test connection' }))
 
     expect(await screen.findByText(failure)).toBeInTheDocument()
@@ -109,38 +95,5 @@ describe('JevConnection', () => {
     expect(screen.queryByText(failure)).not.toBeInTheDocument()
     const [[, options]] = requestsTo('PUT', `${BASE}/api-key`)
     expect(JSON.parse(options.body)).toEqual({ apiKey: 'jev-secret' })
-    expect(onChanged).toHaveBeenCalledTimes(1)
-  })
-
-  it('saves the scanned models and says how many are new', async () => {
-    mockApi({
-      [`POST ${BASE}/models/scan`]: [
-        okResponse({ models: [LATEST, PREVIEW], scannedAt: SCANNED_AT, newModels: 1 }),
-        okResponse({ models: [LATEST, PREVIEW], scannedAt: SCANNED_AT, newModels: 0 }),
-      ],
-    })
-    const user = userEvent.setup()
-
-    render(<Harness initial={WITH_KEY} onChanged={vi.fn()} />)
-    const scan = await screen.findByRole('button', { name: 'Scan for new models' })
-    await user.click(scan)
-
-    expect(await screen.findByText(/^1 new model\. 2 models saved · last scan/)).toBeInTheDocument()
-
-    await user.click(scan)
-
-    expect(await screen.findByText(/^No new models\. 2 models saved · last scan/)).toBeInTheDocument()
-  })
-
-  it('shows why a scan failed', async () => {
-    mockApi({
-      [`POST ${BASE}/models/scan`]: [errorResponse(502, 'Could not scan the Jev models: Jev error (HTTP 529).')],
-    })
-    const user = userEvent.setup()
-
-    render(<Harness initial={{ ...WITH_KEY, models: [], scannedAt: null }} onChanged={vi.fn()} />)
-    await user.click(await screen.findByRole('button', { name: 'Scan for new models' }))
-
-    expect(await screen.findByText('Could not scan the Jev models: Jev error (HTTP 529).')).toBeInTheDocument()
   })
 })

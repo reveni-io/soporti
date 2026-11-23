@@ -1,23 +1,23 @@
-import { useRef, useState } from 'react'
 import { formatTime } from './format-time.js'
-import { useCopyReply } from './hooks/useCopyReply/useCopyReply.js'
 import { useLegalCases } from './hooks/useLegalCases/useLegalCases.js'
-import { useSendReply } from './hooks/useSendReply/useSendReply.js'
 import GuardReview from '../GuardReview/GuardReview.jsx'
-import SendConfirm from './SendConfirm/SendConfirm.jsx'
 import TicketConversation from './TicketConversation/TicketConversation.jsx'
 import './LegalRun.css'
 
 const CHECKED = 'checked'
 const SOURCE_LABELS = { zendesk: 'Zendesk', hubspot: 'HubSpot' }
-const OLD_RUN = 'This run is older than sending from Soporti: copy the reply and send it from the ticket.'
+const OLD_RUN = 'This run is older than sending from Soporti: send the reply from the ticket.'
+
+function caseReviews(legalCase) {
+  if (legalCase.reviews) return legalCase.reviews
+
+  const { review, warnings, reason } = legalCase
+
+  return [{ guard: legalCase.guard ?? 'Legal', review, warnings, reason }]
+}
 
 function ticketLabel({ source, ticketId }) {
   return `${SOURCE_LABELS[source] ?? source} ticket ${ticketId}`
-}
-
-function needsCare(legalCase) {
-  return legalCase.status !== CHECKED || legalCase.warnings > 0
 }
 
 function nextStep(legalCase, state) {
@@ -25,15 +25,14 @@ function nextStep(legalCase, state) {
   if (legalCase.status !== CHECKED) return 'Check it yourself, then decide'
   if (legalCase.warnings > 0) return 'Read the warnings, then decide'
 
-  return 'Check it, then send it'
+  return 'Check it, then ask Soporti to send it'
 }
 
 function describeSent([reply]) {
   return `Sent by ${reply.sentBy} · ${formatTime(reply.sentAt)}`
 }
 
-function describeSending({ legalCase, state, copyStatus }) {
-  if (copyStatus) return copyStatus
+function describeSending({ legalCase, state }) {
   if (!legalCase.id) return OLD_RUN
   if (state?.replies.length > 0) return describeSent(state.replies)
 
@@ -56,7 +55,6 @@ export default function LegalRun({ cases, token = null, onLogout }) {
           legalCase={legalCase}
           state={status.cases.get(legalCase.id)}
           token={token}
-          onSent={status.addReply}
           onLogout={onLogout}
         />
       ))}
@@ -108,22 +106,8 @@ function CheckBadge({ legalCase }) {
   )
 }
 
-function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
-  const [reply, setReply] = useState(legalCase.draft?.body ?? '')
-  const textareaRef = useRef(null)
-  const { status: copyStatus, copy } = useCopyReply()
-  const sender = useSendReply(token, legalCase.id, handleSent, onLogout)
+function LegalCase({ number, legalCase, state, token, onLogout }) {
   const label = ticketLabel(legalCase)
-  const isSent = state?.replies.length > 0
-  const canSend = Boolean(state?.send.allowed && legalCase.draft && !isSent && !sender.confirming && reply.trim())
-
-  function handleSent(sent) {
-    onSent(legalCase.id, sent)
-  }
-
-  function handleSend(warningsRead) {
-    sender.send(reply, warningsRead)
-  }
 
   return (
     <section className="legal-run__case">
@@ -146,63 +130,17 @@ function LegalCase({ number, legalCase, state, token, onSent, onLogout }) {
       <DataFacts facts={legalCase.dataFacts} />
 
       <p className="legal-run__heading">Draft reply</p>
-      <DraftReply
-        legalCase={legalCase}
-        label={label}
-        reply={reply}
-        locked={isSent || sender.confirming || sender.sending}
-        textareaRef={textareaRef}
-        onChange={setReply}
-      />
-      <p className="legal-run__muted">Edit the reply if needed, then send it from here or copy it to the ticket.</p>
+      <DraftReply legalCase={legalCase} label={label} />
+      <p className="legal-run__muted">
+        Ask Soporti in the chat to send it, to change it or to look up more data first.
+      </p>
 
-      <GuardReview
-        guard={legalCase.guard ?? 'Legal'}
-        review={legalCase.review}
-        warnings={legalCase.warnings}
-        reason={legalCase.reason}
-      />
+      {caseReviews(legalCase).map(({ guard, review, warnings, reason }) => (
+        <GuardReview key={guard} guard={guard} review={review} warnings={warnings} reason={reason} />
+      ))}
 
-      <div className="legal-run__actions">
-        <button
-          className={`btn btn--sm ${needsCare(legalCase) ? 'btn--secondary' : 'btn--primary'}`}
-          type="button"
-          onClick={() => copy(reply, textareaRef.current)}
-          disabled={!legalCase.draft}
-        >
-          Copy reply
-        </button>
-        <button className="btn btn--secondary btn--sm" type="button" onClick={sender.start} disabled={!canSend}>
-          {isSent ? 'Sent' : 'Send'}
-        </button>
-        <span className="legal-run__muted">{describeSending({ legalCase, state, copyStatus })}</span>
-      </div>
-      {sender.warning && <p className="alert alert--warning">{sender.warning}</p>}
-
-      {sender.confirming && (
-        <SendConfirm
-          recipient={legalCase.customer}
-          label={label}
-          needsCare={needsCare(legalCase)}
-          edited={reply !== legalCase.draft?.body}
-          sending={sender.sending}
-          error={sender.error}
-          onCancel={sender.cancel}
-          onSend={handleSend}
-        />
-      )}
-
-      {legalCase.id && state && (
-        <TicketConversation
-          token={token}
-          legalCase={legalCase}
-          label={label}
-          send={state.send}
-          needsCare={needsCare(legalCase)}
-          onSent={handleSent}
-          onLogout={onLogout}
-        />
-      )}
+      <p className="legal-run__muted">{describeSending({ legalCase, state })}</p>
+      {legalCase.id && state && <TicketConversation token={token} legalCase={legalCase} onLogout={onLogout} />}
     </section>
   )
 }
@@ -221,22 +159,15 @@ function DataFacts({ facts }) {
   )
 }
 
-function DraftReply({ legalCase, label, reply, locked, textareaRef, onChange }) {
+function DraftReply({ legalCase, label }) {
   if (!legalCase.draft) return <p className="alert alert--warning">No draft: {legalCase.reason}.</p>
 
   return (
-    <label className="legal-run__email">
+    <div className="legal-run__email">
       <span className="legal-run__email-meta">
         Reply on {label} · To: {legalCase.customer || 'unknown'} · Subject: {legalCase.draft.subject}
       </span>
-      <textarea
-        ref={textareaRef}
-        className="textarea"
-        rows={8}
-        value={reply}
-        readOnly={locked}
-        onChange={event => onChange(event.target.value)}
-      />
-    </label>
+      <p className="legal-run__draft">{legalCase.draft.body}</p>
+    </div>
   )
 }

@@ -20,7 +20,7 @@ describe('GuardReview', () => {
     expect(screen.getByText('Careful · 2 warnings')).toBeInTheDocument()
     const [, unusual, matches, safe] = screen.getAllByRole('row')
     expect(within(unusual).getByText('Careful')).toBeInTheDocument()
-    expect(matches).toHaveTextContent('no answer0.58 < 0.70Careful')
+    expect(matches).toHaveTextContent('no answer58 < 70Careful')
     expect(within(safe).getByText('OK')).toBeInTheDocument()
   })
 

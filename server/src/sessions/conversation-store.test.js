@@ -520,6 +520,20 @@ describe('ConversationStore', () => {
     expect(msgs[1]).toMatchObject({ conversationId: 'c1', role: 'assistant' })
   })
 
+  it('countTurns counts the user messages of one conversation', async () => {
+    db._tables
+      .get(conversationMessages)
+      .push(
+        { id: 1, conversationId: 'c1', role: 'user', parts: [] },
+        { id: 2, conversationId: 'c1', role: 'assistant', parts: [] },
+        { id: 3, conversationId: 'c1', role: 'user', parts: [] },
+        { id: 4, conversationId: 'c2', role: 'user', parts: [] }
+      )
+
+    expect(await store.countTurns('c1')).toBe(2)
+    expect(await store.countTurns('c3')).toBe(0)
+  })
+
   it('saveTurn does not persist a token a stateless provider produced', async () => {
     usesContinuationToken.mockResolvedValue(false)
     db._tables.get(conversations).push({ id: 'c1', source: 'web', userId: 5, title: null, lastResponseId: 'resp_old' })

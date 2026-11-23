@@ -293,6 +293,30 @@ describe('useChat', () => {
     expect(toolPart.done).toBe(true)
   })
 
+  it('tells the case cards to reload when the assistant sent a ticket reply', async () => {
+    const onReplySent = vi.fn()
+    window.addEventListener('soporti:legal-reply-sent', onReplySent)
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        createSSEResponse([
+          { type: 'session_id', sessionId: 'sess-1' },
+          { type: 'tool_start', tool: 'send_case_reply', input: { caseId: 41 } },
+          { type: 'tool_end', tool: 'send_case_reply' },
+          { type: 'done' },
+        ])
+      )
+
+    const { result } = renderHook(() => useChat('token', vi.fn()))
+
+    await act(async () => {
+      await result.current.sendMessage('send it', { selectedSources: [], profile: 'support' })
+    })
+
+    expect(onReplySent).toHaveBeenCalledTimes(1)
+    window.removeEventListener('soporti:legal-reply-sent', onReplySent)
+  })
+
   it('handles error events', async () => {
     global.fetch = vi
       .fn()

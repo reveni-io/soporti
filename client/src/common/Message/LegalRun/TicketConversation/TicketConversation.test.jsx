@@ -29,17 +29,7 @@ describe('TicketConversation', () => {
   it('shows the customer and agent messages once asked', async () => {
     mockApi({ 'GET /api/legal/cases/41/conversation': [respond(200, { messages: [CUSTOMER, AGENT] })] })
     const user = userEvent.setup()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare={false}
-        onSent={vi.fn()}
-        onLogout={vi.fn()}
-      />
-    )
+    render(<TicketConversation token="tok" legalCase={LEGAL_CASE} onLogout={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 
@@ -56,17 +46,7 @@ describe('TicketConversation', () => {
       ],
     })
     const user = userEvent.setup()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare={false}
-        onSent={vi.fn()}
-        onLogout={vi.fn()}
-      />
-    )
+    render(<TicketConversation token="tok" legalCase={LEGAL_CASE} onLogout={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 
@@ -81,17 +61,7 @@ describe('TicketConversation', () => {
       ],
     })
     const user = userEvent.setup()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare={false}
-        onSent={vi.fn()}
-        onLogout={vi.fn()}
-      />
-    )
+    render(<TicketConversation token="tok" legalCase={LEGAL_CASE} onLogout={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
     expect(await screen.findByText('Could not read the Zendesk ticket.')).toBeInTheDocument()
@@ -100,108 +70,11 @@ describe('TicketConversation', () => {
     expect(await screen.findByText('The ticket has no public messages yet.')).toBeInTheDocument()
   })
 
-  it('sends a follow-up after confirming it and reads the conversation again', async () => {
-    mockApi({
-      'GET /api/legal/cases/41/conversation': [
-        respond(200, { messages: [CUSTOMER] }),
-        respond(200, { messages: [CUSTOMER, AGENT] }),
-      ],
-      'POST /api/legal/cases/41/replies': [
-        respond(201, { reply: { id: 8, sentBy: 'ana@example.com', text: 'It is on its way.', sentAt: AT } }),
-      ],
-    })
-    const user = userEvent.setup()
-    const onSent = vi.fn()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare={false}
-        onSent={onSent}
-        onLogout={vi.fn()}
-      />
-    )
-    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
-    const box = await screen.findByRole('textbox')
-
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    await user.type(box, 'It is on its way.')
-    await user.click(screen.getByRole('button', { name: 'Send' }))
-    expect(box).toHaveAttribute('readonly')
-    await user.click(screen.getByRole('button', { name: 'Send reply' }))
-
-    expect(await screen.findByText('It is on its way.', { selector: 'p' })).toBeInTheDocument()
-    expect(onSent).toHaveBeenCalledWith(expect.objectContaining({ id: 8 }))
-    expect(box).toHaveValue('')
-  })
-
-  it('warns when a follow-up went out but was not recorded', async () => {
-    const warning = 'The reply was sent, but Soporti could not record it. Check the ticket before sending it again.'
-    mockApi({
-      'GET /api/legal/cases/41/conversation': [respond(200, { messages: [] })],
-      'POST /api/legal/cases/41/replies': [
-        respond(201, { reply: { id: null, sentBy: 'ana@example.com', text: 'Hi', sentAt: AT }, warning }),
-      ],
-    })
-    const user = userEvent.setup()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare
-        onSent={vi.fn()}
-        onLogout={vi.fn()}
-      />
-    )
-    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
-    await user.type(await screen.findByRole('textbox'), 'Hi')
-    await user.click(screen.getByRole('button', { name: 'Send' }))
-    await user.click(screen.getByRole('checkbox', { name: 'I read the warnings of this case' }))
-    await user.click(screen.getByRole('button', { name: 'Send reply' }))
-
-    expect(await screen.findByText(warning)).toBeInTheDocument()
-  })
-
-  it('offers no reply box when sending is not allowed', async () => {
-    mockApi({ 'GET /api/legal/cases/41/conversation': [respond(200, { messages: [CUSTOMER] })] })
-    const user = userEvent.setup()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: false, reason: 'Sending from Soporti is off.' }}
-        needsCare={false}
-        onSent={vi.fn()}
-        onLogout={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
-
-    expect(await screen.findByText('Any news on my refund?')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-  })
-
   it('logs out when the session expired', async () => {
     mockApi({ 'GET /api/legal/cases/41/conversation': [respond(401, { error: 'Session expired' })] })
     const user = userEvent.setup()
     const onLogout = vi.fn()
-    render(
-      <TicketConversation
-        token="tok"
-        legalCase={LEGAL_CASE}
-        label="Zendesk ticket 48213"
-        send={{ allowed: true, reason: null }}
-        needsCare={false}
-        onSent={vi.fn()}
-        onLogout={onLogout}
-      />
-    )
+    render(<TicketConversation token="tok" legalCase={LEGAL_CASE} onLogout={onLogout} />)
 
     await user.click(screen.getByRole('button', { name: 'Show the ticket conversation' }))
 

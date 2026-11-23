@@ -1,0 +1,10 @@
+.guards-table__actions {
+  display: flex;
+  gap: var(--sp2);
+  justify-content: flex-end;
+}
+
+.guards-table__confirm {
+  display: flex;
+  justify-content: flex-end;
+}
