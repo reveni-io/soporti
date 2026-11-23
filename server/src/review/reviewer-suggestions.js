@@ -145,9 +145,11 @@ export function buildReviewerSuggestion(context, { logger = console } = {}) {
         if (picked.reason) return picked.reason
 
         suggestion = picked.suggestion
+
         return describeSuggestion(suggestion)
       } catch (err) {
         logger.error(`[review] Could not suggest a reviewer for ${context.trigger.dedupeKey}:`, err)
+
         return NOT_SUGGESTED
       }
     },
