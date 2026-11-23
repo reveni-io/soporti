@@ -67,8 +67,9 @@ vi.mock('./auto-approve.js', () => ({
 mockLoadAutoApproveRepo.mockResolvedValue(null)
 mockDecideAutoApprove.mockImplementation(async ({ todayEvent }) => ({ event: todayEvent, autoApprove: null }))
 
-const mockSuggestReviewers = vi.fn(async () => null)
-vi.mock('./reviewer-suggestions.js', () => ({ suggestReviewers: mockSuggestReviewers }))
+const mockReadSuggestion = vi.fn(() => null)
+const mockBuildReviewerSuggestion = vi.fn(() => ({ tool: { name: 'suggest_reviewer' }, read: mockReadSuggestion }))
+vi.mock('./reviewer-suggestions.js', () => ({ buildReviewerSuggestion: mockBuildReviewerSuggestion }))
 
 const mockAcquireWorktree = vi.fn()
 const mockWorktreeRelease = vi.fn()
@@ -1609,25 +1610,30 @@ describe('walkthrough comment', () => {
     )
   })
 
-  it('suggests reviewers in the walkthrough from the PR, its files, the merge risk and the effort', async () => {
+  it('gives the overview suggest_reviewer and puts its pick in the walkthrough', async () => {
     setupHappyPath()
-    mockSuggestReviewers.mockResolvedValueOnce({ expert: 'ana', learner: 'nueva' })
+    mockReadSuggestion.mockReturnValueOnce({ login: 'ana', knowledge: 3, load: 1 })
 
     await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
 
-    const [context] = mockSuggestReviewers.mock.calls[0]
+    const [context] = mockBuildReviewerSuggestion.mock.calls[0]
     expect(context).toMatchObject({
       trigger: { repoFullName: 'acme-io/app', prNumber: 7, authorLogin: 'dev', baseRef: 'main' },
       pr: { user: { login: 'dev' } },
       files: [expect.objectContaining({ filename: 'src/checkout.js', generated: false })],
       reviewerLogin: 'soporti-bot',
-      risk: 'Low',
-      effort: 2,
-      approved: false,
     })
-    expect(postedWalkthrough()).toContain(
-      '👥 @ana could be a good reviewer.\n🌱 @nueva could review it to learn this part of the code.'
-    )
+    expect(teamCall().overviewTools).toEqual([{ name: 'suggest_reviewer' }])
+    expect(postedWalkthrough()).toContain('👥 @ana could be a good reviewer')
+  })
+
+  it('suggests no reviewer when Soporti approves the pull request', async () => {
+    setupHappyPath({ verdict: 'approve', findings: [] })
+    mockReadSuggestion.mockReturnValueOnce({ login: 'ana', knowledge: 3, load: 1 })
+
+    await runReview(trigger(), { logger: silentLogger, reviewerLogin: 'soporti-bot' })
+
+    expect(postedWalkthrough()).not.toContain('👥')
   })
 
   it('edits its own walkthrough on a re-review instead of posting another one', async () => {

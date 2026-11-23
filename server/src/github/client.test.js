@@ -89,10 +89,10 @@ const {
   deleteIssueReaction,
   createIssueCommentReaction,
   createReviewCommentReaction,
-  listPathAuthors,
+  listPathReviewers,
   countReviewsSince,
   canPushToRepository,
-  findFirstPullRequestDates,
+  listCollaborators,
 } = await import('./client.js')
 
 describe('listRepos', () => {
@@ -706,47 +706,81 @@ describe('getRepository', () => {
   })
 })
 
-describe('listPathAuthors', () => {
+describe('listPathReviewers', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('reads the commit authors of every path in one query, skipping commits without a GitHub user', async () => {
+  it('reads who reviewed the pull requests behind the commits of every path since a date, in one query', async () => {
     mockGraphql.mockResolvedValue({
       repository: {
         object: {
-          f0: { nodes: [{ author: { user: { login: 'ana' } } }, { author: { user: null } }] },
+          f0: {
+            nodes: [
+              {
+                associatedPullRequests: {
+                  nodes: [{ number: 12, reviews: { nodes: [{ author: { login: 'ana' } }, { author: null }] } }],
+                },
+              },
+              { associatedPullRequests: { nodes: [] } },
+            ],
+          },
           f1: { nodes: [] },
         },
       },
     })
 
-    const result = await listPathAuthors('acme-io/app', 'main', ['src/a.js', 'src/new.js'])
+    const result = await listPathReviewers('acme-io/app', 'main', ['src/a.js', 'src/new.js'], {
+      since: '2025-11-23T00:00:00.000Z',
+    })
 
     expect(result).toEqual([
-      { path: 'src/a.js', authors: ['ana'] },
-      { path: 'src/new.js', authors: [] },
+      { path: 'src/a.js', pullRequests: [{ number: 12, reviewers: ['ana'] }] },
+      { path: 'src/new.js', pullRequests: [] },
     ])
     const [query, variables] = mockGraphql.mock.calls[0]
-    expect(query).toContain('f1: history(first: 20, path: $p1)')
-    expect(variables).toEqual({ owner: 'acme-io', repo: 'app', ref: 'main', p0: 'src/a.js', p1: 'src/new.js' })
+    expect(query).toContain('f1: history(first: 20, path: $p1, since: $since)')
+    expect(variables).toEqual({
+      owner: 'acme-io',
+      repo: 'app',
+      ref: 'main',
+      since: '2025-11-23T00:00:00.000Z',
+      p0: 'src/a.js',
+      p1: 'src/new.js',
+    })
   })
 
-  it('reads more commits per path when asked', async () => {
-    mockGraphql.mockResolvedValue({ repository: { object: { f0: { nodes: [] } } } })
-
-    await listPathAuthors('acme-io/app', 'main', ['apps/returns'], { limit: 50 })
-
-    expect(mockGraphql.mock.calls[0][0]).toContain('f0: history(first: 50, path: $p0)')
-  })
-
-  it('returns no authors when the ref is missing', async () => {
+  it('returns no pull requests when the ref is missing, and asks nothing without paths', async () => {
     mockGraphql.mockResolvedValue({ repository: { object: null } })
 
-    expect(await listPathAuthors('acme-io/app', 'gone', ['src/a.js'])).toEqual([{ path: 'src/a.js', authors: [] }])
+    expect(await listPathReviewers('acme-io/app', 'gone', ['src/a.js'], { since: 'x' })).toEqual([
+      { path: 'src/a.js', pullRequests: [] },
+    ])
+    expect(await listPathReviewers('acme-io/app', 'main', [], { since: 'x' })).toEqual([])
+    expect(mockGraphql).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('listCollaborators', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('lists who reviewed the pull requests of a person and whose pull requests they reviewed, once each', async () => {
+    mockGraphql.mockResolvedValue({
+      authored: {
+        nodes: [{ reviews: { nodes: [{ author: { login: 'ana' } }, { author: { login: 'luis' } }] } }, {}],
+      },
+      reviewed: { nodes: [{ author: { login: 'ana' } }, { author: { login: 'marta' } }, { author: null }] },
+    })
+
+    expect(await listCollaborators('acme-io', 'dev', '2026-05-27')).toEqual(['ana', 'luis', 'marta'])
+    expect(mockGraphql.mock.calls[0][1]).toEqual({
+      authored: 'is:pr user:acme-io author:dev updated:>=2026-05-27',
+      reviewed: 'is:pr user:acme-io reviewed-by:dev -author:dev updated:>=2026-05-27',
+    })
   })
 
-  it('does not query GitHub without paths', async () => {
-    expect(await listPathAuthors('acme-io/app', 'main', [])).toEqual([])
-    expect(mockGraphql).not.toHaveBeenCalled()
+  it('lists nobody when the searches find nothing', async () => {
+    mockGraphql.mockResolvedValue({ authored: null, reviewed: null })
+
+    expect(await listCollaborators('acme-io', 'dev', '2026-05-27')).toEqual([])
   })
 })
 
@@ -797,33 +831,5 @@ describe('canPushToRepository', () => {
     mockGetCollaboratorPermissionLevel.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }))
 
     await expect(canPushToRepository('acme-io/app', 'ana')).rejects.toThrow('Forbidden')
-  })
-})
-
-describe('findFirstPullRequestDates', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('finds the oldest PR each person opened in the org, 50 people per query', async () => {
-    const logins = Array.from({ length: 51 }, (_, index) => `dev${index}`)
-    mockGraphql
-      .mockResolvedValueOnce({ r0: { nodes: [{ createdAt: '2026-06-01T10:00:00Z' }] }, r1: { nodes: [] } })
-      .mockResolvedValueOnce({ r0: null })
-
-    const dates = await findFirstPullRequestDates('acme-io', logins)
-
-    expect(dates.get('dev0')).toBe('2026-06-01T10:00:00Z')
-    expect(dates.get('dev1')).toBeNull()
-    expect(dates.get('dev50')).toBeNull()
-    expect(dates.size).toBe(51)
-    expect(mockGraphql).toHaveBeenCalledTimes(2)
-    const [query, variables] = mockGraphql.mock.calls[0]
-    expect(query).toContain('r49: search(query: $q49, type: ISSUE, first: 1)')
-    expect(variables.q0).toBe('is:pr org:acme-io author:dev0 sort:created-asc')
-    expect(mockGraphql.mock.calls[1][1]).toEqual({ q0: 'is:pr org:acme-io author:dev50 sort:created-asc' })
-  })
-
-  it('does not query GitHub without people', async () => {
-    expect(await findFirstPullRequestDates('acme-io', [])).toEqual(new Map())
-    expect(mockGraphql).not.toHaveBeenCalled()
   })
 })

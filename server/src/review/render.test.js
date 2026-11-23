@@ -622,25 +622,14 @@ describe('renderWalkthrough', () => {
     ).toBe(true)
   })
 
-  it('suggests reviewers right after the merge risk, without any data about them', () => {
-    const comment = renderWalkthrough(walkthrough({ reviewers: { expert: 'ana', learner: 'nueva' } }))
+  it('suggests a reviewer right after the merge risk, saying why', () => {
+    const comment = renderWalkthrough(walkthrough({ reviewers: { login: 'ana', knowledge: 3, load: 1 } }))
 
     expect(comment).toContain(
-      '⏱️ ~15 minutes\n\n👥 @ana could be a good reviewer.\n🌱 @nueva could review it to learn this part of the code.\n\n'
+      '⏱️ ~15 minutes\n\n👥 @ana could be a good reviewer: they reviewed 3 pull request(s) that changed these files, and 1 in the last 30 days.\n\n'
     )
+    expect(renderWalkthrough(walkthrough({ reviewers: null }))).not.toContain('👥')
   })
-
-  it('renders only the suggestion it has', () => {
-    const expertOnly = renderWalkthrough(walkthrough({ reviewers: { expert: 'ana', learner: null } }))
-    const learnerOnly = renderWalkthrough(walkthrough({ reviewers: { expert: null, learner: 'nueva' } }))
-
-    expect(expertOnly).toContain('👥 @ana could be a good reviewer.')
-    expect(expertOnly).not.toContain('🌱')
-    expect(learnerOnly).toContain('🌱 @nueva could review it to learn this part of the code.')
-    expect(learnerOnly).not.toContain('👥')
-    expect(renderWalkthrough(walkthrough({ reviewers: { expert: null, learner: null } }))).not.toContain('👥')
-  })
-
   it('leaves the review command out of the footer when the reviewer login is unknown', () => {
     const comment = renderWalkthrough(walkthrough({ reviewerLogin: null }))
 

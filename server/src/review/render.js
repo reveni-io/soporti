@@ -516,13 +516,10 @@ function listCheckNames(checks) {
   return checks.length > MAX_CI_NAMES ? `${names.join(', ')}, …` : names.join(', ')
 }
 
-function renderReviewerSuggestions(reviewers) {
-  const lines = [
-    reviewers?.expert && `👥 @${reviewers.expert} could be a good reviewer.`,
-    reviewers?.learner && `🌱 @${reviewers.learner} could review it to learn this part of the code.`,
-  ].filter(Boolean)
+function renderReviewerSuggestions(reviewer) {
+  if (!reviewer) return null
 
-  return lines.length > 0 ? lines.join('\n') : null
+  return `👥 @${reviewer.login} could be a good reviewer: they reviewed ${reviewer.knowledge} pull request(s) that changed these files, and ${reviewer.load} in the last 30 days.`
 }
 
 function renderWalkthroughFooter(headSha, reviewerLogin) {

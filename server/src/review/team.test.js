@@ -195,7 +195,7 @@ describe('runReviewTeam', () => {
     expect(callFor('correctness').instructions).toBe(callFor('standards').instructions)
   })
 
-  it('gives the repo and diff tools to every pass and the data tools only to the correctness and spec passes', async () => {
+  it('gives the repo and diff tools to every pass, the data tools only to correctness and spec, and its own tools only to the overview', async () => {
     const story = { name: 'Totals', story_type: 'bug', state: 'Done', description: 'd', tasks: [] }
 
     await runReviewTeam(
@@ -205,11 +205,12 @@ describe('runReviewTeam', () => {
           notInlined: [],
         },
         spec: { configured: true, stories: [{ id: 1, story }] },
+        overviewTools: [{ name: 'suggest_reviewer' }],
       })
     )
 
     const toolsOf = lens => callFor(lens).tools.map(tool => tool.name)
-    expect(toolsOf('overview')).toEqual(['get_file_contents', 'get_file_diff'])
+    expect(toolsOf('overview')).toEqual(['get_file_contents', 'get_file_diff', 'suggest_reviewer'])
     expect(toolsOf('correctness')).toEqual(['get_file_contents', 'get_file_diff', 'query_database'])
     expect(toolsOf('security')).toEqual(['get_file_contents', 'get_file_diff'])
     expect(toolsOf('standards')).toEqual(['get_file_contents', 'get_file_diff'])

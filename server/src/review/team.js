@@ -36,6 +36,7 @@ export async function runReviewTeam({
   changes = null,
   rootPath = null,
   diffBaseSha = null,
+  overviewTools = [],
   signal,
   logger = console,
 }) {
@@ -49,6 +50,7 @@ export async function runReviewTeam({
     diffBaseSha,
     repoTools: buildRepoTools(trigger.repoFullName, rootPath),
     dataTools: await buildDataTools(),
+    overviewTools,
     signal,
     logger,
   }
@@ -90,6 +92,7 @@ function overviewPass(repoFullName) {
     task: buildOverviewTask(),
     outputType: overviewOutputSchema,
     withDataTools: false,
+    withOverviewTools: true,
   }
 }
 
@@ -144,7 +147,19 @@ function changedLines(file) {
 }
 
 async function runPass(pass, scope) {
-  const { trigger, files, sharedContext, changes, rootPath, diffBaseSha, repoTools, dataTools, signal, logger } = scope
+  const {
+    trigger,
+    files,
+    sharedContext,
+    changes,
+    rootPath,
+    diffBaseSha,
+    repoTools,
+    dataTools,
+    overviewTools,
+    signal,
+    logger,
+  } = scope
   const subject = `${trigger.repoFullName}#${trigger.prNumber}`
   const diff = buildDiffTools({ files, changes, rootPath, diffBaseSha, inlinedPaths: sharedContext.inlinedPaths })
 
@@ -154,7 +169,12 @@ async function runPass(pass, scope) {
     const { output, wrappedUp } = await runReviewAgent({
       name: pass.name,
       instructions: pass.instructions,
-      tools: [...repoTools, ...diff.tools, ...(pass.withDataTools ? dataTools : [])],
+      tools: [
+        ...repoTools,
+        ...diff.tools,
+        ...(pass.withDataTools ? dataTools : []),
+        ...(pass.withOverviewTools ? overviewTools : []),
+      ],
       outputType: pass.outputType,
       sharedContext,
       task: pass.task,

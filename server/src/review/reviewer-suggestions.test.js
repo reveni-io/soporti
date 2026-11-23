@@ -1,44 +1,41 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const getReviewerSuggestionsEnabled = vi.fn()
-vi.mock('../github/settings.js', () => ({ getReviewerSuggestionsEnabled }))
+vi.mock('@openai/agents', () => ({ tool: config => config }))
 
 const listPullRequestReviews = vi.fn()
-const listPathAuthors = vi.fn()
+const listPathReviewers = vi.fn()
+const listCollaborators = vi.fn()
 const canPushToRepository = vi.fn()
 const countReviewsSince = vi.fn()
-const findFirstPullRequestDates = vi.fn()
 vi.mock('../github/client.js', () => ({
-  findFirstPullRequestDates,
-  listPullRequestReviews,
-  listPathAuthors,
   canPushToRepository,
   countReviewsSince,
+  listCollaborators,
+  listPathReviewers,
+  listPullRequestReviews,
 }))
 
-const { suggestReviewers } = await import('./reviewer-suggestions.js')
+const { buildReviewerSuggestion, pickReviewer } = await import('./reviewer-suggestions.js')
 
 const logger = { error: vi.fn(), warn: vi.fn() }
 const NOW = new Date('2026-11-20T10:00:00Z')
 
-const VETERAN = '2023-01-10T09:00:00Z'
-const FILE_HISTORY = [
-  { path: 'src/a.js', authors: ['ana', 'ana', 'luis'] },
-  { path: 'src/b.js', authors: ['ana', 'luis', 'marta'] },
+const PATH_REVIEWS = [
+  {
+    path: 'src/a.js',
+    pullRequests: [
+      { number: 1, reviewers: ['ana', 'luis'] },
+      { number: 2, reviewers: ['ana'] },
+    ],
+  },
+  {
+    path: 'src/b.js',
+    pullRequests: [
+      { number: 2, reviewers: ['ana', 'marta'] },
+      { number: 3, reviewers: ['ana', 'otherteam', 'dependabot[bot]'] },
+    ],
+  },
 ]
-
-function firstPullRequests(...entries) {
-  const dates = new Map(entries)
-  findFirstPullRequestDates.mockImplementation(async (_org, logins) => {
-    return new Map(logins.map(login => [login, dates.has(login) ? dates.get(login) : VETERAN]))
-  })
-}
-
-function folderAuthors(...logins) {
-  listPathAuthors.mockImplementation(async (_repo, _ref, paths, options) => {
-    return options ? paths.map(path => ({ path, authors: logins })) : FILE_HISTORY
-  })
-}
 
 const TRIGGER = {
   repoFullName: 'acme-io/app',
@@ -55,220 +52,125 @@ function buildContext(overrides = {}) {
     files: [
       { filename: 'src/a.js', changes: 40 },
       { filename: 'src/b.js', changes: 10 },
+      { filename: 'package-lock.json', changes: 900, generated: true },
     ],
     reviewerLogin: 'soporti-bot',
-    risk: 'Low',
-    effort: 2,
-    approved: false,
     ...overrides,
   }
 }
 
-function loads(entries) {
-  countReviewsSince.mockImplementation(
-    async (_owner, logins) => new Map(logins.map(login => [login, entries[login] ?? 0]))
-  )
+function reviewsInLastMonth(counts) {
+  countReviewsSince.mockImplementation(async (_owner, logins) => new Map(logins.map(login => [login, counts[login]])))
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
-  getReviewerSuggestionsEnabled.mockResolvedValue(true)
-  firstPullRequests()
-  folderAuthors()
   listPullRequestReviews.mockResolvedValue([])
+  listPathReviewers.mockResolvedValue(PATH_REVIEWS)
+  listCollaborators.mockResolvedValue(['ana', 'luis', 'marta'])
   canPushToRepository.mockResolvedValue(true)
-  loads({})
+  reviewsInLastMonth({ ana: 8, luis: 1, marta: 3 })
 })
 
-describe('suggestReviewers', () => {
-  it('does nothing while the switch is off', async () => {
-    getReviewerSuggestionsEnabled.mockResolvedValue(false)
+afterEach(() => {
+  vi.useRealTimers()
+})
 
-    expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
-    expect(listPullRequestReviews).not.toHaveBeenCalled()
-  })
+describe('pickReviewer', () => {
+  it('picks the team member with the fewest recent reviews for how many PRs on these files they reviewed', async () => {
+    const result = await pickReviewer(buildContext(), null)
 
-  it('suggests, among the people who touched most of the files, the one with fewer recent reviews', async () => {
-    listPathAuthors.mockResolvedValue([
-      { path: 'src/a.js', authors: ['ana', 'luis'] },
-      { path: 'src/b.js', authors: ['ana', 'luis'] },
-      { path: 'src/c.js', authors: ['ana', 'marta'] },
-    ])
-    loads({ ana: 6, luis: 2, marta: 0 })
-
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'luis', learner: null })
-    expect(listPathAuthors).toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'])
-    expect(countReviewsSince).toHaveBeenCalledWith('acme-io', ['ana', 'luis'], expect.any(String))
-  })
-
-  it('keeps the person who knows the files best on a tie', async () => {
-    listPathAuthors.mockResolvedValue([
-      { path: 'src/a.js', authors: ['luis'] },
-      { path: 'src/b.js', authors: ['ana', 'luis'] },
-    ])
-
-    expect((await suggestReviewers(buildContext(), { logger })).expert).toBe('luis')
-  })
-
-  it('counts the reviews of the last 30 days', async () => {
-    await suggestReviewers(buildContext(), { logger })
-
-    expect(countReviewsSince.mock.calls[0][2]).toBe('2026-10-21')
-  })
-
-  it('reads the history of the biggest changes, skipping generated files and following renames', async () => {
-    const files = [
-      { filename: 'package-lock.json', changes: 900, generated: true },
-      { filename: 'src/new-name.js', previous_filename: 'src/old-name.js', changes: 5 },
-      ...Array.from({ length: 11 }, (_, index) => ({ filename: `src/f${index}.js`, changes: 100 - index })),
-    ]
-
-    await suggestReviewers(buildContext({ files }), { logger })
-
-    const paths = listPathAuthors.mock.calls[0][2]
-    expect(paths).toHaveLength(10)
-    expect(paths).not.toContain('package-lock.json')
-    expect(paths[0]).toBe('src/f0.js')
-
-    listPathAuthors.mockClear()
-    await suggestReviewers(buildContext({ files: files.slice(0, 2) }), { logger })
-    expect(listPathAuthors.mock.calls[0][2]).toEqual(['src/old-name.js'])
-  })
-
-  it('leaves out the author, Soporti, bots and people without push access', async () => {
-    listPathAuthors.mockResolvedValue([
-      { path: 'src/a.js', authors: ['Author', 'soporti-bot', 'renovate[bot]', 'gone', 'ana'] },
-    ])
-    canPushToRepository.mockImplementation(async (_repo, login) => login !== 'gone')
-
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
-  })
-
-  it('suggests no expert once someone else is reviewing or a team is requested', async () => {
-    listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
-    expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
-
-    listPullRequestReviews.mockResolvedValue([])
-    expect(
-      await suggestReviewers(buildContext({ pr: { requested_teams: [{ slug: 'backend' }] } }), { logger })
-    ).toBeNull()
-
-    expect(
-      await suggestReviewers(buildContext({ pr: { requested_reviewers: [{ login: 'luis' }] } }), { logger })
-    ).toBeNull()
-    expect(listPathAuthors).not.toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'])
-  })
-
-  it('still suggests an expert when only the author, Soporti or a bot reviewed', async () => {
-    listPullRequestReviews.mockResolvedValue([
-      { user: { login: 'author' } },
-      { user: { login: 'soporti-bot' } },
-      { user: { login: 'coderabbit[bot]' } },
-      { user: null },
-    ])
-
-    expect((await suggestReviewers(buildContext(), { logger })).expert).toBe('ana')
-  })
-
-  it('suggests no expert when Soporti approved the PR', async () => {
-    expect(await suggestReviewers(buildContext({ approved: true }), { logger })).toBeNull()
-    expect(listPathAuthors).not.toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'])
-  })
-
-  it('suggests, among the people who committed lately in the folders of the PR, the newest one with fewer recent reviews', async () => {
-    folderAuthors('nueva', 'nuevo', 'antigua', 'sin-prs', 'author', 'dependabot[bot]')
-    firstPullRequests(
-      ['nueva', '2026-10-01T09:00:00Z'],
-      ['nuevo', '2026-05-25T10:00:00Z'],
-      ['antigua', '2026-05-24T09:00:00Z'],
-      ['sin-prs', null]
-    )
-    loads({ nueva: 3, nuevo: 1, 'sin-prs': 2 })
-
-    expect(await suggestReviewers(buildContext({ risk: 'Medium', effort: 3 }), { logger })).toEqual({
-      expert: 'ana',
-      learner: 'nuevo',
+    expect(result).toEqual({ suggestion: { login: 'luis', knowledge: 1, load: 1 } })
+    expect(listPathReviewers).toHaveBeenCalledWith('acme-io/app', 'main', ['src/a.js', 'src/b.js'], {
+      since: '2025-11-20T10:00:00.000Z',
     })
-    expect(listPathAuthors).toHaveBeenCalledWith('acme-io/app', 'main', ['src'], { limit: 50 })
-    expect(findFirstPullRequestDates).toHaveBeenCalledWith('acme-io', ['nueva', 'nuevo', 'antigua', 'sin-prs'])
-    expect(countReviewsSince.mock.calls[0][1]).not.toContain('antigua')
+    expect(countReviewsSince).toHaveBeenCalledWith('acme-io', ['ana', 'luis', 'marta'], '2026-10-21')
   })
 
-  it('reads each folder once and asks about 50 people at most', async () => {
-    folderAuthors(...Array.from({ length: 60 }, (_, index) => `dev${index}`))
-    const files = [
-      { filename: 'apps/integrations/shopify/a.py', changes: 9 },
-      { filename: 'apps/integrations/shopify/b.py', changes: 8 },
-      { filename: 'apps/returns/c.py', changes: 7 },
-    ]
+  it('weighs the load by knowledge, so the one who knows the files best still gets their share', async () => {
+    reviewsInLastMonth({ ana: 2, luis: 1, marta: 3 })
 
-    await suggestReviewers(buildContext({ files }), { logger })
-
-    expect(listPathAuthors.mock.calls[1][2]).toEqual(['apps/integrations/shopify', 'apps/returns'])
-    expect(findFirstPullRequestDates.mock.calls[0][1]).toHaveLength(50)
+    expect((await pickReviewer(buildContext(), null)).suggestion).toEqual({ login: 'ana', knowledge: 3, load: 2 })
   })
 
-  it('looks for no newcomer when the PR only changes files at the root of the repo', async () => {
-    await suggestReviewers(buildContext({ files: [{ filename: 'README.md', changes: 3 }] }), { logger })
+  it('takes the team from the people the author works with when the REVIEW.md names none', async () => {
+    await pickReviewer(buildContext(), null)
 
-    expect(listPathAuthors).toHaveBeenCalledTimes(1)
-    expect(findFirstPullRequestDates).not.toHaveBeenCalled()
+    expect(listCollaborators).toHaveBeenCalledWith('acme-io', 'author', '2026-05-24')
+    expect(canPushToRepository.mock.calls.map(([, login]) => login)).toEqual(['ana', 'luis', 'marta'])
   })
 
-  it('suggests someone who works in the folders but has not opened a PR yet, even when the PR already has a reviewer', async () => {
-    folderAuthors('nueva')
-    firstPullRequests(['nueva', null])
-    listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
+  it('takes the team the REVIEW.md names, in any case and with or without @', async () => {
+    reviewsInLastMonth({ marta: 3, otherteam: 5 })
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: null, learner: 'nueva' })
+    const result = await pickReviewer(buildContext(), [' @Marta ', 'OtherTeam'])
+
+    expect(listCollaborators).not.toHaveBeenCalled()
+    expect(canPushToRepository.mock.calls.map(([, login]) => login)).toEqual(['marta', 'otherteam'])
+    expect(result.suggestion.login).toBe('marta')
   })
 
-  it('does not suggest the expert again as the newcomer', async () => {
-    listPathAuthors.mockResolvedValue([{ path: 'src/a.js', authors: ['ana'] }])
-    firstPullRequests(['ana', '2026-11-01T09:00:00Z'])
+  it('leaves out the author, Soporti, people already asked to review and those who cannot push', async () => {
+    listPathReviewers.mockResolvedValue([
+      { path: 'src/a.js', pullRequests: [{ number: 1, reviewers: ['author', 'soporti-bot', 'luis', 'ana'] }] },
+    ])
+    listCollaborators.mockResolvedValue(['author', 'soporti-bot', 'luis', 'ana'])
+    listPullRequestReviews.mockResolvedValue([{ user: { login: 'author' } }])
+    canPushToRepository.mockImplementation(async (_repo, login) => login !== 'luis')
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
+    expect((await pickReviewer(buildContext(), null)).suggestion.login).toBe('ana')
   })
 
-  it.each([
-    ['high risk', { risk: 'High', effort: 2 }],
-    ['unknown risk', { risk: 'Unknown', effort: 2 }],
-    ['trivial change', { risk: 'Low', effort: 1 }],
-    ['complex change', { risk: 'Low', effort: 4 }],
-    ['no overview', { risk: 'Low', effort: undefined }],
-  ])('looks for no newcomer on a %s', async (_label, overrides) => {
-    folderAuthors('nueva')
-    firstPullRequests(['nueva', '2026-11-01T09:00:00Z'])
+  it('suggests nobody when someone is already reviewing', async () => {
+    const withReviewer = buildContext({ pr: { requested_reviewers: [{ login: 'luis' }], requested_teams: [] } })
+    const withTeam = buildContext({ pr: { requested_reviewers: [], requested_teams: [{ slug: 'backend' }] } })
 
-    expect((await suggestReviewers(buildContext(overrides), { logger })).learner).toBeNull()
-    expect(findFirstPullRequestDates).not.toHaveBeenCalled()
+    expect(await pickReviewer(withReviewer, null)).toEqual({ reason: expect.stringMatching(/already reviewing/) })
+    expect(await pickReviewer(withTeam, null)).toEqual({ reason: expect.stringMatching(/already reviewing/) })
+    expect(listPathReviewers).not.toHaveBeenCalled()
   })
 
-  it('still suggests the expert when the newcomers cannot be looked up', async () => {
-    findFirstPullRequestDates.mockRejectedValue(new Error('secondary rate limit'))
+  it('suggests nobody when no one in the team reviewed these files', async () => {
+    listCollaborators.mockResolvedValue(['someone-else'])
 
-    expect(await suggestReviewers(buildContext(), { logger })).toEqual({ expert: 'ana', learner: null })
-    expect(logger.warn).toHaveBeenCalledWith(
-      '[review] Could not look for newcomers in acme-io/app: secondary rate limit'
-    )
-  })
-
-  it('suggests nobody when there is no expert and no newcomer', async () => {
-    listPathAuthors.mockResolvedValue([])
-
-    expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
-    expect(canPushToRepository).not.toHaveBeenCalled()
+    expect(await pickReviewer(buildContext(), null)).toEqual({
+      reason: expect.stringMatching(/^Nobody in the team reviewed/),
+    })
     expect(countReviewsSince).not.toHaveBeenCalled()
   })
+})
 
-  it('returns null and logs when GitHub fails, so the review goes on', async () => {
-    listPullRequestReviews.mockRejectedValue(new Error('boom'))
+describe('buildReviewerSuggestion', () => {
+  it('gives the overview a suggest_reviewer tool that keeps its pick for the walkthrough', async () => {
+    const suggestion = buildReviewerSuggestion(buildContext(), { logger })
 
-    expect(await suggestReviewers(buildContext(), { logger })).toBeNull()
-    expect(logger.error).toHaveBeenCalledWith(
-      '[review] Could not suggest reviewers for acme-io/app#7:',
-      expect.any(Error)
+    expect(suggestion.tool.name).toBe('suggest_reviewer')
+    expect(suggestion.tool.description).toContain('Use it only when the REVIEW.md asks for a reviewer suggestion.')
+    expect(suggestion.read()).toBeNull()
+
+    const answer = await suggestion.tool.execute({ team: null })
+
+    expect(answer).toBe(
+      'Suggested @luis: reviewed 1 pull request(s) that changed these files, and 1 pull request(s) in the last 30 days.'
     )
+    expect(suggestion.read()).toEqual({ login: 'luis', knowledge: 1, load: 1 })
+  })
+
+  it('says why there is no one to suggest, and keeps nothing', async () => {
+    listPullRequestReviews.mockResolvedValue([{ user: { login: 'marta' } }])
+    const suggestion = buildReviewerSuggestion(buildContext(), { logger })
+
+    expect(await suggestion.tool.execute({ team: null })).toMatch(/already reviewing/)
+    expect(suggestion.read()).toBeNull()
+  })
+
+  it('logs a failure and tells the agent it could not suggest anyone', async () => {
+    listPathReviewers.mockRejectedValue(new Error('GitHub is down'))
+    const suggestion = buildReviewerSuggestion(buildContext(), { logger })
+
+    expect(await suggestion.tool.execute({ team: null })).toBe('Could not suggest a reviewer.')
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(suggestion.read()).toBeNull()
   })
 })

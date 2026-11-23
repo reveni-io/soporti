@@ -13,7 +13,6 @@ function mockGet({
   tokenConfigured = false,
   webhookSecretConfigured = false,
   repoCatalog = '',
-  reviewerSuggestionsEnabled = false,
   writesEnabled = false,
 } = {}) {
   return {
@@ -23,7 +22,6 @@ function mockGet({
       tokenConfigured,
       webhookSecretConfigured,
       repoCatalog,
-      reviewerSuggestionsEnabled,
       writesEnabled,
     }),
   }
@@ -41,27 +39,6 @@ describe('AdminGithub', () => {
 
     expect(await screen.findByText('configured')).toBeInTheDocument()
     expect(screen.getByDisplayValue(/org\/api/)).toBeInTheDocument()
-  })
-
-  it('turns the reviewer suggestions on', async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(mockGet())
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ reviewerSuggestionsEnabled: true }) })
-    const user = userEvent.setup()
-
-    render(<AdminGithub token="tok" onLogout={vi.fn()} />)
-
-    expect(await screen.findByText(/committed lately in their folders/)).toBeInTheDocument()
-    const toggle = screen.getByRole('checkbox', { name: /suggest reviewers/i })
-    await user.click(toggle)
-    await user.click(saveButtonOf(toggle))
-
-    expect(await screen.findByText('Saved')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).toBeChecked()
-    const [url, options] = global.fetch.mock.calls[1]
-    expect(url).toContain('/api/admin/config/github/reviewer-suggestions')
-    expect(JSON.parse(options.body)).toEqual({ enabled: true })
   })
 
   it('turns the write access on and only saves it when its button is pressed', async () => {
@@ -90,7 +67,6 @@ describe('AdminGithub', () => {
     expect(options.method).toBe('PUT')
     expect(JSON.parse(options.body)).toEqual({ enabled: true })
     expect(screen.getByRole('checkbox', { name: /let the assistant open pull requests/i })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: /suggest reviewers/i })).not.toBeChecked()
   })
 
   it('shows the write access already on, and lets it be turned off', async () => {
