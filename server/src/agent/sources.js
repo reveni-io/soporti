@@ -83,6 +83,7 @@ export function hasWriteTools(integrationId, toolNames) {
 export const INTEGRATION_TOOL_NAMES = {
   shortcut: [
     'get_shortcut_story',
+    'get_shortcut_story_comments',
     'search_shortcut_stories',
     'list_shortcut_iterations',
     'get_shortcut_iteration_stories',
