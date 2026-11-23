@@ -8,7 +8,8 @@ const findSendBlocker = vi.fn()
 const sendLegalReply = vi.fn()
 vi.mock('./replies.js', () => ({ findSendBlocker, sendLegalReply }))
 
-const { ALREADY_SENT, NOT_SHOWN_YET, SENT_NOT_RECORDED, WARNINGS_NOT_READ, sendCaseReply } = await import('./send.js')
+const { ALREADY_SENDING, ALREADY_SENT, NOT_SHOWN_YET, SENT_NOT_RECORDED, WARNINGS_NOT_READ, sendCaseReply } =
+  await import('./send.js')
 
 const CHECKED_AT = '2026-11-20T09:00:00.000Z'
 const TURN_STARTED_AT = new Date('2026-11-20T09:05:00.000Z')
@@ -108,6 +109,20 @@ describe('sendCaseReply', () => {
 
     expect(await send({ legalCase: shown, warningsRead: true })).toEqual({ expired: true })
     expect(sendLegalReply).not.toHaveBeenCalled()
+  })
+
+  it('sends a case once when two sends of it run at the same time', async () => {
+    let finishSending
+    sendLegalReply.mockReturnValueOnce(new Promise(resolve => (finishSending = () => resolve('zd-1'))))
+
+    const first = send()
+    await vi.waitFor(() => expect(sendLegalReply).toHaveBeenCalledTimes(1))
+    const second = await send()
+    finishSending()
+
+    expect(second).toEqual({ blocker: ALREADY_SENDING })
+    expect((await first).reply).toBeDefined()
+    expect(sendLegalReply).toHaveBeenCalledTimes(1)
   })
 
   it('says when the reply went out but could not be recorded', async () => {

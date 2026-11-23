@@ -4,9 +4,11 @@ import { findSendBlocker, sendLegalReply } from './replies.js'
 
 const MAX_REPLY_CHARS = 10_000
 const CONFIRMATION_MESSAGES = 2
+const casesBeingSent = new Set()
 
 export const WARNINGS_NOT_READ = 'Confirm that you read the warnings of this case before sending.'
 export const ALREADY_SENT = 'This reply was already sent to the ticket.'
+export const ALREADY_SENDING = 'This reply is being sent right now.'
 export const NOT_SHOWN_YET =
   'The user has not seen this case yet. Show it to them and send it only when they ask for it in a new message.'
 export const SENT_NOT_RECORDED =
@@ -50,7 +52,7 @@ function hasConfirmationExpired(legalCase, completedTurns) {
   return shownTurn === null || completedTurns - shownTurn > CONFIRMATION_MESSAGES
 }
 
-export async function sendCaseReply({ legalCase, user, warningsRead, turnStartedAt, completedTurns }) {
+async function sendOnce({ legalCase, user, warningsRead, turnStartedAt, completedTurns }) {
   const draft = parseReplyText(legalCase.draft?.body)
   if (draft.error) return { blocker: draft.error }
   if (isFromThisTurn(legalCase, turnStartedAt)) return { blocker: NOT_SHOWN_YET }
@@ -68,4 +70,16 @@ export async function sendCaseReply({ legalCase, user, warningsRead, turnStarted
   if (reply) return { reply: { id: reply.id, sentBy: reply.sentBy, text: reply.text, sentAt: reply.sentAt } }
 
   return { reply: { id: null, sentBy: user.email, text, sentAt: new Date().toISOString() }, warning: SENT_NOT_RECORDED }
+}
+
+export async function sendCaseReply(request) {
+  const caseId = request.legalCase.id
+  if (casesBeingSent.has(caseId)) return { blocker: ALREADY_SENDING }
+
+  casesBeingSent.add(caseId)
+  try {
+    return await sendOnce(request)
+  } finally {
+    casesBeingSent.delete(caseId)
+  }
 }
