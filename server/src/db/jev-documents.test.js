@@ -41,13 +41,14 @@ const db = {
   select: () => makeChain('select'),
   insert: table => makeChain('insert', table),
   update: table => makeChain('update', table),
+  delete: table => makeChain('delete', table),
   transaction: callback => callback(db),
 }
 
 vi.mock('./index.js', () => ({ getDb: () => db }))
 
 const { jevDocuments, jevHistory, jevSetVersions } = await import('./schema.js')
-const { addJevHistoryEntry, getJevDocument, getLatestJevSave, listJevHistory, listJevSetVersions, saveJevDocument } =
+const { deleteJevDocument, getJevDocument, getLatestJevSave, listJevDocuments, listJevSetVersions, saveJevDocument } =
   await import('./jev-documents.js')
 
 const DEFAULTS = { set: { questions: [] } }
@@ -65,6 +66,24 @@ describe('getJevDocument', () => {
     expect(await getJevDocument('legal')).toEqual(CURRENT)
     expect(await getJevDocument('github')).toBeNull()
     expect(calls[0].steps.where).toEqual({ op: 'eq', col: jevDocuments.id, val: 'legal' })
+  })
+})
+
+describe('listJevDocuments and deleteJevDocument', () => {
+  it('lists every stored document', async () => {
+    queue.push([CURRENT])
+
+    expect(await listJevDocuments()).toEqual([CURRENT])
+  })
+
+  it('deletes a document with its change history', async () => {
+    await deleteJevDocument('guard-0a1b2c3d')
+
+    expect(calls.map(({ op, table }) => [op, table])).toEqual([
+      ['delete', jevHistory],
+      ['delete', jevDocuments],
+    ])
+    expect(calls[1].steps.where).toEqual({ op: 'eq', col: jevDocuments.id, val: 'guard-0a1b2c3d' })
   })
 })
 
@@ -157,30 +176,6 @@ describe('saveJevDocument', () => {
     expect(calls.filter(call => call.table === jevSetVersions)).toHaveLength(0)
     expect(calls[2].steps.values.change).toBe('Timeout 30 → 60')
     expect(calls[3].steps.set.setVersion).toBe(2)
-  })
-})
-
-describe('addJevHistoryEntry', () => {
-  it('stores an entry outside the versions', async () => {
-    await addJevHistoryEntry('jev', { author: 'ana@example.com', change: 'API key saved' })
-
-    expect(calls[0].steps.values).toEqual({
-      documentId: 'jev',
-      rev: null,
-      authorEmail: 'ana@example.com',
-      change: 'API key saved',
-    })
-  })
-})
-
-describe('listJevHistory', () => {
-  it('returns one page of five entries with the total', async () => {
-    const entries = [{ at: new Date(), author: 'ana@example.com', change: 'Jev calls on', rev: 2 }]
-    queue.push(entries, [{ total: 7 }])
-
-    expect(await listJevHistory('jev', 2)).toEqual({ entries, total: 7, page: 2, pageSize: 5 })
-    expect(calls[0].steps.limit).toBe(5)
-    expect(calls[0].steps.offset).toBe(5)
   })
 })
 

@@ -15,15 +15,12 @@ const CHOICE = {
 const NOUL = { id: 'q2', type: 'noul', text: 'The reply promises a refund', instructions: '', criteria: '', flagAt: 60 }
 
 describe('buildJevQuestions', () => {
-  it('maps each question to the API shape, keyed by its id', () => {
+  it('maps each question to the API shape, keyed by its id, with the question text only', () => {
     expect(buildJevQuestions([CHOICE, NOUL])).toEqual({
       q1: {
         type: 'choice',
-        instructions: {
-          question: 'Is the customer asking for something unusual?',
-          instructions: 'Read the customer message.',
-        },
-        criteria: { No: 'A usual request.', Yes: null },
+        instructions: { question: 'Is the customer asking for something unusual?' },
+        criteria: { No: null, Yes: null },
       },
       q2: { type: 'noul', instructions: { question: 'The reply promises a refund' }, criteria: null },
     })

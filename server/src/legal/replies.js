@@ -10,8 +10,6 @@ const READ_LEVEL = 'read'
 const PUBLIC_MESSAGE_TYPE = 'MESSAGE'
 const MAX_CONVERSATION_PAGES = 10
 
-export const GUARD_SEND_OFF =
-  'Sending from Soporti is off for this guard. An admin can turn it on in the Guards section of the admin.'
 const ZENDESK_NOT_CONNECTED = 'Connect your Zendesk account in Settings to send replies and read tickets from Soporti.'
 const HUBSPOT_CANNOT_REPLY =
   'Your HubSpot user cannot reply from Soporti: replies in HubSpot conversations must be allowed in the HubSpot section of the admin.'
