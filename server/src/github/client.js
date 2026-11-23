@@ -33,8 +33,9 @@ const RESOLVE_REVIEW_THREAD_MUTATION = `mutation ($threadId: ID!) {
 }`
 
 const PATH_HISTORY_LIMIT = 20
+const PULL_REQUEST_REVIEWS_LIMIT = 30
+const COLLABORATION_LIMIT = 50
 const PUSH_PERMISSIONS = new Set(['admin', 'write'])
-const FIRST_PULL_REQUEST_BATCH = 50
 
 let octokitInstance = null
 let octokitInstanceToken = null
@@ -267,7 +268,7 @@ export async function createReviewCommentReaction(repoFullName, commentId, conte
   return data
 }
 
-export async function listPathAuthors(repoFullName, ref, paths, { limit = PATH_HISTORY_LIMIT } = {}) {
+export async function listPathReviewers(repoFullName, ref, paths, { since, limit = PATH_HISTORY_LIMIT }) {
   if (paths.length === 0) return []
 
   const octokit = await getOctokit()
@@ -275,20 +276,43 @@ export async function listPathAuthors(repoFullName, ref, paths, { limit = PATH_H
   const definitions = paths.map((_, index) => `$p${index}: String!`).join(', ')
   const fields = paths
     .map((_, index) => {
-      return `f${index}: history(first: ${limit}, path: $p${index}) { nodes { author { user { login } } } }`
+      return `f${index}: history(first: ${limit}, path: $p${index}, since: $since) { nodes { associatedPullRequests(first: 1) { nodes { number reviews(first: ${PULL_REQUEST_REVIEWS_LIMIT}) { nodes { author { login } } } } } } }`
     })
     .join('\n')
-  const query = `query ($owner: String!, $repo: String!, $ref: String!, ${definitions}) {
+  const query = `query ($owner: String!, $repo: String!, $ref: String!, $since: GitTimestamp!, ${definitions}) {
   repository(owner: $owner, name: $repo) { object(expression: $ref) { ... on Commit { ${fields} } } }
 }`
   const variables = Object.fromEntries(paths.map((path, index) => [`p${index}`, path]))
-  const data = await octokit.graphql(query, { owner, repo, ref, ...variables })
+  const data = await octokit.graphql(query, { owner, repo, ref, since, ...variables })
   const commit = data.repository?.object ?? {}
 
   return paths.map((path, index) => ({
     path,
-    authors: (commit[`f${index}`]?.nodes ?? []).map(node => node.author?.user?.login).filter(Boolean),
+    pullRequests: (commit[`f${index}`]?.nodes ?? [])
+      .flatMap(node => node.associatedPullRequests?.nodes ?? [])
+      .map(pullRequest => ({
+        number: pullRequest.number,
+        reviewers: (pullRequest.reviews?.nodes ?? []).map(review => review.author?.login).filter(Boolean),
+      })),
   }))
+}
+
+export async function listCollaborators(owner, login, since) {
+  const octokit = await getOctokit()
+  const data = await octokit.graphql(
+    `query ($authored: String!, $reviewed: String!) {
+  authored: search(query: $authored, type: ISSUE, first: ${COLLABORATION_LIMIT}) { nodes { ... on PullRequest { reviews(first: ${PULL_REQUEST_REVIEWS_LIMIT}) { nodes { author { login } } } } } }
+  reviewed: search(query: $reviewed, type: ISSUE, first: ${COLLABORATION_LIMIT}) { nodes { ... on PullRequest { author { login } } } }
+}`,
+    {
+      authored: `is:pr user:${owner} author:${login} updated:>=${since}`,
+      reviewed: `is:pr user:${owner} reviewed-by:${login} -author:${login} updated:>=${since}`,
+    }
+  )
+  const reviewers = (data.authored?.nodes ?? []).flatMap(pullRequest => pullRequest.reviews?.nodes ?? [])
+  const logins = [...reviewers, ...(data.reviewed?.nodes ?? [])].map(node => node.author?.login).filter(Boolean)
+
+  return [...new Set(logins)]
 }
 
 export async function countReviewsSince(owner, logins, since) {
@@ -306,31 +330,6 @@ export async function countReviewsSince(owner, logins, since) {
   const data = await octokit.graphql(`query (${definitions}) {\n${fields.join('\n')}\n}`, variables)
 
   return new Map(logins.map((login, index) => [login, data[`r${index}`]?.issueCount ?? 0]))
-}
-
-async function readFirstPullRequestDates(octokit, org, logins) {
-  const definitions = logins.map((_, index) => `$q${index}: String!`).join(', ')
-  const fields = logins.map((_, index) => {
-    return `r${index}: search(query: $q${index}, type: ISSUE, first: 1) { nodes { ... on PullRequest { createdAt } } }`
-  })
-  const variables = Object.fromEntries(
-    logins.map((login, index) => [`q${index}`, `is:pr org:${org} author:${login} sort:created-asc`])
-  )
-  const data = await octokit.graphql(`query (${definitions}) {\n${fields.join('\n')}\n}`, variables)
-
-  return logins.map((login, index) => [login, data[`r${index}`]?.nodes?.[0]?.createdAt ?? null])
-}
-
-export async function findFirstPullRequestDates(org, logins) {
-  const octokit = await getOctokit()
-  const dates = new Map()
-
-  for (let start = 0; start < logins.length; start += FIRST_PULL_REQUEST_BATCH) {
-    const batch = logins.slice(start, start + FIRST_PULL_REQUEST_BATCH)
-    for (const [login, createdAt] of await readFirstPullRequestDates(octokit, org, batch)) dates.set(login, createdAt)
-  }
-
-  return dates
 }
 
 export async function canPushToRepository(repoFullName, login) {

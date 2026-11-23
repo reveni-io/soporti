@@ -36,7 +36,7 @@ export async function runReviewTeam({
   changes = null,
   rootPath = null,
   diffBaseSha = null,
-  guardTools = [],
+  overviewTools = [],
   signal,
   logger = console,
 }) {
@@ -50,7 +50,7 @@ export async function runReviewTeam({
     diffBaseSha,
     repoTools: buildRepoTools(trigger.repoFullName, rootPath),
     dataTools: await buildDataTools(),
-    guardTools,
+    overviewTools,
     signal,
     logger,
   }
@@ -92,7 +92,7 @@ function overviewPass(repoFullName) {
     task: buildOverviewTask(),
     outputType: overviewOutputSchema,
     withDataTools: false,
-    withGuardTools: true,
+    withOverviewTools: true,
   }
 }
 
@@ -156,7 +156,7 @@ async function runPass(pass, scope) {
     diffBaseSha,
     repoTools,
     dataTools,
-    guardTools,
+    overviewTools,
     signal,
     logger,
   } = scope
@@ -173,7 +173,7 @@ async function runPass(pass, scope) {
         ...repoTools,
         ...diff.tools,
         ...(pass.withDataTools ? dataTools : []),
-        ...(pass.withGuardTools ? guardTools : []),
+        ...(pass.withOverviewTools ? overviewTools : []),
       ],
       outputType: pass.outputType,
       sharedContext,

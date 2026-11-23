@@ -4,7 +4,6 @@ import {
   absoluteApiUrl,
   getGithubConfig,
   saveGithubCatalog,
-  saveGithubReviewerSuggestions,
   saveGithubToken,
   saveGithubWebhookSecret,
   saveGithubWrites,
@@ -43,11 +42,6 @@ export default function AdminGithub({ token, onLogout }) {
   async function saveWebhookSecret(value) {
     const data = await saveGithubWebhookSecret(token, value)
     patchConfig({ webhookSecretConfigured: data.webhookSecretConfigured })
-  }
-
-  async function saveReviewerSuggestions(enabled) {
-    const data = await saveGithubReviewerSuggestions(token, enabled)
-    patchConfig({ reviewerSuggestionsEnabled: data.reviewerSuggestionsEnabled })
   }
 
   async function saveWrites(enabled) {
@@ -201,27 +195,6 @@ export default function AdminGithub({ token, onLogout }) {
           </button>
           {!catalogError && catalogSavedAt && !catalogDirty && <span className="admin__saved">Saved</span>}
         </div>
-      </AdminSection>
-
-      <AdminSection title="Reviewer suggestions">
-        <p className="admin__muted">
-          Each PR review adds a line to the walkthrough with a good reviewer: someone who knows the changed files and
-          has reviewed less lately. On simple PRs that are not risky, it also suggests someone who joined recently, so
-          they learn that part of the code. It works without Jev.
-        </p>
-        <p className="admin__muted">
-          Both come from the part of the code the PR changes. The reviewer is who committed most to the changed files.
-          The newcomer is someone who committed lately in their folders and whose first pull request in the GitHub
-          organization is less than 180 days old, the six-month trial period, or who has not opened one yet.
-        </p>
-
-        <ToggleField
-          enabled={config.reviewerSuggestionsEnabled}
-          label="Suggest reviewers"
-          hint="The reviewer is left out when someone else is already reviewing the PR or Soporti approved it."
-          onSave={saveReviewerSuggestions}
-          onLogout={onLogout}
-        />
       </AdminSection>
     </>
   )

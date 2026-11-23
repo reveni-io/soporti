@@ -1,87 +1,31 @@
+import { tool } from '@openai/agents'
+import { z } from 'zod'
 import {
   canPushToRepository,
   countReviewsSince,
-  findFirstPullRequestDates,
-  listPathAuthors,
+  listCollaborators,
+  listPathReviewers,
   listPullRequestReviews,
 } from '../github/client.js'
-import { getReviewerSuggestionsEnabled } from '../github/settings.js'
 import { isBotLogin, isSameLogin, parseRepo } from '../github/sanitize.js'
 
 const MAX_PATHS = 10
-const AREA_HISTORY_LIMIT = 50
-const MAX_AREA_PEOPLE = 50
-const MAX_EXPERTS = 5
+const KNOWLEDGE_WINDOW_DAYS = 365
+const TEAM_WINDOW_DAYS = 180
 const LOAD_WINDOW_DAYS = 30
-const NEWCOMER_DAYS = 180
 const DAY_MS = 86_400_000
-const LEARNING_RISKS = new Set(['Low', 'Medium'])
-const LEARNING_EFFORTS = new Set([2, 3])
+const LOGIN_PREFIX_RE = /^@/
+const ALREADY_REVIEWING = 'Someone is already reviewing this pull request, so there is no one to suggest.'
+const NO_CANDIDATE =
+  'Nobody in the team reviewed pull requests that changed these files, so there is no one to suggest.'
+const NOT_SUGGESTED = 'Could not suggest a reviewer.'
 
-export async function suggestReviewers(context, { logger = console } = {}) {
-  try {
-    if (!(await getReviewerSuggestionsEnabled())) return null
-
-    return await pickReviewers(context, logger)
-  } catch (err) {
-    logger.error(`[review] Could not suggest reviewers for ${context.trigger.dedupeKey}:`, err)
-    return null
-  }
+function daysAgo(days) {
+  return new Date(Date.now() - days * DAY_MS)
 }
 
-async function pickReviewers(context, logger) {
-  const { repoFullName } = context.trigger
-  const { owner } = parseRepo(repoFullName)
-  const taken = await listTakenReviewers(context)
-  const paths = changedPaths(context.files)
-  const experts = context.approved || taken.hasReviewer ? [] : await rankExperts(context.trigger, paths, taken.logins)
-  const learners = isLearningPr(context)
-    ? await findNewcomers({ trigger: context.trigger, paths, taken: taken.logins }, logger)
-    : []
-  const candidates = await keepPushers(repoFullName, [...new Set([...experts, ...learners])])
-
-  if (candidates.size === 0) return null
-
-  const load = await countReviewsSince(owner, [...candidates], daysAgo(LOAD_WINDOW_DAYS).toISOString().slice(0, 10))
-  const expert = leastLoaded(experts, candidates, load)
-  const learner = leastLoaded(
-    learners.filter(login => !isSameLogin(login, expert)),
-    candidates,
-    load
-  )
-
-  return expert || learner ? { expert, learner } : null
-}
-
-function folderOf(path) {
-  const slash = path.lastIndexOf('/')
-
-  return slash > 0 ? path.slice(0, slash) : null
-}
-
-async function findNewcomers({ trigger, paths, taken }, logger) {
-  const folders = [...new Set(paths.map(folderOf).filter(Boolean))]
-  if (folders.length === 0) return []
-
-  try {
-    const history = await listPathAuthors(trigger.repoFullName, trigger.baseRef, folders, {
-      limit: AREA_HISTORY_LIMIT,
-    })
-    const people = [...new Set(history.flatMap(({ authors }) => authors))]
-      .filter(login => !isBotLogin(login) && !taken.has(login.toLowerCase()))
-      .slice(0, MAX_AREA_PEOPLE)
-    const firstPullRequests = await findFirstPullRequestDates(parseRepo(trigger.repoFullName).owner, people)
-    const joinedAfter = daysAgo(NEWCOMER_DAYS).getTime()
-
-    return people.filter(login => isNewcomer(firstPullRequests.get(login), joinedAfter))
-  } catch (err) {
-    logger.warn(`[review] Could not look for newcomers in ${trigger.repoFullName}: ${err.message}`)
-    return []
-  }
-}
-
-function isNewcomer(firstPullRequestAt, joinedAfter) {
-  return !firstPullRequestAt || Date.parse(firstPullRequestAt) >= joinedAfter
+function toDay(date) {
+  return date.toISOString().slice(0, 10)
 }
 
 async function listTakenReviewers({ trigger, pr, reviewerLogin }) {
@@ -107,43 +51,109 @@ function changedPaths(files) {
     .map(file => file.previous_filename ?? file.filename)
 }
 
-async function rankExperts(trigger, paths, taken) {
-  const history = await listPathAuthors(trigger.repoFullName, trigger.baseRef, paths)
-  const touched = new Map()
+function countKnowledge(history) {
+  const reviewed = new Map()
 
-  for (const login of history.flatMap(({ authors }) => [...new Set(authors)])) {
-    touched.set(login, (touched.get(login) ?? 0) + 1)
+  for (const { pullRequests } of history) {
+    for (const { number, reviewers } of pullRequests) {
+      for (const login of reviewers) reviewed.set(login, (reviewed.get(login) ?? new Set()).add(number))
+    }
   }
 
-  const ranked = [...touched]
-    .filter(([login]) => !isBotLogin(login) && !taken.has(login.toLowerCase()))
-    .sort((a, b) => b[1] - a[1])
-  const most = ranked[0]?.[1] ?? 0
-
-  return ranked
-    .filter(([, count]) => count * 2 >= most)
-    .slice(0, MAX_EXPERTS)
-    .map(([login]) => login)
+  return new Map([...reviewed].map(([login, numbers]) => [login, numbers.size]))
 }
 
-function isLearningPr({ risk, effort }) {
-  return LEARNING_RISKS.has(risk) && LEARNING_EFFORTS.has(effort)
+function normalizeTeam(team) {
+  return (team ?? []).map(login => login.trim().replace(LOGIN_PREFIX_RE, '').toLowerCase()).filter(Boolean)
+}
+
+async function loadTeam({ trigger }, team) {
+  const named = normalizeTeam(team)
+
+  if (named.length > 0) return new Set(named)
+
+  const { owner } = parseRepo(trigger.repoFullName)
+  const collaborators = await listCollaborators(owner, trigger.authorLogin, toDay(daysAgo(TEAM_WINDOW_DAYS)))
+
+  return new Set(collaborators.map(login => login.toLowerCase()))
 }
 
 async function keepPushers(repoFullName, logins) {
   const access = await Promise.all(logins.map(login => canPushToRepository(repoFullName, login)))
 
-  return new Set(logins.filter((_, index) => access[index]))
+  return logins.filter((_, index) => access[index])
 }
 
-function leastLoaded(logins, candidates, load) {
-  const eligible = logins.filter(login => candidates.has(login))
-
-  if (eligible.length === 0) return null
-
-  return eligible.reduce((best, login) => (load.get(login) < load.get(best) ? login : best))
+function byLoadForKnowledge(a, b) {
+  return a.load / a.knowledge - b.load / b.knowledge || b.knowledge - a.knowledge || a.login.localeCompare(b.login)
 }
 
-function daysAgo(days) {
-  return new Date(Date.now() - days * DAY_MS)
+export async function pickReviewer(context, team) {
+  const taken = await listTakenReviewers(context)
+
+  if (taken.hasReviewer) return { reason: ALREADY_REVIEWING }
+
+  const { repoFullName, baseRef } = context.trigger
+  const [history, members] = await Promise.all([
+    listPathReviewers(repoFullName, baseRef, changedPaths(context.files), {
+      since: daysAgo(KNOWLEDGE_WINDOW_DAYS).toISOString(),
+    }),
+    loadTeam(context, team),
+  ])
+  const knowledge = countKnowledge(history)
+  const known = [...knowledge.keys()].filter(login => {
+    const lower = login.toLowerCase()
+
+    return members.has(lower) && !isBotLogin(login) && !taken.logins.has(lower)
+  })
+  const candidates = await keepPushers(repoFullName, known)
+
+  if (candidates.length === 0) return { reason: NO_CANDIDATE }
+
+  const load = await countReviewsSince(parseRepo(repoFullName).owner, candidates, toDay(daysAgo(LOAD_WINDOW_DAYS)))
+  const [suggestion] = candidates
+    .map(login => ({ login, knowledge: knowledge.get(login), load: load.get(login) ?? 0 }))
+    .sort(byLoadForKnowledge)
+
+  return { suggestion }
+}
+
+function describeSuggestion({ login, knowledge, load }) {
+  return `Suggested @${login}: reviewed ${knowledge} pull request(s) that changed these files, and ${load} pull request(s) in the last ${LOAD_WINDOW_DAYS} days.`
+}
+
+export function buildReviewerSuggestion(context, { logger = console } = {}) {
+  let suggestion = null
+
+  const suggestTool = tool({
+    name: 'suggest_reviewer',
+    description: [
+      'Suggest one person to review this pull request. Use it only when the REVIEW.md asks for a reviewer suggestion.',
+      'Soporti picks, among the people of the team who reviewed pull requests that changed these files, the one with the fewest recent reviews for how well they know these files, so the reviews spread by knowledge.',
+      'If the REVIEW.md says which team owns the changed paths, or who is in each team, pass in `team` the GitHub logins of the team that owns the changed files, or else of the author’s team. Pass null when it names no team: Soporti then takes the people who reviewed the author’s pull requests, or whose pull requests the author reviewed, in the last six months.',
+    ].join(' '),
+    parameters: z.object({
+      team: z
+        .array(z.string())
+        .nullable()
+        .describe('The GitHub logins of the team, as the REVIEW.md lists them. Null when it names no team.'),
+    }),
+    execute: async ({ team }) => {
+      try {
+        const picked = await pickReviewer(context, team)
+
+        if (picked.reason) return picked.reason
+
+        suggestion = picked.suggestion
+
+        return describeSuggestion(suggestion)
+      } catch (err) {
+        logger.error(`[review] Could not suggest a reviewer for ${context.trigger.dedupeKey}:`, err)
+
+        return NOT_SUGGESTED
+      }
+    },
+  })
+
+  return { tool: suggestTool, read: () => suggestion }
 }

@@ -3,7 +3,6 @@ import { getConfigValue, setConfigValue } from '../db/app-config.js'
 export const GITHUB_TOKEN_KEY = 'github_token'
 export const GITHUB_WEBHOOK_SECRET_KEY = 'github_webhook_secret'
 export const REPO_CATALOG_KEY = 'repo_catalog'
-export const REVIEWER_SUGGESTIONS_KEY = 'github_reviewer_suggestions'
 export const GITHUB_WRITES_KEY = 'github_writes_enabled'
 
 const CACHE_TTL_MS = 60_000
@@ -47,15 +46,6 @@ export async function getRepoCatalog() {
 export async function setRepoCatalog(catalog) {
   await setConfigValue(REPO_CATALOG_KEY, catalog)
   cache.delete(REPO_CATALOG_KEY)
-}
-
-export async function getReviewerSuggestionsEnabled() {
-  return (await getCachedValue(REVIEWER_SUGGESTIONS_KEY)) === true
-}
-
-export async function setReviewerSuggestionsEnabled(enabled) {
-  await setConfigValue(REVIEWER_SUGGESTIONS_KEY, enabled)
-  cache.delete(REVIEWER_SUGGESTIONS_KEY)
 }
 
 export async function getGithubWritesEnabled() {

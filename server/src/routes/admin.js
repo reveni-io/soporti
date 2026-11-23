@@ -81,8 +81,6 @@ import {
   setWebhookSecret,
   getRepoCatalog,
   setRepoCatalog,
-  getReviewerSuggestionsEnabled,
-  setReviewerSuggestionsEnabled,
   getGithubWritesEnabled,
   setGithubWritesEnabled,
 } from '../github/settings.js'
@@ -494,18 +492,16 @@ router.put('/config/auth/google-client-secret', async (req, res) => {
 
 router.get('/config/github', async (_req, res) => {
   try {
-    const [token, webhookSecret, repoCatalog, reviewerSuggestionsEnabled, writesEnabled] = await Promise.all([
+    const [token, webhookSecret, repoCatalog, writesEnabled] = await Promise.all([
       getGithubToken(),
       getWebhookSecret(),
       getRepoCatalog(),
-      getReviewerSuggestionsEnabled(),
       getGithubWritesEnabled(),
     ])
     res.json({
       tokenConfigured: Boolean(token),
       webhookSecretConfigured: Boolean(webhookSecret),
       repoCatalog,
-      reviewerSuggestionsEnabled,
       writesEnabled,
     })
   } catch (err) {
@@ -570,22 +566,6 @@ router.put('/config/github/catalog', async (req, res) => {
   } catch (err) {
     console.error('Admin set repo catalog error:', err)
     res.status(500).json({ error: 'Failed to save the repository catalog.' })
-  }
-})
-
-router.put('/config/github/reviewer-suggestions', async (req, res) => {
-  const { enabled } = req.body ?? {}
-
-  if (typeof enabled !== 'boolean') {
-    return res.status(400).json({ error: '"enabled" must be a boolean.' })
-  }
-
-  try {
-    await setReviewerSuggestionsEnabled(enabled)
-    res.json({ reviewerSuggestionsEnabled: enabled })
-  } catch (err) {
-    console.error('Admin set reviewer suggestions error:', err)
-    res.status(500).json({ error: 'Failed to save the reviewer suggestions.' })
   }
 })
 

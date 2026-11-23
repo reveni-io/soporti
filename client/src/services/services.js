@@ -737,15 +737,6 @@ export function saveGithubCatalog(token, catalog) {
   })
 }
 
-export function saveGithubReviewerSuggestions(token, enabled) {
-  return request('/api/admin/config/github/reviewer-suggestions', {
-    method: 'PUT',
-    token,
-    body: { enabled },
-    errorMessage: 'Failed to save the reviewer suggestions',
-  })
-}
-
 export function saveGithubWrites(token, enabled) {
   return request('/api/admin/config/github/writes', {
     method: 'PUT',
