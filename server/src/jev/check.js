@@ -1,3 +1,4 @@
+import { getCurrentTrace, withGenerationSpan } from '@openai/agents'
 import { JEV_CHECK_ANSWERED, JEV_CHECK_UNAVAILABLE, JEV_LATEST_MODEL, MS_PER_SECOND } from '../constants.js'
 import { countJevCallsSince, recordJevCall } from '../db/jev-calls.js'
 import { getJevDocument } from '../db/jev-documents.js'
@@ -51,12 +52,27 @@ function unavailable({ setVersion }, reason) {
   return { status: JEV_CHECK_UNAVAILABLE, setVersion, model: JEV_LATEST_MODEL, reason }
 }
 
+function askJevInTrace(request) {
+  if (!getCurrentTrace()) return askQuestions(request)
+
+  return withGenerationSpan(
+    async span => {
+      const response = await askQuestions(request)
+      span.spanData.model = response.model
+      span.spanData.output = [{ answers: response.answers }]
+
+      return response
+    },
+    { data: { model: request.model, input: [{ state: request.state, questions: request.questions }] } }
+  )
+}
+
 async function callJev(project, loaded, { state, questions }) {
   const { set, setVersion } = loaded
   const call = { project, setVersion, model: JEV_LATEST_MODEL }
 
   try {
-    const response = await askQuestions({
+    const response = await askJevInTrace({
       model: JEV_LATEST_MODEL,
       state,
       questions: buildJevQuestions(questions),
