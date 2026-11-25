@@ -228,7 +228,7 @@ describe('runMentionAgent', () => {
 
     expect(mockWithTrace).toHaveBeenCalledTimes(1)
     expect(mockWithTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'acme-io/app#7', question: '@soporti-bot ¿y los reintentos?' },
+      metadata: { channel: 'pr_mention', sessionId: 'acme-io/app#7', question: '@soporti-bot ¿y los reintentos?' },
     })
   })
 

@@ -84,7 +84,13 @@ export async function executeAskSoporti({
     nestedUsage.length = 0
     callIdToName.clear()
 
-    const trace = { sessionId: conversation.conversationId, userId, question }
+    const trace = {
+      name: agent.name,
+      channel: AGENT_CHANNEL_MCP,
+      sessionId: conversation.conversationId,
+      userId,
+      question,
+    }
     const stream = await traceAgentRun(trace, () =>
       run(agent, agentInput, {
         stream: true,

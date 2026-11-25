@@ -89,13 +89,15 @@ export async function runUnattended(task, { session = undefined, conversationId 
       failureReason: runResult => (extractText(runResult).trim().length === 0 ? EMPTY_ANSWER_ERROR : null),
     },
     () => {
-      return traceAgentRun({ sessionId: conversationId, userId, question }, () =>
-        run(agent, input, {
-          maxTurns,
-          session,
-          toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
-          errorHandlers: { maxTurns: buildWrapUp(agent, maxTurns, state) },
-        })
+      return traceAgentRun(
+        { name: agent.name, channel: AGENT_CHANNEL_SCHEDULE, sessionId: conversationId, userId, question },
+        () =>
+          run(agent, input, {
+            maxTurns,
+            session,
+            toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
+            errorHandlers: { maxTurns: buildWrapUp(agent, maxTurns, state) },
+          })
       )
     }
   )

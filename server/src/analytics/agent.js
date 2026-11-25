@@ -55,13 +55,16 @@ function runChartAgent(agent, ctx, database) {
       failureReason: () => (ctx.state.submission ? null : NO_CHART_ERROR),
     },
     async () => {
-      const result = await traceAgentRun({ sessionId: card.id, userId, question: card.prompt }, () => {
-        return runStreamed(agent, buildChartPrompt(card, { database }), {
-          maxTurns: MAX_TURNS,
-          signal,
-          toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
-        })
-      })
+      const result = await traceAgentRun(
+        { name: AGENT_NAME, channel: AGENT_CHANNEL_ANALYTICS, sessionId: card.id, userId, question: card.prompt },
+        () => {
+          return runStreamed(agent, buildChartPrompt(card, { database }), {
+            maxTurns: MAX_TURNS,
+            signal,
+            toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
+          })
+        }
+      )
       if (typeof result.finalOutput === 'string') ctx.state.reply = result.finalOutput
 
       return result

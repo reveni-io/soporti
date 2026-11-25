@@ -56,7 +56,13 @@ describe('runUnattended', () => {
       errorHandlers: { maxTurns: expect.any(Function) },
     })
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'bot-conversation', userId: '7', question: 'Review the new tickets.' },
+      metadata: {
+        name: 'agent',
+        channel: 'schedule',
+        sessionId: 'bot-conversation',
+        userId: '7',
+        question: 'Review the new tickets.',
+      },
     })
   })
 

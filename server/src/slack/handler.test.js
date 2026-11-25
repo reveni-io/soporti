@@ -242,7 +242,13 @@ describe('processMessage', () => {
 
     expect(withTrace).toHaveBeenCalledTimes(1)
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'conversation-42', userId: '1', question: expectedQuestion },
+      metadata: {
+        name: 'test-agent',
+        channel: 'slack',
+        sessionId: 'conversation-42',
+        userId: '1',
+        question: expectedQuestion,
+      },
     })
   })
 

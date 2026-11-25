@@ -204,7 +204,7 @@ describe('executeAskSoporti', () => {
 
     expect(withTrace).toHaveBeenCalledTimes(1)
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: CONVERSATION_ID, userId: '7', question: 'What failed?' },
+      metadata: { name: 'agent', channel: 'mcp', sessionId: CONVERSATION_ID, userId: '7', question: 'What failed?' },
     })
   })
 

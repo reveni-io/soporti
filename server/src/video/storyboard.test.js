@@ -121,6 +121,8 @@ describe('startStoryboardDraft', () => {
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'video_storyboard', subject: VIDEO_ID, userId: 7 })
     expect(traceAgentRun).toHaveBeenCalledTimes(1)
     expect(traceAgentRun.mock.calls[0][0]).toEqual({
+      name: 'Video storyboard',
+      channel: 'video_storyboard',
       sessionId: VIDEO_ID,
       userId: 7,
       question: 'Refunds in one click',

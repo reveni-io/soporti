@@ -66,7 +66,12 @@ export async function runMentionAgent({ mention, pr, thread, rootPath = null }) 
   const input = buildMentionInput({ mention, pr, thread })
   const subject = `${mention.repoFullName}#${mention.prNumber}`
 
-  const trace = { sessionId: subject, question: mention.commentBody }
+  const trace = {
+    name: agent.name,
+    channel: AGENT_CHANNEL_PR_MENTION,
+    sessionId: subject,
+    question: mention.commentBody,
+  }
   const { result } = await trackAgentRun({ channel: AGENT_CHANNEL_PR_MENTION, subject }, () =>
     traceAgentRun(trace, () =>
       run(agent, input, { maxTurns: config.agent.maxIterations, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR })

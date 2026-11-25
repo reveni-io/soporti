@@ -102,14 +102,24 @@ function runComposer({ agent, finalAnswerModelSettings, effort, input, ctx }) {
       failureReason: () => describeCheckFailure(ctx.state.lastCheck),
     },
     async () => {
-      const result = await traceAgentRun({ sessionId: job.videoId, userId, question: brief.idea, effort }, () => {
-        return runStreamed(agent, input, {
-          maxTurns: config.video.maxTurns,
-          signal,
-          toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
-          errorHandlers: { maxTurns: wrapUpHandler({ agent, finalAnswerModelSettings, ctx }) },
-        })
-      })
+      const result = await traceAgentRun(
+        {
+          name: AGENT_NAME,
+          channel: AGENT_CHANNEL_VIDEO,
+          sessionId: job.videoId,
+          userId,
+          question: brief.idea,
+          effort,
+        },
+        () => {
+          return runStreamed(agent, input, {
+            maxTurns: config.video.maxTurns,
+            signal,
+            toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR,
+            errorHandlers: { maxTurns: wrapUpHandler({ agent, finalAnswerModelSettings, ctx }) },
+          })
+        }
+      )
       if (!ctx.state.lastCheck) await runVideoCheck(ctx)
 
       return result

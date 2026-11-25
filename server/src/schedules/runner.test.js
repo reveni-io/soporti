@@ -142,7 +142,13 @@ describe('runSchedule', () => {
 
     expect(withTrace).toHaveBeenCalledTimes(1)
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'scheduled-conversation', userId: '7', question: 'Failed payments in the last 24h' },
+      metadata: {
+        name: 'agent',
+        channel: 'schedule',
+        sessionId: 'scheduled-conversation',
+        userId: '7',
+        question: 'Failed payments in the last 24h',
+      },
     })
   })
 

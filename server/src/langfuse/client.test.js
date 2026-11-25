@@ -511,6 +511,33 @@ describe('exportSpans trace input, output and grouping', () => {
   })
 
   it.each([
+    { kind: 'content is exported', metadataOnly: false },
+    { kind: 'metadata only is on', metadataOnly: true },
+  ])('names the trace and tags its channel on the root and every child span when $kind', async ({ metadataOnly }) => {
+    storeConfig({ [LANGFUSE_METADATA_ONLY_KEY]: metadataOnly })
+    const labelled = { ...META, name: 'Soporti Review Finder (security)', channel: 'pr_review' }
+
+    await exportSpans([
+      aiSdkGeneration([assistantMessage('a')], { traceMetadata: labelled }),
+      rootAgent({ traceMetadata: labelled }),
+    ])
+
+    for (const span of sentSpans()) {
+      const tags = span.attributes.find(({ key }) => key === 'langfuse.trace.tags')?.value
+      expect(attributesOf(span)['langfuse.trace.name']).toBe('Soporti Review Finder (security)')
+      expect(tags).toEqual({ arrayValue: { values: [{ stringValue: 'pr_review' }] } })
+    }
+  })
+
+  it('leaves the trace name and tags out when the run names neither', async () => {
+    await exportSpans([aiSdkGeneration([assistantMessage('a')]), rootAgent()])
+
+    const keys = sentSpans().flatMap(span => span.attributes.map(({ key }) => key))
+    expect(keys).not.toContain('langfuse.trace.name')
+    expect(keys).not.toContain('langfuse.trace.tags')
+  })
+
+  it.each([
     { kind: 'no trace metadata', traceMetadata: undefined },
     { kind: 'empty trace metadata', traceMetadata: {} },
   ])('sends a root with $kind as before, without question, answer or ids', async ({ traceMetadata }) => {

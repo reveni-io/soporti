@@ -31,8 +31,9 @@ export async function diagnoseTicket(ticket, { images = [] } = {}) {
   const { result, durationMs } = await trackAgentRun(
     { channel: AGENT_CHANNEL_AUTO_DIAGNOSE, subject: ticket?.id ?? null },
     () =>
-      traceAgentRun({ sessionId: ticket?.id, question: ticket?.title }, () =>
-        run(agent, input, { maxTurns: config.agent.maxIterations, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR })
+      traceAgentRun(
+        { name: agent.name, channel: AGENT_CHANNEL_AUTO_DIAGNOSE, sessionId: ticket?.id, question: ticket?.title },
+        () => run(agent, input, { maxTurns: config.agent.maxIterations, toolNotFoundBehavior: TOOL_NOT_FOUND_BEHAVIOR })
       )
   )
 
