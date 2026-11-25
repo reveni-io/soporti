@@ -38,13 +38,6 @@ export async function listDatasetItems(client, datasetName) {
   return { items: page.data ?? [], hasMorePages: (page.meta?.totalPages ?? 1) > 1 }
 }
 
-export async function linkDatasetRunItem(client, { runName, datasetItemId, traceId, metadata }) {
-  await client.api.datasetRunItems.create(
-    { runName, datasetItemId, traceId, metadata },
-    { timeoutInSeconds: REQUEST_TIMEOUT_SECONDS, maxRetries: 0 }
-  )
-}
-
 export function isLangfuseNotFound(err) {
   return err?.statusCode === NOT_FOUND_STATUS
 }

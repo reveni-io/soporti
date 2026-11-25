@@ -81,7 +81,8 @@ function describePlan({ dataset, runs, items, skipped }) {
     dataset,
     items: items.length,
     skippedItems: skipped,
-    runs: runs.map(({ runName, key, promptVersion, overrides }) => ({
+    runs: runs.map(({ experimentId, runName, key, promptVersion, overrides }) => ({
+      experimentId,
       runName,
       variant: key,
       promptVersion,

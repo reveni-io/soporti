@@ -1,10 +1,11 @@
-import { withTrace } from '@openai/agents'
+import { generateSpanId, withCustomSpan, withTrace } from '@openai/agents'
 import { recordAgentRun } from '../db/agent-runs.js'
 import { extractUsage, sumUsage } from '../llm/usage.js'
 import { RUN_STATUS_ERROR, RUN_STATUS_OK } from '../constants.js'
 import { toolNames, toolNamesFromResult } from './run-items.js'
 
 const TRACE_NAME = 'Agent workflow'
+const EXPERIMENT_ROOT_SPAN_NAME = 'experiment-item-run'
 
 function traceMetadata(fields) {
   return Object.fromEntries(
@@ -14,11 +15,31 @@ function traceMetadata(fields) {
   )
 }
 
-export function traceAgentRun({ sessionId = null, userId = null, question = null, effort = null, traceId }, runAgent) {
-  return withTrace(TRACE_NAME, runAgent, {
-    metadata: traceMetadata({ sessionId, userId, question, effort }),
-    traceId,
-  })
+function experimentFields(experiment, rootSpanId) {
+  if (!experiment) return {}
+
+  return {
+    experimentId: experiment.id,
+    experimentName: experiment.name,
+    experimentDatasetId: experiment.datasetId,
+    experimentItemId: experiment.itemId,
+    experimentMetadata: experiment.metadata ? JSON.stringify(experiment.metadata) : null,
+    experimentRootSpanId: rootSpanId,
+  }
+}
+
+function underExperimentRoot(rootSpanId, runAgent) {
+  return () => withCustomSpan(() => runAgent(), { spanId: rootSpanId, data: { name: EXPERIMENT_ROOT_SPAN_NAME } })
+}
+
+export function traceAgentRun(
+  { sessionId = null, userId = null, question = null, effort = null, experiment = null },
+  runAgent
+) {
+  const rootSpanId = experiment ? generateSpanId() : null
+  const metadata = traceMetadata({ sessionId, userId, question, effort, ...experimentFields(experiment, rootSpanId) })
+
+  return withTrace(TRACE_NAME, experiment ? underExperimentRoot(rootSpanId, runAgent) : runAgent, { metadata })
 }
 
 export async function trackAgentRun(

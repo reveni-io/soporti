@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { generateTraceId, getGlobalTraceProvider, run } from '@openai/agents'
+import { run } from '@openai/agents'
 import { createAgent } from '../agent/assistant.js'
 import { buildUserTurn } from '../agent/user-turn.js'
 import { buildAgentInput } from '../agent/agent-input.js'
@@ -8,14 +9,7 @@ import { DEFAULT_PROFILE, VALID_PROFILES } from '../agent/system-prompt.js'
 import { traceAgentRun, trackAgentRun } from '../agent/run-tracking.js'
 import { searchSimilarCases } from '../knowledge/client.js'
 import { getLangfuseConfig, isLangfuseConfigured } from '../langfuse/settings.js'
-import { langfuseTraceId } from '../langfuse/client.js'
-import {
-  createLangfuseClient,
-  describeError,
-  isLangfuseNotFound,
-  linkDatasetRunItem,
-  listDatasetItems,
-} from '../langfuse/sdk.js'
+import { createLangfuseClient, describeError, isLangfuseNotFound, listDatasetItems } from '../langfuse/sdk.js'
 import { AGENT_CHANNEL_EXPERIMENT } from '../constants.js'
 import config from '../config.js'
 import { resolveVariant } from './variants.js'
@@ -57,7 +51,7 @@ function partitionItems(items) {
 
   for (const item of items) {
     const parsed = ITEM_INPUT_SCHEMA.safeParse(item.input)
-    if (parsed.success) valid.push({ id: item.id, input: parsed.data })
+    if (parsed.success) valid.push({ id: item.id, datasetId: item.datasetId, input: parsed.data })
     else skipped.push(item.id)
   }
 
@@ -116,9 +110,13 @@ export async function prepareExperiment({ dataset, runName, variants }) {
   if (resolved.error) return resolved
 
   const stamp = new Date().toISOString().slice(0, RUN_STAMP_LENGTH)
-  const runs = resolved.value.map(variant => ({ ...variant, runName: `${runName} [${variant.key}] ${stamp}` }))
+  const runs = resolved.value.map(variant => ({
+    ...variant,
+    experimentId: randomUUID(),
+    runName: `${runName} [${variant.key}] ${stamp}`,
+  }))
 
-  return { value: { client: client.value, dataset, runs, ...loaded.value } }
+  return { value: { dataset, runs, ...loaded.value } }
 }
 
 async function withDeadline(task, timeoutMs) {
@@ -145,9 +143,21 @@ function buildAgent(variant, item, nestedUsage) {
   })
 }
 
-function runAgent(agent, variant, item, { agentInput, traceId, nestedUsage }) {
+function experimentOf(variant, item) {
+  return {
+    id: variant.experimentId,
+    name: variant.runName,
+    datasetId: item.datasetId,
+    itemId: item.id,
+    metadata: { promptVersion: variant.promptVersion, variant: variant.key },
+  }
+}
+
+function runAgent(agent, variant, item, { agentInput, nestedUsage }) {
+  const experiment = experimentOf(variant, item)
+
   return trackAgentRun({ channel: AGENT_CHANNEL_EXPERIMENT, subject: variant.runName, nestedUsage }, () =>
-    traceAgentRun({ sessionId: variant.runName, question: item.input.question, traceId }, () =>
+    traceAgentRun({ sessionId: variant.runName, question: item.input.question, experiment }, () =>
       run(agent, agentInput, {
         maxTurns: config.agent.maxIterations,
         signal: AbortSignal.timeout(AGENT_RUN_TIMEOUT_MS),
@@ -156,18 +166,7 @@ function runAgent(agent, variant, item, { agentInput, traceId, nestedUsage }) {
   )
 }
 
-async function linkItem(client, variant, item, traceId) {
-  await getGlobalTraceProvider().forceFlush()
-  await linkDatasetRunItem(client, {
-    runName: variant.runName,
-    datasetItemId: item.id,
-    traceId: langfuseTraceId(traceId),
-    metadata: { promptVersion: variant.promptVersion, variant: variant.key },
-  })
-}
-
-async function runVariant(client, variant, item, agentInput) {
-  const traceId = generateTraceId()
+async function runVariant(variant, item, agentInput) {
   const nestedUsage = []
 
   let agent
@@ -179,15 +178,9 @@ async function runVariant(client, variant, item, agentInput) {
   }
 
   try {
-    await withDeadline(runAgent(agent, variant, item, { agentInput, traceId, nestedUsage }), AGENT_RUN_TIMEOUT_MS)
+    await withDeadline(runAgent(agent, variant, item, { agentInput, nestedUsage }), AGENT_RUN_TIMEOUT_MS)
   } catch (err) {
     log('⚠️', `Item ${item.id} failed under ${variant.key}:`, describeError(err))
-  }
-
-  try {
-    await linkItem(client, variant, item, traceId)
-  } catch (err) {
-    log('⚠️', `Item ${item.id} could not be linked to ${variant.runName}:`, describeError(err))
   }
 }
 
@@ -197,10 +190,10 @@ async function buildItemInput(question) {
   return buildAgentInput(buildUserTurn(question, { similarCases }))
 }
 
-async function executeExperiment({ client, runs, items }) {
+async function executeExperiment({ runs, items }) {
   for (const item of items) {
     const agentInput = await buildItemInput(item.input.question)
-    await Promise.allSettled(runs.map(variant => runVariant(client, variant, item, agentInput)))
+    await Promise.allSettled(runs.map(variant => runVariant(variant, item, agentInput)))
   }
 
   log('✅', `Finished ${runs.map(variant => variant.runName).join(', ')} over ${items.length} item(s)`)

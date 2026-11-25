@@ -29,8 +29,20 @@ const TRACE_ID_ATTRIBUTES = [
   ['user.id', 'userId'],
 ]
 
+const EXPERIMENT_ATTRIBUTES = [
+  ['langfuse.experiment.id', 'experimentId'],
+  ['langfuse.experiment.name', 'experimentName'],
+  ['langfuse.experiment.metadata', 'experimentMetadata'],
+  ['langfuse.experiment.dataset.id', 'experimentDatasetId'],
+  ['langfuse.experiment.item.id', 'experimentItemId'],
+]
+const EXPERIMENT_ROOT_ATTRIBUTE = 'langfuse.experiment.item.root_observation_id'
+const ENVIRONMENT_ATTRIBUTE = 'langfuse.environment'
+const EXPERIMENT_ENVIRONMENT = 'sdk-experiment'
+
 const OBSERVATION_FIELDS = {
   agent: agentFields,
+  custom: customFields,
   function: functionFields,
   generation: generationFields,
   response: responseFields,
@@ -42,6 +54,10 @@ const traceAnswers = new Map()
 
 function agentFields(data) {
   return { name: data.name, type: 'agent' }
+}
+
+function customFields(data) {
+  return { name: data.name, type: 'span' }
 }
 
 function functionFields(data) {
@@ -242,12 +258,12 @@ function rememberAnswer(span) {
   if (traceAnswers.size > MAX_TRACKED_ANSWERS) traceAnswers.delete(traceAnswers.keys().next().value)
 }
 
-function isRootAgent(span) {
-  return span.spanData.type === 'agent' && !span.parentId
+function isTraceRoot(span) {
+  return !span.parentId
 }
 
 function rootContentAttributes(span, metadataOnly) {
-  if (metadataOnly || !isRootAgent(span)) return []
+  if (metadataOnly || !isTraceRoot(span)) return []
 
   const answer = span.error ? null : traceAnswers.get(span.traceId)
   traceAnswers.delete(span.traceId)
@@ -268,12 +284,22 @@ function traceIdAttributes(span, metadataOnly) {
     .map(([key, value]) => stringAttribute(key, value.slice(0, MAX_TRACE_ID_CHARS)))
 }
 
-function hexId(id, length) {
-  return createHash('sha256').update(id).digest('hex').slice(0, length)
+function experimentAttributes(span) {
+  const metadata = span.traceMetadata
+  if (!metadata?.experimentId) return []
+
+  const rootSpanId = metadata.experimentRootSpanId
+  return [
+    ...EXPERIMENT_ATTRIBUTES.filter(([, field]) => metadata[field]).map(([key, field]) =>
+      stringAttribute(key, metadata[field])
+    ),
+    ...(rootSpanId ? [stringAttribute(EXPERIMENT_ROOT_ATTRIBUTE, hexId(rootSpanId, SPAN_ID_HEX_LENGTH))] : []),
+    ...(isTraceRoot(span) ? [stringAttribute(ENVIRONMENT_ATTRIBUTE, EXPERIMENT_ENVIRONMENT)] : []),
+  ]
 }
 
-export function langfuseTraceId(agentsTraceId) {
-  return hexId(agentsTraceId, TRACE_ID_HEX_LENGTH)
+function hexId(id, length) {
+  return createHash('sha256').update(id).digest('hex').slice(0, length)
 }
 
 function toUnixNanos(iso) {
@@ -292,11 +318,12 @@ function toOtlpSpan(span, metadataOnly) {
     ...contentAttributes(fields, metadataOnly),
     ...rootContentAttributes(span, metadataOnly),
     ...traceIdAttributes(span, metadataOnly),
+    ...experimentAttributes(span),
     ...errorAttributes(failure),
   ]
 
   return {
-    traceId: langfuseTraceId(span.traceId),
+    traceId: hexId(span.traceId, TRACE_ID_HEX_LENGTH),
     spanId: hexId(span.spanId, SPAN_ID_HEX_LENGTH),
     parentSpanId: span.parentId ? hexId(span.parentId, SPAN_ID_HEX_LENGTH) : undefined,
     name: fields.name ?? fields.type,
