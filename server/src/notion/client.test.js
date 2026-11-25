@@ -9,6 +9,13 @@ global.fetch = mockFetch
 
 const { searchPages, getPage, isConfigured } = await import('./client.js')
 
+const BASE_URL = 'https://api.notion.com/v1'
+const PAGE_ID = '27679c1d-253f-8047-b564-fc6204c8b5d7'
+const DATA_SOURCE_ID = '33d79c1d-253f-81d2-a1de-e21b4c996772'
+const DATABASE_ID = '1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d'
+const OTHER_DATA_SOURCE_ID = '9f8e7d6c-5b4a-4321-8fed-cba987654321'
+const MARKDOWN_PATH = `/pages/${PAGE_ID}/markdown?markdown_version=v2`
+
 function mockResponse(data, ok = true, status = 200) {
   return {
     ok,
@@ -16,6 +23,37 @@ function mockResponse(data, ok = true, status = 200) {
     json: async () => data,
     text: async () => JSON.stringify(data),
   }
+}
+
+function routeFetch(routes) {
+  mockFetch.mockImplementation(async (url, options) => {
+    const route = `${options.method} ${url.replace(BASE_URL, '')}`
+    return routes[route] ?? mockResponse({ code: 'object_not_found' }, false, 404)
+  })
+}
+
+function requestedRoutes() {
+  return mockFetch.mock.calls.map(([url, options]) => `${options.method} ${url.replace(BASE_URL, '')}`)
+}
+
+function requestBody(route) {
+  const call = mockFetch.mock.calls.find(([url, options]) => `${options.method} ${url.replace(BASE_URL, '')}` === route)
+  return JSON.parse(call[1].body)
+}
+
+const PAGE = {
+  id: PAGE_ID,
+  url: `https://app.notion.com/p/${PAGE_ID}`,
+  last_edited_time: '2026-11-20T10:00:00.000Z',
+  properties: { title: { type: 'title', title: [{ plain_text: 'Handover' }] } },
+}
+
+const DATA_SOURCE = {
+  object: 'data_source',
+  id: DATA_SOURCE_ID,
+  title: [{ plain_text: 'Process Check' }],
+  url: `https://app.notion.com/p/${DATA_SOURCE_ID}`,
+  last_edited_time: '2026-11-21T10:00:00.000Z',
 }
 
 describe('isConfigured', () => {
@@ -33,438 +71,268 @@ describe('isConfigured', () => {
 describe('searchPages', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('returns formatted search results', async () => {
-    mockFetch.mockResolvedValue(
-      mockResponse({
-        results: [
-          {
-            id: 'page-1',
-            object: 'page',
-            url: 'https://notion.so/page-1',
-            last_edited_time: '2024-01-01',
-            properties: {
-              title: { type: 'title', title: [{ plain_text: 'My Page' }] },
-            },
-          },
-          {
-            id: 'db-1',
-            object: 'database',
-            url: 'https://notion.so/db-1',
-            last_edited_time: '2024-01-02',
-            title: [{ plain_text: 'My DB' }],
-          },
-        ],
-      })
-    )
+  it('returns pages and databases with their ids, titles and urls', async () => {
+    routeFetch({
+      'POST /search': mockResponse({ results: [{ object: 'page', ...PAGE }, DATA_SOURCE], has_more: false }),
+    })
 
-    const results = await searchPages('test')
-    expect(results).toEqual([
-      { id: 'page-1', title: 'My Page', url: 'https://notion.so/page-1', type: 'page', lastEditedTime: '2024-01-01' },
-      { id: 'db-1', title: 'My DB', url: 'https://notion.so/db-1', type: 'database', lastEditedTime: '2024-01-02' },
-    ])
+    const result = await searchPages('process')
+
+    expect(result).toEqual({
+      results: [
+        { id: PAGE_ID, title: 'Handover', url: PAGE.url, type: 'page', lastEditedTime: PAGE.last_edited_time },
+        {
+          id: DATA_SOURCE_ID,
+          title: 'Process Check',
+          url: DATA_SOURCE.url,
+          type: 'database',
+          lastEditedTime: DATA_SOURCE.last_edited_time,
+        },
+      ],
+      truncated: false,
+      nextCursor: null,
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(requestBody('POST /search')).toEqual({ query: 'process', page_size: 20 })
+    expect(mockFetch.mock.calls[0][1].headers['Notion-Version']).toBe('2026-03-11')
   })
 
-  it('handles empty results', async () => {
-    mockFetch.mockResolvedValue(mockResponse({ results: [] }))
-    const results = await searchPages('nothing')
-    expect(results).toEqual([])
+  it('reports more matches and reads on from a cursor', async () => {
+    routeFetch({ 'POST /search': mockResponse({ results: [], has_more: true, next_cursor: 'cursor-2' }) })
+
+    const result = await searchPages('process', 'cursor-1')
+
+    expect(result).toEqual({ results: [], truncated: true, nextCursor: 'cursor-2' })
+    expect(requestBody('POST /search')).toEqual({ query: 'process', page_size: 20, start_cursor: 'cursor-1' })
+  })
+
+  it('fails with a pointer to the admin panel when no token is configured', async () => {
+    getNotionToken.mockResolvedValueOnce(null)
+
+    await expect(searchPages('process')).rejects.toThrow('Notion token not configured')
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 })
 
 describe('getPage', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('fetches page with content', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'page-1',
-        url: 'https://notion.so/page-1',
-        last_edited_time: '2024-01-01',
-        properties: {
-          Name: { type: 'title', title: [{ plain_text: 'Test Page' }] },
-        },
-      })
-    )
+  it('reads a page as markdown', async () => {
+    const markdown =
+      '# Handover\n\n| Role | Owner |\n| --- | --- |\n| CSM | Pablo |\n\n<page url="https://app.notion.com/p/abc">Templates</page>'
+    routeFetch({
+      [`GET /pages/${PAGE_ID}`]: mockResponse(PAGE),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown, truncated: false, unknown_block_ids: [] }),
+    })
 
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'Hello world' }] }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
+    const page = await getPage(PAGE_ID)
 
-    const page = await getPage('page-1')
-    expect(page.id).toBe('page-1')
-    expect(page.title).toBe('Test Page')
-    expect(page.type).toBe('page')
-    expect(page.content).toContain('Hello world')
+    expect(page).toEqual({
+      id: PAGE_ID,
+      title: 'Handover',
+      url: PAGE.url,
+      lastEditedTime: PAGE.last_edited_time,
+      type: 'page',
+      content: markdown,
+      truncated: false,
+      unreadBlocks: 0,
+    })
+    expect(requestedRoutes()).toEqual([`GET /pages/${PAGE_ID}`, `GET ${MARKDOWN_PATH}`])
   })
 
-  it('handles API error', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Not found' }, false, 404))
+  it('reads the page id out of a Notion url, ignoring the view and block ids after it', async () => {
+    const dashlessId = PAGE_ID.replaceAll('-', '')
+    routeFetch({
+      [`GET /pages/${dashlessId}`]: mockResponse(PAGE),
+      [`GET /pages/${dashlessId}/markdown?markdown_version=v2`]: mockResponse({
+        markdown: 'Body',
+        truncated: false,
+        unknown_block_ids: [],
+      }),
+    })
 
-    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Not found' }, false, 404))
+    const page = await getPage(`https://www.notion.so/reveni/Handover-${dashlessId}?v=${DATA_SOURCE_ID}#${DATABASE_ID}`)
 
-    await expect(getPage('bad-id')).rejects.toThrow('Notion API')
+    expect(page.content).toBe('Body')
+    expect(requestedRoutes()).toEqual([
+      `GET /pages/${dashlessId}`,
+      `GET /pages/${dashlessId}/markdown?markdown_version=v2`,
+    ])
   })
 
-  it('handles page with child_database block', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'page-db',
-        url: 'https://notion.so/page-db',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'DB Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(mockResponse({ results: [], has_more: false }))
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [{ type: 'child_database', id: 'child-db-id', child_database: { title: 'My Table' } }],
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [{ properties: { Name: { type: 'title', title: [{ plain_text: 'Row 1' }] } } }],
-        has_more: false,
-      })
-    )
+  it('cuts a page longer than the character limit and says so', async () => {
+    routeFetch({
+      [`GET /pages/${PAGE_ID}`]: mockResponse(PAGE),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown: 'a'.repeat(50_001), truncated: false, unknown_block_ids: [] }),
+    })
 
-    const page = await getPage('page-db')
-    expect(page.type).toBe('database')
-    expect(page.content).toContain('My Table')
+    const page = await getPage(PAGE_ID)
+
+    expect(page.content).toHaveLength(50_000)
+    expect(page.truncated).toBe(true)
   })
 
-  it('falls back to database when page fetch fails', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Not found' }, false, 404))
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'db-1',
-        title: [{ plain_text: 'Fallback DB' }],
-        url: 'https://notion.so/db-1',
-        last_edited_time: '2024-01-01',
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [],
-        has_more: false,
-      })
-    )
+  it('marks a page Notion could not return in full as truncated and counts the missing blocks', async () => {
+    const markdown = '<unknown url="https://app.notion.com/p/x" alt="child_page"/>'
+    routeFetch({
+      [`GET /pages/${PAGE_ID}`]: mockResponse(PAGE),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown, truncated: true, unknown_block_ids: ['block-1', 'block-2'] }),
+    })
 
-    const page = await getPage('db-1')
-    expect(page.type).toBe('database')
-    expect(page.title).toBe('Fallback DB')
+    const page = await getPage(PAGE_ID)
+
+    expect(page.content).toBe(markdown)
+    expect(page.truncated).toBe(true)
+    expect(page.unreadBlocks).toBe(2)
   })
 
-  it('renders heading_1 blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [{ type: 'heading_1', heading_1: { rich_text: [{ plain_text: 'Big Title' }] }, has_children: false }],
-        has_more: false,
-      })
-    )
+  it('returns Untitled when a page has no title property', async () => {
+    routeFetch({
+      [`GET /pages/${PAGE_ID}`]: mockResponse({ ...PAGE, properties: {} }),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown: '', truncated: false, unknown_block_ids: [] }),
+    })
 
-    const page = await getPage('p1')
-    expect(page.content).toContain('# Big Title')
-  })
+    const page = await getPage(PAGE_ID)
 
-  it('renders heading_2 blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Medium Title' }] }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('## Medium Title')
-  })
-
-  it('renders heading_3 blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Small Title' }] }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('### Small Title')
-  })
-
-  it('renders bulleted_list_item blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          {
-            type: 'bulleted_list_item',
-            bulleted_list_item: { rich_text: [{ plain_text: 'Bullet point' }] },
-            has_children: false,
-          },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('- Bullet point')
-  })
-
-  it('renders numbered_list_item blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          {
-            type: 'numbered_list_item',
-            numbered_list_item: { rich_text: [{ plain_text: 'First item' }] },
-            has_children: false,
-          },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('1. First item')
-  })
-
-  it('renders to_do blocks (checked and unchecked)', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'to_do', to_do: { rich_text: [{ plain_text: 'Done task' }], checked: true }, has_children: false },
-          { type: 'to_do', to_do: { rich_text: [{ plain_text: 'Open task' }], checked: false }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('- [x] Done task')
-    expect(page.content).toContain('- [ ] Open task')
-  })
-
-  it('renders code blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          {
-            type: 'code',
-            code: { rich_text: [{ plain_text: 'const x = 1;' }], language: 'javascript' },
-            has_children: false,
-          },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('```javascript')
-    expect(page.content).toContain('const x = 1;')
-  })
-
-  it('renders divider blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [{ type: 'divider', divider: {}, has_children: false }],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('---')
-  })
-
-  it('renders quote, callout, and toggle blocks', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'quote', quote: { rich_text: [{ plain_text: 'A quote' }] }, has_children: false },
-          { type: 'callout', callout: { rich_text: [{ plain_text: 'A callout' }] }, has_children: false },
-          { type: 'toggle', toggle: { rich_text: [{ plain_text: 'A toggle' }] }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('A quote')
-    expect(page.content).toContain('A callout')
-    expect(page.content).toContain('A toggle')
-  })
-
-  it('skips unknown block types', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'Visible' }] }, has_children: false },
-          {
-            type: 'unsupported_type',
-            unsupported_type: { rich_text: [{ plain_text: 'Hidden' }] },
-            has_children: false,
-          },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('Visible')
-    expect(page.content).not.toContain('Hidden')
-  })
-
-  it('renders blocks with nested children', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Name: { type: 'title', title: [{ plain_text: 'Page' }] } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'toggle', id: 'toggle-1', toggle: { rich_text: [{ plain_text: 'Parent' }] }, has_children: true },
-        ],
-        has_more: false,
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [
-          { type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'Child content' }] }, has_children: false },
-        ],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
-    expect(page.content).toContain('Parent')
-    expect(page.content).toContain('Child content')
-  })
-
-  it('returns Untitled when page has no title property', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'p1',
-        url: 'https://notion.so/p1',
-        last_edited_time: '2024-01-01',
-        properties: { Status: { type: 'select', select: { name: 'Done' } } },
-      })
-    )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        results: [{ type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'Some text' }] }, has_children: false }],
-        has_more: false,
-      })
-    )
-
-    const page = await getPage('p1')
     expect(page.title).toBe('Untitled')
   })
 
-  it('extracts various property types from database rows', async () => {
-    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Not found' }, false, 404))
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
-        id: 'db-props',
-        title: [{ plain_text: 'Props DB' }],
-        url: 'https://notion.so/db-props',
-        last_edited_time: '2024-01-01',
-      })
+  it('reads a data source id as a database whose rows carry their page id', async () => {
+    routeFetch({
+      [`GET /data_sources/${DATA_SOURCE_ID}`]: mockResponse(DATA_SOURCE),
+      [`POST /data_sources/${DATA_SOURCE_ID}/query`]: mockResponse({
+        results: [{ id: 'row-1', properties: { Name: { type: 'title', title: [{ plain_text: 'Refund flow' }] } } }],
+        has_more: false,
+        next_cursor: null,
+      }),
+    })
+
+    const database = await getPage(DATA_SOURCE_ID)
+
+    expect(database).toEqual({
+      id: DATA_SOURCE_ID,
+      title: 'Process Check',
+      url: DATA_SOURCE.url,
+      lastEditedTime: DATA_SOURCE.last_edited_time,
+      type: 'database',
+      rows: [{ id: 'row-1', properties: { Name: 'Refund flow' } }],
+      truncated: false,
+      nextCursor: null,
+    })
+    expect(requestBody(`POST /data_sources/${DATA_SOURCE_ID}/query`)).toEqual({ page_size: 50 })
+  })
+
+  it('reads a database id through its first data source and lists the others', async () => {
+    routeFetch({
+      [`GET /pages/${DATABASE_ID}`]: mockResponse({ code: 'validation_error' }, false, 400),
+      [`GET /databases/${DATABASE_ID}`]: mockResponse({
+        id: DATABASE_ID,
+        title: [{ plain_text: 'Tasks' }],
+        url: `https://app.notion.com/p/${DATABASE_ID}`,
+        last_edited_time: '2026-11-22T10:00:00.000Z',
+        data_sources: [
+          { id: DATA_SOURCE_ID, name: 'Open' },
+          { id: OTHER_DATA_SOURCE_ID, name: 'Archive' },
+        ],
+      }),
+      [`POST /data_sources/${DATA_SOURCE_ID}/query`]: mockResponse({ results: [{ id: 'row-1', properties: {} }] }),
+    })
+
+    const database = await getPage(DATABASE_ID)
+
+    expect(database).toEqual({
+      id: DATABASE_ID,
+      title: 'Tasks',
+      url: `https://app.notion.com/p/${DATABASE_ID}`,
+      lastEditedTime: '2026-11-22T10:00:00.000Z',
+      type: 'database',
+      rows: [{ id: 'row-1', properties: {} }],
+      truncated: false,
+      nextCursor: null,
+      otherDataSources: [{ id: OTHER_DATA_SOURCE_ID, name: 'Archive' }],
+    })
+    expect(requestedRoutes()).not.toContain(`POST /data_sources/${OTHER_DATA_SOURCE_ID}/query`)
+  })
+
+  it('fails with a clear message when a database has no data source', async () => {
+    routeFetch({
+      [`GET /databases/${DATABASE_ID}`]: mockResponse({ id: DATABASE_ID, title: [], data_sources: [] }),
+    })
+
+    await expect(getPage(DATABASE_ID)).rejects.toThrow(
+      `The Notion database ${DATABASE_ID} has no data source the integration can read.`
     )
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({
+    expect(requestedRoutes()).not.toEqual(expect.arrayContaining([expect.stringContaining('/query')]))
+  })
+
+  it('reports more rows and reads on from a cursor', async () => {
+    routeFetch({
+      [`GET /data_sources/${DATA_SOURCE_ID}`]: mockResponse(DATA_SOURCE),
+      [`POST /data_sources/${DATA_SOURCE_ID}/query`]: mockResponse({
+        results: [],
+        has_more: true,
+        next_cursor: 'rows-3',
+      }),
+    })
+
+    const database = await getPage(DATA_SOURCE_ID, 'rows-2')
+
+    expect(database.truncated).toBe(true)
+    expect(database.nextCursor).toBe('rows-3')
+    expect(requestBody(`POST /data_sources/${DATA_SOURCE_ID}/query`)).toEqual({
+      page_size: 50,
+      start_cursor: 'rows-2',
+    })
+  })
+
+  it('marks a query Notion capped as incomplete even without a next page', async () => {
+    routeFetch({
+      [`GET /data_sources/${DATA_SOURCE_ID}`]: mockResponse(DATA_SOURCE),
+      [`POST /data_sources/${DATA_SOURCE_ID}/query`]: mockResponse({
+        results: [],
+        has_more: false,
+        next_cursor: null,
+        request_status: { type: 'incomplete', incomplete_reason: 'query_result_limit_reached' },
+      }),
+    })
+
+    const database = await getPage(DATA_SOURCE_ID)
+
+    expect(database.truncated).toBe(true)
+    expect(database.nextCursor).toBeNull()
+  })
+
+  it('throws the page error when the id is neither a page, a data source nor a database', async () => {
+    routeFetch({})
+
+    await expect(getPage(PAGE_ID)).rejects.toThrow(`Notion API GET /pages/${PAGE_ID}`)
+    expect(requestedRoutes()).toEqual(
+      expect.arrayContaining([`GET /data_sources/${PAGE_ID}`, `GET /databases/${PAGE_ID}`])
+    )
+  })
+
+  it('stops at an error that is not about the kind of object', async () => {
+    routeFetch({
+      [`GET /pages/${PAGE_ID}`]: mockResponse({ code: 'unauthorized' }, false, 401),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown: '', truncated: false, unknown_block_ids: [] }),
+    })
+
+    await expect(getPage(PAGE_ID)).rejects.toThrow('failed (401)')
+    expect(requestedRoutes()).toEqual([`GET /pages/${PAGE_ID}`, `GET ${MARKDOWN_PATH}`])
+  })
+
+  it('rejects a value that holds no Notion id without calling Notion', async () => {
+    await expect(getPage('refund policy')).rejects.toThrow('"refund policy" is not a Notion page ID or URL.')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('extracts each property type of a row', async () => {
+    routeFetch({
+      [`GET /data_sources/${DATA_SOURCE_ID}`]: mockResponse(DATA_SOURCE),
+      [`POST /data_sources/${DATA_SOURCE_ID}/query`]: mockResponse({
         results: [
           {
+            id: 'row-1',
             properties: {
               Name: { type: 'title', title: [{ plain_text: 'Item 1' }] },
               Description: { type: 'rich_text', rich_text: [{ plain_text: 'A description' }] },
@@ -488,28 +356,29 @@ describe('getPage', () => {
             },
           },
         ],
-        has_more: false,
-      })
-    )
+      }),
+    })
 
-    const page = await getPage('db-props')
-    expect(page.type).toBe('database')
-    const content = page.content
-    expect(content).toContain('Item 1')
-    expect(content).toContain('42.5')
-    expect(content).toContain('Electronics')
-    expect(content).toContain('new, sale')
-    expect(content).toContain('Active')
-    expect(content).toContain('2024-01-01')
-    expect(content).toContain('2024-01-01 → 2024-01-31')
-    expect(content).toContain('Yes')
-    expect(content).toContain('No')
-    expect(content).toContain('https://example.com')
-    expect(content).toContain('test@test.com')
-    expect(content).toContain('+1234567890')
-    expect(content).toContain('Alice, Bob')
-    expect(content).toContain('(2 relations)')
-    expect(content).toContain('100')
-    expect(content).toContain('500')
+    const database = await getPage(DATA_SOURCE_ID)
+
+    expect(database.rows[0].properties).toEqual({
+      Name: 'Item 1',
+      Description: 'A description',
+      Price: '42.5',
+      Category: 'Electronics',
+      Tags: 'new, sale',
+      Status: 'Active',
+      Created: '2024-01-01',
+      Range: '2024-01-01 → 2024-01-31',
+      Verified: 'Yes',
+      Unverified: 'No',
+      Website: 'https://example.com',
+      Email: 'test@test.com',
+      Phone: '+1234567890',
+      Assignee: 'Alice, Bob',
+      Related: '(2 relations)',
+      Computed: '100',
+      Summary: '500',
+    })
   })
 })

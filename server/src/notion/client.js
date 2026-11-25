@@ -1,9 +1,16 @@
 import { getNotionToken, isNotionConfigured } from './settings.js'
 
 const BASE_URL = 'https://api.notion.com/v1'
+const NOTION_VERSION = '2026-03-11'
+const MARKDOWN_VERSION = 'v2'
 const REQUEST_TIMEOUT_MS = 15_000
-const MAX_BLOCK_DEPTH = 3
-const MAX_BLOCKS = 200
+const SEARCH_PAGE_SIZE = 20
+const ROWS_PAGE_SIZE = 50
+const MAX_PAGE_CHARS = 50_000
+const WRONG_KIND_STATUSES = new Set([400, 404])
+const NOTION_ID_RE = /[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/gi
+const URL_QUERY_RE = /[?#].*$/
+const READERS = [readPage, readDataSource, readDatabase]
 
 async function request(method, path, body) {
   const token = await getNotionToken()
@@ -21,14 +28,16 @@ async function request(method, path, body) {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        'Notion-Version': '2022-06-28',
+        'Notion-Version': NOTION_VERSION,
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     })
 
     if (!res.ok) {
       const text = await res.text()
-      throw new Error(`Notion API ${method} ${path} failed (${res.status}): ${text}`)
+      const error = new Error(`Notion API ${method} ${path} failed (${res.status}): ${text}`)
+      error.status = res.status
+      throw error
     }
 
     return res.json()
@@ -37,79 +46,27 @@ async function request(method, path, body) {
   }
 }
 
-function extractTextFromRichText(richTextArray) {
-  if (!richTextArray || !Array.isArray(richTextArray)) return ''
-  return richTextArray.map(rt => rt.plain_text || '').join('')
+function withCursor(body, cursor) {
+  return cursor ? { ...body, start_cursor: cursor } : body
 }
 
-function extractBlockText(block) {
-  const type = block.type
-  const data = block[type]
-  if (!data) return null
+function paging(data) {
+  const hasMore = Boolean(data.has_more)
 
-  switch (type) {
-    case 'paragraph':
-    case 'quote':
-    case 'callout':
-    case 'toggle':
-      return extractTextFromRichText(data.rich_text)
-    case 'heading_1':
-      return `# ${extractTextFromRichText(data.rich_text)}`
-    case 'heading_2':
-      return `## ${extractTextFromRichText(data.rich_text)}`
-    case 'heading_3':
-      return `### ${extractTextFromRichText(data.rich_text)}`
-    case 'bulleted_list_item':
-      return `- ${extractTextFromRichText(data.rich_text)}`
-    case 'numbered_list_item':
-      return `1. ${extractTextFromRichText(data.rich_text)}`
-    case 'to_do': {
-      const checked = data.checked ? 'x' : ' '
-      return `- [${checked}] ${extractTextFromRichText(data.rich_text)}`
-    }
-    case 'code':
-      return `\`\`\`${data.language || ''}\n${extractTextFromRichText(data.rich_text)}\n\`\`\``
-    case 'divider':
-      return '---'
-    default:
-      return null
+  return {
+    truncated: hasMore || data.request_status?.type === 'incomplete',
+    nextCursor: hasMore ? data.next_cursor : null,
   }
 }
 
-function blockChildrenPath(blockId, cursor) {
-  const cursorParam = cursor ? `&start_cursor=${cursor}` : ''
-  return `/blocks/${blockId}/children?page_size=100${cursorParam}`
+function parseNotionId(value) {
+  const ids = String(value).replace(URL_QUERY_RE, '').match(NOTION_ID_RE)
+  return ids ? ids.at(-1) : null
 }
 
-async function extractBlockLines(block, depth, counter) {
-  const text = extractBlockText(block)
-  const lines = text === null ? [] : [text]
-  if (!block.has_children) return lines
-
-  const children = await fetchChildBlocks(block.id, depth + 1, counter)
-  return [...lines, ...children.map(l => `  ${l}`)]
-}
-
-async function fetchChildBlocks(blockId, depth = 0, counter = { count: 0 }) {
-  if (depth >= MAX_BLOCK_DEPTH || counter.count >= MAX_BLOCKS) return []
-
-  const lines = []
-  let cursor
-
-  do {
-    const data = await request('GET', blockChildrenPath(blockId, cursor))
-
-    for (const block of data.results || []) {
-      if (counter.count >= MAX_BLOCKS) break
-      counter.count++
-
-      lines.push(...(await extractBlockLines(block, depth, counter)))
-    }
-
-    cursor = data.has_more && counter.count < MAX_BLOCKS ? data.next_cursor : null
-  } while (cursor)
-
-  return lines
+function extractTextFromRichText(richTextArray) {
+  if (!richTextArray || !Array.isArray(richTextArray)) return ''
+  return richTextArray.map(rt => rt.plain_text || '').join('')
 }
 
 function extractPageTitle(page) {
@@ -122,22 +79,23 @@ function extractPageTitle(page) {
   return 'Untitled'
 }
 
-export async function searchPages(query) {
-  const data = await request('POST', '/search', {
-    query,
-    page_size: 20,
-  })
+function toSearchResult(item) {
+  const isDataSource = item.object === 'data_source'
 
-  return (data.results || []).map(item => ({
+  return {
     id: item.id,
-    title: item.object === 'database' ? extractTextFromRichText(item.title) : extractPageTitle(item),
+    title: isDataSource ? extractTextFromRichText(item.title) : extractPageTitle(item),
     url: item.url,
-    type: item.object,
+    type: isDataSource ? 'database' : 'page',
     lastEditedTime: item.last_edited_time,
-  }))
+  }
 }
 
-const MAX_DB_ROWS = 50
+export async function searchPages(query, cursor = null) {
+  const data = await request('POST', '/search', withCursor({ query, page_size: SEARCH_PAGE_SIZE }, cursor))
+
+  return { results: (data.results || []).map(toSearchResult), ...paging(data) }
+}
 
 function stringifyDefined(value) {
   return value != null ? String(value) : ''
@@ -185,71 +143,84 @@ function extractRowEntry(row) {
   return entry
 }
 
-async function queryDatabase(databaseId) {
-  const rows = []
-  let cursor
-
-  do {
-    const body = { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) }
-    const data = await request('POST', `/databases/${databaseId}/query`, body)
-
-    for (const row of data.results || []) {
-      if (rows.length >= MAX_DB_ROWS) break
-      rows.push(extractRowEntry(row))
-    }
-
-    cursor = data.has_more && rows.length < MAX_DB_ROWS ? data.next_cursor : null
-  } while (cursor)
-
-  return rows
+function toRow(row) {
+  return { id: row.id, properties: extractRowEntry(row) }
 }
 
-export async function getPage(pageId) {
-  try {
-    const page = await request('GET', `/pages/${pageId}`)
-    const contentLines = await fetchChildBlocks(pageId)
+async function queryRows(dataSourceId, cursor) {
+  const body = withCursor({ page_size: ROWS_PAGE_SIZE }, cursor)
+  const data = await request('POST', `/data_sources/${dataSourceId}/query`, body)
 
-    if (contentLines.length === 0) {
-      const blocksData = await request('GET', blockChildrenPath(pageId))
-      const dbBlock = (blocksData.results || []).find(b => b.type === 'child_database')
-      if (dbBlock) {
-        const rows = await queryDatabase(dbBlock.id)
-        const dbTitle = dbBlock.child_database?.title || 'Database'
-        return {
-          id: page.id,
-          title: extractPageTitle(page),
-          url: page.url,
-          lastEditedTime: page.last_edited_time,
-          type: 'database',
-          content: `Database: ${dbTitle}\n\n${JSON.stringify(rows, null, 2)}`,
-        }
-      }
-    }
+  return { rows: (data.results || []).map(toRow), ...paging(data) }
+}
 
-    return {
-      id: page.id,
-      title: extractPageTitle(page),
-      url: page.url,
-      lastEditedTime: page.last_edited_time,
-      type: 'page',
-      content: contentLines.join('\n'),
-    }
-  } catch (pageErr) {
+async function readPage(id) {
+  const [page, rendered] = await Promise.all([
+    request('GET', `/pages/${id}`),
+    request('GET', `/pages/${id}/markdown?markdown_version=${MARKDOWN_VERSION}`),
+  ])
+  const { markdown } = rendered
+  const isTooLong = markdown.length > MAX_PAGE_CHARS
+
+  return {
+    id: page.id,
+    title: extractPageTitle(page),
+    url: page.url,
+    lastEditedTime: page.last_edited_time,
+    type: 'page',
+    content: isTooLong ? markdown.slice(0, MAX_PAGE_CHARS) : markdown,
+    truncated: isTooLong || Boolean(rendered.truncated),
+    unreadBlocks: (rendered.unknown_block_ids || []).length,
+  }
+}
+
+async function readDataSource(id, cursor) {
+  const dataSource = await request('GET', `/data_sources/${id}`)
+  const rows = await queryRows(dataSource.id, cursor)
+
+  return {
+    id: dataSource.id,
+    title: extractTextFromRichText(dataSource.title),
+    url: dataSource.url,
+    lastEditedTime: dataSource.last_edited_time,
+    type: 'database',
+    ...rows,
+  }
+}
+
+async function readDatabase(id, cursor) {
+  const database = await request('GET', `/databases/${id}`)
+  const [dataSource, ...otherDataSources] = database.data_sources
+  if (!dataSource) throw new Error(`The Notion database ${id} has no data source the integration can read.`)
+
+  const rows = await queryRows(dataSource.id, cursor)
+
+  return {
+    id: database.id,
+    title: extractTextFromRichText(database.title),
+    url: database.url,
+    lastEditedTime: database.last_edited_time,
+    type: 'database',
+    ...rows,
+    otherDataSources: otherDataSources.map(source => ({ id: source.id, name: source.name })),
+  }
+}
+
+export async function getPage(pageIdOrUrl, cursor = null) {
+  const id = parseNotionId(pageIdOrUrl)
+  if (!id) throw new Error(`"${pageIdOrUrl}" is not a Notion page ID or URL.`)
+
+  let firstError = null
+  for (const read of READERS) {
     try {
-      const db = await request('GET', `/databases/${pageId}`)
-      const rows = await queryDatabase(pageId)
-      return {
-        id: db.id,
-        title: extractTextFromRichText(db.title),
-        url: db.url,
-        lastEditedTime: db.last_edited_time,
-        type: 'database',
-        content: `Database with ${rows.length} rows\n\n${JSON.stringify(rows, null, 2)}`,
-      }
-    } catch {
-      throw pageErr
+      return await read(id, cursor)
+    } catch (err) {
+      if (!WRONG_KIND_STATUSES.has(err.status)) throw err
+      firstError ??= err
     }
   }
+
+  throw firstError
 }
 
 export async function isConfigured() {
