@@ -1227,23 +1227,34 @@ describe('tool execute functions', () => {
     expect(JSON.parse(result)).toEqual({ id: 'c9', replyTo: 'c1' })
   })
 
-  it('searchNotionPagesTool.execute calls searchPages and returns JSON', async () => {
+  it('searchNotionPagesTool.execute searches Notion from the given cursor and returns JSON', async () => {
     const notion = await import('../notion/client.js')
-    notion.searchPages.mockResolvedValue([{ id: 'page-1', title: 'Test page' }])
-    const result = await searchNotionPagesTool.execute({ query: 'docs' })
-    expect(JSON.parse(result)).toEqual([{ id: 'page-1', title: 'Test page' }])
-    expect(notion.searchPages).toHaveBeenCalledWith('docs')
+    notion.searchPages.mockResolvedValue({
+      results: [{ id: 'page-1', title: 'Test page' }],
+      truncated: true,
+      nextCursor: 'cursor-2',
+    })
+
+    const result = await searchNotionPagesTool.execute({ query: 'docs', cursor: 'cursor-1' })
+
+    expect(JSON.parse(result)).toEqual({
+      results: [{ id: 'page-1', title: 'Test page' }],
+      truncated: true,
+      nextCursor: 'cursor-2',
+    })
+    expect(notion.searchPages).toHaveBeenCalledTimes(1)
+    expect(notion.searchPages).toHaveBeenCalledWith('docs', 'cursor-1')
   })
 
-  it('getNotionPageTool.execute calls getPage and returns JSON', async () => {
+  it('getNotionPageTool.execute reads the page or database from the given cursor and returns JSON', async () => {
     const notion = await import('../notion/client.js')
-    notion.getPage.mockResolvedValue({ id: 'page-1', content: 'Page content' })
-    const result = await getNotionPageTool.execute({ pageId: 'page-1' })
-    expect(JSON.parse(result)).toEqual({
-      id: 'page-1',
-      content: 'Page content',
-    })
-    expect(notion.getPage).toHaveBeenCalledWith('page-1')
+    notion.getPage.mockResolvedValue({ id: 'page-1', content: 'Page content', truncated: false, unreadBlocks: 0 })
+
+    const result = await getNotionPageTool.execute({ pageId: 'page-1', cursor: null })
+
+    expect(JSON.parse(result)).toEqual({ id: 'page-1', content: 'Page content', truncated: false, unreadBlocks: 0 })
+    expect(notion.getPage).toHaveBeenCalledTimes(1)
+    expect(notion.getPage).toHaveBeenCalledWith('page-1', null)
   })
 
   it('listDatabasesTool.execute returns only the names of the connected databases', async () => {

@@ -460,11 +460,12 @@ You have tools to search and read pages from Notion. **Be proactive** — don't 
 - If the user asks a vague question like "what's in Notion?", search with a broad term or common topics to give them an overview.
 
 ### Tools
-- **search_notion_pages**: Search by keyword. Returns pages AND databases with IDs, titles, URLs, and type ("page" or "database").
-- **get_notion_page**: Read a page or database by ID. For regular pages it returns text content. For databases it returns the rows with all their properties. Page IDs work with or without dashes.
-- When the user shares a Notion URL, extract the page ID (the 32-character hex string at the end) and use get_notion_page.
+- **search_notion_pages**: Search by title. Returns pages AND databases with IDs, titles, URLs, and type ("page" or "database"). Notion only matches titles, never page content: search for the words a title would use, and when the answer may live inside a page, open the hub or index pages that cover the topic and follow their sub-pages.
+- **get_notion_page**: Read a page or database by ID or by its Notion URL. A page comes back as Markdown, tables included. A database comes back as rows, each with the ID of its own page and its properties.
+- When the user shares a Notion URL, pass it as is to get_notion_page.
 - When you find relevant pages, **read them proactively** with get_notion_page to give a complete answer instead of just listing titles.
-- Page content is returned as plain text extracted from blocks. Some block types (images, embeds, databases) are not included in the text output.`,
+- Sub-pages appear as \`<page url="...">title</page>\` and inline databases as \`<database url="...">title</database>\`: read the ones the question needs by passing their url to get_notion_page.
+- **Report partial reads honestly.** When a result has \`truncated: true\`, or a page has \`unreadBlocks\` above 0, part of it is missing: fetch the next page with \`nextCursor\` where there is one, and otherwise say the read is incomplete instead of presenting it as the whole page or list.`,
 
   'google-drive': `## Google Drive integration
 

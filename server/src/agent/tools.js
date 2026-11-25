@@ -475,26 +475,38 @@ Unlike a story or a comment, an edit cannot be attributed to anyone: Shortcut re
   ]
 }
 
+const NOTION_CURSOR_PARAM = z
+  .string()
+  .nullable()
+  .default(null)
+  .describe('`nextCursor` from the previous result to fetch the next page. Null for the first.')
+
 export const searchNotionPagesTool = tool({
   name: 'search_notion_pages',
-  description: 'Search Notion pages by keyword. Returns a list of matching pages with their IDs, titles, and URLs.',
+  description:
+    'Search Notion pages and databases by title: Notion matches the query against titles only, never against what a page says, so search for words a title would contain. Returns each match with its id, title, url, type ("page" or "database") and last edit. When `truncated` is true there are more matches: pass `nextCursor` as `cursor` before treating the list as complete.',
   parameters: z.object({
-    query: z.string().describe('Search keyword or phrase.'),
+    query: z.string().describe('Words to look for in page and database titles.'),
+    cursor: NOTION_CURSOR_PARAM,
   }),
   execute: async input => {
-    const results = await notion.searchPages(input.query)
+    const results = await notion.searchPages(input.query, input.cursor)
     return JSON.stringify(results)
   },
 })
 
 export const getNotionPageTool = tool({
   name: 'get_notion_page',
-  description: 'Read the full content of a Notion page by its ID. Returns title, URL, and the page content as text.',
+  description:
+    'Read a Notion page or database by its ID or its Notion URL. A page comes back as Markdown in `content`, tables, toggles and columns included; its sub-pages appear as <page url="...">title</page> and its inline databases as <database url="...">title</database>, and you read them by passing that url to this tool. `truncated: true` means the page was too long and its content was cut; `unreadBlocks` counts blocks Notion could not return, mostly sub-pages not shared with the integration. Either way the read is partial: say so. A database comes back as `rows`, each with the `id` of its own page (read it with this tool for the body) and its properties; when `truncated` is true there are more rows: pass `nextCursor` as `cursor` before treating the list as complete.',
   parameters: z.object({
-    pageId: z.string().describe('Notion page ID (with or without dashes, e.g. "abc123def456" or "abc123-def-456").'),
+    pageId: z
+      .string()
+      .describe('Notion page or database ID (with or without dashes) or the Notion URL of the page or database.'),
+    cursor: NOTION_CURSOR_PARAM,
   }),
   execute: async input => {
-    const page = await notion.getPage(input.pageId)
+    const page = await notion.getPage(input.pageId, input.cursor)
     return JSON.stringify(page)
   },
 })
