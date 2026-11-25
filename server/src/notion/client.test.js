@@ -172,20 +172,18 @@ describe('getPage', () => {
     expect(page.truncated).toBe(true)
   })
 
-  it('counts the blocks Notion could not return', async () => {
+  it('marks a page Notion could not return in full as truncated and counts the missing blocks', async () => {
+    const markdown = '<unknown url="https://app.notion.com/p/x" alt="child_page"/>'
     routeFetch({
       [`GET /pages/${PAGE_ID}`]: mockResponse(PAGE),
-      [`GET ${MARKDOWN_PATH}`]: mockResponse({
-        markdown: '<unknown url="https://app.notion.com/p/x" alt="child_page"/>',
-        truncated: true,
-        unknown_block_ids: ['block-1', 'block-2'],
-      }),
+      [`GET ${MARKDOWN_PATH}`]: mockResponse({ markdown, truncated: true, unknown_block_ids: ['block-1', 'block-2'] }),
     })
 
     const page = await getPage(PAGE_ID)
 
+    expect(page.content).toBe(markdown)
+    expect(page.truncated).toBe(true)
     expect(page.unreadBlocks).toBe(2)
-    expect(page.truncated).toBe(false)
   })
 
   it('returns Untitled when a page has no title property', async () => {
@@ -254,6 +252,17 @@ describe('getPage', () => {
       otherDataSources: [{ id: OTHER_DATA_SOURCE_ID, name: 'Archive' }],
     })
     expect(requestedRoutes()).not.toContain(`POST /data_sources/${OTHER_DATA_SOURCE_ID}/query`)
+  })
+
+  it('fails with a clear message when a database has no data source', async () => {
+    routeFetch({
+      [`GET /databases/${DATABASE_ID}`]: mockResponse({ id: DATABASE_ID, title: [], data_sources: [] }),
+    })
+
+    await expect(getPage(DATABASE_ID)).rejects.toThrow(
+      `The Notion database ${DATABASE_ID} has no data source the integration can read.`
+    )
+    expect(requestedRoutes()).not.toEqual(expect.arrayContaining([expect.stringContaining('/query')]))
   })
 
   it('reports more rows and reads on from a cursor', async () => {

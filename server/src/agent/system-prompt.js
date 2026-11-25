@@ -465,7 +465,7 @@ You have tools to search and read pages from Notion. **Be proactive** — don't 
 - When the user shares a Notion URL, pass it as is to get_notion_page.
 - When you find relevant pages, **read them proactively** with get_notion_page to give a complete answer instead of just listing titles.
 - Sub-pages appear as \`<page url="...">title</page>\` and inline databases as \`<database url="...">title</database>\`: read the ones the question needs by passing their url to get_notion_page.
-- **Report partial reads honestly.** When a result has \`truncated: true\`, or a page has \`unreadBlocks\` above 0, part of it is missing: fetch the next page with \`nextCursor\` where there is one, and otherwise say the read is incomplete instead of presenting it as the whole page or list.`,
+- **Report partial reads honestly.** When a result has \`truncated: true\`, part of it is missing: fetch the next page with \`nextCursor\` where there is one, and otherwise say the read is incomplete instead of presenting it as the whole page or list.`,
 
   'google-drive': `## Google Drive integration
 

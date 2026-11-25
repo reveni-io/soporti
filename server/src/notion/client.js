@@ -155,11 +155,12 @@ async function queryRows(dataSourceId, cursor) {
 }
 
 async function readPage(id) {
-  const [page, { markdown, unknown_block_ids: unknownBlockIds }] = await Promise.all([
+  const [page, rendered] = await Promise.all([
     request('GET', `/pages/${id}`),
     request('GET', `/pages/${id}/markdown?markdown_version=${MARKDOWN_VERSION}`),
   ])
-  const truncated = markdown.length > MAX_PAGE_CHARS
+  const { markdown } = rendered
+  const isTooLong = markdown.length > MAX_PAGE_CHARS
 
   return {
     id: page.id,
@@ -167,9 +168,9 @@ async function readPage(id) {
     url: page.url,
     lastEditedTime: page.last_edited_time,
     type: 'page',
-    content: truncated ? markdown.slice(0, MAX_PAGE_CHARS) : markdown,
-    truncated,
-    unreadBlocks: (unknownBlockIds || []).length,
+    content: isTooLong ? markdown.slice(0, MAX_PAGE_CHARS) : markdown,
+    truncated: isTooLong || Boolean(rendered.truncated),
+    unreadBlocks: (rendered.unknown_block_ids || []).length,
   }
 }
 
@@ -190,6 +191,8 @@ async function readDataSource(id, cursor) {
 async function readDatabase(id, cursor) {
   const database = await request('GET', `/databases/${id}`)
   const [dataSource, ...otherDataSources] = database.data_sources
+  if (!dataSource) throw new Error(`The Notion database ${id} has no data source the integration can read.`)
+
   const rows = await queryRows(dataSource.id, cursor)
 
   return {
