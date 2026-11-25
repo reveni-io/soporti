@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const run = vi.fn()
-const forceFlush = vi.fn(async () => {})
-let traceCounter = 0
-vi.mock('@openai/agents', async importOriginal => ({
-  ...(await importOriginal()),
-  run,
-  generateTraceId: () => `trace_${String((traceCounter += 1)).padStart(32, '0')}`,
-  getGlobalTraceProvider: () => ({ forceFlush }),
-}))
+vi.mock('@openai/agents', async importOriginal => ({ ...(await importOriginal()), run }))
 
 const createAgent = vi.fn(async (sources, profile, options) => ({ sources, profile, options }))
 vi.mock('../agent/assistant.js', () => ({ createAgent }))
@@ -30,18 +23,15 @@ vi.mock('../db/app-config.js', () => ({
 }))
 
 const listDatasetItems = vi.fn()
-const linkDatasetRunItem = vi.fn(async () => {})
 const fetchExperimentPrompt = vi.fn()
 vi.mock('../langfuse/sdk.js', async importOriginal => ({
   ...(await importOriginal()),
   createLangfuseClient: vi.fn(config => ({ host: config.host })),
   listDatasetItems,
-  linkDatasetRunItem,
   fetchExperimentPrompt,
 }))
 
 const { _resetLangfuseSettingsCacheForTests } = await import('../langfuse/settings.js')
-const { langfuseTraceId } = await import('../langfuse/client.js')
 const { claimExperimentSlot, prepareExperiment, releaseExperimentSlot, startExperiment } = await import('./runner.js')
 
 const CONFIGURED = {
@@ -51,8 +41,14 @@ const CONFIGURED = {
 }
 const COMPACT_CONFIG = { sections: { core_guidelines: 'Short rules.' } }
 
+const DATASET_ID = 'dataset-1'
+
 function datasetItem(id, input, status = 'ACTIVE') {
-  return { id, input, status }
+  return { id, datasetId: DATASET_ID, input, status }
+}
+
+function tracedExperiments() {
+  return traceAgentRun.mock.calls.map(([options]) => options.experiment)
 }
 
 const QUESTION_ITEMS = [
@@ -68,7 +64,6 @@ const REQUEST = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  traceCounter = 0
   Object.keys(storedConfig).forEach(key => delete storedConfig[key])
   Object.assign(storedConfig, CONFIGURED)
   _resetLangfuseSettingsCacheForTests()
@@ -93,6 +88,14 @@ describe('prepareExperiment', () => {
     expect(compact.runName.slice(-19)).toBe(baseline.runName.slice(-19))
     expect(fetchExperimentPrompt).toHaveBeenCalledTimes(1)
     expect(prepared.value.items.map(item => item.id)).toEqual(['item-1', 'item-2'])
+  })
+
+  it('gives each run its own experiment', async () => {
+    const prepared = await prepareExperiment(REQUEST)
+
+    const ids = prepared.value.runs.map(variantRun => variantRun.experimentId)
+    expect(ids).toEqual([expect.any(String), expect.any(String)])
+    expect(new Set(ids).size).toBe(2)
   })
 
   it('skips archived items and items whose input is not a question with sources', async () => {
@@ -170,7 +173,7 @@ async function runToCompletion(plan) {
 }
 
 describe('startExperiment', () => {
-  it('runs every item under every variant with a read-only agent and links each trace to its run', async () => {
+  it('runs every item under every variant with a read-only agent and traces each run as its experiment item', async () => {
     const { value: plan } = await prepareExperiment(REQUEST)
 
     await runToCompletion(plan)
@@ -186,15 +189,13 @@ describe('startExperiment', () => {
       [['integration:notion'], 'tech', { sections: COMPACT_CONFIG.sections, tools: {} }],
     ])
 
-    const tracedIds = traceAgentRun.mock.calls.map(([options]) => options.traceId)
-    expect(linkDatasetRunItem.mock.calls.map(([, link]) => [link.runName, link.datasetItemId, link.traceId])).toEqual([
-      [plan.runs[0].runName, 'item-1', langfuseTraceId(tracedIds[0])],
-      [plan.runs[1].runName, 'item-1', langfuseTraceId(tracedIds[1])],
-      [plan.runs[0].runName, 'item-2', langfuseTraceId(tracedIds[2])],
-      [plan.runs[1].runName, 'item-2', langfuseTraceId(tracedIds[3])],
+    const [baseline, compact] = plan.runs
+    expect(tracedExperiments().map(({ id, name, datasetId, itemId }) => [id, name, datasetId, itemId])).toEqual([
+      [baseline.experimentId, baseline.runName, DATASET_ID, 'item-1'],
+      [compact.experimentId, compact.runName, DATASET_ID, 'item-1'],
+      [baseline.experimentId, baseline.runName, DATASET_ID, 'item-2'],
+      [compact.experimentId, compact.runName, DATASET_ID, 'item-2'],
     ])
-    expect(new Set(tracedIds).size).toBe(4)
-    expect(forceFlush).toHaveBeenCalledTimes(4)
   })
 
   it('gives both variants of an item the same input, built once', async () => {
@@ -220,18 +221,16 @@ describe('startExperiment', () => {
     ])
   })
 
-  it('still links a failed run and keeps going when a link fails', async () => {
+  it('keeps going after a failed run', async () => {
     const { value: plan } = await prepareExperiment(REQUEST)
     run.mockRejectedValueOnce(new Error('model unavailable'))
-    linkDatasetRunItem.mockRejectedValueOnce(Object.assign(new Error('bad gateway'), { statusCode: 502 }))
 
     await runToCompletion(plan)
 
     expect(run).toHaveBeenCalledTimes(4)
-    expect(linkDatasetRunItem).toHaveBeenCalledTimes(4)
   })
 
-  it('stops waiting for a run that never ends and links it anyway', async () => {
+  it('stops waiting for a run that never ends and moves on to the next item', async () => {
     vi.useFakeTimers()
     const { value: plan } = await prepareExperiment({ ...REQUEST, variants: [{ baseline: true }] })
     run.mockImplementationOnce(() => new Promise(() => {}))
@@ -242,7 +241,7 @@ describe('startExperiment', () => {
     await vi.waitFor(() => expect(claimExperimentSlot()).toBe(true))
     releaseExperimentSlot()
 
-    expect(linkDatasetRunItem).toHaveBeenCalledTimes(2)
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it('frees the slot and swallows the failure when the job itself fails', async () => {
@@ -274,15 +273,7 @@ describe('startExperiment run details', () => {
       [plan.runs[0].runName, 'Why did order 42 fail?'],
       [plan.runs[0].runName, 'Who owns refunds?'],
     ])
-    expect(linkDatasetRunItem.mock.calls[0][1].metadata).toEqual({ promptVersion: 5, variant: 'compact' })
-  })
-
-  it('flushes the traces before linking them', async () => {
-    const { value: plan } = await prepareExperiment({ ...REQUEST, variants: [{ baseline: true }] })
-
-    await runToCompletion(plan)
-
-    expect(forceFlush.mock.invocationCallOrder[0]).toBeLessThan(linkDatasetRunItem.mock.invocationCallOrder[0])
+    expect(tracedExperiments()[0].metadata).toEqual({ promptVersion: 5, variant: 'compact' })
   })
 
   it('asks the knowledge base with the question and runs without similar cases when it is down', async () => {
@@ -293,17 +284,16 @@ describe('startExperiment run details', () => {
 
     expect(searchSimilarCases).toHaveBeenNthCalledWith(1, 'Why did order 42 fail?')
     expect(run).toHaveBeenCalledTimes(2)
-    expect(linkDatasetRunItem).toHaveBeenCalledTimes(2)
   })
 
-  it('skips the link of a variant whose agent could not be built and runs the rest', async () => {
+  it('skips a variant whose agent could not be built and runs the rest', async () => {
     const { value: plan } = await prepareExperiment(REQUEST)
     createAgent.mockRejectedValueOnce(new Error('A read-only agent was given write tools: post_slack_message.'))
 
     await runToCompletion(plan)
 
     expect(run).toHaveBeenCalledTimes(3)
-    expect(linkDatasetRunItem.mock.calls.map(([, link]) => [link.runName, link.datasetItemId])).toEqual([
+    expect(tracedExperiments().map(({ name, itemId }) => [name, itemId])).toEqual([
       [plan.runs[1].runName, 'item-1'],
       [plan.runs[0].runName, 'item-2'],
       [plan.runs[1].runName, 'item-2'],

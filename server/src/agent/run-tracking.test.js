@@ -159,14 +159,41 @@ describe('traceAgentRun', () => {
     expect(endedSpans[0].traceMetadata).toEqual(metadata)
   })
 
-  it.each([
-    { kind: 'the given trace id', traceId: 'trace_0123456789abcdef0123456789abcdef', matches: true },
-    { kind: 'a fresh trace id when none is given', traceId: undefined, matches: false },
-  ])('runs under $kind', async ({ traceId, matches }) => {
-    await traceAgentRun({ sessionId: 'conv-1', traceId }, async () => runWithOneSpan())
+  it('runs an experiment item under its own root span and stamps the experiment on every span', async () => {
+    const experiment = {
+      id: 'exp-1',
+      name: 'ab [compact] 2026-11-25T12:00:00',
+      datasetId: 'dataset-1',
+      itemId: 'item-1',
+      metadata: { variant: 'compact', promptVersion: 5 },
+    }
 
-    expect(endedSpans[0].traceId).toMatch(/^trace_[0-9a-f]{32}$/)
-    expect(endedSpans[0].traceId === traceId).toBe(matches)
+    const result = await traceAgentRun({ sessionId: 'ab', question: 'Why?', experiment }, async () => runWithOneSpan())
+
+    const [step, root] = endedSpans
+    expect(result).toBe('answer')
+    expect(root.spanData).toEqual({ type: 'custom', name: 'experiment-item-run', data: {} })
+    expect(root.parentId).toBeNull()
+    expect(step.parentId).toBe(root.spanId)
+    for (const span of endedSpans) {
+      expect(span.traceMetadata).toEqual({
+        sessionId: 'ab',
+        question: 'Why?',
+        experimentId: 'exp-1',
+        experimentName: 'ab [compact] 2026-11-25T12:00:00',
+        experimentDatasetId: 'dataset-1',
+        experimentItemId: 'item-1',
+        experimentMetadata: JSON.stringify({ variant: 'compact', promptVersion: 5 }),
+        experimentRootSpanId: root.spanId,
+      })
+    }
+  })
+
+  it('runs a normal run without an extra root span', async () => {
+    await traceAgentRun({ sessionId: 'conv-1' }, async () => runWithOneSpan())
+
+    expect(endedSpans).toHaveLength(1)
+    expect(endedSpans[0].parentId).toBeNull()
   })
 
   it('lets the run error through unchanged', async () => {

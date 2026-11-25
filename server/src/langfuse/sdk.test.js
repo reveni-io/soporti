@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const promptGet = vi.fn()
 const listItems = vi.fn()
-const createRunItem = vi.fn()
 const LangfuseClient = vi.fn(function LangfuseClient(params) {
   this.params = params
   this.prompt = { get: promptGet }
-  this.api = { datasetItems: { list: listItems }, datasetRunItems: { create: createRunItem } }
+  this.api = { datasetItems: { list: listItems } }
 })
 vi.mock('@langfuse/client', () => ({ LangfuseClient }))
 
@@ -17,7 +16,6 @@ const {
   createLangfuseClient,
   describeError,
   fetchExperimentPrompt,
-  linkDatasetRunItem,
   isLangfuseNotFound,
   listDatasetItems,
   EXPERIMENT_PROMPT_NAME,
@@ -81,16 +79,6 @@ describe('listDatasetItems on an empty page', () => {
       items: [],
       hasMorePages: false,
     })
-  })
-})
-
-describe('linkDatasetRunItem', () => {
-  it('links the trace to the run without retrying the write', async () => {
-    const link = { runName: 'r [compact] t', datasetItemId: 'item-1', traceId: 'abc', metadata: { variant: 'compact' } }
-
-    await linkDatasetRunItem(createLangfuseClient({}), link)
-
-    expect(createRunItem).toHaveBeenCalledWith(link, expect.objectContaining({ maxRetries: 0 }))
   })
 })
 
