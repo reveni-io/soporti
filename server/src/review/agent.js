@@ -314,7 +314,7 @@ export async function runReviewAgent({
     const { result } = await trackAgentRun(
       { channel, subject, failureReason: runResult => (runResult?.finalOutput ? null : NO_OUTPUT_ERROR) },
       () =>
-        traceAgentRun({ sessionId: subject, question: `${name} on ${subject}` }, () =>
+        traceAgentRun({ name, channel, sessionId: subject, question: `${name} on ${subject}` }, () =>
           run(agent, input, {
             maxTurns,
             signal,

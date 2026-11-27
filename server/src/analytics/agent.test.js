@@ -163,6 +163,8 @@ describe('generateChart', () => {
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'analytics', subject: CARD_ID, userId: 7 })
     expect(traceAgentRun).toHaveBeenCalledTimes(1)
     expect(traceAgentRun.mock.calls[0][0]).toEqual({
+      name: 'Analytics chart',
+      channel: 'analytics',
       sessionId: CARD_ID,
       userId: 7,
       question: 'Returns per week over the last 3 months',

@@ -240,7 +240,13 @@ describe('POST /api/chat', () => {
 
     expect(withTrace).toHaveBeenCalledTimes(1)
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: TEST_CONVERSATION_ID, userId: '1', question: 'why did the sync fail?' },
+      metadata: {
+        name: 'test-agent',
+        channel: 'web',
+        sessionId: TEST_CONVERSATION_ID,
+        userId: '1',
+        question: 'why did the sync fail?',
+      },
     })
   })
 

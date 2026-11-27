@@ -129,7 +129,13 @@ export async function processMessage({
   async function runTurn(prevResponseId) {
     resetTurn(turn)
 
-    const trace = { sessionId: conversationId, userId, question: displayQuestion ?? message }
+    const trace = {
+      name: agent.name,
+      channel: AGENT_CHANNEL_SLACK,
+      sessionId: conversationId,
+      userId,
+      question: displayQuestion ?? message,
+    }
     const stream = await traceAgentRun(trace, () =>
       run(agent, agentInput, {
         stream: true,

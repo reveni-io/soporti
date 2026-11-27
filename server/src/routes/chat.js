@@ -383,7 +383,7 @@ function forwardStreamEvent(event, turn) {
 }
 
 async function runAgentTurn(agent, agentInput, { session, previousResponseId, turn, trace }) {
-  const stream = await traceAgentRun(trace, () =>
+  const stream = await traceAgentRun({ ...trace, name: agent.name, channel: AGENT_CHANNEL_WEB }, () =>
     run(agent, agentInput, {
       stream: true,
       maxTurns: config.agent.maxIterations,

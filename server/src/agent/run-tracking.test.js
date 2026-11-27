@@ -142,8 +142,22 @@ describe('traceAgentRun', () => {
   it.each([
     {
       kind: 'every field as a string',
-      fields: { sessionId: 'conv-1', userId: 7, question: 'Why did order 42 fail?', effort: 'medium' },
-      metadata: { sessionId: 'conv-1', userId: '7', question: 'Why did order 42 fail?', effort: 'medium' },
+      fields: {
+        name: 'Soporti',
+        channel: 'web',
+        sessionId: 'conv-1',
+        userId: 7,
+        question: 'Why did order 42 fail?',
+        effort: 'medium',
+      },
+      metadata: {
+        name: 'Soporti',
+        channel: 'web',
+        sessionId: 'conv-1',
+        userId: '7',
+        question: 'Why did order 42 fail?',
+        effort: 'medium',
+      },
     },
     {
       kind: 'only the fields that have a value',

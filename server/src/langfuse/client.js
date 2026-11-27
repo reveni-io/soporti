@@ -139,6 +139,10 @@ function stringAttribute(key, value) {
   return { key, value: { stringValue: value } }
 }
 
+function stringArrayAttribute(key, values) {
+  return { key, value: { arrayValue: { values: values.map(value => ({ stringValue: value })) } } }
+}
+
 function intAttribute(key, value) {
   return { key, value: { intValue: value } }
 }
@@ -268,6 +272,16 @@ function traceIdAttributes(span, metadataOnly) {
     .map(([key, value]) => stringAttribute(key, value.slice(0, MAX_TRACE_ID_CHARS)))
 }
 
+function traceLabelAttributes(span) {
+  const name = String(span.traceMetadata?.name ?? '').trim()
+  const channel = String(span.traceMetadata?.channel ?? '').trim()
+
+  return [
+    ...(name ? [stringAttribute('langfuse.trace.name', name.slice(0, MAX_TRACE_ID_CHARS))] : []),
+    ...(channel ? [stringArrayAttribute('langfuse.trace.tags', [channel.slice(0, MAX_TRACE_ID_CHARS)])] : []),
+  ]
+}
+
 function hexId(id, length) {
   return createHash('sha256').update(id).digest('hex').slice(0, length)
 }
@@ -288,6 +302,7 @@ function toOtlpSpan(span, metadataOnly) {
     ...contentAttributes(fields, metadataOnly),
     ...rootContentAttributes(span, metadataOnly),
     ...traceIdAttributes(span, metadataOnly),
+    ...traceLabelAttributes(span),
     ...errorAttributes(failure),
   ]
 

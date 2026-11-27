@@ -413,7 +413,12 @@ describe('runReviewAgent', () => {
 
     expect(mockWithTrace).toHaveBeenCalledTimes(1)
     expect(mockWithTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'acme-io/app#7', question: 'Soporti Review Finder (security) on acme-io/app#7' },
+      metadata: {
+        name: 'Soporti Review Finder (security)',
+        channel: 'pr_review',
+        sessionId: 'acme-io/app#7',
+        question: 'Soporti Review Finder (security) on acme-io/app#7',
+      },
     })
   })
 

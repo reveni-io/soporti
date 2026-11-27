@@ -154,6 +154,8 @@ describe('composeVideo', () => {
     expect(trackAgentRun.mock.calls[0][0]).toMatchObject({ channel: 'video', subject: VIDEO_ID, userId: 7 })
     expect(traceAgentRun).toHaveBeenCalledTimes(1)
     expect(traceAgentRun.mock.calls[0][0]).toEqual({
+      name: 'Video composer',
+      channel: 'video',
       sessionId: VIDEO_ID,
       userId: 7,
       question: 'Refunds in one click',

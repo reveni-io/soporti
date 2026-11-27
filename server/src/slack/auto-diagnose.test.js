@@ -124,7 +124,7 @@ describe('diagnoseTicket', () => {
 
     expect(withTrace).toHaveBeenCalledTimes(1)
     expect(withTrace).toHaveBeenCalledWith('Agent workflow', expect.any(Function), {
-      metadata: { sessionId: 'Rec01', question: 'Checkout fails' },
+      metadata: { name: 'agent', channel: 'auto_diagnose', sessionId: 'Rec01', question: 'Checkout fails' },
     })
   })
 
