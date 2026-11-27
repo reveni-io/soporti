@@ -10,6 +10,7 @@ const CHANNEL_LABELS = {
   video_storyboard: 'Video storyboards',
   video: 'Video generation',
   analytics: 'Analytics charts',
+  experiment: 'Prompt experiments',
 }
 
 const SOURCE_LABELS = {

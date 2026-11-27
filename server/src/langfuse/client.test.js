@@ -141,9 +141,15 @@ describe('exportSpans mapping', () => {
       },
     },
     {
+      kind: 'custom',
+      data: { type: 'custom', name: 'experiment-item-run', data: { secret: SENTINEL } },
+      name: 'experiment-item-run',
+      expected: { 'langfuse.observation.type': 'span' },
+    },
+    {
       kind: 'unmapped type',
-      data: { type: 'custom', name: 'c', data: { secret: SENTINEL } },
-      name: 'custom',
+      data: { type: 'handoff', from_agent: 'a', to_agent: 'b' },
+      name: 'handoff',
       expected: { 'langfuse.observation.type': 'span' },
     },
   ])('maps a $kind span to its Langfuse observation', async ({ data, name, expected }) => {
@@ -396,6 +402,74 @@ describe('exportSpans usage details', () => {
 
     const buckets = Object.values(sentUsageDetails())
     expect(buckets.reduce((total, tokens) => total + tokens, 0)).toBe(1234 + 56)
+  })
+})
+
+describe('exportSpans experiment items', () => {
+  const ROOT_ID = 'span_exproot000000000000000000'
+  const EXPERIMENT = {
+    sessionId: 'ab [compact] 2026-11-25T12:00:00',
+    question: 'Why did order 42 fail?',
+    experimentId: 'exp-1',
+    experimentName: 'ab [compact] 2026-11-25T12:00:00',
+    experimentDatasetId: 'dataset-1',
+    experimentItemId: 'item-1',
+    experimentMetadata: '{"variant":"compact","promptVersion":5}',
+    experimentRootSpanId: ROOT_ID,
+  }
+
+  function experimentSpans() {
+    return [
+      buildSpan(
+        { type: 'generation', model: 'anthropic.messages:claude-haiku-5-5', input: [], output: [] },
+        { parentId: 'span_agent0000000000000000000', traceMetadata: EXPERIMENT }
+      ),
+      buildSpan(
+        { type: 'agent', name: 'Soporti' },
+        { spanId: 'span_agent0000000000000000000', parentId: ROOT_ID, traceMetadata: EXPERIMENT }
+      ),
+      buildSpan(
+        { type: 'custom', name: 'experiment-item-run', data: {} },
+        { spanId: ROOT_ID, traceMetadata: EXPERIMENT }
+      ),
+    ]
+  }
+
+  it('stamps the experiment, its dataset item and the item root on every span', async () => {
+    await exportSpans(experimentSpans())
+
+    const spans = sentSpans()
+    const root = spans.find(span => !span.parentSpanId)
+    for (const span of spans) {
+      expect(attributesOf(span)).toMatchObject({
+        'langfuse.experiment.id': 'exp-1',
+        'langfuse.experiment.name': 'ab [compact] 2026-11-25T12:00:00',
+        'langfuse.experiment.dataset.id': 'dataset-1',
+        'langfuse.experiment.item.id': 'item-1',
+        'langfuse.experiment.metadata': '{"variant":"compact","promptVersion":5}',
+        'langfuse.experiment.item.root_observation_id': root.spanId,
+      })
+    }
+  })
+
+  it('marks only the item root as an experiment run and gives it the question', async () => {
+    await exportSpans(experimentSpans())
+
+    const spans = sentSpans()
+    const root = spans.find(span => !span.parentSpanId)
+    expect(attributesOf(root)).toMatchObject({
+      'langfuse.environment': 'sdk-experiment',
+      'langfuse.observation.input': 'Why did order 42 fail?',
+    })
+    const children = spans.filter(span => span.parentSpanId)
+    for (const child of children) expect(attributesOf(child)).not.toHaveProperty('langfuse.environment')
+  })
+
+  it('stamps nothing of an experiment on a normal run', async () => {
+    await exportSpans([buildSpan({ type: 'agent', name: 'Soporti' }, { traceMetadata: { sessionId: 'conv-1' } })])
+
+    const keys = Object.keys(attributesOf(sentSpans()[0]))
+    expect(keys.filter(key => key.startsWith('langfuse.experiment') || key === 'langfuse.environment')).toEqual([])
   })
 })
 
